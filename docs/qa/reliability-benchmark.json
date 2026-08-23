@@ -1,0 +1,559 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-22T22:06:01.698Z",
+  "suite": "reliability-benchmark",
+  "cold": {
+    "runs": 10,
+    "samples": [
+      {
+        "startupReadyAt": 1787436362798.0999,
+        "commandPaletteMs": 55,
+        "quickOpenMs": 18.899999976158142,
+        "editorMs": 328.30000001192093,
+        "terminalMs": 341.5999999642372,
+        "githubMs": 336.60000002384186,
+        "databaseMs": 430.30000001192093,
+        "sqliteQueryMs": 17.299999952316284,
+        "navigationConnected": true,
+        "startupMs": 1084.099853515625,
+        "rendererHeapBytes": 17305732,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 40.099999999999994,
+          "rssBytes": 657686528
+        },
+        "shutdownMs": 144.23158300000068
+      },
+      {
+        "startupReadyAt": 1787436367353.4,
+        "commandPaletteMs": 50.19999998807907,
+        "quickOpenMs": 18.600000023841858,
+        "editorMs": 323.60000002384186,
+        "terminalMs": 343.10000002384186,
+        "githubMs": 337.69999998807907,
+        "databaseMs": 414.39999997615814,
+        "sqliteQueryMs": 18.400000035762787,
+        "navigationConnected": true,
+        "startupMs": 805.39990234375,
+        "rendererHeapBytes": 17323992,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 9.3,
+          "rssBytes": 653475840
+        },
+        "shutdownMs": 158.8542499999985
+      },
+      {
+        "startupReadyAt": 1787436371916.2,
+        "commandPaletteMs": 47.19999998807907,
+        "quickOpenMs": 17.399999976158142,
+        "editorMs": 325.5,
+        "terminalMs": 342.10000002384186,
+        "githubMs": 332.5,
+        "databaseMs": 412.5999999642372,
+        "sqliteQueryMs": 17.80000001192093,
+        "navigationConnected": true,
+        "startupMs": 814.199951171875,
+        "rendererHeapBytes": 17318004,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 9.7,
+          "rssBytes": 654901248
+        },
+        "shutdownMs": 152.34570900000108
+      },
+      {
+        "startupReadyAt": 1787436376465.2002,
+        "commandPaletteMs": 47.30000001192093,
+        "quickOpenMs": 21.19999998807907,
+        "editorMs": 326.10000002384186,
+        "terminalMs": 319.69999998807907,
+        "githubMs": 327,
+        "databaseMs": 415.69999998807907,
+        "sqliteQueryMs": 17.400000035762787,
+        "navigationConnected": true,
+        "startupMs": 816.2001953125,
+        "rendererHeapBytes": 17226848,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 9.600000000000001,
+          "rssBytes": 657309696
+        },
+        "shutdownMs": 160.71979099999953
+      },
+      {
+        "startupReadyAt": 1787436381030.2002,
+        "commandPaletteMs": 33.90000003576279,
+        "quickOpenMs": 16.900000035762787,
+        "editorMs": 321.80000001192093,
+        "terminalMs": 343.10000002384186,
+        "githubMs": 323.89999997615814,
+        "databaseMs": 414.5,
+        "sqliteQueryMs": 18.5,
+        "navigationConnected": true,
+        "startupMs": 852.2001953125,
+        "rendererHeapBytes": 17330836,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 11.5,
+          "rssBytes": 657850368
+        },
+        "shutdownMs": 151.86612500000047
+      },
+      {
+        "startupReadyAt": 1787436385566.5,
+        "commandPaletteMs": 33.39999997615814,
+        "quickOpenMs": 22.30000001192093,
+        "editorMs": 323.60000002384186,
+        "terminalMs": 324.2999999523163,
+        "githubMs": 326.60000002384186,
+        "databaseMs": 409.60000002384186,
+        "sqliteQueryMs": 17.399999976158142,
+        "navigationConnected": true,
+        "startupMs": 820.5,
+        "rendererHeapBytes": 17237696,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 10.2,
+          "rssBytes": 654852096
+        },
+        "shutdownMs": 152.72087499999907
+      },
+      {
+        "startupReadyAt": 1787436390098.5999,
+        "commandPaletteMs": 35.90000003576279,
+        "quickOpenMs": 18.099999964237213,
+        "editorMs": 324.19999998807907,
+        "terminalMs": 320.80000001192093,
+        "githubMs": 325.0999999642372,
+        "databaseMs": 416,
+        "sqliteQueryMs": 17.600000023841858,
+        "navigationConnected": true,
+        "startupMs": 834.599853515625,
+        "rendererHeapBytes": 17247684,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 10.399999999999999,
+          "rssBytes": 654983168
+        },
+        "shutdownMs": 145.61570800000118
+      },
+      {
+        "startupReadyAt": 1787436394634.5999,
+        "commandPaletteMs": 34.39999997615814,
+        "quickOpenMs": 17.69999998807907,
+        "editorMs": 324.4000000357628,
+        "terminalMs": 339.2999999523163,
+        "githubMs": 337.9000000357628,
+        "databaseMs": 416.69999998807907,
+        "sqliteQueryMs": 17.899999976158142,
+        "navigationConnected": true,
+        "startupMs": 836.599853515625,
+        "rendererHeapBytes": 17333124,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 7.7,
+          "rssBytes": 654983168
+        },
+        "shutdownMs": 152.01916599999822
+      },
+      {
+        "startupReadyAt": 1787436399220.4,
+        "commandPaletteMs": 33.5,
+        "quickOpenMs": 21.399999976158142,
+        "editorMs": 328,
+        "terminalMs": 340.39999997615814,
+        "githubMs": 338.80000001192093,
+        "databaseMs": 415.80000001192093,
+        "sqliteQueryMs": 17.599999964237213,
+        "navigationConnected": true,
+        "startupMs": 849.39990234375,
+        "rendererHeapBytes": 17318272,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 40,
+          "rssBytes": 655540224
+        },
+        "shutdownMs": 157.45799999999872
+      },
+      {
+        "startupReadyAt": 1787436403761.9,
+        "commandPaletteMs": 35,
+        "quickOpenMs": 17.900000035762787,
+        "editorMs": 323.19999998807907,
+        "terminalMs": 336.69999998807907,
+        "githubMs": 344.30000001192093,
+        "databaseMs": 412.39999997615814,
+        "sqliteQueryMs": 18.200000047683716,
+        "navigationConnected": true,
+        "startupMs": 803.89990234375,
+        "rendererHeapBytes": 17333900,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 9.600000000000001,
+          "rssBytes": 656424960
+        },
+        "shutdownMs": 153.7988750000004
+      }
+    ],
+    "summary": {
+      "startupMs": {
+        "median": 820.5,
+        "p95": 1084.099853515625,
+        "min": 803.89990234375,
+        "max": 1084.099853515625
+      },
+      "commandPaletteMs": {
+        "median": 35,
+        "p95": 55,
+        "min": 33.39999997615814,
+        "max": 55
+      },
+      "quickOpenMs": {
+        "median": 18.099999964237213,
+        "p95": 22.30000001192093,
+        "min": 16.900000035762787,
+        "max": 22.30000001192093
+      },
+      "editorMs": {
+        "median": 324.19999998807907,
+        "p95": 328.30000001192093,
+        "min": 321.80000001192093,
+        "max": 328.30000001192093
+      },
+      "terminalMs": {
+        "median": 339.2999999523163,
+        "p95": 343.10000002384186,
+        "min": 319.69999998807907,
+        "max": 343.10000002384186
+      },
+      "githubMs": {
+        "median": 332.5,
+        "p95": 344.30000001192093,
+        "min": 323.89999997615814,
+        "max": 344.30000001192093
+      },
+      "databaseMs": {
+        "median": 414.5,
+        "p95": 430.30000001192093,
+        "min": 409.60000002384186,
+        "max": 430.30000001192093
+      },
+      "sqliteQueryMs": {
+        "median": 17.600000023841858,
+        "p95": 18.5,
+        "min": 17.299999952316284,
+        "max": 18.5
+      },
+      "shutdownMs": {
+        "median": 152.34570900000108,
+        "p95": 160.71979099999953,
+        "min": 144.23158300000068,
+        "max": 160.71979099999953
+      },
+      "rendererHeapBytes": {
+        "median": 17318004,
+        "p95": 17333900,
+        "min": 17226848,
+        "max": 17333900
+      },
+      "idle": {
+        "processCount": {
+          "median": 7,
+          "p95": 7,
+          "min": 7,
+          "max": 7
+        },
+        "cpuPercent": {
+          "median": 9.7,
+          "p95": 40.099999999999994,
+          "min": 7.7,
+          "max": 40.099999999999994
+        },
+        "rssBytes": {
+          "median": 654983168,
+          "p95": 657850368,
+          "min": 653475840,
+          "max": 657850368
+        }
+      }
+    }
+  },
+  "warm": {
+    "runs": 10,
+    "samples": [
+      {
+        "startupReadyAt": 1787436408319.5999,
+        "commandPaletteMs": 46.90000003576279,
+        "quickOpenMs": 16.69999998807907,
+        "editorMs": 326.89999997615814,
+        "terminalMs": 340.30000001192093,
+        "githubMs": 340.39999997615814,
+        "databaseMs": 420,
+        "sqliteQueryMs": 17.30000001192093,
+        "navigationConnected": true,
+        "startupMs": 820.599853515625,
+        "rendererHeapBytes": 17335304,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 10.2,
+          "rssBytes": 654753792
+        },
+        "shutdownMs": 160.34616700000333
+      },
+      {
+        "startupReadyAt": 1787436412892.3,
+        "commandPaletteMs": 30.5,
+        "quickOpenMs": 62.10000002384186,
+        "editorMs": 325.9000000357628,
+        "terminalMs": 321.89999997615814,
+        "githubMs": 331.10000002384186,
+        "databaseMs": 0.2999999523162842,
+        "sqliteQueryMs": 16.80000001192093,
+        "navigationConnected": true,
+        "startupMs": 821.300048828125,
+        "rendererHeapBytes": 16221080,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 0.4,
+          "rssBytes": 649887744
+        },
+        "shutdownMs": 150.09537499999715
+      },
+      {
+        "startupReadyAt": 1787436417071,
+        "commandPaletteMs": 30.400000035762787,
+        "quickOpenMs": 36,
+        "editorMs": 329.39999997615814,
+        "terminalMs": 333.7000000476837,
+        "githubMs": 337.69999998807907,
+        "databaseMs": 0.19999998807907104,
+        "sqliteQueryMs": 17.400000035762787,
+        "navigationConnected": true,
+        "startupMs": 823,
+        "rendererHeapBytes": 16240792,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 0.9,
+          "rssBytes": 650674176
+        },
+        "shutdownMs": 157.69779199999903
+      },
+      {
+        "startupReadyAt": 1787436421256.7002,
+        "commandPaletteMs": 29.5,
+        "quickOpenMs": 37.5,
+        "editorMs": 325,
+        "terminalMs": 320.30000001192093,
+        "githubMs": 331.19999998807907,
+        "databaseMs": 0.10000002384185791,
+        "sqliteQueryMs": 19.400000035762787,
+        "navigationConnected": true,
+        "startupMs": 820.7001953125,
+        "rendererHeapBytes": 16201616,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 13.3,
+          "rssBytes": 650821632
+        },
+        "shutdownMs": 147.88595799999894
+      },
+      {
+        "startupReadyAt": 1787436425428.4,
+        "commandPaletteMs": 30.399999976158142,
+        "quickOpenMs": 33.69999998807907,
+        "editorMs": 339.39999997615814,
+        "terminalMs": 348.39999997615814,
+        "githubMs": 334,
+        "databaseMs": 0.20000004768371582,
+        "sqliteQueryMs": 18.30000001192093,
+        "navigationConnected": true,
+        "startupMs": 826.39990234375,
+        "rendererHeapBytes": 16283184,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 0.7,
+          "rssBytes": 651476992
+        },
+        "shutdownMs": 147.55195799999638
+      },
+      {
+        "startupReadyAt": 1787436429624.9001,
+        "commandPaletteMs": 30,
+        "quickOpenMs": 34.80000001192093,
+        "editorMs": 327.10000002384186,
+        "terminalMs": 331.5999999642372,
+        "githubMs": 332.10000002384186,
+        "databaseMs": 0.19999998807907104,
+        "sqliteQueryMs": 18.900000035762787,
+        "navigationConnected": true,
+        "startupMs": 808.900146484375,
+        "rendererHeapBytes": 16262100,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 10.8,
+          "rssBytes": 654147584
+        },
+        "shutdownMs": 144.88824999998906
+      },
+      {
+        "startupReadyAt": 1787436433793,
+        "commandPaletteMs": 31.299999952316284,
+        "quickOpenMs": 35.30000001192093,
+        "editorMs": 332.39999997615814,
+        "terminalMs": 335.5,
+        "githubMs": 338.4000000357628,
+        "databaseMs": 0.19999998807907104,
+        "sqliteQueryMs": 19.200000047683716,
+        "navigationConnected": true,
+        "startupMs": 816,
+        "rendererHeapBytes": 16276676,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 0.8,
+          "rssBytes": 651804672
+        },
+        "shutdownMs": 146.432833999992
+      },
+      {
+        "startupReadyAt": 1787436437980.5,
+        "commandPaletteMs": 30.399999976158142,
+        "quickOpenMs": 39.30000001192093,
+        "editorMs": 336.69999998807907,
+        "terminalMs": 325.0999999642372,
+        "githubMs": 332.7000000476837,
+        "databaseMs": 0.2999999523162842,
+        "sqliteQueryMs": 17.5,
+        "navigationConnected": true,
+        "startupMs": 809.5,
+        "rendererHeapBytes": 16251200,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 0.6,
+          "rssBytes": 650657792
+        },
+        "shutdownMs": 150.48620800000208
+      },
+      {
+        "startupReadyAt": 1787436442190.7,
+        "commandPaletteMs": 30.400000035762787,
+        "quickOpenMs": 71,
+        "editorMs": 330.10000002384186,
+        "terminalMs": 324.0999999642372,
+        "githubMs": 334.5,
+        "databaseMs": 0.20000004768371582,
+        "sqliteQueryMs": 19.5,
+        "navigationConnected": true,
+        "startupMs": 850.699951171875,
+        "rendererHeapBytes": 16204152,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 0.9,
+          "rssBytes": 649822208
+        },
+        "shutdownMs": 152.33624999999302
+      },
+      {
+        "startupReadyAt": 1787436446380.7,
+        "commandPaletteMs": 32.30000001192093,
+        "quickOpenMs": 64.09999996423721,
+        "editorMs": 325.19999998807907,
+        "terminalMs": 322.69999998807907,
+        "githubMs": 331.5,
+        "databaseMs": 0.19999998807907104,
+        "sqliteQueryMs": 17.399999976158142,
+        "navigationConnected": true,
+        "startupMs": 806.699951171875,
+        "rendererHeapBytes": 16213680,
+        "idle": {
+          "processCount": 7,
+          "cpuPercent": 0.6,
+          "rssBytes": 651345920
+        },
+        "shutdownMs": 147.96270799999184
+      }
+    ],
+    "summary": {
+      "startupMs": {
+        "median": 820.599853515625,
+        "p95": 850.699951171875,
+        "min": 806.699951171875,
+        "max": 850.699951171875
+      },
+      "commandPaletteMs": {
+        "median": 30.400000035762787,
+        "p95": 46.90000003576279,
+        "min": 29.5,
+        "max": 46.90000003576279
+      },
+      "quickOpenMs": {
+        "median": 36,
+        "p95": 71,
+        "min": 16.69999998807907,
+        "max": 71
+      },
+      "editorMs": {
+        "median": 327.10000002384186,
+        "p95": 339.39999997615814,
+        "min": 325,
+        "max": 339.39999997615814
+      },
+      "terminalMs": {
+        "median": 325.0999999642372,
+        "p95": 348.39999997615814,
+        "min": 320.30000001192093,
+        "max": 348.39999997615814
+      },
+      "githubMs": {
+        "median": 332.7000000476837,
+        "p95": 340.39999997615814,
+        "min": 331.10000002384186,
+        "max": 340.39999997615814
+      },
+      "databaseMs": {
+        "median": 0.19999998807907104,
+        "p95": 420,
+        "min": 0.10000002384185791,
+        "max": 420
+      },
+      "sqliteQueryMs": {
+        "median": 17.5,
+        "p95": 19.5,
+        "min": 16.80000001192093,
+        "max": 19.5
+      },
+      "shutdownMs": {
+        "median": 147.96270799999184,
+        "p95": 160.34616700000333,
+        "min": 144.88824999998906,
+        "max": 160.34616700000333
+      },
+      "rendererHeapBytes": {
+        "median": 16240792,
+        "p95": 17335304,
+        "min": 16201616,
+        "max": 17335304
+      },
+      "idle": {
+        "processCount": {
+          "median": 7,
+          "p95": 7,
+          "min": 7,
+          "max": 7
+        },
+        "cpuPercent": {
+          "median": 0.8,
+          "p95": 13.3,
+          "min": 0.4,
+          "max": 13.3
+        },
+        "rssBytes": {
+          "median": 650821632,
+          "p95": 654753792,
+          "min": 649822208,
+          "max": 654753792
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+/* CodeMirror crea questi nodi in modo imperativo: il layout applicativo vive in Panda. */
+@layer base {
+  [data-database-editor-host] .cm-editor {
+    min-width: 0;
+    width: 100%;
+  }
+
+  [data-database-editor-host] .cm-lintRange-error {
+    text-decoration-color: var(--colors-state-error);
+  }
+
+  [data-database-editor-host] .cm-lint-marker-error {
+    border-bottom-color: var(--colors-state-error);
+  }
+
+  [data-database-editor-host] .cm-tooltip-lint {
+    border: 1px solid var(--colors-border-strong);
+    color: var(--colors-text-primary);
+    background: var(--colors-surface-raised);
+    box-shadow: var(--shadows-overlay);
+  }
+}

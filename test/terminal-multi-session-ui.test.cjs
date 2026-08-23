@@ -1,0 +1,62 @@
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const test = require('node:test')
+
+const projectRoot = path.join(__dirname, '..')
+const terminalWorkspace = fs.readFileSync(path.join(projectRoot, 'src/components/terminal-workspace.tsx'), 'utf8')
+const freeTerminal = fs.readFileSync(path.join(projectRoot, 'src/components/free-terminal.tsx'), 'utf8')
+
+test('FreeTerminal è un client isolato per sessionId e non crea PTY legacy', () => {
+  assert.match(freeTerminal, /sessionId: string/)
+  assert.match(freeTerminal, /shellSessions\.write\(sessionId, data\)/)
+  assert.match(freeTerminal, /shellSessions\.resize\(sessionId, nextDimensions\)/)
+  assert.match(freeTerminal, /shellSessions\.restart\(sessionId\)/)
+  assert.match(freeTerminal, /shellSessions\.resume\(sessionId\)/)
+  assert.match(freeTerminal, /createShellXtermOutputController/)
+  assert.match(freeTerminal, /shellSessions\.ready\(sessionId, message\)/)
+  assert.match(freeTerminal, /shellSessions\.ack\(sessionId, message\)/)
+  assert.match(freeTerminal, /shellSessions\.disconnect\(sessionId, outputConnection\)/)
+  assert.match(freeTerminal, /shellSessions\.focus\(sessionId\)/)
+  assert.match(freeTerminal, /shellSessions\.onData\(\(event\) => \{\s*if \(event\.sessionId !== sessionId\) return/)
+  assert.match(freeTerminal, /shellSessions\.onExit\(\(event\) => \{\s*if \(event\.sessionId !== sessionId\) return/)
+  assert.match(freeTerminal, /shellSessions\.onError\(\(event\) => \{\s*if \(event\.sessionId !== sessionId\) return[\s\S]*setTerminalFailure\(terminalFailureFromEvent\(event\)\)/)
+  assert.match(freeTerminal, /\{terminalFailure && <ErrorNotice[\s\S]*error=\{terminalFailure\.error\}/)
+  assert.match(freeTerminal, /terminalFailure\.recovery === 'resize' \? 'Adatta terminale'/)
+  const errorSubscriptionStart = freeTerminal.indexOf('shellSessions.onError')
+  const errorSubscriptionEnd = freeTerminal.indexOf('synchronizeOutput.current', errorSubscriptionStart)
+  const errorSubscription = freeTerminal.slice(errorSubscriptionStart, errorSubscriptionEnd)
+  assert.doesNotMatch(errorSubscription, /toast\.|reportUserError/)
+  assert.match(freeTerminal, /storageKey=\{`vincodelab\.terminal\.commands-width:\$\{workspace\}`\}/)
+  assert.doesNotMatch(freeTerminal, /window\.vincodeLab\.shell\./)
+  assert.doesNotMatch(freeTerminal, /shellSessions\.(?:create|list)\(/)
+  assert.ok(freeTerminal.indexOf('shellSessions.onData') < freeTerminal.indexOf('void resume().catch'), 'la subscription live deve precedere la richiesta snapshot')
+  assert.doesNotMatch(freeTerminal, /data\.slice\(0, remainingBytes\)/)
+  assert.doesNotMatch(freeTerminal, /MAX_PENDING_SHELL_OUTPUT_BYTES|pendingOutput|cancelAnimationFrame\(outputFrame/)
+  assert.match(freeTerminal, /snapshot\.truncated/)
+})
+
+test('TerminalWorkspace possiede lifecycle, limite e fallback delle sessioni', () => {
+  assert.match(terminalWorkspace, /const MAX_TERMINAL_SESSIONS = 8/)
+  assert.match(terminalWorkspace, /shellSessions\.list\(\)/)
+  assert.match(terminalWorkspace, /snapshot\.sessions\.length === 0[\s\S]*shellSessions\.create\(\)/)
+  assert.match(terminalWorkspace, /shellSessions\.focus\(sessionId\)/)
+  assert.match(terminalWorkspace, /shellSessions\.close\(sessionId\)/)
+  assert.match(terminalWorkspace, /result\.activeSessionId[\s\S]*mruSessionIds\.current\.find/)
+  for (const action of ['focus', 'next', 'previous', 'new', 'close']) {
+    assert.match(terminalWorkspace, new RegExp(`['"]${action}['"]`))
+  }
+  for (const status of ['starting', 'ready', 'exited', 'error']) {
+    assert.match(terminalWorkspace, new RegExp(`['"]${status}['"]`))
+  }
+})
+
+test('le tab Ark mantengono montati terminali e File remoti non attivi', () => {
+  assert.match(terminalWorkspace, /lazyMount=\{false\} unmountOnExit=\{false\}/)
+  assert.match(terminalWorkspace, /sessions\.map\(\(session\) => <Tabs\.Content[\s\S]*?<FreeTerminal/)
+  assert.match(terminalWorkspace, /sessionId=\{session\.sessionId\}/)
+  assert.match(terminalWorkspace, /active=\{active && tab === 'shell' && activeSessionId === session\.sessionId\}/)
+  assert.match(terminalWorkspace, /<Tabs\.Content value="remote"[^>]*>[\s\S]*?<RemoteFiles/)
+  assert.doesNotMatch(terminalWorkspace, /activeSessionId === session\.sessionId\s*&&\s*<FreeTerminal/)
+  assert.doesNotMatch(terminalWorkspace, /tab === 'remote'\s*&&\s*<RemoteFiles/)
+})

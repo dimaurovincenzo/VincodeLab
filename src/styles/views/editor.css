@@ -1,0 +1,50 @@
+@layer base {
+/* Integrazioni imperative CodeMirror: i nodi interni non sono renderizzati da React. */
+.codemirror-host .cm-editor { width: 100%; min-width: 0; min-height: 100%; color: var(--code-text); background: var(--code-surface); font-size: var(--type-body); }
+.codemirror-host .cm-scroller { overflow: auto; font-family: "SF Mono", Menlo, Monaco, Consolas, monospace; line-height: 1.55; }
+.codemirror-host .cm-gutters { border-right: 1px solid var(--code-line); color: var(--code-muted); background: var(--code-surface); }
+.codemirror-host .cm-activeLineGutter { color: var(--code-text); background: var(--surface-hover); }
+.codemirror-host .editor-minimap { width: 70px; border-left: 1px solid var(--code-line); background: var(--surface-container); }
+.codemirror-host .cm-minimap-overlay { border: 1px solid var(--brand); background: var(--code-selection); }
+.codemirror-host .cm-panels { border-bottom: 1px solid var(--code-line); color: var(--code-text); background: var(--surface-container); box-shadow: var(--elevation-1); }
+
+.codemirror-host .cm-media-preview { box-sizing: border-box; display: flex; min-width: 100%; min-height: 100%; align-items: center; justify-content: center; padding: var(--space-6); background: var(--code-surface); }
+.codemirror-host .cm-media-preview-image img { max-width: 100%; max-height: calc(100vh - 190px); border: 1px solid var(--code-line); border-radius: var(--radius-sm); box-shadow: var(--elevation-2); object-fit: contain; }
+.codemirror-host .cm-media-preview-pdf { align-items: stretch; padding: 0; }
+.codemirror-host .cm-media-preview-pdf embed { width: 100%; min-height: calc(100vh - 160px); border: 0; background: var(--surface-raised); }
+.codemirror-host .cm-media-preview-csv { display: block; overflow: auto; padding: var(--space-3); align-items: initial; justify-content: initial; }
+.codemirror-host .cm-media-preview-csv table { width: max-content; min-width: 100%; border-spacing: 0; border-collapse: separate; color: var(--code-text); font: var(--type-code) var(--font-code); }
+.codemirror-host .cm-media-preview-csv th,
+.codemirror-host .cm-media-preview-csv td { max-width: 360px; padding: var(--space-2); border-right: 1px solid var(--code-line); border-bottom: 1px solid var(--code-line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codemirror-host .cm-media-preview-csv th { position: sticky; top: 0; color: var(--code-text); background: var(--surface-container-high); font-weight: var(--weight-semibold); text-align: left; }
+.codemirror-host .cm-media-preview-csv td { color: var(--code-text); background: var(--code-surface); }
+.codemirror-host .cm-media-preview-csv tr:hover td { background: var(--surface-hover); }
+.codemirror-host .cm-media-preview-markdown { display: block; overflow: auto; padding: var(--space-6) 10%; align-items: initial; justify-content: initial; background: var(--code-surface); }
+.codemirror-host .cm-markdown-preview { max-width: 920px; margin: 0 auto; color: var(--code-text); font: var(--type-section)/1.7 var(--font-ui); }
+.codemirror-host .cm-markdown-preview h1,
+.codemirror-host .cm-markdown-preview h2,
+.codemirror-host .cm-markdown-preview h3 { margin: var(--space-6) 0 var(--space-2); color: var(--code-text); }
+.codemirror-host .cm-markdown-preview h1 { padding-bottom: var(--space-2); border-bottom: 1px solid var(--code-line); font-size: var(--type-display); }
+.codemirror-host .cm-markdown-preview blockquote { margin: var(--space-3) 0; padding: var(--space-2) var(--space-3); border-left: 3px solid var(--brand); color: var(--code-muted); background: var(--code-selection); }
+.codemirror-host .cm-markdown-preview pre { overflow: auto; padding: var(--space-3); border: 1px solid var(--code-line); border-radius: var(--radius-sm); background: var(--surface-container); }
+.codemirror-host .cm-markdown-preview code { padding: 1px var(--space-1); border-radius: var(--radius-sm); color: var(--code-text); background: var(--code-selection); font: var(--type-code) var(--font-code); }
+.codemirror-host .cm-markdown-preview a { color: var(--brand); }
+
+.editor-search-panel { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1-5); padding: var(--space-2); color: var(--code-text); background: var(--surface-container); font: var(--type-meta) var(--font-ui); }
+.editor-search-panel input { box-sizing: border-box; width: 150px; min-height: var(--control-height-sm); padding: 0 var(--space-2); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); color: var(--text-primary); background: var(--surface-raised); }
+.editor-search-panel button,
+.editor-search-panel label { display: grid; min-width: var(--control-height-sm); min-height: var(--control-height-sm); place-items: center; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); color: var(--text-secondary); background: var(--surface-panel); cursor: pointer; }
+.editor-search-panel button:hover,
+.editor-search-panel label:has(input:checked) { border-color: var(--focus); color: var(--text-primary); background: var(--surface-hover); }
+.editor-search-panel label input { position: absolute; width: 1px; min-height: 1px; opacity: 0; }
+
+[data-codemirror-merge] .cm-mergeView,
+[data-codemirror-merge] .cm-mergeViewEditors { height: 100%; }
+[data-codemirror-merge] .cm-mergeView { overflow: auto; }
+[data-codemirror-merge] .cm-editor { min-width: 0; height: 100%; color: var(--code-text); background: var(--code-surface); font-size: var(--type-code); }
+[data-codemirror-merge] .cm-scroller { overflow: auto; font-family: "SF Mono", Menlo, Monaco, Consolas, monospace; }
+
+@media (max-width: 980px) {
+  .codemirror-host .editor-minimap { display: none; }
+}
+}

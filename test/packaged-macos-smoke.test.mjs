@@ -1,0 +1,208 @@
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import test from 'node:test'
+import {
+  OFFLINE_CHROMIUM_FLAGS,
+  PACKAGED_DOMAIN_FAULTS,
+  armPersistenceCorruptionScenario,
+  cleanupSmokeFixture,
+  confirmFaultRecoveryDraftScenario,
+  createSmokeFixture,
+  exerciseIpcRejectionScenario,
+  exerciseDomainFailureScenarios,
+  exerciseReactViewCrashScenario,
+  isolatedEnvironment,
+  packagedElectronArguments,
+  parseArguments,
+  prepareFaultRecoveryScenario,
+  validatePackagedApp,
+  verifyFaultLogEvidence,
+  verifyFaultRecoveryScenario,
+  verifyPersistenceRecoveryScenario,
+  visibleCodeMirrorTextMarker,
+} from '../scripts/smoke-packaged-macos.mjs'
+
+test('valida argomenti bounded senza introdurre un percorso di packaging', () => {
+  assert.deepEqual(parseArguments(['--app', './release/Test.app', '--timeout', '12000', '--json']), {
+    appPath: path.resolve('./release/Test.app'),
+    faultRecovery: false,
+    help: false,
+    json: true,
+    timeoutMs: 12_000,
+  })
+  assert.equal(parseArguments(['--fault-recovery']).faultRecovery, true)
+  assert.throws(() => parseArguments(['--timeout', '1000']), /Timeout non valido/)
+  assert.throws(() => parseArguments(['--package']), /Argomento non riconosciuto/)
+
+  const source = fs.readFileSync(new URL('../scripts/smoke-packaged-macos.mjs', import.meta.url), 'utf8')
+  assert.doesNotMatch(source, /electron-builder|npm\s+run\s+package/u)
+})
+
+test('crea profilo e workspace isolati, applica il blocco rete e rimuove la fixture', async () => {
+  const fixture = await createSmokeFixture()
+  try {
+    assert.ok(fixture.root.startsWith(`${path.resolve(os.tmpdir())}${path.sep}`))
+    assert.equal(fs.readFileSync(path.join(fixture.workspace, 'README.md'), 'utf8'), '# VincodeLab packaged smoke\n')
+    assert.ok((fs.statSync(fixture.fakePi).mode & 0o111) !== 0)
+
+    const environment = isolatedEnvironment(fixture)
+    assert.equal(environment.HOME, fixture.home)
+    assert.equal(environment.VINCODELAB_DATA_DIR, fixture.data)
+    assert.equal(environment.VINCODELAB_LOGS_DIR, path.join(fixture.root, 'logs'))
+    assert.equal(environment.VINCODELAB_PI_PATH, fixture.fakePi)
+    assert.equal('SSH_AUTH_SOCK' in environment, false)
+    assert.equal('GH_TOKEN' in environment, false)
+
+    const args = packagedElectronArguments({ port: 9_222, profile: fixture.profile, workspace: fixture.workspace })
+    assert.ok(args.includes(`--user-data-dir=${fixture.profile}`))
+    assert.ok(args.includes('--reliability-benchmark'))
+    assert.equal(args.includes('--reliability-fault-injection'), false)
+    assert.ok(args.includes('--remote-debugging-address=127.0.0.1'))
+    for (const flag of OFFLINE_CHROMIUM_FLAGS) assert.ok(args.includes(flag), flag)
+    assert.deepEqual(args.slice(-2), ['--workspace', fixture.workspace])
+
+    const faultArgs = packagedElectronArguments({ faultRecovery: true, port: 9_223, profile: fixture.profile, workspace: fixture.workspace })
+    assert.ok(faultArgs.includes('--reliability-benchmark'))
+    assert.ok(faultArgs.includes('--reliability-fault-injection'))
+  } finally {
+    await cleanupSmokeFixture(fixture)
+  }
+  assert.equal(fs.existsSync(fixture.root), false)
+})
+
+test('il fault recovery usa Page.crash, riconnette CDP e verifica la bozza nel registro main', () => {
+  const marker = '\n<!-- fault-recovery-"fixture" -->'
+  const visibleMarker = visibleCodeMirrorTextMarker(marker)
+  const prepare = prepareFaultRecoveryScenario(marker)
+  const confirm = confirmFaultRecoveryDraftScenario(marker)
+  const verify = verifyFaultRecoveryScenario(marker)
+  const ipcRejection = exerciseIpcRejectionScenario()
+  const domainFailures = exerciseDomainFailureScenarios()
+  const reactViewCrash = exerciseReactViewCrashScenario(marker)
+  const persistenceArm = armPersistenceCorruptionScenario()
+  const persistenceVerify = verifyPersistenceRecoveryScenario()
+
+  for (const scenario of [ipcRejection, domainFailures, reactViewCrash, persistenceArm, persistenceVerify, prepare, confirm, verify]) {
+    assert.doesNotThrow(() => new Function(`return ${scenario}`))
+  }
+  for (const scenario of [prepare, confirm, verify]) assert.match(scenario, /README\.md/)
+  assert.match(ipcRejection, /BENCHMARK_IPC_REJECTION/)
+  assert.match(ipcRejection, /nextCallSucceeded/)
+  assert.match(ipcRejection, /typeof error\.message === 'string'/)
+  for (const scenario of PACKAGED_DOMAIN_FAULTS) {
+    assert.match(domainFailures, new RegExp(scenario.code, 'u'))
+    assert.match(domainFailures, new RegExp(scenario.fault, 'u'))
+  }
+  assert.match(domainFailures, /typeof error\.message === 'string'/)
+  assert.match(persistenceArm, /persistence-corrupt/)
+  assert.match(persistenceVerify, /Layout del workspace ripristinato/)
+  assert.match(persistenceVerify, /Riferimento ERR-/)
+  assert.match(persistenceVerify, /noticeDismissed/)
+  assert.match(persistenceVerify, /workspaceSession\.save/)
+  assert.match(persistenceVerify, /persistenceWriteSucceeded/)
+  assert.match(prepare, /__vincodelabFaultRecoveryToken/)
+  assert.match(prepare, /Mostra sorgente/)
+  assert.equal(visibleMarker, '<!-- fault-recovery-"fixture" -->')
+  assert.ok(`# VincodeLab packaged smoke${visibleMarker}`.includes(visibleMarker))
+  assert.equal(visibleCodeMirrorTextMarker('\r\nfixture'), 'fixture')
+  assert.equal(visibleCodeMirrorTextMarker(' fixture'), ' fixture')
+  assert.match(confirm, /volatileDrafts/)
+  assert.match(confirm, /visibleMarker/)
+  assert.match(confirm, /mainRegistryMirrored/)
+  assert.match(reactViewCrash, /vincodelab:benchmark-view-fault/)
+  assert.match(reactViewCrash, /focusConfined/)
+  assert.match(reactViewCrash, /shellPreserved/)
+  assert.match(verify, /visibleMarker/)
+  assert.match(verify, /rendererContextReplaced/)
+  assert.match(verify, /mainRegistryRecovered/)
+
+  const smokeSource = fs.readFileSync(new URL('../scripts/smoke-packaged-macos.mjs', import.meta.url), 'utf8')
+  assert.match(smokeSource, /cdp\.send\('Input\.insertText'/)
+  assert.match(smokeSource, /Inspector\.targetCrashed/)
+  assert.match(smokeSource, /cdp\.send\('Page\.crash'/)
+  assert.match(smokeSource, /reconnectAfterRendererCrash/)
+  assert.match(smokeSource, /verifyFaultLogEvidence/)
+  assert.match(smokeSource, /!reactViewCrash\.focusConfined/)
+  assert.match(smokeSource, /persistedFileUnchanged: true/)
+
+  const mainSource = fs.readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8')
+  const preloadSource = fs.readFileSync(new URL('../electron/preload.cjs', import.meta.url), 'utf8')
+  assert.match(mainSource, /RELIABILITY_FAULT_INJECTION_MODE\s*=\s*RELIABILITY_BENCHMARK_MODE\s*&&\s*process\.argv\.includes\('--reliability-fault-injection'\)/)
+  assert.match(mainSource, /RELIABILITY_FAULT_INJECTION_MODE\) return 'reload'/)
+  assert.match(mainSource, /RELIABILITY_FAULT_INJECTION_MODE[\s\S]{0,1800}ipcMain\.handle\('benchmark:injectFault'/)
+  assert.match(mainSource, /reliabilityFaultInjection\?\.beforeWorkspaceSessionRead\(\)/)
+  assert.match(preloadSource, /benchmarkFaultInjectionMode\s*=\s*benchmarkMode\s*&&\s*process\.argv\.includes\('--vincodelab-reliability-fault-injection'\)/)
+  assert.match(preloadSource, /benchmarkFaultInjectionMode \? \{[\s\S]{0,220}injectFault:[\s\S]{0,160}benchmark:injectFault/)
+})
+
+test('l’evidenza fault correla gli incidenti core e di dominio e rifiuta dettagli tecnici', () => {
+  const domainFailures = PACKAGED_DOMAIN_FAULTS.map((entry, index) => ({
+    ...entry,
+    correlationId: `ERR-${String(index + 1).padStart(6, 'A')}`,
+  }))
+  const content = [
+    { event: 'ipc_handler_failed', category: 'timeout', code: 'BENCHMARK_IPC_REJECTION', correlationId: 'ERR-A1B2C3' },
+    ...domainFailures.map((entry) => ({ event: 'ipc_handler_failed', category: entry.category, code: entry.code, correlationId: entry.correlationId })),
+    { event: 'renderer_user_error', component: 'view:editor', operation: 'render', correlationId: 'ERR-ABC123' },
+    { event: 'workspace_session_recovered', code: 'PERSISTENCE_SESSION_CORRUPT', correlationId: 'ERR-D4E5F6' },
+    { event: 'renderer_process_gone', code: 'RENDERER_PROCESS_GONE', correlationId: 'ERR-102ABC' },
+  ].map((entry) => JSON.stringify(entry)).join('\n')
+
+  assert.deepEqual(verifyFaultLogEvidence(content, {
+    domainFailures,
+    ipcCorrelationId: 'ERR-A1B2C3',
+    persistenceCorrelationId: 'ERR-D4E5F6',
+    reactViewCorrelationId: 'ERR-ABC123',
+  }), {
+    correlationsMatched: true,
+    domainCorrelationsMatched: true,
+    privateDataAbsent: true,
+    rendererCorrelationId: 'ERR-102ABC',
+  })
+  assert.throws(() => verifyFaultLogEvidence(`${content}\ntoken=benchmark-secret`, {
+    domainFailures,
+    ipcCorrelationId: 'ERR-A1B2C3',
+    persistenceCorrelationId: 'ERR-D4E5F6',
+    reactViewCorrelationId: 'ERR-ABC123',
+  }), /dettagli tecnici riservati/)
+})
+
+test('verifica struttura, permessi e architettura dei moduli nativi del bundle', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-packaged-smoke-bundle-'))
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }))
+  const appPath = path.join(root, 'Fixture.app')
+  const contents = path.join(appPath, 'Contents')
+  const resources = path.join(contents, 'Resources')
+  const modules = path.join(resources, 'app.asar.unpacked', 'node_modules')
+  const executable = path.join(contents, 'MacOS', 'Fixture')
+  const ptyNative = path.join(modules, 'node-pty', 'build', 'Release', 'pty.node')
+  const spawnHelper = path.join(modules, 'node-pty', 'build', 'Release', 'spawn-helper')
+  const sqliteNative = path.join(modules, 'better-sqlite3', 'prebuilds', 'darwin-arm64.node')
+  for (const directory of [path.dirname(executable), path.dirname(ptyNative), path.dirname(sqliteNative)]) {
+    fs.mkdirSync(directory, { recursive: true })
+  }
+  for (const filePath of [executable, path.join(resources, 'app.asar'), ptyNative, spawnHelper, sqliteNative]) {
+    fs.writeFileSync(filePath, 'fixture')
+  }
+  fs.chmodSync(executable, 0o700)
+  fs.chmodSync(spawnHelper, 0o700)
+
+  const inspected = []
+  const result = await validatePackagedApp(appPath, {
+    architecture: 'arm64',
+    inspectArchitectures: async (filePath) => { inspected.push(filePath); return new Set(['arm64']) },
+  })
+  assert.equal(result.executable, executable)
+  assert.equal(result.nativeModules.nodePty, ptyNative)
+  assert.equal(result.nativeModules.spawnHelper, spawnHelper)
+  assert.equal(result.nativeModules.betterSqlite3, sqliteNative)
+  assert.deepEqual(new Set(inspected), new Set([executable, ptyNative, spawnHelper, sqliteNative]))
+
+  fs.chmodSync(spawnHelper, 0o600)
+  await assert.rejects(
+    validatePackagedApp(appPath, { architecture: 'arm64', inspectArchitectures: async () => new Set(['arm64']) }),
+    /non eseguibile/,
+  )
+})

@@ -1,0 +1,11 @@
+@layer base {
+/* Integrazione tecnica Electron: Panda non espone ancora app-region tra le utility tipizzate. */
+.window-toolbar {
+  -webkit-app-region: drag;
+}
+
+.window-toolbar :is(button, input, [data-scope="tabs"], [data-scope="popover"]) {
+  -webkit-app-region: no-drag;
+}
+
+}
