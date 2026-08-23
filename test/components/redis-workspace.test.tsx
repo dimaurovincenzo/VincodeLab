@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RedisWorkspace } from '@/components/redis-workspace'
@@ -171,12 +171,30 @@ describe('Redis workspace read-only', () => {
     await screen.findByRole('button', { name: /user:1/i })
 
     await user.click(screen.getByRole('button', { name: 'Connessione' }))
-    await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Redis HA')
-    const modeSelect = screen.getByRole('combobox', { name: 'Modalità' })
-    await user.click(modeSelect)
-    const sentinelOption = await screen.findByRole('option', { name: 'Sentinel' })
-    expect(sentinelOption.closest('[aria-hidden="true"]')).toBeNull()
-    await user.click(sentinelOption)
+    const dialog = await screen.findByRole('dialog', { name: 'Nuova connessione Redis' })
+    await user.type(within(dialog).getByRole('textbox', { name: 'Nome' }), 'Redis HA')
+    const modeSelect = within(dialog).getByRole('combobox', { name: 'Modalità' })
+    expect(modeSelect).toHaveTextContent('Standalone')
+    expect(modeSelect).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(within(modeSelect).getByText('Standalone'))
+    expect(modeSelect).toHaveAttribute('aria-expanded', 'true')
+    let modeList = await screen.findByRole('listbox', { name: 'Modalità' })
+    await waitFor(() => expect(modeList).toHaveFocus())
+    expect(within(modeList).getAllByRole('option').map((option) => option.textContent?.trim())).toEqual(['Standalone', 'Sentinel'])
+    expect(within(modeList).getByRole('option', { name: 'Standalone' })).toHaveAttribute('aria-selected', 'true')
+    expect(modeList.closest('[aria-hidden="true"]')).toBeNull()
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('listbox', { name: 'Modalità' })).not.toBeInTheDocument())
+    expect(modeSelect).toHaveFocus()
+    expect(dialog).toBeVisible()
+
+    await user.keyboard('{Enter}')
+    modeList = await screen.findByRole('listbox', { name: 'Modalità' })
+    await user.keyboard('{End}{Enter}')
+    await waitFor(() => expect(modeSelect).toHaveTextContent('Sentinel'))
+    expect(modeSelect).toHaveFocus()
     await user.clear(screen.getByRole('textbox', { name: 'Host Sentinel' }))
     await user.type(screen.getByRole('textbox', { name: 'Host Sentinel' }), 'sentinel.internal')
     await user.type(screen.getByRole('textbox', { name: 'Nome master Sentinel' }), 'vincodelab-primary')

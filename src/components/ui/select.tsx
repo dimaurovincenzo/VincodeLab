@@ -3,10 +3,11 @@ import { Portal } from '@ark-ui/react/portal'
 import { Select as ArkSelect, createListCollection } from '@ark-ui/react/select'
 import { css } from '../../../styled-system/css'
 import { createStyleContext } from '../../../styled-system/jsx'
-import { select, type SelectVariantProps } from '../../../styled-system/recipes'
+import { select } from '../../../styled-system/recipes'
 
 const { withProvider, withContext } = createStyleContext(select)
-const SelectRoot = withProvider(ArkSelect.Root, 'root') as ArkSelect.RootComponent<SelectVariantProps>
+const SelectRoot = withProvider(ArkSelect.Root, 'root') as typeof ArkSelect.Root
+const modalLayerClass = css({ zIndex: 'modalPopover' })
 
 const Select = {
   Root: SelectRoot,
@@ -48,7 +49,6 @@ function SelectField({ id, 'aria-label': ariaLabel, label, options, value, place
     disabled={disabled}
     ids={id ? { trigger: id } : undefined}
     invalid={invalid}
-    layer={layer}
     lazyMount
     unmountOnExit
     value={value ? [value] : []}
@@ -63,8 +63,8 @@ function SelectField({ id, 'aria-label': ariaLabel, label, options, value, place
     </Select.Control>
     <Select.HiddenSelect />
     <Select.Portal>
-      <Select.Positioner>
-        <Select.Content>
+      <Select.Positioner className={layer === 'modal' ? modalLayerClass : undefined}>
+        <Select.Content className={layer === 'modal' ? modalLayerClass : undefined}>
           {options.map((item) => <Select.Item item={item} key={item.value}>
             <Select.ItemText>{item.label}</Select.ItemText>
             <Select.ItemIndicator><Check aria-hidden="true" size={14} /></Select.ItemIndicator>

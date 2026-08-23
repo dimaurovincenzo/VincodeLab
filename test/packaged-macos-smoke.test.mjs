@@ -22,6 +22,7 @@ import {
   verifyFaultLogEvidence,
   verifyFaultRecoveryScenario,
   verifyPersistenceRecoveryScenario,
+  verifyRedisSelectScenario,
   visibleCodeMirrorTextMarker,
 } from '../scripts/smoke-packaged-macos.mjs'
 
@@ -31,10 +32,12 @@ test('valida argomenti bounded senza introdurre un percorso di packaging', () =>
     faultRecovery: false,
     help: false,
     json: true,
+    redisSelect: false,
     timeoutMs: 12_000,
     withoutPi: false,
   })
   assert.equal(parseArguments(['--fault-recovery']).faultRecovery, true)
+  assert.equal(parseArguments(['--redis-select']).redisSelect, true)
   assert.equal(parseArguments(['--without-pi']).withoutPi, true)
   assert.throws(() => parseArguments(['--timeout', '1000']), /Timeout non valido/)
   assert.throws(() => parseArguments(['--package']), /Argomento non riconosciuto/)
@@ -78,6 +81,34 @@ test('crea profilo e workspace isolati, applica il blocco rete e rimuove la fixt
     await cleanupSmokeFixture(fixture)
   }
   assert.equal(fs.existsSync(fixture.root), false)
+})
+
+test('lo smoke Redis verifica il select portaled nel runtime reale e resta opzionale', () => {
+  const scenario = verifyRedisSelectScenario()
+  assert.doesNotThrow(() => new Function(`return ${scenario}`))
+  assert.match(scenario, /Sezioni applicazione/u)
+  assert.match(scenario, /Workspace Redis/u)
+  assert.match(scenario, /value-text/u)
+  assert.match(scenario, /Standalone/u)
+  assert.match(scenario, /Sentinel/u)
+  assert.match(scenario, /role="listbox"/u)
+  assert.match(scenario, /role="option"/u)
+  assert.match(scenario, /getBoundingClientRect/u)
+  assert.match(scenario, /getComputedStyle/u)
+  assert.match(scenario, /elementFromPoint/u)
+  assert.match(scenario, /aria-expanded/u)
+  assert.match(scenario, /popupZIndex <= dialogZIndex/u)
+  assert.match(scenario, /pointerHitTestPassed: true/u)
+  assert.match(scenario, /Host Sentinel/u)
+  assert.match(scenario, /Nome master Sentinel/u)
+  assert.match(scenario, /dialogClosed: true/u)
+
+  const smokeSource = fs.readFileSync(new URL('../scripts/smoke-packaged-macos.mjs', import.meta.url), 'utf8')
+  assert.match(smokeSource, /--redis-select/u)
+  assert.match(smokeSource, /if \(redisSelect\)/u)
+  assert.match(smokeSource, /cdp\.evaluate\(verifyRedisSelectScenario\(\)\)/u)
+  assert.match(smokeSource, /redisSelectSummary \? \{ redisSelect: redisSelectSummary \}/u)
+  assert.match(smokeSource, /redisSelect: options\.redisSelect/u)
 })
 
 test('il fault recovery usa Page.crash, riconnette CDP e verifica la bozza nel registro main', () => {
