@@ -334,4 +334,54 @@ describe('Error Experience delle Impostazioni Pi', () => {
     expect(editor).toHaveValue('# A locale')
     expect(update).toHaveBeenLastCalledWith('skill-a', '# A locale')
   })
+
+  it('spiega una collisione del nome, conserva il draft e completa il retry senza toast duplicati', async () => {
+    const user = userEvent.setup()
+    const createdSkill: ProjectSkill = {
+      content: '# redis-inspector',
+      description: 'Skill redis-inspector',
+      id: 'redis-inspector',
+      issues: [],
+      name: 'redis-inspector',
+      valid: true,
+    }
+    const collision: PublicApplicationError = {
+      category: 'conflict',
+      code: 'SYSTEM_SKILL_ALREADY_EXISTS',
+      correlationId: 'ERR-A1B2C3',
+      message: 'Esiste già una skill Pi con questo nome. Scegli un nome diverso. [SYSTEM_SKILL_ALREADY_EXISTS] [ERR-A1B2C3]',
+      recoverable: true,
+      severity: 'warning',
+    }
+    const create = vi.fn()
+      .mockRejectedValueOnce(collision)
+      .mockResolvedValueOnce(createdSkill)
+    installBridge({ systemSkills: { create } })
+    setAppPreferencesWorkspace('/tmp/settings-error-skill-create')
+
+    render(<Settings appearance="system" onAppearanceChange={vi.fn()} />)
+    await user.click(screen.getByRole('tab', { name: 'Skill Pi' }))
+    const input = screen.getByRole('textbox', { name: 'Nome skill Pi' })
+    await user.type(input, 'redis-inspector')
+    await user.click(screen.getByRole('button', { name: 'Crea skill' }))
+    let dialog = await screen.findByRole('dialog', { name: 'Crea skill Pi' })
+    await user.click(within(dialog).getByRole('button', { name: 'Crea' }))
+
+    const fieldError = await screen.findByText(/Skill Pi non creata/u)
+    expect(fieldError).toHaveTextContent('Esiste già una skill Pi con questo nome. Scegli un nome diverso.')
+    expect(fieldError).toHaveTextContent('Riferimento ERR-A1B2C3')
+    expect(input).toHaveValue('redis-inspector')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(toastStore.getVisibleToasts().filter((toast) => toast.type === 'error')).toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: 'Riprova creazione' }))
+    dialog = await screen.findByRole('dialog', { name: 'Crea skill Pi' })
+    await user.click(within(dialog).getByRole('button', { name: 'Crea' }))
+
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(2))
+    expect(create).toHaveBeenLastCalledWith('redis-inspector')
+    await waitFor(() => expect(input).toHaveValue(''))
+    expect(screen.queryByText(/Skill Pi non creata/u)).not.toBeInTheDocument()
+    expect(toastStore.getVisibleToasts().filter((toast) => toast.type === 'error')).toHaveLength(0)
+  })
 })

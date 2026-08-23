@@ -3,6 +3,7 @@ import { AlertTriangle, BookOpen, Check, FilePlus2, RefreshCw, Save, Trash2 } fr
 import { Button, createListCollection, ErrorNotice, Field, IconButton, Listbox, Spinner, Splitter, toast, type SplitterPanelData } from '@/components/ui'
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
 import { EmptyState } from '@/components/empty-state'
+import { SKILL_NAME_HELP, SKILL_NAME_MAX_LENGTH, skillNameIssue } from '@/lib/skill-name'
 import { commitVolatileDraft, discardVolatileDraft, latestVolatileDraft, restoreVolatileDraft, writeVolatileDraft, type VolatileDraftIdentity } from '@/lib/volatile-draft-store'
 import { normalizeUserError, reportUserError, type NormalizeUserErrorOptions, type UserError } from '@/lib/user-error'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
@@ -279,7 +280,7 @@ export function ProjectSkills({ workspace, onWorkspaceGuardChange }: Props) {
 
   const selected = skills.find((skill) => skill.id === selectedId)
   const skillName = newName.trim()
-  const skillNameError = skillName && (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(skillName) || skillName.length > 64)
+  const skillNameError = skillNameIssue(skillName)
   const hasUnsavedChanges = content !== savedContent
 
   const discardAll = useCallback(async () => {
@@ -398,8 +399,8 @@ export function ProjectSkills({ workspace, onWorkspaceGuardChange }: Props) {
 
         <div className={aiStyles.newSkillForm}>
           <Field.Root className={aiStyles.newSkillField} invalid={Boolean(skillNameError)}>
-            <Field.Input className={aiStyles.newSkillInput} aria-describedby="skill-name-help" value={newName} onChange={(event) => setNewName(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && !skillNameError && void createSkill()} placeholder="es. analisi-codice" aria-label="Nome nuova skill" />
-            <Field.HelperText id="skill-name-help">{skillNameError ? 'Usa lettere minuscole, numeri e trattini; massimo 64 caratteri.' : 'Minuscole, numeri e trattini.'}</Field.HelperText>
+            <Field.Input className={aiStyles.newSkillInput} aria-describedby="skill-name-help" aria-label="Nome nuova skill" autoCapitalize="none" maxLength={SKILL_NAME_MAX_LENGTH} placeholder="es. analisi-codice" spellCheck={false} value={newName} onChange={(event) => setNewName(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && !skillNameError && void createSkill()} />
+            <Field.HelperText id="skill-name-help">{skillNameError ?? SKILL_NAME_HELP}</Field.HelperText>
           </Field.Root>
           <Button size="sm" onClick={() => void createSkill()} disabled={saving || !skillName || Boolean(skillNameError)}><FilePlus2 aria-hidden="true" /> Crea</Button>
         </div>

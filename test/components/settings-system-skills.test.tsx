@@ -71,6 +71,32 @@ async function openSystemSkillsTab(user: ReturnType<typeof userEvent.setup>) {
 describe('editor delle Skill Pi nelle impostazioni', () => {
   beforeEach(() => clearVolatileDrafts())
 
+  it('valida il nome prima della creazione e accetta il formato Pi supportato', async () => {
+    const user = userEvent.setup()
+    const create = vi.fn()
+    installSettingsBridge({ list: vi.fn(async () => []), get: vi.fn(), create, update: vi.fn(), delete: vi.fn() })
+
+    render(<Settings appearance="system" onAppearanceChange={vi.fn()} />)
+    await user.click(screen.getByRole('tab', { name: 'Skill Pi' }))
+    const input = screen.getByRole('textbox', { name: 'Nome skill Pi' })
+    const createButton = screen.getByRole('button', { name: 'Crea skill' })
+
+    for (const invalidName of ['Redis', 'redis inspector', 'redis_inspector']) {
+      await user.clear(input)
+      await user.type(input, invalidName)
+      expect(input).toHaveAttribute('aria-invalid', 'true')
+      expect(screen.getByText(/Formato non valido/u)).toHaveTextContent(/Minuscole e numeri, separati da trattini/u)
+      expect(createButton).toBeDisabled()
+    }
+    expect(create).not.toHaveBeenCalled()
+
+    await user.clear(input)
+    await user.type(input, 'redis-inspector')
+    expect(input).not.toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByText(/Formato non valido/u)).not.toBeInTheDocument()
+    expect(createButton).toBeEnabled()
+  })
+
   it('ripristina il contenuto locale dopo un remount della boundary senza persisterlo', async () => {
     const user = userEvent.setup()
     const skillA = projectSkill('skill-a', '# A')

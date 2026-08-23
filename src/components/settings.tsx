@@ -5,6 +5,7 @@ import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confi
 import { TerminalDiagnostics } from '@/components/terminal-diagnostics'
 import { useApplicationMenuCommand } from '@/lib/app-menu-command'
 import { useAppPreferences } from '@/lib/app-preferences'
+import { SKILL_NAME_HELP, SKILL_NAME_MAX_LENGTH, skillNameIssue } from '@/lib/skill-name'
 import { normalizeUserError, reportUserError, type UserError, type UserErrorCategory } from '@/lib/user-error'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 import { commitVolatileDraft, discardVolatileDraft, latestVolatileDraft, restoreVolatileDraft, writeVolatileDraft, type VolatileDraftIdentity } from '@/lib/volatile-draft-store'
@@ -31,6 +32,7 @@ function settingsUserError(cause: unknown, {
   code,
   correlationId,
   description,
+  fallbackDescription,
   operation,
   severity,
   title,
@@ -38,7 +40,8 @@ function settingsUserError(cause: unknown, {
   category?: UserErrorCategory
   code?: string
   correlationId?: string
-  description: string
+  description?: string
+  fallbackDescription?: string
   operation: string
   severity?: UserError['severity']
   title: string
@@ -49,6 +52,7 @@ function settingsUserError(cause: unknown, {
     component: 'settings',
     correlationId,
     description,
+    fallbackDescription,
     operation,
     severity,
     title,
@@ -861,7 +865,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
   const createSystemSkill = async () => {
     const draft = skillName
     const name = draft.trim()
-    if (!name) return
+    if (!name || skillNameIssue(name)) return
     markSectionOperation('skills')
     setSystemSkillBusy('create')
     setSkillNameFailure(null)
@@ -884,8 +888,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
       await refresh()
     } catch (cause) {
       if (mounted.current) setSkillNameFailure(settingsUserError(cause, {
-        category: 'configuration',
-        description: 'La nuova skill non è stata creata. Il nome inserito è rimasto disponibile.',
+        fallbackDescription: 'La nuova skill non è stata creata. Il nome inserito è rimasto disponibile.',
         operation: 'create-system-skill',
         title: 'Skill Pi non creata',
       }))
@@ -1089,6 +1092,8 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
 
   const systemSkillHasUnsavedChanges = Boolean(selectedSkill)
     && (selectedSkill?.content ?? '') !== savedSystemSkillContent
+  const systemSkillName = skillName.trim()
+  const systemSkillNameError = skillNameIssue(skillName)
   const includedCapabilities = runtimeCapabilities?.items.filter((item) => item.kind === 'included') ?? []
   const optionalCapabilities = runtimeCapabilities?.items.filter((item) => item.kind === 'optional') ?? []
   const renderCapability = (capability: RuntimeCapability) => {
@@ -1365,15 +1370,19 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
                 <p className={settingsStyles.groupDescription}>Disponibili in <code>~/.pi/agent/skills</code> e modificabili dall’app.</p>
               </div>
               <div className={settingsStyles.form}>
-                <Field.Root invalid={Boolean(skillNameFailure)}><Field.Input aria-label="Nome skill Pi" disabled={Boolean(systemSkillBusy)} value={skillName} onChange={(event) => {
+                <Field.Root invalid={Boolean(systemSkillNameError || skillNameFailure)}><Field.Input aria-describedby="system-skill-name-help" aria-label="Nome skill Pi" autoCapitalize="none" disabled={Boolean(systemSkillBusy)} maxLength={SKILL_NAME_MAX_LENGTH} spellCheck={false} value={skillName} onChange={(event) => {
                   skillNameRef.current = event.target.value
                   setSkillName(event.target.value)
                   setSkillNameFailure(null)
                   writeVolatileDraft(newSystemSkillDraftIdentity, event.target.value, '')
                 }} placeholder="es. revisione-codice" />
-                  {skillNameFailure && <Field.ErrorText>{skillNameFailure.title}. {skillNameFailure.description} Riferimento {skillNameFailure.correlationId}.</Field.ErrorText>}
+                  {systemSkillNameError
+                    ? <Field.ErrorText id="system-skill-name-help">{systemSkillNameError}</Field.ErrorText>
+                    : skillNameFailure
+                      ? <Field.ErrorText id="system-skill-name-help">{skillNameFailure.title}. {skillNameFailure.description} Riferimento {skillNameFailure.correlationId}.</Field.ErrorText>
+                      : <Field.HelperText id="system-skill-name-help">{SKILL_NAME_HELP}</Field.HelperText>}
                 </Field.Root>
-                <Button size="sm" disabled={Boolean(systemSkillBusy) || !skillName.trim()} onClick={() => setConfirmation({ title: 'Crea skill Pi', detail: `La skill ${skillName} sarà disponibile globalmente per Pi.`, confirmLabel: 'Crea', onConfirm: () => { void createSystemSkill() } })}>
+                <Button size="sm" disabled={Boolean(systemSkillBusy) || !systemSkillName || Boolean(systemSkillNameError)} onClick={() => setConfirmation({ title: 'Crea skill Pi', detail: `La skill ${systemSkillName} sarà disponibile globalmente per Pi.`, confirmLabel: 'Crea', onConfirm: () => { void createSystemSkill() } })}>
                   {systemSkillBusy === 'create' && <Spinner size={14} />}
                   {systemSkillBusy === 'create' ? 'Creazione…' : skillNameFailure ? 'Riprova creazione' : 'Crea skill'}
                 </Button>

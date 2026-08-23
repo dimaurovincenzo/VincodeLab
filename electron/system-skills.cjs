@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { assertRegularFile, writeFileAtomic } = require('./file-utils.cjs')
+const { createPublicError } = require('./public-error.cjs')
 const { NAME_PATTERN, validateSkill } = require('./skill-validation.cjs')
 
 const SKILL_FILE = 'SKILL.md'
@@ -78,11 +79,46 @@ function listSystemSkills(root) {
 
 function getSystemSkill(root, id) { return toSkill(root, skillPath(root, id), true) }
 function createSystemSkill(root, name) {
-  if (typeof name !== 'string' || !NAME_PATTERN.test(name) || name.length > 64) throw new Error('Il nome skill deve usare lowercase, numeri e trattini (massimo 64 caratteri).')
-  assertRoot(root, true); const directory = path.join(root, name)
-  if (fs.existsSync(directory)) throw new Error('Esiste già una skill con questo nome.')
-  fs.mkdirSync(directory, { mode: 0o700 })
-  fs.writeFileSync(path.join(directory, SKILL_FILE), `---\nname: ${name}\ndescription: Descrivi cosa fa questa skill di sistema e quando Pi deve usarla.\n---\n\n# ${name}\n\n## Istruzioni\n\n`, { mode: 0o600, flag: 'wx' })
+  if (typeof name !== 'string' || !NAME_PATTERN.test(name) || name.length > 64) {
+    throw createPublicError(
+      'SYSTEM_SKILL_NAME_INVALID',
+      'Usa un nome di 1-64 caratteri con lettere minuscole e numeri separati da trattini.',
+    )
+  }
+
+  assertRoot(root, true)
+  const directory = path.join(root, name)
+  const directFilePath = path.join(root, `${name}.md`)
+  if (fs.existsSync(directory) || fs.existsSync(directFilePath)) {
+    throw createPublicError(
+      'SYSTEM_SKILL_ALREADY_EXISTS',
+      'Esiste già una skill Pi con questo nome. Scegli un nome diverso.',
+    )
+  }
+
+  try {
+    fs.mkdirSync(directory, { mode: 0o700 })
+  } catch (error) {
+    if (error && error.code === 'EEXIST') {
+      throw createPublicError(
+        'SYSTEM_SKILL_ALREADY_EXISTS',
+        'Esiste già una skill Pi con questo nome. Scegli un nome diverso.',
+      )
+    }
+    throw error
+  }
+
+  try {
+    fs.writeFileSync(path.join(directory, SKILL_FILE), `---\nname: ${name}\ndescription: Descrivi cosa fa questa skill di sistema e quando Pi deve usarla.\n---\n\n# ${name}\n\n## Istruzioni\n\n`, { mode: 0o600, flag: 'wx' })
+  } catch (error) {
+    try {
+      fs.rmdirSync(directory)
+    } catch {
+      // Rimuoviamo solo la directory appena creata quando è ancora vuota.
+    }
+    throw error
+  }
+
   return getSystemSkill(root, name)
 }
 function updateSystemSkill(root, id, content) { if (typeof content !== 'string' || content.length > 200000) throw new Error('Contenuto skill non valido.'); const filePath = skillPath(root, id); const validation = validateSkill(content, id); if (!validation.valid) throw new Error(validation.issues.find((item) => item.level === 'error')?.message ?? 'Skill non valida.'); writeFileAtomic(filePath, content); return getSystemSkill(root, id) }

@@ -152,6 +152,11 @@ const CHANNEL_MESSAGES = Object.freeze({
   'remoteFiles:upload': 'Impossibile caricare il file remoto.',
   'shellSessions:create': 'Impossibile avviare il terminale.',
   'shellSessions:restart': 'Impossibile riavviare il terminale.',
+  'systemSkills:create': 'Impossibile creare la skill Pi.',
+  'systemSkills:delete': 'Impossibile eliminare la skill Pi.',
+  'systemSkills:get': 'Impossibile leggere la skill Pi.',
+  'systemSkills:list': 'Impossibile leggere le skill Pi.',
+  'systemSkills:update': 'Impossibile salvare la skill Pi.',
   'terminal:exportDiagnostics': 'Impossibile esportare la diagnostica del terminale.',
   'terminal:resume': 'Impossibile ripristinare la sessione del terminale.',
   'updates:activatePending': 'Impossibile attivare l’aggiornamento.',
@@ -312,6 +317,9 @@ function createPrivateDiagnostics(error, classification, options = {}) {
 
 function classifyCategory(error, domain, explicitCategory) {
   if (CATEGORY_SET.has(explicitCategory)) return explicitCategory
+  const publicCode = isPublicError(error) ? safeCode(safeProperty(error, 'publicCode')) : null
+  if (publicCode?.endsWith('_ALREADY_EXISTS')) return 'conflict'
+  if (publicCode?.endsWith('_INVALID')) return 'validation'
   const signal = errorSignals(error)
 
   if (/aborterror|abort_err|err_(?:canceled|cancelled)|cancel(?:ing|led|ed)|annullat|\b57014\b/u.test(signal)) return 'cancelled'
