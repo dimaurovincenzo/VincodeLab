@@ -1,4 +1,5 @@
 import { Braces, Database, RefreshCw } from 'lucide-react'
+import { memo } from 'react'
 import { Button, ErrorNotice, Spinner, Tabs } from '@/components/ui'
 import { EmptyState } from '@/components/empty-state'
 import { redisTypeLabel, type RedisInspection } from '@/lib/redis-types'
@@ -37,10 +38,10 @@ function inspectionHasMore(inspection: RedisInspection) {
 }
 
 function KeyValueTable({ headers, rows }: { headers: readonly string[]; rows: ReadonlyArray<readonly string[]> }) {
-  return <table className={rs.dataTable}><thead><tr>{headers.map((header) => <th className={rs.tableHeader} key={header}>{header}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={`${row[0]}:${rowIndex}`}>{row.map((cell, index) => <td className={`${rs.tableCell} ${index === 0 ? rs.indexCell : ''}`} key={index}>{cell}</td>)}</tr>)}</tbody></table>
+  return <table className={rs.dataTable}><thead><tr>{headers.map((header) => <th className={rs.tableHeader} key={header}>{header}</th>)}</tr></thead><tbody>{rows.map((row, rowIndex) => <tr className={rs.tableRow} key={`${row[0]}:${rowIndex}`}>{row.map((cell, index) => <td className={`${rs.tableCell} ${index === 0 ? rs.indexCell : ''}`} key={index}>{cell}</td>)}</tr>)}</tbody></table>
 }
 
-function InspectionValue({ inspection }: { inspection: RedisInspection }) {
+const InspectionValue = memo(function InspectionValue({ inspection }: { inspection: RedisInspection }) {
   if (inspection.type === 'string') return <pre className={rs.codeBlock}>{inspection.value}</pre>
   if (inspection.type === 'json') return <pre className={rs.codeBlock}>{JSON.stringify(inspection.value, null, 2)}</pre>
   if (inspection.type === 'hash') return <KeyValueTable headers={['Campo', 'Valore']} rows={inspection.entries.map((entry) => [entry.field, entry.value])} />
@@ -48,9 +49,9 @@ function InspectionValue({ inspection }: { inspection: RedisInspection }) {
   if (inspection.type === 'set') return <KeyValueTable headers={['#', 'Membro']} rows={inspection.members.map((member, index) => [String(index + 1), member])} />
   if (inspection.type === 'zset') return <KeyValueTable headers={['Score', 'Membro']} rows={inspection.members.map((member) => [String(member.score), member.value])} />
   return <KeyValueTable headers={['ID', 'Campi']} rows={inspection.entries.map((entry) => [entry.id, entry.fields.map((field) => `${field.field}: ${field.value}`).join('\n')])} />
-}
+})
 
-export function RedisKeyInspector({ error, inspection, loading, selectedKey, tab, onLoadMore, onRefresh, onTabChange }: Props) {
+export const RedisKeyInspector = memo(function RedisKeyInspector({ error, inspection, loading, selectedKey, tab, onLoadMore, onRefresh, onTabChange }: Props) {
   if (!selectedKey) return <EmptyState description="Scegli una chiave dal browser per leggerne valore, struttura e scadenza." eyebrow="Inspector in sola lettura" icon={<Database size={24} />} title="Nessuna chiave selezionata" />
   if (error) return <ErrorNotice action={{ label: 'Riprova lettura', onClick: onRefresh }} className={rs.notice} error={error} />
   if (loading || !inspection) return <div className={rs.centerState} role="status"><Spinner size={20} /><span>Lettura della chiave…</span></div>
@@ -84,7 +85,7 @@ export function RedisKeyInspector({ error, inspection, loading, selectedKey, tab
     </div>
     {inspectionHasMore(inspection) && <footer className={rs.loadMore}><Button size="sm" variant="outline" onClick={onLoadMore}>Carica altri elementi</Button></footer>}
   </section></Tabs.Root>
-}
+})
 
 export function RedisInspectorEmpty() {
   return <EmptyState description="Configura o seleziona una connessione Redis per iniziare a esplorare le chiavi." eyebrow="Redis" icon={<Braces size={24} />} title="Nessuna connessione attiva" />

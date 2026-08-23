@@ -104,4 +104,12 @@ Per GitHub, database remoti e SFTP usa account e servizi fixture autorizzati. Se
 - Per regressioni di accessibilità preferisci query semantiche e interazioni reali da tastiera.
 - Per regressioni di prestazioni definisci un budget e separa la correttezza lossless dalla velocità.
 
+Il percorso Redis ha una suite deterministica dedicata:
+
+```bash
+node --test test/redis-performance.test.cjs
+```
+
+La suite verifica concorrenza limitata, numero di comandi, ordine dei risultati, cancellazione, riuso delle sessioni, preview dedicate e arresto sul budget cumulativo senza richiedere un server esterno. Le misure su istanze reali restano test manuali in sola lettura e non devono registrare chiavi, payload o credenziali nell’output.
+
 Conserva le evidenze dettagliate delle certificazioni fuori dal repository pubblico e indica sempre ciò che non è stato verificato.

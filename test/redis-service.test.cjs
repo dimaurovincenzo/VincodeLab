@@ -154,6 +154,8 @@ test('Sentinel scopre il master nativamente senza dipendere da redis-cli', async
   assert.equal(sentinelOptions.sentinelClientOptions.password, undefined)
   assert.equal(sentinelOptions.nodeClientOptions.database, 0)
   assert.equal(sentinelOptions.replicaPoolSize, 0)
+  assert.equal(sentinelOptions.maxCommandRediscovers, 1)
+  assert.equal(sentinelOptions.passthroughClientErrorEvents, true)
   await api.closeWorkspaceSessions('/workspace')
 })
 
@@ -211,6 +213,40 @@ test('Sentinel interrompe una connessione sospesa con un timeout recuperabile', 
     mode: 'sentinel', host: 'sentinel.internal', port: 26379, sentinelMasterName: 'vincodelab-primary', database: 0,
   }), (error) => error.publicCode === 'REDIS_TIMEOUT')
   assert.equal(destroyed, true)
+})
+
+test('Sentinel classifica NOAUTH come autenticazione anche quando il timeout esterno chiude la connessione', async () => {
+  const client = fakeRedisClient()
+  let errorListener
+  client.on = (event, listener) => { if (event === 'error') errorListener = listener }
+  client.off = () => undefined
+  client.connect = () => {
+    errorListener?.(Object.assign(new Error('NOAUTH Authentication required'), { code: 'NOAUTH' }))
+    return new Promise(() => undefined)
+  }
+  client.destroy = () => { client.isOpen = false }
+  const api = createRedisService({
+    createSentinel: () => client,
+    connectionTimeoutMs: 5,
+    getConnectionWithSecrets: () => null,
+  })
+
+  await assert.rejects(() => api.testConnectionInput({
+    mode: 'sentinel', host: 'sentinel.internal', port: 26379, sentinelMasterName: 'vincodelab-primary', database: 0,
+  }), (error) => error.publicCode === 'REDIS_AUTHENTICATION_FAILED' && error.redisKind === 'authentication')
+})
+
+test('una causa di autenticazione prevale sul wrapper di timeout senza esporre il dettaglio tecnico', () => {
+  const cause = Object.assign(new Error('WRONGPASS password=private-sentinel-secret'), { code: 'WRONGPASS' })
+  const error = Object.assign(new Error('redis_connection_timeout', { cause }), { code: 'ETIMEDOUT' })
+
+  const normalized = normalizeRedisError(error, { phase: 'connection' })
+  const publicError = toRedisPublicError(error, { phase: 'connection' })
+
+  assert.equal(normalized.code, 'REDIS_AUTHENTICATION_FAILED')
+  assert.equal(normalized.kind, 'authentication')
+  assert.doesNotMatch(normalized.diagnostic, /private-sentinel-secret/u)
+  assert.doesNotMatch(publicError.message, /private-sentinel-secret|WRONGPASS/u)
 })
 
 test('chiude in modo bounded anche un QUIT sospeso dopo il test connessione', async () => {

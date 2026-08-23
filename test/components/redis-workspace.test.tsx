@@ -5,7 +5,7 @@ import { RedisWorkspace } from '@/components/redis-workspace'
 import { toast } from '@/components/ui'
 import type { RedisApi, RedisPayloadSearchProgress, RedisPayloadSearchResult } from '@/lib/redis-types'
 
-const connection = { id: 'redis-local', name: 'Redis locale', host: '127.0.0.1', port: 6379, database: 0, hasPassword: false }
+const connection = { id: 'redis-local', name: 'Redis locale', mode: 'standalone' as const, host: '127.0.0.1', port: 6379, database: 0, hasPassword: false }
 const keyRef = (key: string) => btoa(key)
 
 function installRedis(overrides: Partial<RedisApi> = {}) {
@@ -72,6 +72,28 @@ describe('Redis workspace read-only', () => {
     expect(scanKeys).toHaveBeenLastCalledWith('redis-local', { count: 250, cursor: undefined, match: 'session:*', type: 'hash' })
   })
 
+  it('scarta una lettura obsoleta quando cambia la connessione attiva', async () => {
+    const remoteConnection = { ...connection, id: 'redis-remote', name: 'Redis remoto' }
+    let finishRead!: (value: { key: string; keyRef: string; type: 'string'; ttlMs: null; value: string; previewBytes: number; totalBytes: number; truncated: false }) => void
+    const readKey = vi.fn(() => new Promise<Parameters<typeof finishRead>[0]>((resolve) => { finishRead = resolve }))
+    installRedis({
+      listConnections: vi.fn(async () => [connection, remoteConnection]),
+      readKey,
+    })
+    const user = userEvent.setup()
+    render(<RedisWorkspace workspace="/tmp/redis-switch" />)
+
+    await user.click(await screen.findByRole('button', { name: /user:1/i }))
+    expect(screen.getByText('Lettura della chiave…')).toBeVisible()
+    await user.click(screen.getByRole('combobox', { name: 'Connessione Redis attiva' }))
+    await user.click(await screen.findByRole('option', { name: 'Redis remoto · DB 0' }))
+    expect(await screen.findByText('Nessuna chiave selezionata')).toBeVisible()
+
+    act(() => finishRead({ key: 'user:1', keyRef: keyRef('user:1'), type: 'string', ttlMs: null, value: 'risultato obsoleto', previewBytes: 17, totalBytes: 17, truncated: false }))
+    await waitFor(() => expect(screen.queryByText('risultato obsoleto')).not.toBeInTheDocument())
+    expect(screen.queryByText('Lettura della chiave…')).not.toBeInTheDocument()
+  })
+
   it('mostra progressi e risultati parziali e inoltra annullamento al bridge', async () => {
     let finishSearch!: (result: RedisPayloadSearchResult) => void
     const searchPayloads = vi.fn((_id: string, input: { operationId: string }) => new Promise<RedisPayloadSearchResult>((resolve) => {
@@ -91,20 +113,49 @@ describe('Redis workspace read-only', () => {
     expect(searchPayloads.mock.calls[0][1]).toMatchObject({ count: 100, limit: 100 })
     expect(screen.getByRole('progressbar', { name: 'Avanzamento ricerca nei payload Redis' })).not.toHaveAttribute('aria-valuenow')
 
-    act(() => harness.emitProgress({ operationId, scanned: 125, estimatedTotal: 500, matches: [{ key: 'user:1', keyRef: keyRef('user:1'), type: 'hash', path: 'name', excerpt: 'Ada Lovelace' }] }))
+    act(() => {
+      harness.emitProgress({ operationId, scanned: 124, estimatedTotal: 500, matches: [{ key: 'user:1', keyRef: keyRef('user:1'), type: 'hash', path: 'name', excerpt: 'Risultato intermedio' }] })
+      harness.emitProgress({ operationId, scanned: 125, estimatedTotal: 500, matches: [{ key: 'user:1', keyRef: keyRef('user:1'), type: 'hash', path: 'name', excerpt: 'Ada Lovelace' }] })
+    })
     expect(await screen.findByText('Ada Lovelace')).toBeVisible()
+    expect(screen.queryByText('Risultato intermedio')).not.toBeInTheDocument()
     expect(screen.getByText(/125 chiavi analizzate/)).toBeVisible()
     expect(screen.getByRole('progressbar', { name: 'Avanzamento ricerca nei payload Redis' })).toHaveAttribute('aria-valuenow', '25')
 
     act(() => harness.emitProgress({ operationId, scanned: 126, estimatedTotal: 500, matches: [{ key: 'user:1', keyRef: keyRef('user:1'), type: 'hash', path: 'name', excerpt: 'Ada Lovelace aggiornata' }] }))
-    expect(screen.queryByText('Ada Lovelace')).not.toBeInTheDocument()
-    expect(screen.getByText('Ada Lovelace aggiornata')).toBeVisible()
+    await waitFor(() => expect(screen.queryByText('Ada Lovelace')).not.toBeInTheDocument())
+    expect(await screen.findByText('Ada Lovelace aggiornata')).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Annulla' }))
     expect(harness.api.cancel).toHaveBeenCalledWith(operationId)
     act(() => finishSearch({ operationId, scanned: 126, matches: [], truncated: false, cancelled: true }))
     expect(await screen.findByText(/Ricerca annullata · risultati parziali/)).toBeVisible()
     expect(screen.getByText('Ada Lovelace aggiornata')).toBeVisible()
+  })
+
+  it('preserva l’ultimo progresso pending se la ricerca fallisce e limita gli annunci live', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    let failSearch!: (reason: unknown) => void
+    const searchPayloads = vi.fn((_id: string, input: { operationId: string }) => new Promise<RedisPayloadSearchResult>((_resolve, reject) => {
+      failSearch = reject
+      expect(input.operationId).toMatch(/^[0-9a-f-]{36}$/iu)
+    }))
+    const harness = installRedis({ searchPayloads })
+    const user = userEvent.setup()
+    render(<RedisWorkspace workspace="/tmp/redis-search-failure" />)
+
+    await user.click(await screen.findByRole('tab', { name: /Cerca nei payload/ }))
+    await user.type(screen.getByRole('textbox', { name: 'Testo da cercare nei payload' }), 'parziale')
+    await user.click(screen.getByRole('button', { name: 'Cerca' }))
+    await waitFor(() => expect(searchPayloads).toHaveBeenCalledTimes(1))
+    const operationId = searchPayloads.mock.calls[0][1].operationId
+    act(() => harness.emitProgress({ operationId, scanned: 17, estimatedTotal: 100, matches: [{ key: 'job:17', keyRef: keyRef('job:17'), type: 'string', excerpt: 'risultato parziale conservato' }] }))
+    act(() => failSearch(new Error('connection reset')))
+
+    expect(await screen.findByText('risultato parziale conservato')).toBeVisible()
+    expect(await screen.findByText('Ricerca nei payload non completata')).toBeVisible()
+    expect(screen.getByText(/17 chiavi analizzate/).closest('[aria-live]')).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent('Ricerca Redis avviata.')
   })
 
   it('inoltra tutte le azioni redis-key usando il keyRef e copia soltanto dati visibili', async () => {
@@ -137,6 +188,8 @@ describe('Redis workspace read-only', () => {
     await user.type(screen.getByRole('textbox', { name: 'Testo da cercare nei payload' }), 'Ada')
     await user.click(screen.getByRole('button', { name: 'Cerca' }))
     await waitFor(() => expect(harness.api.searchPayloads).toHaveBeenCalledWith('redis-local', expect.objectContaining({ keyRef: contextId, keyPattern: 'user:1' })))
+    expect(await screen.findByText(/Ricerca completata · 1 chiave analizzata/)).toBeVisible()
+    expect(screen.getByRole('progressbar', { name: 'Avanzamento ricerca nei payload Redis' })).toHaveAttribute('aria-valuenow', '100')
     await user.click(screen.getByRole('tab', { name: 'Inspector' }))
     await user.click(screen.getByRole('tab', { name: 'Metadati' }))
     expect(screen.getByRole('heading', { name: 'user:1' }).closest('[data-context-menu-kind="redis-key"]')).not.toHaveAttribute('data-context-has-visible-value')
@@ -194,7 +247,7 @@ describe('Redis workspace read-only', () => {
     modeList = await screen.findByRole('listbox', { name: 'Modalità' })
     await user.keyboard('{End}{Enter}')
     await waitFor(() => expect(modeSelect).toHaveTextContent('Sentinel'))
-    expect(modeSelect).toHaveFocus()
+    await waitFor(() => expect(modeSelect).toHaveFocus())
     await user.clear(screen.getByRole('textbox', { name: 'Host Sentinel' }))
     await user.type(screen.getByRole('textbox', { name: 'Host Sentinel' }), 'sentinel.internal')
     await user.type(screen.getByRole('textbox', { name: 'Nome master Sentinel' }), 'vincodelab-primary')

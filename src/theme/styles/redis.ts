@@ -28,6 +28,7 @@ export const redisTypeBadge = cva({
 })
 
 export const redisStyles = {
+  srOnly: css({ srOnly: true }),
   workspace: css({
     '--splitter-display': 'flex',
     bg: 'surfaceCanvas',
@@ -89,7 +90,7 @@ export const redisStyles = {
     overflow: 'auto',
     p: '2',
   }),
-  keyItem: css({ minW: '0' }),
+  keyItem: css({ containIntrinsicSize: 'auto 36px', contentVisibility: 'auto', minW: '0' }),
   keyButton: css({
     alignItems: 'center',
     borderColor: 'transparent',
@@ -195,6 +196,7 @@ export const redisStyles = {
     wordBreak: 'break-word',
   }),
   dataTable: css({ borderCollapse: 'collapse', fontFamily: 'mono', fontSize: 'graphiteCode', tableLayout: 'fixed', w: 'full' }),
+  tableRow: css({ containIntrinsicSize: 'auto 64px', contentVisibility: 'auto' }),
   tableHeader: css({ bg: 'surfaceSubtle', color: 'textSecondary', fontSize: 'graphiteMeta', fontWeight: 'graphiteSemibold', p: '2', position: 'sticky', textAlign: 'left', top: '0' }),
   tableCell: css({ borderBottomColor: 'borderDefault', borderBottomWidth: '1px', overflowWrap: 'anywhere', p: '2', verticalAlign: 'top' }),
   indexCell: css({ color: 'textTertiary', w: '24' }),
@@ -212,6 +214,7 @@ export const redisStyles = {
   progressPanel: css({ bg: 'surfaceSubtle', borderBottomColor: 'borderDefault', borderBottomWidth: '1px', display: 'grid', gap: '2', p: '2 3' }),
   progressHeading: css({ alignItems: 'center', color: 'textSecondary', display: 'flex', fontSize: 'graphiteMeta', gap: '2', justifyContent: 'space-between' }),
   searchResults: css({ alignContent: 'start', display: 'grid', gap: '2', listStyle: 'none', m: '0', minH: '0', overflow: 'auto', p: '3' }),
+  resultItem: css({ containIntrinsicSize: 'auto 96px', contentVisibility: 'auto' }),
   resultButton: css({
     alignItems: 'start',
     borderColor: 'borderDefault',

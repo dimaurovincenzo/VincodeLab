@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Database, Filter, RefreshCw } from 'lucide-react'
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { Button, Field, IconButton, SelectField, Spinner } from '@/components/ui'
 import { ErrorNotice } from '@/components/ui'
 import { redisKeyTypes, redisTypeLabel, type RedisKeySummary, type RedisKeyTypeFilter } from '@/lib/redis-types'
@@ -22,6 +22,8 @@ type Props = {
   onSelect: (key: RedisKeySummary) => void
 }
 
+const redisTypeOptions = redisKeyTypes.map((value) => ({ value, label: redisTypeLabel(value) }))
+
 function ttlLabel(ttlMs: number | null, ttlState?: RedisKeySummary['ttlState']) {
   if (ttlState === 'unavailable') return 'TTL non disponibile'
   if (ttlState === 'missing') return 'chiave scaduta'
@@ -32,7 +34,7 @@ function ttlLabel(ttlMs: number | null, ttlState?: RedisKeySummary['ttlState']) 
   return `${Math.ceil(ttlMs / 3_600_000)} h`
 }
 
-export function RedisKeyBrowser({ cursorDepth, error, filter, hasMore, keys, loading, selectedKey, typeFilter, onFilter, onNext, onPrevious, onRefresh, onSelect }: Props) {
+export const RedisKeyBrowser = memo(function RedisKeyBrowser({ cursorDepth, error, filter, hasMore, keys, loading, selectedKey, typeFilter, onFilter, onNext, onPrevious, onRefresh, onSelect }: Props) {
   const [draftFilter, setDraftFilter] = useState(filter)
   const [draftType, setDraftType] = useState<RedisKeyTypeFilter>(typeFilter)
 
@@ -43,7 +45,7 @@ export function RedisKeyBrowser({ cursorDepth, error, filter, hasMore, keys, loa
     </header>
     <form className={rs.filters} onSubmit={(event) => { event.preventDefault(); onFilter(draftFilter, draftType) }}>
       <Field.Root><Field.Input aria-label="Pattern chiavi Redis" placeholder="Pattern, es. user:*" value={draftFilter} onChange={(event) => setDraftFilter(event.target.value)} /></Field.Root>
-      <SelectField aria-label="Tipo chiave Redis" options={redisKeyTypes.map((value) => ({ value, label: redisTypeLabel(value) }))} value={draftType} onValueChange={(value) => setDraftType(value as RedisKeyTypeFilter)} />
+      <SelectField aria-label="Tipo chiave Redis" options={redisTypeOptions} value={draftType} onValueChange={(value) => setDraftType(value as RedisKeyTypeFilter)} />
       <IconButton aria-label="Applica filtri chiavi" tooltip="Applica filtri" type="submit"><Filter aria-hidden="true" size={14} /></IconButton>
     </form>
     {error ? <ErrorNotice action={{ label: 'Riprova SCAN', onClick: onRefresh }} className={rs.notice} error={error} /> : loading ? <div className={rs.browserStatus} role="status"><Spinner size={18} /> Caricamento chiavi…</div> : keys.length ? <ul aria-label="Chiavi Redis" className={rs.keyList}>{keys.map((item) => <li className={rs.keyItem} data-context-menu-id={item.keyRef} data-context-menu-kind="redis-key" key={item.keyRef}>
@@ -59,4 +61,4 @@ export function RedisKeyBrowser({ cursorDepth, error, filter, hasMore, keys, loa
       <Button aria-label="Pagina successiva chiavi" disabled={loading || !hasMore} size="xs" variant="plain" onClick={onNext}>Avanti <ChevronRight aria-hidden="true" size={14} /></Button>
     </footer>
   </aside>
-}
+})

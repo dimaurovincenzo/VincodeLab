@@ -14,8 +14,11 @@ const REDIS_SEARCH_KEY_LIMIT = 10_000
 const REDIS_SEARCH_MATCH_LIMIT = 100
 const REDIS_SESSION_CLEANUP_TIMEOUT_MS = 2_000
 const REDIS_COMMAND_TIMEOUT_MS = 10_000
-const REDIS_METADATA_CONCURRENCY = 4
+const REDIS_METADATA_CONCURRENCY = 32
+const REDIS_SEARCH_CONCURRENCY = 12
 const REDIS_STRING_PREVIEW_BYTE_LIMIT = 256 * 1_024
+const REDIS_SEARCH_STRING_PREVIEW_BYTE_LIMIT = 32 * 1_024
+const REDIS_SEARCH_READ_BYTE_LIMIT = 32 * 1_024 * 1_024
 const REDIS_COLLECTION_PREFETCH_BYTE_LIMIT = 8 * 1_024 * 1_024
 const KEY_TYPE_SET = new Set(['string', 'hash', 'list', 'set', 'zset', 'stream', 'json'])
 
@@ -87,10 +90,13 @@ function redisErrorKind(error, { phase = 'read' } = {}) {
   if (/redis_prefetch_too_large/u.test(signal)) return 'prefetch-too-large'
   if (/redis_client_(?:command_)?unavailable|module_not_found|cannot find module.*(?:redis|@redis)/u.test(signal)) return 'client-unavailable'
   if (/aborterror|abort_err|redis_operation_cancelled|redis_session_invalidated|\babort(?:ed)?\b|cancel(?:led|ed)/u.test(signal)) return 'cancelled'
-  if (/etimedout|timeout|timed out|socket timeout/u.test(signal)) return 'timeout'
-  if (/wrongtype/u.test(signal)) return 'type-changed'
+  // Il timeout esterno può avvolgere l'ultimo errore prodotto dal client
+  // Sentinel. Le cause deterministiche devono prevalere, altrimenti una
+  // credenziale errata viene presentata come server lento dopo diversi retry.
   if (/noauth|wrongpass|invalid username-password|authentication/u.test(signal)) return 'authentication'
   if (/noperm|permission|not authorized|forbidden/u.test(signal)) return 'permission'
+  if (/etimedout|timeout|timed out|socket timeout/u.test(signal)) return 'timeout'
+  if (/wrongtype/u.test(signal)) return 'type-changed'
   if (/redis_key_not_found/u.test(signal)) return 'key-not-found'
   if (/redis_connection_not_found/u.test(signal)) return 'connection-not-found'
   if (/econnreset|econnaborted|epipe|socket closed|connection (?:is )?(?:closed|lost)|the client is closed/u.test(signal)) return 'connection-lost'
@@ -301,11 +307,17 @@ function createRedisService({
   resultByteLimit = REDIS_RESULT_BYTE_LIMIT,
   resultItemByteLimit = REDIS_RESULT_ITEM_BYTE_LIMIT,
   resultItemLimit = REDIS_RESULT_ITEM_LIMIT,
+  metadataConcurrency = REDIS_METADATA_CONCURRENCY,
+  searchConcurrency = REDIS_SEARCH_CONCURRENCY,
+  searchReadByteLimit = REDIS_SEARCH_READ_BYTE_LIMIT,
 } = {}) {
   if (createClient !== undefined && typeof createClient !== 'function') throw new TypeError('createClient Redis non valido.')
   if (createSentinel !== undefined && typeof createSentinel !== 'function') throw new TypeError('createSentinel Redis non valido.')
   if (!Number.isInteger(cleanupTimeoutMs) || cleanupTimeoutMs < 1 || cleanupTimeoutMs > 60_000) throw new TypeError('Timeout chiusura Redis non valido.')
   if (!Number.isInteger(connectionTimeoutMs) || connectionTimeoutMs < 1 || connectionTimeoutMs > 60_000) throw new TypeError('Timeout connessione Redis non valido.')
+  if (!Number.isInteger(metadataConcurrency) || metadataConcurrency < 1 || metadataConcurrency > REDIS_METADATA_CONCURRENCY) throw new TypeError('Concorrenza metadati Redis non valida.')
+  if (!Number.isInteger(searchConcurrency) || searchConcurrency < 1 || searchConcurrency > 16) throw new TypeError('Concorrenza ricerca Redis non valida.')
+  if (!Number.isInteger(searchReadByteLimit) || searchReadByteLimit < 1 || searchReadByteLimit > 256 * 1_024 * 1_024) throw new TypeError('Budget ricerca Redis non valido.')
   if (typeof getConnectionWithSecrets !== 'function') throw new TypeError('Store connessioni Redis non valido.')
 
   const clientFactory = createClient ?? ((options) => {
@@ -356,6 +368,11 @@ function createRedisService({
       masterPoolSize: 1,
       replicaPoolSize: 0,
       reserveClient: true,
+      // Ogni root Sentinel viene già provata da node-redis durante observe().
+      // Un solo rediscovery copre un cambio di topologia transitorio senza
+      // oltrepassare il timeout applicativo o nascondere NOAUTH/WRONGPASS.
+      maxCommandRediscovers: 1,
+      passthroughClientErrorEvents: true,
       commandOptions: { timeout: 10_000 },
       nodeClientOptions: {
         username: config.username,
@@ -463,13 +480,15 @@ function createRedisService({
     }
   }
 
-  async function metadata(client, key, signal) {
-    const [ttlResult, sizeResult] = await Promise.allSettled([
-      invoke(client, ['pTTL', 'pttl'], [key], signal),
-      invoke(client, ['memoryUsage'], [key], signal),
-    ])
-    if (signal?.aborted || [ttlResult, sizeResult].some((result) => result.status === 'rejected' && redisErrorKind(result.reason) === 'cancelled')) throw abortError()
-    const ttlValue = ttlResult.status === 'fulfilled' ? Number(ttlResult.value) : Number.NaN
+  async function metadata(client, key, signal, { includeSize = true, includeTtl = true } = {}) {
+    const requests = []
+    if (includeTtl) requests.push(invoke(client, ['pTTL', 'pttl'], [key], signal))
+    if (includeSize) requests.push(invoke(client, ['memoryUsage'], [key], signal))
+    const settled = await Promise.allSettled(requests)
+    if (signal?.aborted || settled.some((result) => result.status === 'rejected' && redisErrorKind(result.reason) === 'cancelled')) throw abortError()
+    const ttlResult = includeTtl ? settled[0] : undefined
+    const sizeResult = includeSize ? settled[includeTtl ? 1 : 0] : undefined
+    const ttlValue = ttlResult?.status === 'fulfilled' ? Number(ttlResult.value) : Number.NaN
     const ttlState = !Number.isFinite(ttlValue)
       ? 'unavailable'
       : ttlValue >= 0
@@ -480,10 +499,133 @@ function createRedisService({
             ? 'missing'
             : 'unavailable'
     return {
-      ttlMs: ttlValue >= 0 ? ttlValue : null,
-      ttlState,
-      ...(sizeResult.status === 'fulfilled' && Number.isFinite(Number(sizeResult.value)) ? { sizeBytes: Number(sizeResult.value) } : {}),
+      ...(includeTtl ? { ttlMs: ttlValue >= 0 ? ttlValue : null, ttlState } : {}),
+      ...(sizeResult?.status === 'fulfilled' && Number.isFinite(Number(sizeResult.value)) ? { sizeBytes: Number(sizeResult.value) } : {}),
     }
+  }
+
+  async function scanRawKeys(client, { cursor, match, count, type, signal }) {
+    const reply = await invoke(client, ['scan'], [cursor, {
+      MATCH: match,
+      COUNT: count,
+      ...(type && type !== 'json' ? { TYPE: type } : {}),
+    }], signal)
+    const normalized = normalizeScanReply(reply, ['keys', 'items'])
+    if (normalized.values.length > resultItemLimit) {
+      throw Object.assign(new Error('redis_result_too_many_items'), { code: 'REDIS_RESULT_TOO_LARGE' })
+    }
+    return { rawKeys: normalized.values, nextCursor: normalized.cursor }
+  }
+
+  async function estimateSearchTotal(client, maxScanned, signal) {
+    try {
+      const value = Number(await invoke(client, ['dbSize', 'dbsize'], [], signal))
+      return { estimatedTotal: Number.isSafeInteger(value) && value >= 0 ? Math.min(value, maxScanned) : undefined }
+    } catch {
+      // DBSIZE può essere negato dalle ACL. È solo un aiuto visuale: la
+      // ricerca SCAN resta valida e non deve fallire se la stima manca.
+      return {}
+    }
+  }
+
+  async function readKeyFromClient(client, key, {
+    collectionPrefetchByteLimit = REDIS_COLLECTION_PREFETCH_BYTE_LIMIT,
+    count,
+    cursor,
+    includeTtl = true,
+    offset,
+    signal,
+    stringPreviewByteLimit = REDIS_STRING_PREVIEW_BYTE_LIMIT,
+  }) {
+    // TYPE, TTL e MEMORY USAGE sono indipendenti. Inviarli insieme permette a
+    // node-redis di accodarli nello stesso ciclo di rete senza cambiare il
+    // contratto o richiedere MULTI/EXEC sul server.
+    const [typeValue, keyMetadata] = await Promise.all([
+      invoke(client, ['type'], [key], signal),
+      metadata(client, key, signal, { includeTtl }),
+    ])
+    const type = normalizeType(typeValue)
+    if (type === 'none') throw Object.assign(new Error('redis_key_not_found'), { code: 'REDIS_KEY_NOT_FOUND' })
+    if (!KEY_TYPE_SET.has(type)) throw Object.assign(new Error('redis_unsupported_type'), { code: 'REDIS_KEY_TYPE_UNSUPPORTED' })
+    const base = { key: encodedKey(key), type, ...keyMetadata }
+    let result
+
+    if (type !== 'string') {
+      if (!Number.isFinite(base.sizeBytes)) throw Object.assign(new Error('redis_result_size_unavailable'), { code: 'REDIS_SIZE_UNAVAILABLE' })
+      const prefetchLimit = type === 'json' ? resultItemByteLimit : collectionPrefetchByteLimit
+      if (base.sizeBytes > prefetchLimit) throw Object.assign(new Error('redis_prefetch_too_large'), { code: 'REDIS_PREFETCH_TOO_LARGE' })
+    }
+
+    if (type === 'string') {
+      const previewLimit = Math.max(1, Math.min(resultItemByteLimit, stringPreviewByteLimit))
+      const [totalValue, previewValue] = await Promise.all([
+        invoke(client, ['strLen', 'strlen'], [key], signal),
+        invoke(client, ['getRange', 'getrange'], [key, 0, previewLimit - 1], signal),
+      ])
+      const totalBytes = Number(totalValue)
+      if (!Number.isSafeInteger(totalBytes) || totalBytes < 0) throw new Error('redis_invalid_string_length')
+      const value = valueForRenderer(totalBytes === 0 ? Buffer.alloc(0) : previewValue)
+      result = { ...base, value, previewBytes: Math.min(totalBytes, previewLimit), totalBytes, truncated: totalBytes > previewLimit }
+    } else if (type === 'list') {
+      const [values, totalValue] = await Promise.all([
+        invoke(client, ['lRange', 'lrange'], [key, offset, offset + count - 1], signal),
+        invoke(client, ['lLen', 'llen'], [key], signal),
+      ])
+      const total = Number(totalValue)
+      const page = (Array.isArray(values) ? values : []).slice(0, count).map((value, index) => ({ index: offset + index, value: valueForRenderer(value) }))
+      result = { ...base, items: page, nextOffset: offset + page.length, total, hasMore: offset + page.length < total }
+    } else if (type === 'hash') {
+      const reply = normalizeScanReply(await invoke(client, ['hScan', 'hscan'], [key, cursor, { COUNT: count }], signal), ['entries', 'tuples'])
+      let entries = reply.values
+      if (entries.length && !Array.isArray(entries[0]) && typeof entries[0] !== 'object') {
+        const flat = entries; entries = []
+        for (let index = 0; index < flat.length; index += 2) entries.push({ field: flat[index], value: flat[index + 1] })
+      }
+      entries = entries.map((entry) => Array.isArray(entry)
+        ? { field: valueForRenderer(entry[0]), value: valueForRenderer(entry[1]) }
+        : { field: valueForRenderer(entry.field), value: valueForRenderer(entry.value) })
+      result = { ...base, entries, cursor: reply.cursor, hasMore: reply.cursor !== '0' }
+    } else if (type === 'set') {
+      const reply = normalizeScanReply(await invoke(client, ['sScan', 'sscan'], [key, cursor, { COUNT: count }], signal), ['members', 'items'])
+      result = { ...base, members: reply.values.map(valueForRenderer), cursor: reply.cursor, hasMore: reply.cursor !== '0' }
+    } else if (type === 'zset') {
+      const reply = normalizeScanReply(await invoke(client, ['zScan', 'zscan'], [key, cursor, { COUNT: count }], signal), ['members', 'items'])
+      let members = reply.values
+      if (members.length && typeof members[0] !== 'object') {
+        const flat = members; members = []
+        for (let index = 0; index < flat.length; index += 2) members.push({ value: flat[index], score: flat[index + 1] })
+      }
+      members = members.map((member) => ({ value: valueForRenderer(member.value), score: Number(member.score) }))
+      result = { ...base, members, cursor: reply.cursor, hasMore: reply.cursor !== '0' }
+    } else if (type === 'stream') {
+      const start = cursor !== '0' ? `(${cursor}` : '-'
+      const values = await invoke(client, ['xRange', 'xrange'], [key, start, '+', { COUNT: count + 1 }], signal)
+      const page = (Array.isArray(values) ? values : []).slice(0, count).map((entry) => ({
+        id: valueForRenderer(entry.id ?? entry[0]),
+        fields: Object.entries(entry.message ?? entry[1] ?? {}).map(([field, value]) => ({ field, value: valueForRenderer(value) })),
+      }))
+      const nextCursor = page.at(-1)?.id ?? cursor
+      result = { ...base, entries: page, cursor: nextCursor, hasMore: Array.isArray(values) && values.length > count }
+    } else {
+      const jsonClient = commandClient(client, signal)
+      if (!jsonClient.json || typeof jsonClient.json.get !== 'function') throw Object.assign(new Error('redis_json_unavailable'), { code: 'REDIS_READ_FAILED' })
+      result = { ...base, value: await jsonClient.json.get(key) }
+    }
+    let measured
+    try {
+      measured = budgetItems([result], { byteLimit: resultByteLimit, itemByteLimit: resultItemByteLimit, itemLimit: 1 })
+    } catch (error) {
+      // Solo un contatore numerico, mai payload: consente alla ricerca di
+      // contabilizzare anche una risposta già letta ma scartata dal budget IPC.
+      const readBytes = type === 'string'
+        ? result.previewBytes
+        : Number.isFinite(base.sizeBytes) ? Math.max(1, Math.ceil(base.sizeBytes)) : resultItemByteLimit
+      if (error && (typeof error === 'object' || typeof error === 'function')) {
+        try { Object.defineProperty(error, 'redisReadBytes', { value: readBytes }) } catch { /* Contatore diagnostico best effort. */ }
+      }
+      throw error
+    }
+    return Object.freeze({ ...result, resultBytes: measured.bytes })
   }
 
   async function testConnection(workspacePath, connectionId, { signal } = {}) {
@@ -544,18 +686,17 @@ function createRedisService({
       const type = input.type === undefined || input.type === 'all' ? null : normalizeType(input.type)
       if (type && !KEY_TYPE_SET.has(type)) throw new Error('redis_input_invalid')
       const { client } = await getSession(workspacePath, connectionId, { signal: input.signal })
-      const reply = await invoke(client, ['scan'], [cursor, { MATCH: match, COUNT: count, ...(type && type !== 'json' ? { TYPE: type } : {}) }], input.signal)
-      const normalized = normalizeScanReply(reply, ['keys', 'items'])
-      const rawKeys = normalized.values
-      if (rawKeys.length > resultItemLimit) throw Object.assign(new Error('redis_result_too_many_items'), { code: 'REDIS_RESULT_TOO_LARGE' })
-      const summaries = await mapWithConcurrency(rawKeys, REDIS_METADATA_CONCURRENCY, async (key) => {
-        const keyType = normalizeType(await invoke(client, ['type'], [key], input.signal))
-        const keyMetadata = await metadata(client, key, input.signal)
+      const { rawKeys, nextCursor } = await scanRawKeys(client, { cursor, match, count, type, signal: input.signal })
+      const summaries = await mapWithConcurrency(rawKeys, metadataConcurrency, async (key) => {
+        const [keyTypeValue, keyMetadata] = await Promise.all([
+          type && type !== 'json' ? type : invoke(client, ['type'], [key], input.signal),
+          metadata(client, key, input.signal, { includeSize: false }),
+        ])
+        const keyType = normalizeType(keyTypeValue)
         return { key: encodedKey(key), type: keyType, ...keyMetadata }
       })
       const filtered = summaries.filter((item) => KEY_TYPE_SET.has(item.type) && (!type || item.type === type))
       const { bytes, items } = budgetItems(filtered, { byteLimit: resultByteLimit, itemByteLimit: resultItemByteLimit, itemLimit: resultItemLimit })
-      const nextCursor = normalized.cursor
       return Object.freeze({
         items, nextCursor, complete: nextCursor === '0', resultBytes: bytes, scanned: rawKeys.length,
         // Alias mantenuti per il renderer iniziale; non contengono mai il valore della chiave.
@@ -575,87 +716,46 @@ function createRedisService({
       const cursor = cursorOption(options.cursor)
       const offset = integerOption(options.offset, 0, 0, 2_147_483_647)
       const { client } = await getSession(workspacePath, connectionId, { signal: options.signal })
-      const type = normalizeType(await invoke(client, ['type'], [key], options.signal))
-      if (type === 'none') throw Object.assign(new Error('redis_key_not_found'), { code: 'REDIS_KEY_NOT_FOUND' })
-      if (!KEY_TYPE_SET.has(type)) throw Object.assign(new Error('redis_unsupported_type'), { code: 'REDIS_READ_FAILED' })
-      const base = { key: encodedKey(key), type, ...await metadata(client, key, options.signal) }
-      let result
-
-      if (type !== 'string') {
-        if (!Number.isFinite(base.sizeBytes)) throw Object.assign(new Error('redis_result_size_unavailable'), { code: 'REDIS_SIZE_UNAVAILABLE' })
-        const prefetchLimit = type === 'json' ? resultItemByteLimit : REDIS_COLLECTION_PREFETCH_BYTE_LIMIT
-        if (base.sizeBytes > prefetchLimit) throw Object.assign(new Error('redis_prefetch_too_large'), { code: 'REDIS_PREFETCH_TOO_LARGE' })
-      }
-
-      if (type === 'string') {
-        const totalBytes = Number(await invoke(client, ['strLen', 'strlen'], [key], options.signal))
-        if (!Number.isSafeInteger(totalBytes) || totalBytes < 0) throw new Error('redis_invalid_string_length')
-        const previewLimit = Math.max(1, Math.min(resultItemByteLimit, REDIS_STRING_PREVIEW_BYTE_LIMIT))
-        const value = valueForRenderer(totalBytes === 0
-          ? Buffer.alloc(0)
-          : await invoke(client, ['getRange', 'getrange'], [key, 0, previewLimit - 1], options.signal))
-        result = { ...base, value, previewBytes: Math.min(totalBytes, previewLimit), totalBytes, truncated: totalBytes > previewLimit }
-      } else if (type === 'list') {
-        const [values, totalValue] = await Promise.all([
-          invoke(client, ['lRange', 'lrange'], [key, offset, offset + count], options.signal),
-          invoke(client, ['lLen', 'llen'], [key], options.signal),
-        ])
-        const total = Number(totalValue)
-        const page = (Array.isArray(values) ? values : []).slice(0, count).map((value, index) => ({ index: offset + index, value: valueForRenderer(value) }))
-        result = { ...base, items: page, nextOffset: offset + page.length, total, hasMore: offset + page.length < total }
-      } else if (type === 'hash') {
-        const reply = normalizeScanReply(await invoke(client, ['hScan', 'hscan'], [key, cursor, { COUNT: count }], options.signal), ['entries', 'tuples'])
-        let entries = reply.values
-        if (entries.length && !Array.isArray(entries[0]) && typeof entries[0] !== 'object') {
-          const flat = entries; entries = []
-          for (let index = 0; index < flat.length; index += 2) entries.push({ field: flat[index], value: flat[index + 1] })
-        }
-        entries = entries.map((entry) => Array.isArray(entry)
-          ? { field: valueForRenderer(entry[0]), value: valueForRenderer(entry[1]) }
-          : { field: valueForRenderer(entry.field), value: valueForRenderer(entry.value) })
-        result = { ...base, entries, cursor: reply.cursor, hasMore: reply.cursor !== '0' }
-      } else if (type === 'set') {
-        const reply = normalizeScanReply(await invoke(client, ['sScan', 'sscan'], [key, cursor, { COUNT: count }], options.signal), ['members', 'items'])
-        result = { ...base, members: reply.values.map(valueForRenderer), cursor: reply.cursor, hasMore: reply.cursor !== '0' }
-      } else if (type === 'zset') {
-        const reply = normalizeScanReply(await invoke(client, ['zScan', 'zscan'], [key, cursor, { COUNT: count }], options.signal), ['members', 'items'])
-        let members = reply.values
-        if (members.length && typeof members[0] !== 'object') {
-          const flat = members; members = []
-          for (let index = 0; index < flat.length; index += 2) members.push({ value: flat[index], score: flat[index + 1] })
-        }
-        members = members.map((member) => ({ value: valueForRenderer(member.value), score: Number(member.score) }))
-        result = { ...base, members, cursor: reply.cursor, hasMore: reply.cursor !== '0' }
-      } else if (type === 'stream') {
-        const start = options.cursor && options.cursor !== '0' ? `(${options.cursor}` : '-'
-        const values = await invoke(client, ['xRange', 'xrange'], [key, start, '+', { COUNT: count + 1 }], options.signal)
-        const page = (Array.isArray(values) ? values : []).slice(0, count).map((entry) => ({
-          id: valueForRenderer(entry.id ?? entry[0]),
-          fields: Object.entries(entry.message ?? entry[1] ?? {}).map(([field, value]) => ({ field, value: valueForRenderer(value) })),
-        }))
-        const nextCursor = page.at(-1)?.id ?? cursor
-        result = { ...base, entries: page, cursor: nextCursor, hasMore: Array.isArray(values) && values.length > count }
-      } else {
-        const jsonClient = commandClient(client, options.signal)
-        if (!jsonClient.json || typeof jsonClient.json.get !== 'function') throw Object.assign(new Error('redis_json_unavailable'), { code: 'REDIS_READ_FAILED' })
-        result = { ...base, value: await jsonClient.json.get(key) }
-      }
-      const measured = budgetItems([result], { byteLimit: resultByteLimit, itemByteLimit: resultItemByteLimit, itemLimit: 1 })
-      return Object.freeze({ ...result, resultBytes: measured.bytes })
+      return await readKeyFromClient(client, key, { count, cursor, offset, signal: options.signal })
     } catch (error) {
       await invalidateFailedSession(workspacePath, connectionId, error)
       throw toRedisPublicError(error)
     }
   }
 
-  function searchableParts(inspection) {
-    if (inspection.type === 'string') return [{ path: undefined, value: inspection.value }]
-    if (inspection.type === 'hash') return inspection.entries.flatMap(({ field, value }) => [{ path: field, value: field }, { path: field, value }])
-    if (inspection.type === 'list') return inspection.items.map(({ index, value }) => ({ path: `[${index}]`, value }))
-    if (inspection.type === 'set' || inspection.type === 'zset') return inspection.members.map((member) => ({ path: undefined, value: typeof member === 'string' ? member : member.value }))
-    if (inspection.type === 'stream') return inspection.entries.flatMap((entry) => entry.fields.map(({ field, value }) => ({ path: `${entry.id}.${field}`, value })))
-    if (inspection.type === 'json') return [{ path: '$', value: JSON.stringify(inspection.value) }]
-    return []
+  function findSearchablePart(inspection, query) {
+    const match = (value, path) => {
+      if (typeof value !== 'string') return null
+      const matchIndex = value.toLocaleLowerCase().indexOf(query)
+      return matchIndex < 0 ? null : { matchIndex, path, value }
+    }
+    if (inspection.type === 'string') return match(inspection.value)
+    if (inspection.type === 'hash') {
+      for (const { field, value } of inspection.entries) {
+        const found = match(field, field) ?? match(value, field)
+        if (found) return found
+      }
+    } else if (inspection.type === 'list') {
+      for (const { index, value } of inspection.items) {
+        const found = match(value, `[${index}]`)
+        if (found) return found
+      }
+    } else if (inspection.type === 'set' || inspection.type === 'zset') {
+      for (const member of inspection.members) {
+        const found = match(typeof member === 'string' ? member : member.value)
+        if (found) return found
+      }
+    } else if (inspection.type === 'stream') {
+      for (const entry of inspection.entries) {
+        for (const { field, value } of entry.fields) {
+          const found = match(value, `${entry.id}.${field}`)
+          if (found) return found
+        }
+      }
+    } else if (inspection.type === 'json') {
+      return match(JSON.stringify(inspection.value), '$')
+    }
+    return null
   }
 
   async function searchKeys(workspacePath, connectionId, input = {}, progress) {
@@ -663,6 +763,8 @@ function createRedisService({
     let scanned = 0
     let truncated = false
     let partialPayloads = false
+    let searchReadBytes = 0
+    let searchReadBudgetExhausted = false
     let matches = []
     try {
       if (!input || typeof input !== 'object' || Array.isArray(input) || typeof input.operationId !== 'string'
@@ -674,46 +776,122 @@ function createRedisService({
       const count = integerOption(input.count, 100, 1, 200)
       const limit = integerOption(input.limit, 50, 1, REDIS_SEARCH_MATCH_LIMIT)
       const maxScanned = integerOption(input.maxScanned, REDIS_SEARCH_KEY_LIMIT, 1, REDIS_SEARCH_KEY_LIMIT)
-      const exactKey = input.keyRef === undefined ? null : encodedKey(keyBytes({ encoded: input.keyRef }))
+      const exactKey = input.keyRef === undefined ? null : keyBytes({ encoded: input.keyRef })
       const keyPattern = exactKey ? null : patternOption(input.keyPattern)
       const typeFilter = input.type === undefined || input.type === 'all' ? null : normalizeType(input.type)
       if (typeFilter && !KEY_TYPE_SET.has(typeFilter)) throw new Error('redis_input_invalid')
+      const { client } = await getSession(workspacePath, connectionId, { signal: input.signal })
+      let estimateResult = exactKey ? { estimatedTotal: 1 } : null
+      if (!exactKey) {
+        // La stima è strettamente best-effort: non entra mai nel critical path
+        // di SCAN, progress o risultato. Il timeout comando ne limita comunque
+        // la durata e il segnale dell’operazione la interrompe in cancellazione.
+        void estimateSearchTotal(client, maxScanned, input.signal).then((result) => { estimateResult = result })
+      }
+      let estimatedTotal
       let cursor = '0'
       do {
         if (input.signal?.aborted) return Object.freeze({ operationId, scanned, matches, truncated, cancelled: true })
         const page = exactKey
-          ? { items: [{ key: exactKey }], nextCursor: '0' }
-          : await scanKeys(workspacePath, connectionId, { cursor, match: keyPattern, type: typeFilter ?? 'all', count, signal: input.signal })
+          ? { rawKeys: [exactKey], nextCursor: '0' }
+          : await scanRawKeys(client, {
+            cursor,
+            match: keyPattern,
+            count,
+            type: typeFilter,
+            signal: input.signal,
+          })
         cursor = page.nextCursor
-        for (const summary of page.items) {
-          if (scanned >= maxScanned || matches.length >= limit) { truncated = true; break }
-          scanned += 1
-          let inspection
-          try { inspection = await readKey(workspacePath, connectionId, summary.key, { count: Math.min(count, 50), signal: input.signal }) } catch (error) {
-            if (error?.publicCode === 'REDIS_SIZE_UNAVAILABLE' || error?.publicCode === 'REDIS_PREFETCH_TOO_LARGE') {
-              partialPayloads = true
+        let pageIndex = 0
+        while (pageIndex < page.rawKeys.length && scanned < maxScanned && matches.length < limit && !searchReadBudgetExhausted) {
+          const batchSize = Math.min(searchConcurrency, page.rawKeys.length - pageIndex, maxScanned - scanned)
+          const batch = page.rawKeys.slice(pageIndex, pageIndex + batchSize)
+          pageIndex += batch.length
+          const outcomes = await mapWithConcurrency(batch, searchConcurrency, async (key) => {
+            let inspection
+            try {
+              inspection = await readKeyFromClient(client, key, {
+                collectionPrefetchByteLimit: resultItemByteLimit,
+                count: Math.min(count, 50),
+                cursor: '0',
+                includeTtl: false,
+                offset: 0,
+                signal: input.signal,
+                stringPreviewByteLimit: REDIS_SEARCH_STRING_PREVIEW_BYTE_LIMIT,
+              })
+            } catch (error) {
+              const kind = normalizeRedisError(error).kind
+              if (kind === 'size-unavailable' || kind === 'prefetch-too-large') return { partial: true }
+              if (kind === 'result-too-large') {
+                return {
+                  partial: true,
+                  readBytes: Number.isSafeInteger(error?.redisReadBytes) && error.redisReadBytes > 0
+                    ? error.redisReadBytes
+                    : resultItemByteLimit,
+                }
+              }
+              if (kind === 'key-not-found' || kind === 'type-changed' || error?.code === 'REDIS_KEY_TYPE_UNSUPPORTED') return {}
+              throw error
+            }
+            if (typeFilter && inspection.type !== typeFilter) return {}
+            const part = findSearchablePart(inspection, query)
+            return { inspection, part, partial: Boolean(inspection.truncated || inspection.hasMore) }
+          })
+          for (let index = 0; index < outcomes.length; index += 1) {
+            scanned += 1
+            const { inspection, part, partial, readBytes } = outcomes[index]
+            if (partial) partialPayloads = true
+            const accountedBytes = inspection?.resultBytes ?? readBytes
+            if (Number.isSafeInteger(accountedBytes) && accountedBytes > 0) {
+              // Tutte le letture del batch sono già in volo: vengono conteggiate
+              // integralmente, ma nessun batch successivo parte dopo il limite.
+              // L'overshoot massimo resta quindi il solo batch già in volo.
+              searchReadBytes += accountedBytes
+              if (searchReadBytes >= searchReadByteLimit) {
+                searchReadBudgetExhausted = true
+                partialPayloads = true
+              }
+            }
+            if (!inspection) continue
+            if (!part) continue
+            if (matches.length >= limit) {
+              truncated = true
               continue
             }
-            if (error?.publicCode === 'REDIS_RESULT_TOO_LARGE' || error?.publicCode === 'REDIS_KEY_NOT_FOUND' || error?.publicCode === 'REDIS_KEY_TYPE_CHANGED') continue
-            throw error
+            const excerptStart = Math.max(0, part.matchIndex - 80)
+            matches.push({
+              key: inspection.key,
+              type: inspection.type,
+              excerpt: part.value.slice(excerptStart, excerptStart + 240),
+              ...(part.path ? { path: part.path } : {}),
+            })
+            if (matches.length >= limit && index < outcomes.length - 1) truncated = true
           }
-          if (typeFilter && inspection.type !== typeFilter) continue
-          if (inspection.truncated || inspection.hasMore) partialPayloads = true
-          const part = searchableParts(inspection).find(({ value }) => typeof value === 'string' && value.toLocaleLowerCase().includes(query))
-          if (!part) continue
-          const matchIndex = part.value.toLocaleLowerCase().indexOf(query)
-          const excerptStart = Math.max(0, matchIndex - 80)
-          matches.push({ key: summary.key, type: inspection.type, excerpt: part.value.slice(excerptStart, excerptStart + 240), ...(part.path ? { path: part.path } : {}) })
         }
-        const snapshot = { operationId, scanned, matches: [...matches] }
+        if (input.signal?.aborted) throw abortError()
+        estimatedTotal ??= estimateResult?.estimatedTotal
+        const snapshot = {
+          operationId,
+          scanned,
+          matches: [...matches],
+          ...(estimatedTotal !== undefined ? { estimatedTotal } : {}),
+        }
         if (progress) await Promise.resolve(progress(Object.freeze(snapshot)))
-        if (truncated) break
+        if (searchReadBudgetExhausted) {
+          truncated = true
+          break
+        }
+        if (matches.length >= limit || scanned >= maxScanned) {
+          if (pageIndex < page.rawKeys.length || cursor !== '0') truncated = true
+          break
+        }
       } while (cursor !== '0')
       const bounded = budgetItems(matches, { byteLimit: resultByteLimit, itemByteLimit: 16 * 1024, itemLimit: limit })
       matches = bounded.items
       return Object.freeze({ operationId, scanned, matches: bounded.items, resultBytes: bounded.bytes, truncated: truncated || partialPayloads || cursor !== '0', cancelled: false })
     } catch (error) {
       if (input?.signal?.aborted) return Object.freeze({ operationId, scanned, matches, truncated, cancelled: true })
+      await invalidateFailedSession(workspacePath, connectionId, error)
       throw toRedisPublicError(error)
     }
   }

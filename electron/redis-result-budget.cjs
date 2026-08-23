@@ -14,8 +14,12 @@ function valueByteLength(value, remaining, seen = new WeakSet()) {
   if (seen.has(value)) return Math.max(remaining, 0) + 1
   seen.add(value)
   let bytes = 0
-  for (const [key, nested] of Object.entries(value)) {
-    bytes += Buffer.byteLength(key) + valueByteLength(nested, remaining - bytes, seen)
+  // Object.entries materializza anticipatamente l'intero oggetto e legge tutti
+  // i getter anche quando il budget è già esaurito. L'iterazione incrementale
+  // mantiene il controllo O(elementi effettivamente ispezionati).
+  for (const key in value) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) continue
+    bytes += Buffer.byteLength(key) + valueByteLength(value[key], remaining - bytes, seen)
     if (bytes > remaining) break
   }
   seen.delete(value)

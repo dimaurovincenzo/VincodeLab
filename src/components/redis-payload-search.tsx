@@ -1,9 +1,9 @@
 import { Search, Square, TextSearch } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Button, ErrorNotice, Field, Progress, SelectField, Spinner } from '@/components/ui'
 import { EmptyState } from '@/components/empty-state'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
-import { redisApi, redisKeyTypes, redisTypeLabel, type RedisKeyTypeFilter, type RedisPayloadMatch } from '@/lib/redis-types'
+import { redisApi, redisKeyTypes, redisTypeLabel, type RedisKeyTypeFilter, type RedisPayloadMatch, type RedisPayloadSearchProgress } from '@/lib/redis-types'
 import { redisStyles as rs, redisTypeBadge } from '@/theme/styles/redis'
 
 type Props = {
@@ -15,6 +15,10 @@ type Props = {
   onVisibleMatchesChange?: (matches: readonly RedisPayloadMatch[]) => void
 }
 
+const PROGRESS_UPDATE_INTERVAL_MS = 50
+const PROGRESS_ANNOUNCEMENT_INTERVAL_MS = 5_000
+const redisTypeOptions = redisKeyTypes.map((value) => ({ value, label: redisTypeLabel(value) }))
+
 function reportSearchError(error: unknown, operation: string, title: string, fallbackDescription: string) {
   return reportUserError(normalizeUserError(error, { category: 'database', component: 'redis-payload-search', operation, title, fallbackDescription }))
 }
@@ -23,6 +27,14 @@ function mergeMatches(current: readonly RedisPayloadMatch[], incoming: readonly 
   const merged = new Map(current.map((match) => [`${match.keyRef}\0${match.path ?? ''}`, match]))
   for (const match of incoming) merged.set(`${match.keyRef}\0${match.path ?? ''}`, match)
   return [...merged.values()].slice(0, 100)
+}
+
+function analyzedKeyCountLabel(value: number) {
+  return `${value.toLocaleString('it-IT')} ${value === 1 ? 'chiave analizzata' : 'chiavi analizzate'}`
+}
+
+function matchCountLabel(value: number) {
+  return `${value.toLocaleString('it-IT')} ${value === 1 ? 'risultato' : 'risultati'}`
 }
 
 export function RedisPayloadSearch({ connectionId, focusRequest = 0, keyRequest, onOpenKey, onSearchingChange, onVisibleMatchesChange }: Props) {
@@ -39,9 +51,40 @@ export function RedisPayloadSearch({ connectionId, focusRequest = 0, keyRequest,
   const [truncated, setTruncated] = useState(false)
   const [cancelled, setCancelled] = useState(false)
   const [error, setError] = useState<UserError | null>(null)
+  const [announcement, setAnnouncement] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const activeOperation = useRef<string | null>(null)
   const requestRevision = useRef(0)
+  const pendingProgress = useRef<RedisPayloadSearchProgress | null>(null)
+  const progressTimer = useRef<number | null>(null)
+  const lastProgressAnnouncementAt = useRef(0)
+
+  const clearPendingProgress = useCallback(() => {
+    if (progressTimer.current !== null) window.clearTimeout(progressTimer.current)
+    progressTimer.current = null
+    pendingProgress.current = null
+  }, [])
+
+  const commitProgress = useCallback((progress: RedisPayloadSearchProgress) => {
+    if (progress.operationId !== activeOperation.current) return false
+    setScanned(progress.scanned)
+    setEstimatedTotal(progress.estimatedTotal)
+    setMatches((current) => mergeMatches(current, progress.matches))
+    const now = Date.now()
+    if (now - lastProgressAnnouncementAt.current >= PROGRESS_ANNOUNCEMENT_INTERVAL_MS) {
+      lastProgressAnnouncementAt.current = now
+      setAnnouncement(`Ricerca Redis in corso: ${analyzedKeyCountLabel(progress.scanned)}, ${matchCountLabel(progress.matches.length)}.`)
+    }
+    return true
+  }, [])
+
+  const flushPendingProgress = useCallback((operationId: string) => {
+    if (progressTimer.current !== null) window.clearTimeout(progressTimer.current)
+    progressTimer.current = null
+    const progress = pendingProgress.current
+    pendingProgress.current = null
+    return progress?.operationId === operationId && commitProgress(progress) ? progress : null
+  }, [commitProgress])
 
   useEffect(() => { if (focusRequest > 0) inputRef.current?.focus() }, [focusRequest])
   useEffect(() => {
@@ -52,14 +95,25 @@ export function RedisPayloadSearch({ connectionId, focusRequest = 0, keyRequest,
     inputRef.current?.focus()
   }, [keyRequest])
   useEffect(() => onSearchingChange(searching), [onSearchingChange, searching])
-  useEffect(() => onVisibleMatchesChange?.(matches), [matches, onVisibleMatchesChange])
+  useLayoutEffect(() => onVisibleMatchesChange?.(matches), [matches, onVisibleMatchesChange])
 
-  useEffect(() => api.onSearchProgress((progress) => {
-    if (progress.operationId !== activeOperation.current) return
-    setScanned(progress.scanned)
-    setEstimatedTotal(progress.estimatedTotal)
-    setMatches((current) => mergeMatches(current, progress.matches))
-  }), [api])
+  useEffect(() => {
+    const unsubscribe = api.onSearchProgress((progress) => {
+      if (progress.operationId !== activeOperation.current) return
+      pendingProgress.current = progress
+      if (progressTimer.current !== null) return
+      progressTimer.current = window.setTimeout(() => {
+        progressTimer.current = null
+        const next = pendingProgress.current
+        pendingProgress.current = null
+        if (next) commitProgress(next)
+      }, PROGRESS_UPDATE_INTERVAL_MS)
+    })
+    return () => {
+      unsubscribe()
+      clearPendingProgress()
+    }
+  }, [api, clearPendingProgress, commitProgress])
 
   useEffect(() => () => {
     const operationId = activeOperation.current
@@ -70,6 +124,7 @@ export function RedisPayloadSearch({ connectionId, focusRequest = 0, keyRequest,
 
   useEffect(() => {
     requestRevision.current += 1
+    clearPendingProgress()
     const operationId = activeOperation.current
     activeOperation.current = null
     if (operationId) void api.cancel(operationId).catch((cause) => {
@@ -82,14 +137,18 @@ export function RedisPayloadSearch({ connectionId, focusRequest = 0, keyRequest,
     setScanned(0)
     setExactKeyRef(undefined)
     setError(null)
-  }, [api, connectionId])
+    setAnnouncement('')
+    lastProgressAnnouncementAt.current = 0
+  }, [api, clearPendingProgress, connectionId])
 
   const runSearch = useCallback(async () => {
     const normalizedQuery = query.trim()
-    if (!normalizedQuery || searching) return
+    if (!normalizedQuery || searching || activeOperation.current) return
     const revision = ++requestRevision.current
     const operationId = crypto.randomUUID()
+    clearPendingProgress()
     activeOperation.current = operationId
+    lastProgressAnnouncementAt.current = Date.now()
     setSearching(true)
     setCancelling(false)
     setCancelled(false)
@@ -98,6 +157,7 @@ export function RedisPayloadSearch({ connectionId, focusRequest = 0, keyRequest,
     setMatches([])
     setScanned(0)
     setEstimatedTotal(undefined)
+    setAnnouncement('Ricerca Redis avviata.')
     try {
       const result = await api.searchPayloads(connectionId, {
         operationId,
@@ -111,19 +171,25 @@ export function RedisPayloadSearch({ connectionId, focusRequest = 0, keyRequest,
       if (revision !== requestRevision.current) return
       setMatches((current) => mergeMatches(current, result.matches))
       setScanned(result.scanned)
+      if (!result.cancelled) setEstimatedTotal(result.scanned)
       setTruncated(result.truncated)
       setCancelled(result.cancelled)
+      setAnnouncement(result.cancelled
+        ? `Ricerca Redis annullata: ${analyzedKeyCountLabel(result.scanned)}, ${matchCountLabel(result.matches.length)} parziali.`
+        : `Ricerca Redis completata: ${analyzedKeyCountLabel(result.scanned)}, ${matchCountLabel(result.matches.length)}.`)
     } catch (cause) {
       if (revision !== requestRevision.current) return
+      flushPendingProgress(operationId)
       setError(reportSearchError(cause, 'search-payloads', 'Ricerca nei payload non completata', 'I risultati parziali restano disponibili. Puoi riprovare la stessa ricerca.'))
     } finally {
       if (revision === requestRevision.current) {
+        clearPendingProgress()
         activeOperation.current = null
         setSearching(false)
         setCancelling(false)
       }
     }
-  }, [api, connectionId, exactKeyRef, keyPattern, query, searching, type])
+  }, [api, clearPendingProgress, connectionId, exactKeyRef, flushPendingProgress, keyPattern, query, searching, type])
 
   const cancelSearch = useCallback(async () => {
     const operationId = activeOperation.current
@@ -146,20 +212,21 @@ export function RedisPayloadSearch({ connectionId, focusRequest = 0, keyRequest,
   const progressValue = useMemo(() => estimatedTotal && estimatedTotal > 0 ? Math.min(100, scanned / estimatedTotal * 100) : null, [estimatedTotal, scanned])
 
   return <section aria-label="Ricerca nei payload Redis" className={rs.search}>
+    <span aria-atomic="true" className={rs.srOnly} role="status">{announcement}</span>
     <form className={rs.searchForm} onSubmit={(event) => { event.preventDefault(); void runSearch() }}>
       <Field.Root><Field.Input aria-label="Testo da cercare nei payload" placeholder="Testo nel valore, campo o membro…" ref={inputRef} required value={query} onChange={(event) => setQuery(event.target.value)} /></Field.Root>
       <Field.Root><Field.Input aria-label="Pattern chiavi per ricerca payload" placeholder="Chiavi: *" value={keyPattern} onChange={(event) => { setKeyPattern(event.target.value); setExactKeyRef(undefined) }} /></Field.Root>
-      <SelectField aria-label="Tipo payload Redis" options={redisKeyTypes.map((value) => ({ value, label: redisTypeLabel(value) }))} value={type} onValueChange={(value) => setType(value as RedisKeyTypeFilter)} />
+      <SelectField aria-label="Tipo payload Redis" options={redisTypeOptions} value={type} onValueChange={(value) => setType(value as RedisKeyTypeFilter)} />
       {searching ? <Button disabled={cancelling} type="button" variant="outline" onClick={() => void cancelSearch()}><Square aria-hidden="true" size={13} /> {cancelling ? 'Annullamento…' : 'Annulla'}</Button> : <Button disabled={!query.trim()} type="submit"><Search aria-hidden="true" size={14} /> Cerca</Button>}
     </form>
     <div>
       {error && <ErrorNotice action={{ label: searching ? 'Annulla di nuovo' : 'Riprova ricerca', onClick: searching ? cancelSearch : runSearch }} className={rs.notice} error={error} />}
-      {(searching || scanned > 0) && <div className={rs.progressPanel} aria-live="polite">
-        <div className={rs.progressHeading}><span>{searching ? 'Ricerca in corso' : cancelled ? 'Ricerca annullata · risultati parziali' : 'Ricerca completata'} · {scanned.toLocaleString('it-IT')} chiavi analizzate</span><span>{matches.length} risultati{truncated ? ' · limite raggiunto' : ''}</span></div>
+      {(searching || scanned > 0) && <div className={rs.progressPanel}>
+        <div className={rs.progressHeading}><span>{searching ? 'Ricerca in corso' : cancelled ? 'Ricerca annullata · risultati parziali' : 'Ricerca completata'} · {analyzedKeyCountLabel(scanned)}</span><span>{matchCountLabel(matches.length)}{truncated ? ' · limite raggiunto' : ''}</span></div>
         <Progress.Root value={progressValue}><Progress.Track aria-label="Avanzamento ricerca nei payload Redis"><Progress.Range /></Progress.Track></Progress.Root>
       </div>}
     </div>
-    {matches.length ? <ul aria-label="Risultati ricerca payload Redis" className={rs.searchResults}>{matches.map((match, index) => <li data-context-has-visible-value="true" data-context-menu-id={match.keyRef} data-context-menu-kind="redis-key" key={`${match.keyRef}:${match.path ?? ''}:${index}`}>
+    {matches.length ? <ul aria-label="Risultati ricerca payload Redis" className={rs.searchResults}>{matches.map((match, index) => <li className={rs.resultItem} data-context-has-visible-value="true" data-context-menu-id={match.keyRef} data-context-menu-kind="redis-key" key={`${match.keyRef}:${match.path ?? ''}:${index}`}>
       <Button className={rs.resultButton} variant="plain" onClick={() => onOpenKey(match)}>
         <span className={redisTypeBadge({ type: match.type })}>{redisTypeLabel(match.type)}</span>
         <span><strong className={rs.resultKey}>{match.key}{match.binary ? ' · binaria' : ''}</strong>{match.path && <span className={rs.resultPath}>{match.path}</span>}<p className={rs.excerpt}>{match.excerpt}</p></span>
