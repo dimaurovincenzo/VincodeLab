@@ -223,6 +223,7 @@ export const graphiteTokens = defineTokens({
     sticky: { value: '10' },
     popover: { value: '30' },
     modal: { value: '50' },
+    modalPopover: { value: '60' },
   },
 })
 

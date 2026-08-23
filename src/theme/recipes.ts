@@ -120,6 +120,16 @@ export const selectRecipe = defineSlotRecipe({
     item: { alignItems: 'center', borderRadius: 'l1', color: 'textPrimary', cursor: 'pointer', display: 'flex', fontSize: 'sm', gap: '2', justifyContent: 'space-between', minH: '8', outline: 'none', px: '2.5', _highlighted: { bg: 'surfaceHover' }, _selected: { bg: 'accentSubtle', color: 'accentText' }, _disabled: { opacity: '0.45' } },
     itemIndicator: { color: 'accentText' }, itemText: { flex: '1' },
   },
+  variants: {
+    layer: {
+      popover: {},
+      modal: {
+        positioner: { zIndex: 'modalPopover' },
+        content: { zIndex: 'modalPopover' },
+      },
+    },
+  },
+  defaultVariants: { layer: 'popover' },
 })
 
 export const listboxRecipe = defineSlotRecipe({

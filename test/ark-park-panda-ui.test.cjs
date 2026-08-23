@@ -405,6 +405,7 @@ test('l’explorer Database delega al TreeView Ark espansione selezione e tastie
 test('SelectField conserva semantica nativa, tastiera e layer portaled di Ark', () => {
   const select = read('src/components/ui/select.tsx')
   const recipes = read('src/theme/recipes.ts')
+  const tokens = read('src/theme/tokens.ts')
 
   assert.match(select, /createListCollection/)
   assert.match(select, /HiddenSelect:\s*ArkSelect\.HiddenSelect/)
@@ -413,10 +414,14 @@ test('SelectField conserva semantica nativa, tastiera e layer portaled di Ark', 
   assert.match(select, /ids=\{id \? \{ trigger: id \} : undefined\}/)
   assert.match(select, /\{accessibleLabel && <Select\.Label className=\{label \? undefined : css\(\{ srOnly: true \}\)\}>\{accessibleLabel\}<\/Select\.Label>\}/)
   assert.match(select, /<Select\.Trigger>/)
-  assert.match(select, /<Select\.Portal>[\s\S]*?<Select\.Positioner>[\s\S]*?<Select\.Content>/)
+  assert.match(select, /lazyMount[\s\S]*?unmountOnExit[\s\S]*?<Select\.Portal>[\s\S]*?<Select\.Positioner>[\s\S]*?<Select\.Content>/)
   assert.match(select, /<Select\.Item item=\{item\}/)
   assert.match(select, /<Select\.ItemIndicator>/)
   assert.match(recipes, /positioner:\s*\{\s*zIndex:\s*'popover'/)
+  assert.match(recipes, /layer:\s*\{[\s\S]*?modal:\s*\{[\s\S]*?zIndex:\s*'modalPopover'/)
+  assert.match(tokens, /popover:\s*\{\s*value:\s*'30'/)
+  assert.match(tokens, /modal:\s*\{\s*value:\s*'50'/)
+  assert.match(tokens, /modalPopover:\s*\{\s*value:\s*'60'/)
 })
 
 test('Dialog delega focus trap, Escape e semantica modale ad Ark senza ruoli manuali', () => {

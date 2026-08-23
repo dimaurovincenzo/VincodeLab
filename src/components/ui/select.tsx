@@ -3,12 +3,13 @@ import { Portal } from '@ark-ui/react/portal'
 import { Select as ArkSelect, createListCollection } from '@ark-ui/react/select'
 import { css } from '../../../styled-system/css'
 import { createStyleContext } from '../../../styled-system/jsx'
-import { select } from '../../../styled-system/recipes'
+import { select, type SelectVariantProps } from '../../../styled-system/recipes'
 
 const { withProvider, withContext } = createStyleContext(select)
+const SelectRoot = withProvider(ArkSelect.Root, 'root') as ArkSelect.RootComponent<SelectVariantProps>
 
 const Select = {
-  Root: withProvider(ArkSelect.Root, 'root') as typeof ArkSelect.Root,
+  Root: SelectRoot,
   Label: withContext(ArkSelect.Label, 'label'),
   Control: withContext(ArkSelect.Control, 'control'),
   Trigger: withContext(ArkSelect.Trigger, 'trigger'),
@@ -34,10 +35,11 @@ type SelectFieldProps = {
   placeholder?: string
   disabled?: boolean
   invalid?: boolean
+  layer?: 'popover' | 'modal'
   onValueChange: (value: string) => void
 }
 
-function SelectField({ id, 'aria-label': ariaLabel, label, options, value, placeholder = 'Seleziona…', disabled, invalid, onValueChange }: SelectFieldProps) {
+function SelectField({ id, 'aria-label': ariaLabel, label, options, value, placeholder = 'Seleziona…', disabled, invalid, layer = 'popover', onValueChange }: SelectFieldProps) {
   const collection = createListCollection({ items: options })
   const accessibleLabel = label ?? ariaLabel
 
@@ -46,6 +48,9 @@ function SelectField({ id, 'aria-label': ariaLabel, label, options, value, place
     disabled={disabled}
     ids={id ? { trigger: id } : undefined}
     invalid={invalid}
+    layer={layer}
+    lazyMount
+    unmountOnExit
     value={value ? [value] : []}
     onValueChange={({ value: next }) => onValueChange(next[0] ?? '')}
   >
