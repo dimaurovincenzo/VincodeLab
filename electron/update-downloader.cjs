@@ -6,6 +6,7 @@ const { promisify } = require('node:util')
 const { createPublicError, toPublicError } = require('./public-error.cjs')
 const { getManagedUpdateInternal, recordStagedUpdate, recordUpdateError } = require('./update-store.cjs')
 const { environmentForPi, resolvePiExecutable } = require('./pi-executable.cjs')
+const { resolveSystemExecutable } = require('./runtime-capabilities.cjs')
 
 const execFileAsync = promisify(execFile)
 
@@ -54,9 +55,18 @@ async function downloadGitHub(record, destination, run = execFileAsync, dependen
     if (fs.existsSync(manifest)) {
       const metadata = JSON.parse(fs.readFileSync(manifest, 'utf8'))
       if (packageHasRuntimeDependencies(metadata)) {
-        const piExecutable = dependencies.piExecutable ?? resolvePiExecutable()
-        const npmExecutable = dependencies.npmExecutable ?? (piExecutable ? path.join(path.dirname(piExecutable), process.platform === 'win32' ? 'npm.cmd' : 'npm') : 'npm')
+        const piExecutable = Object.hasOwn(dependencies, 'piExecutable') ? dependencies.piExecutable : resolvePiExecutable()
         const npmEnvironment = dependencies.npmEnvironment ?? (piExecutable ? environmentForPi(piExecutable) : process.env)
+        const siblingNpm = piExecutable ? path.join(path.dirname(piExecutable), process.platform === 'win32' ? 'npm.cmd' : 'npm') : null
+        const npmExecutable = Object.hasOwn(dependencies, 'npmExecutable')
+          ? dependencies.npmExecutable
+          : siblingNpm && fs.existsSync(siblingNpm)
+            ? siblingNpm
+            : (dependencies.resolveNpmExecutable ?? resolveSystemExecutable)([process.platform === 'win32' ? 'npm.cmd' : 'npm'], npmEnvironment)
+        if (typeof npmExecutable !== 'string' || !npmExecutable) throw createPublicError(
+          'UPDATE_NPM_NOT_INSTALLED',
+          'npm è necessario soltanto per installare le dipendenze di questo aggiornamento Pi. Installa Node.js con npm e riprova; VincodeLab continua a funzionare senza npm.',
+        )
         const command = fs.existsSync(path.join(destination, 'package-lock.json')) ? 'ci' : 'install'
         await run(npmExecutable, [command, '--ignore-scripts', '--omit=dev', '--no-audit', '--no-fund'], { cwd: destination, env: npmEnvironment, timeout: 120_000, maxBuffer: 256 * 1024, windowsHide: true })
       }

@@ -10,6 +10,7 @@ Questa directory raccoglie le guide operative del progetto e le evidenze storich
 | [Sviluppo](development.md) | Setup locale, struttura del repository e comandi utili |
 | [Test](testing.md) | Gate automatici, verifiche mirate e collaudo manuale |
 | [Build e release](release.md) | Packaging macOS, smoke test e requisiti per una distribuzione pubblica |
+| [Compatibilità runtime](runtime-compatibility.md) | Mac pulito, componenti inclusi, strumenti opzionali e recovery |
 | [Screenshot](screenshots.md) | Workspace dimostrativo, privacy e convenzioni delle immagini |
 | [Contribuire](../CONTRIBUTING.md) | Convenzioni per codice, test e pull request |
 | [Sicurezza](../SECURITY.md) | Ambito e canale privato per le vulnerabilità |

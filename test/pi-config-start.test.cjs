@@ -18,6 +18,6 @@ test('avvia Pi Config senza oscurare il processo Node globale', () => {
 
   assert.ok(startPiConfig, 'il gestore startPiConfig deve esistere')
   assert.doesNotMatch(startPiConfig, /const process\s*=/)
-  assert.match(startPiConfig, /const ptyProcess = pty\.spawn/)
+  assert.match(startPiConfig, /const ptyProcess = ptyRuntime\.spawn/)
   assert.match(startPiConfig, /env: \{ \.\.\.environmentForPi\(executable\), TERM: 'xterm-256color' \}/)
 })

@@ -18,6 +18,7 @@ import {
   parseArguments,
   prepareFaultRecoveryScenario,
   validatePackagedApp,
+  verifyCleanMachineScenario,
   verifyFaultLogEvidence,
   verifyFaultRecoveryScenario,
   verifyPersistenceRecoveryScenario,
@@ -31,8 +32,10 @@ test('valida argomenti bounded senza introdurre un percorso di packaging', () =>
     help: false,
     json: true,
     timeoutMs: 12_000,
+    withoutPi: false,
   })
   assert.equal(parseArguments(['--fault-recovery']).faultRecovery, true)
+  assert.equal(parseArguments(['--without-pi']).withoutPi, true)
   assert.throws(() => parseArguments(['--timeout', '1000']), /Timeout non valido/)
   assert.throws(() => parseArguments(['--package']), /Argomento non riconosciuto/)
 
@@ -52,6 +55,9 @@ test('crea profilo e workspace isolati, applica il blocco rete e rimuove la fixt
     assert.equal(environment.VINCODELAB_DATA_DIR, fixture.data)
     assert.equal(environment.VINCODELAB_LOGS_DIR, path.join(fixture.root, 'logs'))
     assert.equal(environment.VINCODELAB_PI_PATH, fixture.fakePi)
+    const cleanEnvironment = isolatedEnvironment(fixture, { withoutPi: true })
+    assert.equal(cleanEnvironment.VINCODELAB_PI_PATH, path.join(fixture.root, 'pi-not-installed'))
+    assert.equal(cleanEnvironment.PATH, fixture.systemBin)
     assert.equal('SSH_AUTH_SOCK' in environment, false)
     assert.equal('GH_TOKEN' in environment, false)
 
@@ -66,6 +72,8 @@ test('crea profilo e workspace isolati, applica il blocco rete e rimuove la fixt
     const faultArgs = packagedElectronArguments({ faultRecovery: true, port: 9_223, profile: fixture.profile, workspace: fixture.workspace })
     assert.ok(faultArgs.includes('--reliability-benchmark'))
     assert.ok(faultArgs.includes('--reliability-fault-injection'))
+    const cleanMachineArgs = packagedElectronArguments({ port: 9_224, profile: fixture.profile, withoutPi: true, workspace: fixture.workspace })
+    assert.ok(cleanMachineArgs.includes('--clean-machine-smoke'))
   } finally {
     await cleanupSmokeFixture(fixture)
   }
@@ -83,10 +91,17 @@ test('il fault recovery usa Page.crash, riconnette CDP e verifica la bozza nel r
   const reactViewCrash = exerciseReactViewCrashScenario(marker)
   const persistenceArm = armPersistenceCorruptionScenario()
   const persistenceVerify = verifyPersistenceRecoveryScenario()
+  const cleanMachine = verifyCleanMachineScenario()
 
   for (const scenario of [ipcRejection, domainFailures, reactViewCrash, persistenceArm, persistenceVerify, prepare, confirm, verify]) {
     assert.doesNotThrow(() => new Function(`return ${scenario}`))
   }
+  assert.doesNotThrow(() => new Function(`return ${cleanMachine}`))
+  assert.match(cleanMachine, /Pi Coding Agent non installato/u)
+  assert.match(cleanMachine, /databaseDriversReady/u)
+  assert.match(cleanMachine, /npmOptional/u)
+  assert.match(cleanMachine, /nodeState/u)
+  assert.match(cleanMachine, /npmState/u)
   for (const scenario of [prepare, confirm, verify]) assert.match(scenario, /README\.md/)
   assert.match(ipcRejection, /BENCHMARK_IPC_REJECTION/)
   assert.match(ipcRejection, /nextCallSucceeded/)

@@ -2,9 +2,13 @@ const Database = require('better-sqlite3')
 const { measureResultRows } = require('./database-result-budget.cjs')
 
 function serializeError(error) {
+  const code = typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]{1,63}$/u.test(error.code)
+    ? error.code
+    : undefined
   return {
     message: error instanceof Error ? error.message : String(error),
     name: error instanceof Error ? error.name : 'Error',
+    ...(code ? { code } : {}),
   }
 }
 

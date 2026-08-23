@@ -8,6 +8,7 @@ const activeWorkers = new Set()
 function workerError(serialized, fallback) {
   const error = new Error(serialized?.message || fallback)
   error.name = serialized?.name || 'Error'
+  if (typeof serialized?.code === 'string' && /^[A-Z][A-Z0-9_]{1,63}$/u.test(serialized.code)) error.code = serialized.code
   return error
 }
 

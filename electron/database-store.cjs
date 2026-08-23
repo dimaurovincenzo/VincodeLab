@@ -1,6 +1,7 @@
 const crypto = require('node:crypto')
 const path = require('node:path')
 const { getDatabase } = require('./workspace-store.cjs')
+const { createPublicError, isPublicError } = require('./public-error.cjs')
 
 const DRIVERS = new Set(['sqlite', 'postgres', 'mysql', 'mssql'])
 const REMOTE_DRIVERS = new Set(['postgres', 'mysql', 'mssql'])
@@ -25,7 +26,10 @@ function requireDatabaseSecretStorage() {
   } catch {
     // Il dettaglio del portachiavi non deve attraversare l'IPC.
   }
-  if (!available) throw new Error('Archiviazione sicura delle credenziali non disponibile.')
+  if (!available) throw createPublicError(
+    'DATABASE_SECURE_STORAGE_UNAVAILABLE',
+    'Le credenziali database non possono essere protette in questo momento. Sblocca il Portachiavi di macOS, reinserisci la password e riprova. La connessione non è stata salvata.',
+  )
   return databaseSecretStorage
 }
 
@@ -35,8 +39,11 @@ function encryptPassword(password) {
     if (!Buffer.isBuffer(ciphertext) && !(ciphertext instanceof Uint8Array)) throw new Error('invalid ciphertext')
     return Buffer.from(ciphertext)
   } catch (error) {
-    if (error instanceof Error && error.message === 'Archiviazione sicura delle credenziali non disponibile.') throw error
-    throw new Error('Impossibile proteggere la credenziale database.')
+    if (isPublicError(error)) throw error
+    throw createPublicError(
+      'DATABASE_CREDENTIAL_PROTECTION_FAILED',
+      'La password della connessione non è stata salvata perché non è stato possibile proteggerla. Sblocca il Portachiavi e riprova.',
+    )
   }
 }
 
@@ -46,8 +53,11 @@ function decryptPassword(ciphertext) {
     if (typeof password !== 'string' || password.length === 0 || password.length > 4_096) throw new Error('invalid plaintext')
     return password
   } catch (error) {
-    if (error instanceof Error && error.message === 'Archiviazione sicura delle credenziali non disponibile.') throw error
-    throw new Error('Credenziale database non disponibile. Reinserisci la password.')
+    if (isPublicError(error)) throw error
+    throw createPublicError(
+      'DATABASE_CREDENTIAL_UNAVAILABLE',
+      'La password salvata non può essere letta. Sblocca il Portachiavi oppure modifica la connessione e reinserisci la password.',
+    )
   }
 }
 

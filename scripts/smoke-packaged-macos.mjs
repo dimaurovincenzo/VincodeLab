@@ -49,6 +49,7 @@ function usage() {
     '  --app <percorso.app>  Bundle già creato; default: release/mac*/VincodeLab.app',
     `  --timeout <ms>        Timeout avvio, ${MIN_TIMEOUT_MS}-${MAX_TIMEOUT_MS} (default ${DEFAULT_TIMEOUT_MS})`,
     '  --fault-recovery      Verifica failure di dominio, persistenza e crash renderer con recovery',
+    '  --without-pi          Verifica una macchina pulita senza Pi, Node o npm di sistema',
     '  --json                Output JSON compatto',
     '  --help                Mostra questo messaggio',
     '',
@@ -57,7 +58,7 @@ function usage() {
 }
 
 export function parseArguments(argumentsList) {
-  const options = { appPath: null, faultRecovery: false, help: false, json: false, timeoutMs: DEFAULT_TIMEOUT_MS }
+  const options = { appPath: null, faultRecovery: false, help: false, json: false, timeoutMs: DEFAULT_TIMEOUT_MS, withoutPi: false }
   for (let index = 0; index < argumentsList.length; index += 1) {
     const argument = argumentsList[index]
     if (argument === '--app') {
@@ -67,6 +68,7 @@ export function parseArguments(argumentsList) {
     } else if (argument === '--timeout') {
       options.timeoutMs = Number(argumentsList[++index])
     } else if (argument === '--fault-recovery') options.faultRecovery = true
+    else if (argument === '--without-pi') options.withoutPi = true
     else if (argument === '--json') options.json = true
     else if (argument === '--help' || argument === '-h') options.help = true
     else throw new Error(`Argomento non riconosciuto: ${argument}`)
@@ -212,6 +214,7 @@ export async function createSmokeFixture() {
       gh: path.join(root, 'gh'),
       home: path.join(root, 'home'),
       profile: path.join(root, 'profile'),
+      systemBin: path.join(root, 'system-bin'),
       temp: path.join(root, 'tmp'),
       workspaceDirectory: path.join(root, 'workspace'),
     }
@@ -249,7 +252,7 @@ export async function cleanupSmokeFixture(fixture) {
   await rm(resolvedRoot, { recursive: true, force: true })
 }
 
-export function isolatedEnvironment(fixture) {
+export function isolatedEnvironment(fixture, { withoutPi = false } = {}) {
   return {
     GH_CONFIG_DIR: fixture.gh,
     GIT_CONFIG_GLOBAL: '/dev/null',
@@ -260,20 +263,20 @@ export function isolatedEnvironment(fixture) {
     LANG: 'en_US.UTF-8',
     LOGNAME: 'vincodelab-smoke',
     NO_PROXY: '127.0.0.1,localhost',
-    PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
+    PATH: fixture.systemBin,
     SHELL: '/bin/sh',
     TMPDIR: fixture.temp,
     USER: 'vincodelab-smoke',
     VINCODELAB_DATA_DIR: fixture.data,
     VINCODELAB_LOGS_DIR: path.join(fixture.root, 'logs'),
-    VINCODELAB_PI_PATH: fixture.fakePi,
+    VINCODELAB_PI_PATH: withoutPi ? path.join(fixture.root, 'pi-not-installed') : fixture.fakePi,
     XDG_CACHE_HOME: fixture.cache,
     XDG_CONFIG_HOME: path.join(fixture.profile, 'config'),
     XDG_DATA_HOME: path.join(fixture.profile, 'share'),
   }
 }
 
-export function packagedElectronArguments({ faultRecovery = false, port, profile, workspace }) {
+export function packagedElectronArguments({ faultRecovery = false, port, profile, withoutPi = false, workspace }) {
   if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error('Porta DevTools non valida.')
   return [
     `--remote-debugging-address=127.0.0.1`,
@@ -281,6 +284,7 @@ export function packagedElectronArguments({ faultRecovery = false, port, profile
     `--user-data-dir=${profile}`,
     '--reliability-benchmark',
     ...(faultRecovery ? ['--reliability-fault-injection'] : []),
+    ...(withoutPi ? ['--clean-machine-smoke'] : []),
     ...OFFLINE_CHROMIUM_FLAGS,
     '--workspace',
     workspace,
@@ -410,6 +414,41 @@ function rendererSmokeScenario() {
       navigationConnected: navigation.isConnected,
       preferenceDefinitions: Array.isArray(preferences?.schema) ? preferences.schema.length : -1,
       readyState: document.readyState,
+    }
+  })()`
+}
+
+export function verifyCleanMachineScenario() {
+  return String.raw`(async () => {
+    const deadline = performance.now() + 15000
+    let notice
+    while (performance.now() < deadline) {
+      notice = [...document.querySelectorAll('[role="status"], [role="alert"]')]
+        .find((element) => element.textContent?.includes('Pi Coding Agent non installato'))
+      if (notice) break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    if (!notice) throw new Error('Messaggio Pi non installato non visibile.')
+    const bridge = window.vincodeLab
+    if (!bridge?.runtime?.capabilities || !bridge?.workspace?.getActive) throw new Error('Bridge compatibilità incompleto.')
+    const [capabilities, activeWorkspace] = await Promise.all([
+      bridge.runtime.capabilities(),
+      bridge.workspace.getActive(),
+    ])
+    const byId = new Map((capabilities?.items ?? []).map((item) => [item.id, item]))
+    const databaseDrivers = ['database-sqlite', 'database-postgresql', 'database-mysql', 'database-sqlserver']
+    const navigationText = document.querySelector('[aria-label="Sezioni applicazione"]')?.textContent ?? ''
+    const bodyText = document.body?.innerText ?? ''
+    return {
+      activeWorkspace: activeWorkspace?.path ?? null,
+      databaseDriversReady: databaseDrivers.every((id) => byId.get(id)?.state === 'ready'),
+      navigationPreserved: ['Editor', 'Terminale', 'GitHub', 'Database'].every((label) => navigationText.includes(label)),
+      nodeState: byId.get('node-system')?.state ?? null,
+      npmOptional: byId.get('npm-system')?.kind === 'optional',
+      npmState: byId.get('npm-system')?.state ?? null,
+      piState: byId.get('pi-agent')?.state ?? null,
+      sanitized: !/Something went wrong|Cannot find module|MODULE_NOT_FOUND|ERR_DLOPEN|stack trace/iu.test(bodyText),
+      userMessage: notice.textContent?.replace(/\s+/g, ' ').trim() ?? '',
     }
   })()`
 }
@@ -956,7 +995,7 @@ function relativeBundlePath(appPath, filePath) {
   return path.relative(appPath, filePath).split(path.sep).join('/')
 }
 
-export async function runPackagedSmoke({ appPath, faultRecovery = false, timeoutMs = DEFAULT_TIMEOUT_MS, signal } = {}) {
+export async function runPackagedSmoke({ appPath, faultRecovery = false, timeoutMs = DEFAULT_TIMEOUT_MS, signal, withoutPi = false } = {}) {
   if (process.platform !== 'darwin') throw new Error('Lo smoke del bundle macOS richiede macOS.')
   const bundle = await validatePackagedApp(appPath)
   const fixture = await createSmokeFixture()
@@ -968,16 +1007,17 @@ export async function runPackagedSmoke({ appPath, faultRecovery = false, timeout
   let stderr = ''
   let primaryError
   let renderer
+  let cleanMachineSummary
   let faultRecoverySummary
   let cleanup
   let stage = 'avvio bundle'
   try {
     throwIfAborted(signal)
     const port = await reserveLoopbackPort()
-    child = spawn(bundle.executable, packagedElectronArguments({ faultRecovery, port, profile: fixture.profile, workspace: fixture.workspace }), {
+    child = spawn(bundle.executable, packagedElectronArguments({ faultRecovery, port, profile: fixture.profile, withoutPi, workspace: fixture.workspace }), {
       cwd: fixture.workspace,
       detached: true,
-      env: isolatedEnvironment(fixture),
+      env: isolatedEnvironment(fixture, { withoutPi }),
       stdio: ['ignore', 'ignore', 'pipe'],
     })
     childState = { code: null, error: null, exited: false, signal: null }
@@ -1010,6 +1050,23 @@ export async function runPackagedSmoke({ appPath, faultRecovery = false, timeout
     ])
     if (renderer.activeWorkspace !== fixture.workspace) throw new Error('Il renderer non usa il workspace temporaneo richiesto.')
     if (renderer.preferenceDefinitions < 1) throw new Error('Il bridge preferenze non ha restituito lo schema atteso.')
+    if (withoutPi) {
+      stage = 'verifica macchina pulita senza Pi'
+      cleanMachineSummary = await Promise.race([
+        cdp.evaluate(verifyCleanMachineScenario()),
+        timeoutPromise(timeoutMs, 'Timeout verifica macchina pulita.'),
+      ])
+      if (cleanMachineSummary.activeWorkspace !== fixture.workspace
+        || cleanMachineSummary.piState !== 'missing'
+        || !cleanMachineSummary.databaseDriversReady
+        || !cleanMachineSummary.navigationPreserved
+        || cleanMachineSummary.nodeState !== 'missing'
+        || !cleanMachineSummary.npmOptional
+        || cleanMachineSummary.npmState !== 'missing'
+        || !cleanMachineSummary.sanitized) {
+        throw new Error('Degradazione su macchina pulita non confermata.')
+      }
+    }
     if (faultRecovery) {
       stage = 'fault IPC rejection'
       const ipcRejection = await Promise.race([
@@ -1169,6 +1226,7 @@ export async function runPackagedSmoke({ appPath, faultRecovery = false, timeout
   }
 
   const { activeWorkspace: _activeWorkspace, ...rendererSummary } = renderer
+  const { activeWorkspace: _cleanMachineActiveWorkspace, ...cleanMachineResult } = cleanMachineSummary ?? {}
 
   return {
     durationMs: Date.now() - startedAt,
@@ -1181,6 +1239,7 @@ export async function runPackagedSmoke({ appPath, faultRecovery = false, timeout
     ok: true,
     processCleanup: cleanup,
     renderer: { ...rendererSummary, activeWorkspaceMatchesFixture: true },
+    ...(cleanMachineSummary ? { cleanMachine: { ...cleanMachineResult, activeWorkspaceMatchesFixture: true } } : {}),
     ...(faultRecoverySummary ? { faultRecovery: faultRecoverySummary } : {}),
     temporaryDataRemoved: true,
   }
@@ -1200,7 +1259,7 @@ export async function main(argumentsList = process.argv.slice(2)) {
   process.once('SIGTERM', onSigterm)
   try {
     const appPath = await resolvePackagedApp({ appPath: options.appPath })
-    const result = await runPackagedSmoke({ appPath, faultRecovery: options.faultRecovery, signal: controller.signal, timeoutMs: options.timeoutMs })
+    const result = await runPackagedSmoke({ appPath, faultRecovery: options.faultRecovery, signal: controller.signal, timeoutMs: options.timeoutMs, withoutPi: options.withoutPi })
     process.stdout.write(`${JSON.stringify(result, null, options.json ? 0 : 2)}\n`)
   } finally {
     process.removeListener('SIGINT', onSigint)

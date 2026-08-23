@@ -46,6 +46,16 @@ node scripts/smoke-packaged-macos.mjs \
   --app release/mac-arm64/VincodeLab.app
 ```
 
+Verifica inoltre l'avvio su un profilo isolato senza Pi, Node o npm di sistema:
+
+```bash
+node scripts/smoke-packaged-macos.mjs \
+  --app release/mac-arm64/VincodeLab.app \
+  --without-pi
+```
+
+Questo percorso deve aprire il workspace, mantenere disponibili Editor, Terminale locale, GitHub e Database e mostrare il messaggio guidato «Pi Coding Agent non installato».
+
 Verifica il DMG:
 
 ```bash

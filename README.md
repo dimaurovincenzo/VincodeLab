@@ -68,6 +68,12 @@ Le integrazioni seguenti sono opzionali:
 
 L'assenza di uno strumento opzionale disabilita la relativa integrazione, non l'intera applicazione.
 
+### Pacchetto installato su un Mac pulito
+
+Il bundle `.app` include Electron, il runtime Node usato internamente, il componente PTY e i driver per SQLite, PostgreSQL, MySQL e SQL Server. Sul computer di destinazione **non** occorre installare Node.js, npm, `sqlite3`, `psql`, `mysql`, `sqlcmd`, ODBC o `libpq` per avviare VincodeLab.
+
+Pi, Git, GitHub CLI e OpenSSH/SFTP restano integrazioni opzionali. In **Impostazioni → Compatibilità** l'app distingue i componenti inclusi dagli strumenti esterni e spiega quale sola funzione viene disattivata quando uno di essi manca. Consulta la [matrice runtime e recovery](docs/runtime-compatibility.md) per i dettagli.
+
 ## Avvio dal sorgente
 
 ```bash
@@ -124,6 +130,7 @@ La [documentazione dell'architettura](docs/architecture.md) descrive confini, di
 - [Ambiente di sviluppo](docs/development.md)
 - [Strategia di test](docs/testing.md)
 - [Build e release](docs/release.md)
+- [Compatibilità runtime e recovery](docs/runtime-compatibility.md)
 - [Linee guida per gli screenshot](docs/screenshots.md)
 - [Contribuire](CONTRIBUTING.md)
 - [Sicurezza](SECURITY.md)

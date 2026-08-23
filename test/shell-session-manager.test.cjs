@@ -10,6 +10,7 @@ const {
   DEFAULT_SHELL_OUTPUT_HISTORY_BYTES,
   SESSION_ID_PATTERN,
   createShellSessionManager,
+  resolveSystemShell,
 } = require('../electron/shell-session-manager.cjs')
 
 function temporaryWorkspace(t, prefix = 'vincodelab-shell-sessions-') {
@@ -87,6 +88,21 @@ function connectRenderer(manager, workspace, sessionId) {
   }), true)
   return snapshot
 }
+
+test('se la shell configurata manca usa un fallback e altrimenti espone recovery locale', (t) => {
+  assert.ok(['/bin/zsh', '/bin/bash', '/bin/sh'].includes(resolveSystemShell({ SHELL: '/shell/inesistente' })))
+  const workspace = temporaryWorkspace(t)
+  const manager = createShellSessionManager({
+    createId: sequentialIds(),
+    getExecutable: () => null,
+    processFactory: () => { throw new Error('non deve essere invocata') },
+  })
+  assert.throws(() => manager.create(workspace), (error) => {
+    assert.equal(error.publicCode, 'SHELL_NOT_AVAILABLE')
+    assert.match(error.publicMessage, /aree che non richiedono il Terminale restano disponibili/u)
+    return true
+  })
+})
 
 test('crea una shell login nel workspace e inoltra dati, input e resize per sessionId', (t) => {
   const workspace = temporaryWorkspace(t)

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, Boxes, Check, Download, FilePlus2, RefreshCw, RotateCcw, Settings2, Trash2 } from 'lucide-react'
+import { Bot, Boxes, Check, CircleAlert, CircleCheck, Cpu, Download, FilePlus2, RefreshCw, RotateCcw, Settings2, Trash2 } from 'lucide-react'
 import { Button, Checkbox, createListCollection, ErrorNotice, Field, IconButton, Listbox, SegmentGroup, SelectField, Spinner, Tabs, toast } from '@/components/ui'
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
 import { TerminalDiagnostics } from '@/components/terminal-diagnostics'
@@ -10,7 +10,7 @@ import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 import { commitVolatileDraft, discardVolatileDraft, latestVolatileDraft, restoreVolatileDraft, writeVolatileDraft, type VolatileDraftIdentity } from '@/lib/volatile-draft-store'
 import { preferenceOriginStyle, settingsStyles } from '@/theme/styles/settings'
 
-type SettingsTab = 'general' | 'updates' | 'runtime' | 'packages' | 'skills'
+type SettingsTab = 'general' | 'compatibility' | 'updates' | 'runtime' | 'packages' | 'skills'
 type PackageSource = 'npm' | 'git' | 'local'
 type Appearance = 'system' | 'light' | 'dark'
 type PreferenceScope = 'global' | 'workspace'
@@ -173,10 +173,11 @@ export function NumberPreferenceInput({
   </Field.Root>
 }
 
-export function Settings({ active = true, appearance, onAppearanceChange, onWorkspaceGuardChange }: { active?: boolean; appearance: Appearance; onAppearanceChange: (appearance: Appearance) => void; onWorkspaceGuardChange?: (guard: WorkspaceChangeGuard | null) => void }) {
+export function Settings({ active = true, appearance, openRuntimeRequest = 0, onAppearanceChange, onWorkspaceGuardChange }: { active?: boolean; appearance: Appearance; openRuntimeRequest?: number; onAppearanceChange: (appearance: Appearance) => void; onWorkspaceGuardChange?: (guard: WorkspaceChangeGuard | null) => void }) {
   const restoredPackageDraft = useMemo(() => latestVolatileDraft('settings-package-source', 'global'), [])
   const [tab, setTab] = useState<SettingsTab>('general')
-  const [status, setStatus] = useState<{ executable: string; version: string } | null>(null)
+  const [status, setStatus] = useState<PiRuntimeStatus | null>(null)
+  const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapabilitiesSnapshot | null>(null)
   const [skills, setSkills] = useState<ProjectSkill[]>([])
   const [packageSkills, setPackageSkills] = useState<PiPackageSkill[]>([])
   const [packages, setPackages] = useState<string[]>([])
@@ -209,7 +210,7 @@ export function Settings({ active = true, appearance, onAppearanceChange, onWork
   const [preferenceDraftValues, setPreferenceDraftValues] = useState<Record<string, string>>({})
   const [preferenceDraftResetRevision, setPreferenceDraftResetRevision] = useState(0)
   const refreshRequestId = useRef(0)
-  const sectionOperationRevision = useRef<Record<SettingsTab, number>>({ general: 0, packages: 0, runtime: 0, skills: 0, updates: 0 })
+  const sectionOperationRevision = useRef<Record<SettingsTab, number>>({ compatibility: 0, general: 0, packages: 0, runtime: 0, skills: 0, updates: 0 })
   const preferenceMutationGeneration = useRef(new Map<string, number>())
   const preferenceDrafts = useRef(new Map<string, { definition: AppPreferenceDefinition; draft: string; scope: PreferenceScope; baseline: number }>())
   const sourceRef = useRef(source)
@@ -291,19 +292,28 @@ export function Settings({ active = true, appearance, onAppearanceChange, onWork
     const sectionRevisions = { ...sectionOperationRevision.current }
     setRefreshing(true)
     try {
-      const [statusResult, skillsResult, packagesResult, packageSkillsResult, updatesResult] = await Promise.allSettled([
+      const [statusResult, skillsResult, updatesResult, capabilitiesResult] = await Promise.allSettled([
         Promise.resolve().then(() => window.vincodeLab.piSystem.status()),
         Promise.resolve().then(() => window.vincodeLab.systemSkills.list()),
-        Promise.resolve().then(() => window.vincodeLab.piSystem.list()),
-        Promise.resolve().then(() => window.vincodeLab.piSystem.listSkills()),
         Promise.resolve().then(() => window.vincodeLab.updates.list()),
+        Promise.resolve().then(() => window.vincodeLab.runtime?.capabilities?.() ?? { checkedAt: new Date().toISOString(), items: [] }),
       ])
+      const piReady = statusResult.status === 'fulfilled' && statusResult.value.state !== 'missing'
+      const [packagesResult, packageSkillsResult] = await Promise.allSettled(piReady
+        ? [
+            Promise.resolve().then(() => window.vincodeLab.piSystem.list()),
+            Promise.resolve().then(() => window.vincodeLab.piSystem.listSkills()),
+          ]
+        : [Promise.resolve<string[]>([]), Promise.resolve<PiPackageSkill[]>([])])
       if (!mounted.current || requestId !== refreshRequestId.current) return
-      if (statusResult.status === 'fulfilled') setStatus(statusResult.value)
+      if (statusResult.status === 'fulfilled') setStatus(statusResult.value.state === 'missing'
+        ? statusResult.value
+        : { state: 'ready', executable: statusResult.value.executable, version: statusResult.value.version })
       if (skillsResult.status === 'fulfilled') setSkills(skillsResult.value)
       if (packagesResult.status === 'fulfilled') setPackages(packagesResult.value)
       if (packageSkillsResult.status === 'fulfilled') setPackageSkills(packageSkillsResult.value)
       if (updatesResult.status === 'fulfilled') setUpdates(updatesResult.value)
+      if (capabilitiesResult.status === 'fulfilled') setRuntimeCapabilities(capabilitiesResult.value)
 
       const nextFailures: Partial<Record<SettingsTab, SettingsSectionFailure>> = {}
       if (statusResult.status === 'rejected') nextFailures.runtime = {
@@ -341,9 +351,17 @@ export function Settings({ active = true, appearance, onAppearanceChange, onWork
           title: 'Aggiornamenti non disponibili',
         }),
       }
+      if (capabilitiesResult.status === 'rejected') nextFailures.compatibility = {
+        error: settingsUserError(capabilitiesResult.reason, {
+          category: 'configuration',
+          description: 'Le altre impostazioni restano disponibili. Riprova per verificare i componenti installati.',
+          operation: 'load-runtime-capabilities',
+          title: 'Compatibilità non verificata',
+        }),
+      }
       setSectionFailures((current) => {
         const next = { ...current }
-        for (const section of ['packages', 'runtime', 'skills', 'updates'] as const) {
+        for (const section of ['compatibility', 'packages', 'runtime', 'skills', 'updates'] as const) {
           if (sectionOperationRevision.current[section] !== sectionRevisions[section]) continue
           const failure = nextFailures[section]
           if (failure) next[section] = failure
@@ -538,6 +556,13 @@ export function Settings({ active = true, appearance, onAppearanceChange, onWork
     if (!active) void closeConfig()
   }, [active, closeConfig])
 
+  useEffect(() => {
+    if (openRuntimeRequest <= 0) return
+    queueMicrotask(() => {
+      if (mounted.current) setTab('runtime')
+    })
+  }, [openRuntimeRequest])
+
   const mutatePackage = (action: 'install' | 'update' | 'remove', value: string): void => {
     const installDraft = action === 'install'
       ? { content: sourceRef.current, source: packageSourceRef.current }
@@ -587,6 +612,7 @@ export function Settings({ active = true, appearance, onAppearanceChange, onWork
   }
 
   const selectTab = (next: SettingsTab) => { setTab(next); if (next !== 'runtime') void closeConfig() }
+  const piReady = status?.state === 'ready'
   const normalizedSource = normalizePackageSource(packageSource, source)
   const visibleUpdates = updates.filter((update) => updateFilter === 'all' || update.kind === updateFilter)
   const readyUpdates = updates.filter((update) => update.restartRequired).length
@@ -1063,6 +1089,26 @@ export function Settings({ active = true, appearance, onAppearanceChange, onWork
 
   const systemSkillHasUnsavedChanges = Boolean(selectedSkill)
     && (selectedSkill?.content ?? '') !== savedSystemSkillContent
+  const includedCapabilities = runtimeCapabilities?.items.filter((item) => item.kind === 'included') ?? []
+  const optionalCapabilities = runtimeCapabilities?.items.filter((item) => item.kind === 'optional') ?? []
+  const renderCapability = (capability: RuntimeCapability) => {
+    const StateIcon = capability.state === 'ready' ? CircleCheck : CircleAlert
+    const stateLabel = capability.state === 'ready' ? 'Disponibile' : capability.state === 'missing' ? 'Non installato' : 'Da riparare'
+    const stateClass = capability.state === 'ready'
+      ? settingsStyles.capabilityStateReady
+      : capability.state === 'missing' ? settingsStyles.capabilityStateMissing : settingsStyles.capabilityStateBroken
+    const badgeClass = capability.state === 'ready'
+      ? settingsStyles.capabilityBadgeReady
+      : capability.state === 'missing' ? settingsStyles.capabilityBadgeMissing : settingsStyles.capabilityBadgeBroken
+    return <li className={settingsStyles.capabilityItem} key={capability.id}>
+      <StateIcon aria-hidden="true" className={stateClass} size={17} />
+      <span className={settingsStyles.capabilityCopy}>
+        <span className={settingsStyles.capabilityTitle}>{capability.label}</span>
+        <span className={settingsStyles.capabilityDetail}>{capability.detail}</span>
+      </span>
+      <span className={`${settingsStyles.capabilityState} ${badgeClass}`}>{stateLabel}</span>
+    </li>
+  }
 
   useApplicationMenuCommand('settings.refresh', () => { void refresh() })
   useApplicationMenuCommand('settings.resetWorkspacePreferences', requestClearAllWorkspacePreferences)
@@ -1085,6 +1131,7 @@ export function Settings({ active = true, appearance, onAppearanceChange, onWork
 
       <Tabs.List className={settingsStyles.tabs} aria-label="Sezioni Impostazioni">
         <Tabs.Trigger value="general"><Settings2 aria-hidden="true" size={15} /> Generali</Tabs.Trigger>
+        <Tabs.Trigger value="compatibility"><Cpu aria-hidden="true" size={15} /> Compatibilità</Tabs.Trigger>
         <Tabs.Trigger value="updates"><Download aria-hidden="true" size={15} /> Aggiornamenti{readyUpdates > 0 && <span className={settingsStyles.updateCount}>{readyUpdates}</span>}</Tabs.Trigger>
         <Tabs.Trigger value="runtime"><Bot aria-hidden="true" size={15} /> Runtime Pi</Tabs.Trigger>
         <Tabs.Trigger value="packages"><Boxes aria-hidden="true" size={15} /> Pacchetti Pi</Tabs.Trigger>
@@ -1136,6 +1183,36 @@ export function Settings({ active = true, appearance, onAppearanceChange, onWork
             </Button>}
             <TerminalDiagnostics />
             <p className={settingsStyles.note}>Runtime, pacchetti e skill Pi restano globali e non appartengono al workspace aperto.</p>
+          </section>
+        </Tabs.Content>
+
+        <Tabs.Content asChild value="compatibility">
+          <section className={settingsStyles.panel}>
+            <div className={settingsStyles.panelHeading}>
+              <Cpu aria-hidden="true" className={settingsStyles.panelHeadingIcon} />
+              <div className={settingsStyles.panelHeadingCopy}>
+                <h2 className={settingsStyles.panelTitle}>Compatibilità del sistema</h2>
+                <p className={settingsStyles.panelDescription}>Distingue i componenti inclusi nell’app dagli strumenti esterni opzionali.</p>
+              </div>
+            </div>
+            {renderSectionFailure('compatibility')}
+            {!sectionFailures.compatibility && runtimeCapabilities && <div className={settingsStyles.capabilityGroups}>
+              <section className={settingsStyles.capabilityGroup} aria-labelledby="included-capabilities-title">
+                <div className={settingsStyles.groupHeading}>
+                  <h3 className={settingsStyles.groupTitle} id="included-capabilities-title">Inclusi in VincodeLab</h3>
+                  <p className={settingsStyles.groupDescription}>Non richiedono Node, npm o client database installati sul computer.</p>
+                </div>
+                <ul className={settingsStyles.capabilityList}>{includedCapabilities.map(renderCapability)}</ul>
+              </section>
+              <section className={settingsStyles.capabilityGroup} aria-labelledby="optional-capabilities-title">
+                <div className={settingsStyles.groupHeading}>
+                  <h3 className={settingsStyles.groupTitle} id="optional-capabilities-title">Strumenti opzionali</h3>
+                  <p className={settingsStyles.groupDescription}>Se mancano, viene disattivata soltanto la funzione che li utilizza.</p>
+                </div>
+                <ul className={settingsStyles.capabilityList}>{optionalCapabilities.map(renderCapability)}</ul>
+              </section>
+            </div>}
+            {!sectionFailures.compatibility && !runtimeCapabilities && <p className={settingsStyles.empty}>{refreshing ? 'Verifica compatibilità in corso…' : 'Compatibilità non ancora verificata.'}</p>}
           </section>
         </Tabs.Content>
 
@@ -1198,12 +1275,16 @@ export function Settings({ active = true, appearance, onAppearanceChange, onWork
               <div className={settingsStyles.panelHeadingCopy}>
                 <h2 className={settingsStyles.panelTitle}>Runtime Pi</h2>
                 <p className={settingsStyles.runtime}>{status
-                  ? `${status.version} · ${status.executable}`
+                  ? status.state === 'ready' ? `${status.version} · ${status.executable}` : 'Pi Coding Agent non rilevato.'
                   : sectionFailures.runtime ? 'Runtime Pi non verificato.' : refreshing ? 'Verifica Pi in corso…' : 'Runtime Pi non ancora verificato.'}</p>
               </div>
             </div>
             {renderSectionFailure('runtime')}
-            <Button className={settingsStyles.primaryPanelAction} size="sm" variant="outline" disabled={configBusy} onClick={() => void startConfig()}>
+            {status?.state === 'missing' && <div className={settingsStyles.runtimeMissing} role="status">
+              <CircleAlert aria-hidden="true" size={18} />
+              <span><strong>Pi Coding Agent non è installato o non è rilevabile.</strong> Il Terminale AI resta disattivato; Editor, Terminale locale, GitHub e Database continuano a funzionare. Installa Pi, poi seleziona “Aggiorna”.</span>
+            </div>}
+            <Button className={settingsStyles.primaryPanelAction} size="sm" variant="outline" disabled={configBusy || !piReady} title={!piReady ? 'Installa Pi e aggiorna la verifica prima di configurarlo' : undefined} onClick={() => void startConfig()}>
               {configBusy && <Spinner size={14} />}
               {configBusy ? 'Apertura configurazione…' : 'Configura Pi'}
             </Button>
@@ -1233,9 +1314,10 @@ export function Settings({ active = true, appearance, onAppearanceChange, onWork
               </div>
             </div>
             {renderSectionFailure('packages')}
+            {!piReady && <div className={settingsStyles.runtimeMissing} role="status"><CircleAlert aria-hidden="true" size={18} /><span>Installa Pi Coding Agent prima di gestirne i pacchetti. Node e npm non sono necessari per avviare VincodeLab.</span></div>}
             <div className={settingsStyles.form}>
               <div className={settingsStyles.packageSource}>
-                <SelectField aria-label="Tipo sorgente pacchetto Pi" disabled={Boolean(packageBusy)} options={[{ value: 'npm', label: 'Catalogo Pi (npm)' }, { value: 'git', label: 'Git' }, { value: 'local', label: 'Locale' }]} value={packageSource} onValueChange={(value) => {
+                <SelectField aria-label="Tipo sorgente pacchetto Pi" disabled={Boolean(packageBusy) || !piReady} options={[{ value: 'npm', label: 'Catalogo Pi (npm)' }, { value: 'git', label: 'Git' }, { value: 'local', label: 'Locale' }]} value={packageSource} onValueChange={(value) => {
                   const nextSource = value as PackageSource
                   discardVolatileDraft(packageSourceDraftIdentity(packageSourceRef.current))
                   packageSourceRef.current = nextSource
@@ -1243,12 +1325,12 @@ export function Settings({ active = true, appearance, onAppearanceChange, onWork
                   writeVolatileDraft(packageSourceDraftIdentity(nextSource), sourceRef.current, '')
                 }} />
               </div>
-              <Field.Root><Field.Input aria-label="Sorgente pacchetto Pi" disabled={Boolean(packageBusy)} value={source} onChange={(event) => {
+              <Field.Root><Field.Input aria-label="Sorgente pacchetto Pi" disabled={Boolean(packageBusy) || !piReady} value={source} onChange={(event) => {
                 sourceRef.current = event.target.value
                 setSource(event.target.value)
                 writeVolatileDraft(packageSourceDraftIdentity(packageSourceRef.current), event.target.value, '')
               }} placeholder={packageSourceCopy[packageSource].placeholder} /></Field.Root>
-              <Button size="sm" disabled={Boolean(packageBusy) || !source.trim()} onClick={() => mutatePackage('install', normalizedSource)}>
+              <Button size="sm" disabled={Boolean(packageBusy) || !piReady || !source.trim()} onClick={() => mutatePackage('install', normalizedSource)}>
                 {packageBusy?.startsWith('install:') && <Spinner size={14} />}
                 {packageBusy?.startsWith('install:') ? 'Installazione…' : 'Installa'}
               </Button>

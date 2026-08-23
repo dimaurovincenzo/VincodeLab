@@ -1,6 +1,7 @@
 const crypto = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
+const { createPublicError, isPublicError } = require('./public-error.cjs')
 
 const DEFAULT_MAX_SESSIONS = 8
 const MAX_CONFIGURABLE_SESSIONS = 32
@@ -25,6 +26,35 @@ function createDeferred() {
 
 function defaultProcessFactory(executable, args, options) {
   return require('node-pty').spawn(executable, args, options)
+}
+
+function resolveSystemShell(environment = process.env) {
+  const candidates = [environment.SHELL, '/bin/zsh', '/bin/bash', '/bin/sh']
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string' || !path.isAbsolute(candidate)) continue
+    try {
+      if (fs.statSync(candidate).isFile()) {
+        fs.accessSync(candidate, fs.constants.X_OK)
+        return candidate
+      }
+    } catch {
+      // Prova il fallback successivo senza trasformare una shell opzionale in crash.
+    }
+  }
+  return null
+}
+
+function shellLaunchFailure(error) {
+  if (isPublicError(error)) return error
+  if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return createPublicError(
+    'SHELL_NOT_AVAILABLE',
+    'Non è stata trovata una shell di sistema utilizzabile. Installa o ripristina zsh, bash o sh; le aree che non richiedono il Terminale restano disponibili.',
+  )
+  if (error?.code === 'EACCES' || error?.code === 'EPERM') return createPublicError(
+    'SHELL_NOT_EXECUTABLE',
+    'La shell di sistema non può essere avviata. Verifica i permessi della shell e riprova; le altre aree restano disponibili.',
+  )
+  return error
 }
 
 function validateWorkspacePath(workspacePath) {
@@ -153,7 +183,7 @@ function createShellSessionManager(options = {}) {
   const createId = options.createId ?? (() => crypto.randomUUID())
   const createAttachmentId = options.createAttachmentId ?? (() => crypto.randomUUID())
   const now = options.now ?? Date.now
-  const getExecutable = options.getExecutable ?? (() => process.env.SHELL || '/bin/zsh')
+  const getExecutable = options.getExecutable ?? (() => resolveSystemShell(process.env))
   const getEnvironment = options.getEnvironment ?? (() => process.env)
   const onData = options.onData ?? (() => undefined)
   const onExit = options.onExit ?? (() => undefined)
@@ -369,7 +399,10 @@ function createShellSessionManager(options = {}) {
   function executableAndEnvironment() {
     const executable = getExecutable()
     if (typeof executable !== 'string' || !executable || executable.includes('\0') || !path.isAbsolute(executable)) {
-      throw new Error('Shell di sistema non valida.')
+      throw createPublicError(
+        'SHELL_NOT_AVAILABLE',
+        'Non è stata trovata una shell di sistema utilizzabile. Installa o ripristina zsh, bash o sh; le aree che non richiedono il Terminale restano disponibili.',
+      )
     }
     const environment = getEnvironment()
     if (!environment || typeof environment !== 'object' || Array.isArray(environment)) {
@@ -490,7 +523,7 @@ function createShellSessionManager(options = {}) {
       // Una factory difettosa può aver già avviato il child prima di restituire
       // un handle incompleto: richiediamo comunque l'arresto prima di scartarlo.
       safeKill(ptyProcess)
-      throw error
+      throw shellLaunchFailure(error)
     }
     const generation = session.generation + 1
     const pendingEvents = []
@@ -858,4 +891,5 @@ module.exports = {
   SESSION_ID_PATTERN,
   SHELL_OUTPUT_BLOCK_BYTES,
   createShellSessionManager,
+  resolveSystemShell,
 }

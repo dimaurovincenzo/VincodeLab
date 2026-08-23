@@ -30,7 +30,7 @@ function fallbackPreloadCategory(channel) {
   if (namespace === 'files' || namespace === 'instructions' || namespace === 'skills' || namespace === 'systemSkills') return 'filesystem'
   if (namespace === 'workspaceSession' || namespace === 'volatileDrafts') return 'persistence'
   if (namespace === 'workspace') return 'filesystem'
-  if (namespace === 'piConfig' || namespace === 'piSystem' || namespace === 'appearance' || namespace === 'preferences') return 'configuration'
+  if (namespace === 'piConfig' || namespace === 'piSystem' || namespace === 'runtime' || namespace === 'appearance' || namespace === 'preferences') return 'configuration'
   if (namespace === 'pi' || namespace === 'terminal' || namespace === 'shellSessions' || namespace === 'updates') return 'process'
   return 'internal'
 }
@@ -208,6 +208,9 @@ contextBridge.exposeInMainWorld('vincodeLab', {
   },
   systemSkills: {
     list: () => ipcRenderer.invoke('systemSkills:list'), get: (id) => ipcRenderer.invoke('systemSkills:get', id), create: (name) => ipcRenderer.invoke('systemSkills:create', name), update: (id, content) => ipcRenderer.invoke('systemSkills:update', id, content), delete: (id) => ipcRenderer.invoke('systemSkills:delete', id),
+  },
+  runtime: {
+    capabilities: () => ipcRenderer.invoke('runtime:capabilities'),
   },
   piSystem: {
     status: () => ipcRenderer.invoke('piSystem:status'), list: () => ipcRenderer.invoke('piSystem:list'), listSkills: () => ipcRenderer.invoke('piSystem:listSkills'), install: (source) => ipcRenderer.invoke('piSystem:install', source), update: (source) => ipcRenderer.invoke('piSystem:update', source), remove: (source) => ipcRenderer.invoke('piSystem:remove', source),

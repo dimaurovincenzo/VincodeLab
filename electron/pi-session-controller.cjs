@@ -1,6 +1,30 @@
+const { createPublicError, isPublicError } = require('./public-error.cjs')
+
 const DEFAULT_STOP_GRACE_MS = 750
 const DEFAULT_FORCE_STOP_MS = 750
 const MAX_KEY_BYTES = 64 * 1024
+
+const PI_NOT_INSTALLED = Object.freeze({
+  code: 'PI_NOT_INSTALLED',
+  message: 'Pi Coding Agent non è installato. Installalo oppure configura il percorso dell’eseguibile.',
+})
+const PI_NOT_RUNNABLE = Object.freeze({
+  code: 'PI_NOT_RUNNABLE',
+  message: 'Pi Coding Agent è presente ma non può essere avviato. Verifica installazione e permessi, quindi riprova.',
+})
+
+function publicPiFailure(definition, cause) {
+  if (isPublicError(cause)) return cause
+  const error = createPublicError(definition.code, definition.message)
+  if (cause) {
+    try {
+      Object.defineProperty(error, 'cause', { value: cause })
+    } catch {
+      // Il messaggio pubblico resta valido anche se non è possibile conservare la cause.
+    }
+  }
+  return error
+}
 
 function createDeferred() {
   let resolve
@@ -258,13 +282,25 @@ function createPiSessionController(options = {}) {
       throw new Error('Percorso workspace non valido per Pi.')
     }
 
-    const executable = resolveExecutable()
-    if (typeof executable !== 'string' || executable.length === 0) {
-      throw new Error('Pi non è stato trovato. Installa pi-coding-agent oppure configura VINCODELAB_PI_PATH con il percorso dell’eseguibile.')
+    let executable
+    try {
+      executable = resolveExecutable()
+    } catch (error) {
+      emit(onError, { source: 'resolve-executable', error, workspacePath })
+      throw publicPiFailure(PI_NOT_RUNNABLE, error)
     }
-    const environment = environmentForExecutable(executable)
+    if (typeof executable !== 'string' || executable.length === 0) {
+      throw publicPiFailure(PI_NOT_INSTALLED)
+    }
+    let environment
+    try {
+      environment = environmentForExecutable(executable)
+    } catch (error) {
+      emit(onError, { source: 'environment', error, workspacePath })
+      throw publicPiFailure(PI_NOT_RUNNABLE, error)
+    }
     if (!environment || typeof environment !== 'object' || Array.isArray(environment)) {
-      throw new Error('Ambiente di esecuzione Pi non valido.')
+      throw publicPiFailure(PI_NOT_RUNNABLE, new Error('Ambiente di esecuzione Pi non valido.'))
     }
     const sessionId = createId()
     if (typeof sessionId !== 'string' || sessionId.length === 0 || sessionId.length > 128) {
@@ -284,7 +320,7 @@ function createPiSessionController(options = {}) {
       }))
     } catch (error) {
       emit(onError, { source: 'spawn', error, workspacePath })
-      throw error
+      throw publicPiFailure(PI_NOT_RUNNABLE, error)
     }
 
     const session = {
@@ -362,7 +398,7 @@ function createPiSessionController(options = {}) {
       const detail = signal ? `segnale ${signal}` : `codice ${exitCode ?? 'sconosciuto'}`
       const error = new Error(`Pi è terminato durante l’avvio (${detail}).`)
       error.code = 'PI_EARLY_EXIT'
-      throw error
+      throw publicPiFailure(PI_NOT_RUNNABLE, error)
     }
 
     emit(onStarted, { workspacePath, sessionId: session.sessionId, pid: Number.isInteger(ptyProcess.pid) ? ptyProcess.pid : null })

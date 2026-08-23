@@ -199,7 +199,7 @@ function domainFromIpcChannel(channel) {
   if (namespace === 'workspaceSession' || namespace === 'volatileDrafts') return 'persistence'
   if (namespace === 'terminal' || namespace === 'shellSessions' || namespace === 'workspaceCommands') return 'terminal'
   if (namespace === 'pi') return 'ai'
-  if (namespace === 'piConfig' || namespace === 'piSystem' || namespace === 'appearance' || namespace === 'preferences') return 'configuration'
+  if (namespace === 'piConfig' || namespace === 'piSystem' || namespace === 'runtime' || namespace === 'appearance' || namespace === 'preferences') return 'configuration'
   if (namespace === 'updates') return 'update'
   return 'internal'
 }

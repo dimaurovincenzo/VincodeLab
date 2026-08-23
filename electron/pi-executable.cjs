@@ -23,8 +23,8 @@ function nvmCandidates(homeDirectory) {
   }
 }
 
-function pathCandidates() {
-  return (process.env.PATH || '')
+function pathCandidates(environment = process.env) {
+  return (environment.PATH || '')
     .split(path.delimiter)
     .filter(Boolean)
     .map((directory) => path.join(directory, 'pi'))
@@ -38,11 +38,12 @@ function environmentForPi(executable, environment = process.env) {
   return { ...environment, PATH: pathEntries.join(path.delimiter) }
 }
 
-function resolvePiExecutable() {
-  const homeDirectory = os.homedir()
+function resolvePiExecutable({ environment = process.env, homeDirectory = os.homedir() } = {}) {
+  if (Object.hasOwn(environment, 'VINCODELAB_PI_PATH')) {
+    return isExecutable(environment.VINCODELAB_PI_PATH) ? environment.VINCODELAB_PI_PATH : undefined
+  }
   const candidates = [
-    process.env.VINCODELAB_PI_PATH,
-    ...pathCandidates(),
+    ...pathCandidates(environment),
     path.join(homeDirectory, '.local', 'bin', 'pi'),
     path.join(homeDirectory, '.npm-global', 'bin', 'pi'),
     '/opt/homebrew/bin/pi',

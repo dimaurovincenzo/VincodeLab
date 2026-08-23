@@ -342,7 +342,7 @@ async function readTableRows(workspacePath, connectionId, tableName, options = {
   let rows
   let workerHasMore = false
   if (driver === 'sqlite') {
-    ;({ rows, hasMore: workerHasMore = false } = await session.sqlite.request('all', {
+    ;({ rows, hasMore: workerHasMore = false } = await requestSqlite(session, 'all', {
       sql: `SELECT * FROM ${quoteTableIdentifier(driver, tableName)}${where} LIMIT ? OFFSET ?`,
       parameters: [...parameters, limit + 1, offset],
       budgetRowLimit: limit,
@@ -377,7 +377,7 @@ async function updateTableRows(workspacePath, connectionId, tableName, changes) 
     return { sql: `UPDATE ${quoteTableIdentifier(driver, tableName)} SET ${set} WHERE ${where}`, parameters }
   })
   if (driver === 'sqlite') {
-    await session.sqlite.request('updateRows', { updates })
+    await requestSqlite(session, 'updateRows', { updates })
     schemaCache.delete(sessionKey(workspacePath, connectionId))
     return { updated: changes.length }
   }
@@ -428,6 +428,26 @@ const DATABASE_ERROR_DETAILS = Object.freeze({
     code: 'DATABASE_NOT_FOUND',
     message: 'Il database richiesto non esiste o non è disponibile. Verifica il nome e riprova.',
   },
+  'driver-unavailable': {
+    category: 'configuration',
+    code: 'DATABASE_DRIVER_UNAVAILABLE',
+    message: 'Il driver database incluso nell’app non è disponibile. Reinstalla VincodeLab e riprova.',
+  },
+  'file-invalid': {
+    category: 'validation',
+    code: 'DATABASE_FILE_INVALID',
+    message: 'Il file selezionato non è un database SQLite valido. Scegli un altro file e riprova.',
+  },
+  'file-not-found': {
+    category: 'not-found',
+    code: 'DATABASE_FILE_NOT_FOUND',
+    message: 'Il file SQLite non è disponibile. Verifica il percorso o seleziona di nuovo il file.',
+  },
+  'file-read-only': {
+    category: 'permission',
+    code: 'DATABASE_FILE_READ_ONLY',
+    message: 'Il file SQLite è in sola lettura o non è scrivibile. Verifica i permessi e riprova.',
+  },
   'host-unreachable': {
     category: 'network',
     code: 'DATABASE_NETWORK_HOST_UNREACHABLE',
@@ -447,6 +467,11 @@ const DATABASE_ERROR_DETAILS = Object.freeze({
     category: 'database',
     code: 'DATABASE_RESULT_TOO_LARGE',
     message: 'Il risultato supera il limite sicuro dell’app. Riduci righe o colonne, oppure limita i valori grandi nella query.',
+  },
+  'runtime-incompatible': {
+    category: 'configuration',
+    code: 'DATABASE_RUNTIME_INCOMPATIBLE',
+    message: 'Il runtime database incluso nell’app non è compatibile con questo Mac. Reinstalla la versione corretta di VincodeLab.',
   },
   syntax: {
     category: 'validation',
@@ -505,8 +530,15 @@ function sanitizeDatabaseDiagnostic(error) {
   return diagnostic.slice(0, 512) || 'Dettaglio driver non disponibile.'
 }
 
-function databaseErrorKind(error, { fallbackKind, phase = 'query' } = {}) {
+function databaseErrorKind(error, { driver, fallbackKind, phase = 'query' } = {}) {
   const signal = databaseErrorParts(error).join(' ').toLowerCase()
+  if (/err_module_not_found|module_not_found|cannot find module/u.test(signal)) return 'driver-unavailable'
+  if (/err_dlopen_failed|node_module_version|compiled against a different node\.js version|incompatible architecture|wrong architecture|mach-o.*(?:incompatible|wrong)|symbol not found/u.test(signal)) return 'runtime-incompatible'
+  if (/sqlite_(?:notadb|corrupt|format)(?:_[a-z]+)?|file is not a database|database disk image is malformed/u.test(signal)) return 'file-invalid'
+  if (/sqlite_(?:readonly(?:_[a-z]+)?|perm|ioerr_access)|attempt to write a readonly database/u.test(signal)) return 'file-read-only'
+  if (/sqlite_cantopen(?:_[a-z]+)?|unable to open database file/u.test(signal)) return 'file-not-found'
+  if (driver === 'sqlite' && /(?:^|\s)(?:eacces|eperm|erofs)(?:\s|$)|permission denied|read.?only/u.test(signal)) return 'file-read-only'
+  if (driver === 'sqlite' && /(?:^|\s)(?:enoent|enotdir)(?:\s|$)|no such file|directory does not exist/u.test(signal)) return 'file-not-found'
   if (/database_result_(?:cell_)?too_large/u.test(signal)) return 'result-too-large'
   if (/timeouterror|etimedout|esockettimedout|\betimeout\b|protocol_sequence_timeout|query_timeout|request timeout|statement timeout|timed?\s*out|deadline/u.test(signal)) return 'timeout'
   if (/aborterror|abort_err|database_query_abort(?:ed)?|\baborted?\b|err_(?:canceled|cancelled)|\becancel\b|er_query_interrupted|\b1317\b|query execution was interrupted|cancel(?:ing|led|ed)|annullat/u.test(signal)) return 'cancelled'
@@ -548,6 +580,31 @@ function toDatabasePublicError(error, options = {}) {
   return publicError
 }
 
+const SQLITE_INFRASTRUCTURE_ERROR_KINDS = new Set([
+  'driver-unavailable',
+  'file-invalid',
+  'file-not-found',
+  'file-read-only',
+  'runtime-incompatible',
+])
+
+function sqliteInfrastructurePublicError(error, { phase = 'query' } = {}) {
+  const options = { driver: 'sqlite', phase }
+  return SQLITE_INFRASTRUCTURE_ERROR_KINDS.has(databaseErrorKind(error, options))
+    ? toDatabasePublicError(error, options)
+    : null
+}
+
+async function requestSqlite(session, operation, payload, options) {
+  try {
+    return await session.sqlite.request(operation, payload, options)
+  } catch (error) {
+    // Solo i failure infrastrutturali ricevono copy pubblico qui; sintassi,
+    // vincoli e conflitti continuano a seguire il normale owner dell'operazione.
+    throw sqliteInfrastructurePublicError(error) ?? error
+  }
+}
+
 function safeQueryErrorMessage(error) {
   return normalizeDatabaseError(error, { phase: 'query' }).message
 }
@@ -574,7 +631,7 @@ async function getSqliteSession(workspacePath, connectionId) {
     return session
   } catch (error) {
     await session.sqlite.close(error)
-    throw error
+    throw sqliteInfrastructurePublicError(error, { phase: 'connection' }) ?? error
   }
 }
 
@@ -866,7 +923,7 @@ async function executeQuery(workspacePath, connectionId, sql, options = {}) {
     let affectedRows = null
     let workerHasMore = false
     if (session.driver === 'sqlite') {
-      ;({ rows, affectedRows, hasMore: workerHasMore = false } = await session.sqlite.request('execute', {
+      ;({ rows, affectedRows, hasMore: workerHasMore = false } = await requestSqlite(session, 'execute', {
         sql: classification.mutative ? sql : limitReadSql(sql, options.offset ?? 0, classification.keyword, rowLimit),
         budgetRowLimit: rowLimit,
       }, { signal: options.signal, timeoutMs }))
@@ -893,7 +950,7 @@ async function executeQuery(workspacePath, connectionId, sql, options = {}) {
 async function beginTransaction(workspacePath, connectionId) {
   const session = await getSession(workspacePath, connectionId)
   if (session.transactionActive) throw new Error('Una transazione è già attiva.')
-  if (session.driver === 'sqlite') await session.sqlite.request('exec', { sql: 'BEGIN' })
+  if (session.driver === 'sqlite') await requestSqlite(session, 'exec', { sql: 'BEGIN' })
   else if (session.driver === 'mssql') await runMssqlTransactionOperation(session, 'begin')
   else await executeRemote(session, 'BEGIN')
   session.transactionActive = true
@@ -903,7 +960,7 @@ async function beginTransaction(workspacePath, connectionId) {
 async function commitTransaction(workspacePath, connectionId) {
   const session = await getSession(workspacePath, connectionId)
   if (!session.transactionActive) throw new Error('Nessuna transazione attiva.')
-  if (session.driver === 'sqlite') await session.sqlite.request('exec', { sql: 'COMMIT' })
+  if (session.driver === 'sqlite') await requestSqlite(session, 'exec', { sql: 'COMMIT' })
   else if (session.driver === 'mssql') await runMssqlTransactionOperation(session, 'commit')
   else await executeRemote(session, 'COMMIT')
   session.transactionActive = false
@@ -913,7 +970,7 @@ async function commitTransaction(workspacePath, connectionId) {
 async function rollbackTransaction(workspacePath, connectionId) {
   const session = await getSession(workspacePath, connectionId)
   if (!session.transactionActive) throw new Error('Nessuna transazione attiva.')
-  if (session.driver === 'sqlite') await session.sqlite.request('exec', { sql: 'ROLLBACK' })
+  if (session.driver === 'sqlite') await requestSqlite(session, 'exec', { sql: 'ROLLBACK' })
   else if (session.driver === 'mssql') await runMssqlTransactionOperation(session, 'rollback')
   else await executeRemote(session, 'ROLLBACK')
   session.transactionActive = false
@@ -926,7 +983,7 @@ async function inspectSchema(workspacePath, connectionId, { force = false } = {}
   const session = await getSession(workspacePath, connectionId)
   let tables
   if (session.driver === 'sqlite') {
-    const rawSchema = await session.sqlite.request('inspectSchema', {})
+    const rawSchema = await requestSqlite(session, 'inspectSchema', {})
     tables = rawSchema.tables.map(({ name, columns }) => makeTableSchema(name, columns.map((column) => ({ name: column.name, type: column.type, nullable: column.notnull === 0, primaryKeyPosition: column.pk }))))
   } else {
     const schemaSql = session.driver === 'postgres'

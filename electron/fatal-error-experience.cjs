@@ -188,6 +188,22 @@ function createFatalErrorExperience({ app, clipboard, dialog, flushLogs, log, no
     title: 'Avvio non completato',
   })
 
+  const handleInstallationFailure = (error) => present(error, {
+    actions: ['exit', 'copy'],
+    allowContinue: false,
+    buttons: ['Esci e reinstalla', 'Copia diagnostica'],
+    cancelId: 0,
+    code: 'APP_INSTALLATION_INCOMPLETE',
+    defaultId: 0,
+    detail: 'Nessun file del workspace è stato modificato. Scarica nuovamente il pacchetto adatto a questo Mac e sostituisci questa copia dell’app.',
+    event: 'app_installation_invalid',
+    message: 'Questa installazione non può avviare tutti i componenti essenziali.',
+    operation: 'load-bundled-runtime',
+    origin: 'bootstrap',
+    recoverable: false,
+    title: 'Installazione da riparare',
+  })
+
   const handleUncaughtException = (error) => present(error, {
     actions: ['restart', 'copy', 'exit'],
     allowContinue: false,
@@ -220,7 +236,7 @@ function createFatalErrorExperience({ app, clipboard, dialog, flushLogs, log, no
     title: 'Operazione in background interrotta',
   })
 
-  return { handleStartup, handleUncaughtException, handleUnhandledRejection }
+  return { handleInstallationFailure, handleStartup, handleUncaughtException, handleUnhandledRejection }
 }
 
 module.exports = { createFatalErrorExperience, diagnosticText }

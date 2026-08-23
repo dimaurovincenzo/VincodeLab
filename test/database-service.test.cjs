@@ -155,6 +155,36 @@ test('normalizza gli errori dei driver senza esporre segreti nei messaggi o nell
       expected: ['query-failed', 'DATABASE_QUERY_FAILED', 'database'],
       privateValues: [],
     },
+    {
+      error: Object.assign(new Error("Cannot find module 'pg' from /Applications/VincodeLab.app/private-runtime"), { code: 'MODULE_NOT_FOUND' }),
+      expected: ['driver-unavailable', 'DATABASE_DRIVER_UNAVAILABLE', 'configuration'],
+      options: { phase: 'connection' },
+      privateValues: ['/Applications/VincodeLab.app/private-runtime'],
+    },
+    {
+      error: Object.assign(new Error('The module was compiled against a different Node.js version using NODE_MODULE_VERSION 127'), { code: 'ERR_DLOPEN_FAILED' }),
+      expected: ['runtime-incompatible', 'DATABASE_RUNTIME_INCOMPATIBLE', 'configuration'],
+      options: { phase: 'connection' },
+      privateValues: [],
+    },
+    {
+      error: Object.assign(new Error('unable to open database file /Users/private/data.sqlite'), { code: 'SQLITE_CANTOPEN' }),
+      expected: ['file-not-found', 'DATABASE_FILE_NOT_FOUND', 'not-found'],
+      options: { driver: 'sqlite', phase: 'connection' },
+      privateValues: ['/Users/private/data.sqlite'],
+    },
+    {
+      error: Object.assign(new Error('attempt to write a readonly database'), { code: 'SQLITE_READONLY' }),
+      expected: ['file-read-only', 'DATABASE_FILE_READ_ONLY', 'permission'],
+      options: { driver: 'sqlite' },
+      privateValues: [],
+    },
+    {
+      error: Object.assign(new Error('file is not a database /Users/private/invalid.sqlite'), { code: 'SQLITE_NOTADB' }),
+      expected: ['file-invalid', 'DATABASE_FILE_INVALID', 'validation'],
+      options: { driver: 'sqlite', phase: 'connection' },
+      privateValues: ['/Users/private/invalid.sqlite'],
+    },
   ]
 
   for (const { error, expected: [kind, code, category], options, privateValues } of cases) {
@@ -175,6 +205,21 @@ test('normalizza gli errori dei driver senza esporre segreti nei messaggi o nell
       assert.doesNotMatch(publicError.message, new RegExp(privateValue.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'iu'))
     }
   }
+})
+
+test('indica la reinstallazione per driver assenti o runtime incompatibili senza esporre dettagli tecnici', () => {
+  const cases = [
+    Object.assign(new Error("Cannot find module 'mysql2/promise' from /Users/private/VincodeLab.app"), { code: 'MODULE_NOT_FOUND' }),
+    Object.assign(new Error('/Users/private/addon.node: mach-o file, but is an incompatible architecture'), { code: 'ERR_DLOPEN_FAILED' }),
+  ]
+
+  for (const error of cases) {
+    const publicError = toDatabasePublicError(error, { phase: 'connection' })
+    assert.match(publicError.publicMessage, /Reinstalla/u)
+    assert.doesNotMatch(publicError.message, /mysql2|addon\.node|\/Users\/private/iu)
+  }
+  assert.equal(toDatabasePublicError(cases[0], { phase: 'connection' }).publicCode, 'DATABASE_DRIVER_UNAVAILABLE')
+  assert.equal(toDatabasePublicError(cases[1], { phase: 'connection' }).publicCode, 'DATABASE_RUNTIME_INCOMPATIBLE')
 })
 
 test('non attribuisce righe coinvolte a una query di sola lettura remota', () => {
@@ -198,6 +243,50 @@ test('esegue transazione SQLite e rollback senza mantenere modifiche', async (t)
   await rollbackTransaction(workspace, connection.id)
 
   assert.deepEqual((await executeQuery(workspace, connection.id, 'SELECT * FROM users')).rows, [])
+})
+
+test('classifica un file SQLite non valido dopo il passaggio nel worker', async (t) => {
+  const { workspace, sqlitePath } = withTemporaryDatabase(t)
+  fs.writeFileSync(sqlitePath, 'contenuto che non è un database SQLite')
+  const connection = createConnection(workspace, { name: 'Non valido', driver: 'sqlite', sqlitePath })
+
+  await assert.rejects(
+    () => inspectSchema(workspace, connection.id),
+    (error) => (
+      error.publicCode === 'DATABASE_FILE_INVALID'
+      && error.publicMessage === 'Il file selezionato non è un database SQLite valido. Scegli un altro file e riprova.'
+      && !error.message.includes(sqlitePath)
+      && !error.message.includes('contenuto')
+    ),
+  )
+})
+
+test('classifica come non disponibile un file SQLite in una directory inesistente senza crearlo', async (t) => {
+  const { workspace, sqlitePath } = withTemporaryDatabase(t)
+  const missingPath = path.join(path.dirname(sqlitePath), 'directory-inesistente', 'missing.sqlite')
+  const connection = createConnection(workspace, { name: 'Mancante', driver: 'sqlite', sqlitePath: missingPath })
+
+  await assert.rejects(
+    () => inspectSchema(workspace, connection.id),
+    (error) => error.publicCode === 'DATABASE_FILE_NOT_FOUND' && !error.message.includes(missingPath),
+  )
+  assert.equal(fs.existsSync(missingPath), false)
+})
+
+test('classifica una scrittura SQLite in sola lettura dopo il passaggio nel worker', async (t) => {
+  const { workspace, sqlitePath } = withTemporaryDatabase(t)
+  const connection = createConnection(workspace, { name: 'Sola lettura', driver: 'sqlite', sqlitePath })
+  await executeQuery(workspace, connection.id, 'CREATE TABLE items(id INTEGER)', { confirmed: true })
+  await executeQuery(workspace, connection.id, 'PRAGMA query_only = ON', { confirmed: true })
+
+  await assert.rejects(
+    () => executeQuery(workspace, connection.id, 'INSERT INTO items(id) VALUES (1)', { confirmed: true }),
+    (error) => (
+      error.publicCode === 'DATABASE_FILE_READ_ONLY'
+      && error.publicMessage === 'Il file SQLite è in sola lettura o non è scrivibile. Verifica i permessi e riprova.'
+      && !error.message.includes('INSERT INTO')
+    ),
+  )
 })
 
 test('pagina le letture SQLite senza restituire oltre 500 righe per risposta', async (t) => {

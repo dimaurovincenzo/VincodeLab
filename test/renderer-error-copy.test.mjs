@@ -41,6 +41,16 @@ test('Settings possiede localmente gli errori e non duplica la superficie con to
   assert.doesNotMatch(settings, />\{update\.lastError\}<\/p>/u)
 })
 
+test('Pi assente usa copy specifica e apre direttamente il recovery Runtime Pi', () => {
+  const app = fs.readFileSync(path.join(testDirectory, '../src/App.tsx'), 'utf8')
+  const settings = componentSource('settings.tsx')
+  assert.match(app, /classified\.code === 'PI_NOT_INSTALLED'/u)
+  assert.match(app, /title: 'Pi Coding Agent non installato'/u)
+  assert.match(app, /Editor, Terminale locale, GitHub e Database restano disponibili/u)
+  assert.match(app, /setSettingsRuntimeRequest\(\(current\) => current \+ 1\)/u)
+  assert.match(settings, /openRuntimeRequest <= 0\) return[\s\S]*?setTab\('runtime'\)/u)
+})
+
 test('normalize e report separano copy pubblico e diagnostica sanitizzata', () => {
   const publicError = new Error("Error invoking remote method 'preferences:setGlobal': Error: Impossibile salvare le impostazioni. [CONFIGURATION_SET_GLOBAL_FAILED] [ERR-8F2A1C]")
   const publicIncident = normalizeUserError(publicError, {

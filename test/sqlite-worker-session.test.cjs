@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const { EventEmitter } = require('node:events')
 const test = require('node:test')
 
-const { terminateWorker } = require('../electron/sqlite-worker-session.cjs')
+const { SqliteWorkerSession, terminateWorker } = require('../electron/sqlite-worker-session.cjs')
 
 function fakeWorker({ exits }) {
   const worker = new EventEmitter()
@@ -36,4 +36,17 @@ test('conclude subito quando il worker emette exit', async () => {
   assert.deepEqual(outcome, { timedOut: false })
   assert.equal(worker.killCalls, 1)
   assert.equal(worker.disconnectCalls, 0)
+})
+
+test('preserva il codice SQLite restituito dal worker', async (t) => {
+  const session = new SqliteWorkerSession(':memory:')
+  t.after(() => session.close())
+  await session.ready()
+  await session.request('exec', { sql: 'CREATE TABLE items(id INTEGER PRIMARY KEY)' })
+  await session.request('execute', { sql: 'INSERT INTO items(id) VALUES (1)' })
+
+  await assert.rejects(
+    () => session.request('execute', { sql: 'INSERT INTO items(id) VALUES (1)' }),
+    (error) => error.code === 'SQLITE_CONSTRAINT_PRIMARYKEY',
+  )
 })

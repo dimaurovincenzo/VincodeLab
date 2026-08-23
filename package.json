@@ -22,7 +22,7 @@
     "workspace"
   ],
   "type": "module",
-  "main": "electron/main.cjs",
+  "main": "electron/bootstrap.cjs",
   "packageManager": "npm@11.12.1",
   "engines": {
     "node": ">=22.12.0 <27",

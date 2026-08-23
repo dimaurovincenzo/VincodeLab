@@ -3,13 +3,12 @@ const { execFile } = require('node:child_process')
 const { randomUUID } = require('node:crypto')
 const { writeFile } = require('node:fs/promises')
 const path = require('node:path')
-const pty = require('node-pty')
 const { flushLogs, log, parseRendererDiagnosticMessage } = require('./logger.cjs')
 const { getApplicationErrorLogMetadata, installIpcMainErrorHandling, toApplicationError } = require('./application-error.cjs')
 const { createFatalErrorExperience } = require('./fatal-error-experience.cjs')
 const { wrapIpcListener } = require('./ipc-one-way-error.cjs')
 const { installNavigationGuards, isTrustedIpcEvent } = require('./ipc-security.cjs')
-const { toPublicErrorMessage } = require('./public-error.cjs')
+const { createPublicError, toPublicErrorMessage } = require('./public-error.cjs')
 const { safeKillPty } = require('./pty-lifecycle.cjs')
 const { createPiSessionController } = require('./pi-session-controller.cjs')
 const { environmentForPi, resolvePiExecutable } = require('./pi-executable.cjs')
@@ -52,6 +51,8 @@ const { reportPreloadFailure } = require('./preload-error-experience.cjs')
 const { createReliabilityFaultInjection } = require('./reliability-fault-injection.cjs')
 const { createRendererRecoveryController } = require('./renderer-recovery-controller.cjs')
 const { createWindowCloseCoordinator } = require('./window-close-coordinator.cjs')
+const { createPtyRuntime } = require('./pty-runtime.cjs')
+const { getRuntimeCapabilities } = require('./runtime-capabilities.cjs')
 
 // Ogni invoke attraversa lo stesso confine: gli errori raw restano nel main,
 // mentre renderer e log condividono categoria, operazione e correlation ID.
@@ -61,13 +62,8 @@ installIpcMainErrorHandling(ipcMain, { log })
 // continuare a mostrare "Electron", mentre il bundle distribuito usa productName.
 app.setName('VincodeLab')
 
-const fatalErrorExperience = createFatalErrorExperience({ app, clipboard, dialog, flushLogs, log })
-process.on('uncaughtException', (error) => {
-  void fatalErrorExperience.handleUncaughtException(error)
-})
-process.on('unhandledRejection', (reason) => {
-  void fatalErrorExperience.handleUnhandledRejection(reason)
-})
+const fatalErrorExperience = globalThis[Symbol.for('vincodelab.fatal-error-experience')]
+  ?? createFatalErrorExperience({ app, clipboard, dialog, flushLogs, log })
 
 let mainWindow
 let activeWorkspacePath
@@ -99,6 +95,7 @@ const GIT_FILE_CONTEXT_KINDS = new Set(['git-unstaged-file', 'git-staged-file'])
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const RELIABILITY_BENCHMARK_MODE = process.argv.includes('--reliability-benchmark')
 const RELIABILITY_FAULT_INJECTION_MODE = RELIABILITY_BENCHMARK_MODE && process.argv.includes('--reliability-fault-injection')
+const CLEAN_MACHINE_SMOKE_MODE = RELIABILITY_BENCHMARK_MODE && process.argv.includes('--clean-machine-smoke')
 // La cattura documentale usa il renderer reale, ma non deve aprire sul desktop
 // una finestra con viewport emulata più grande dell'area visibile dell'utente.
 const SCREENSHOT_CAPTURE_MODE = RELIABILITY_BENCHMARK_MODE && process.argv.includes('--screenshot-capture')
@@ -113,6 +110,7 @@ const reliabilityFaultInjection = RELIABILITY_FAULT_INJECTION_MODE
   : null
 const systemSkillsRoot = path.join(app.getPath('home'), '.pi', 'agent', 'skills')
 const piAgentRoot = path.join(app.getPath('home'), '.pi', 'agent')
+const ptyRuntime = createPtyRuntime()
 
 function benchmarkTrace(operation) {
   if (RELIABILITY_BENCHMARK_MODE) process.stderr.write(`[reliability-benchmark] ${operation}\n`)
@@ -123,14 +121,14 @@ const githubOperations = createGithubOperationRegistry()
 const externalMutations = createExternalMutationRegistry()
 const volatileDrafts = createVolatileDraftRegistry()
 const shellSessionManager = createShellSessionManager({
-  processFactory: (executable, args, options) => pty.spawn(executable, args, options),
+  processFactory: (executable, args, options) => ptyRuntime.spawn(executable, args, options),
   onData: handleShellSessionData,
   onExit: handleShellSessionExit,
 })
 const piSessionController = createPiSessionController({
   resolveExecutable: resolvePiExecutable,
   environmentForExecutable: environmentForPi,
-  processFactory: (executable, args, options) => pty.spawn(executable, args, options),
+  processFactory: (executable, args, options) => ptyRuntime.spawn(executable, args, options),
   createStream: ({ pty: ptyProcess, sessionId }) => createTerminalStreamController({
     pty: ptyProcess,
     sessionId,
@@ -604,8 +602,11 @@ async function chooseTerminalAttachments() {
 function startPiConfig() {
   if (piConfigProcess) return { started: false, reused: true }
   const executable = resolvePiExecutable()
-  if (!executable) throw new Error('Pi non è stato trovato.')
-  const ptyProcess = pty.spawn(executable, ['config'], { name: 'xterm-256color', cols: 120, rows: 34, cwd: app.getPath('home'), env: { ...environmentForPi(executable), TERM: 'xterm-256color' } })
+  if (!executable) throw createPublicError(
+    'PI_NOT_INSTALLED',
+    'Pi Coding Agent non è installato o non è rilevabile. Installa Pi, quindi aggiorna la verifica nelle Impostazioni. Le altre funzioni restano disponibili.',
+  )
+  const ptyProcess = ptyRuntime.spawn(executable, ['config'], { name: 'xterm-256color', cols: 120, rows: 34, cwd: app.getPath('home'), env: { ...environmentForPi(executable), TERM: 'xterm-256color' } })
   let resolveExit
   const exitPromise = new Promise((resolve) => { resolveExit = resolve })
   piConfigProcess = ptyProcess
@@ -692,8 +693,9 @@ async function openWorkspace(workspacePath) {
       })
       activeWorkspaceError = failure.error
       activeWorkspaceIncident = failure.errorIncident
-      log('error', 'pi_start_failed')
-      notifyWhenBackground('VincodeLab · Pi', failure.error)
+      const piMissing = failure.errorIncident.code === 'PI_NOT_INSTALLED'
+      log(piMissing ? 'warning' : 'error', piMissing ? 'pi_not_installed' : 'pi_start_failed')
+      if (!piMissing) notifyWhenBackground('VincodeLab · Pi', failure.error)
       return { path: normalizedWorkspacePath, ...failure }
     }
   } catch (error) {
@@ -1038,7 +1040,8 @@ async function initializeApplication() {
   }
   createWindow()
   void externalMutations.run({ ownerId: 0, workspacePath: null, type: 'startup:managed-updates' }, async () => {
-    await reconcileManagedPiPackages(resolvePiExecutable, piAgentRoot)
+    const piExecutable = resolvePiExecutable()
+    if (piExecutable) await reconcileManagedPiPackages(() => piExecutable, piAgentRoot)
     const activated = await activatePendingUpdates()
     if (activated.length) log('info', 'managed_updates_activated', { total: activated.length, failed: activated.filter((item) => !item.success).length })
     const checked = await checkUpdates()
@@ -1638,6 +1641,16 @@ async function initializeApplication() {
   ipcMain.handle('systemSkills:create', (event, name) => { assertTrustedSender(event); return createSystemSkill(systemSkillsRoot, name) })
   ipcMain.handle('systemSkills:update', (event, id, content) => { assertTrustedSender(event); return updateSystemSkill(systemSkillsRoot, id, content) })
   ipcMain.handle('systemSkills:delete', (event, id) => { assertTrustedSender(event); deleteSystemSkill(systemSkillsRoot, id); return { deleted: true } })
+  ipcMain.handle('runtime:capabilities', (event) => {
+    assertTrustedSender(event)
+    return getRuntimeCapabilities({
+      piExecutable: resolvePiExecutable(),
+      ptyStatus: ptyRuntime.getStatus(),
+      systemToolSearchOptions: CLEAN_MACHINE_SMOKE_MODE
+        ? { includeCommonDirectories: false, includeNvm: false }
+        : undefined,
+    })
+  })
   ipcMain.handle('piSystem:status', (event) => { assertTrustedSender(event); return getPiSystemStatus(resolvePiExecutable) })
   ipcMain.handle('piSystem:list', (event) => { assertTrustedSender(event); return listPiPackages(resolvePiExecutable) })
   ipcMain.handle('piSystem:listSkills', (event) => { assertTrustedSender(event); return listPiPackageSkills(resolvePiExecutable) })

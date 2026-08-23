@@ -198,7 +198,12 @@ test('non salva una password remota se safeStorage non è disponibile', (t) => {
     database: 'app',
     user: 'user',
     password: 'non-salvare',
-  }), /Archiviazione sicura/)
+  }), (error) => {
+    assert.equal(error.publicCode, 'DATABASE_SECURE_STORAGE_UNAVAILABLE')
+    assert.match(error.publicMessage, /Sblocca il Portachiavi/u)
+    assert.match(error.publicMessage, /connessione non è stata salvata/u)
+    return true
+  })
   assert.equal(getDatabase().prepare('SELECT COUNT(*) AS total FROM database_connections').get().total, 0)
 })
 

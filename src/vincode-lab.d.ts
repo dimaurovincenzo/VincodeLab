@@ -372,6 +372,24 @@ interface PiPackageSkill extends Omit<ProjectSkill, 'content'> {
   relativePath: string
 }
 
+type PiRuntimeStatus =
+  | { state: 'ready'; executable: string; version: string }
+  | { state: 'missing'; code: 'PI_NOT_INSTALLED'; executable: null; version: null }
+
+interface RuntimeCapability {
+  id: string
+  kind: 'included' | 'optional'
+  label: string
+  state: 'ready' | 'missing' | 'broken'
+  code?: string
+  detail: string
+}
+
+interface RuntimeCapabilitiesSnapshot {
+  checkedAt: string
+  items: RuntimeCapability[]
+}
+
 interface GitFileStatus {
   path: string
   previousPath?: string
@@ -774,7 +792,8 @@ interface Window {
       restart: () => Promise<{ restarted: true }>
     }
     systemSkills: { list: () => Promise<ProjectSkill[]>; get: (id: string) => Promise<ProjectSkill>; create: (name: string) => Promise<ProjectSkill>; update: (id: string, content: string) => Promise<ProjectSkill>; delete: (id: string) => Promise<{ deleted: true }> }
-    piSystem: { status: () => Promise<{ executable: string; version: string }>; list: () => Promise<string[]>; listSkills: () => Promise<PiPackageSkill[]>; install: (source: string) => Promise<{ output: string }>; update: (source: string) => Promise<{ output: string }>; remove: (source: string) => Promise<{ output: string }> }
+    runtime: { capabilities: () => Promise<RuntimeCapabilitiesSnapshot> }
+    piSystem: { status: () => Promise<PiRuntimeStatus>; list: () => Promise<string[]>; listSkills: () => Promise<PiPackageSkill[]>; install: (source: string) => Promise<{ output: string }>; update: (source: string) => Promise<{ output: string }>; remove: (source: string) => Promise<{ output: string }> }
     piConfig: { start: () => Promise<{ started: boolean; reused: boolean }>; close: () => Promise<{ closed: true }>; write: (data: string) => void; resize: (dimensions: { cols: number; rows: number }) => void; onData: (listener: (data: string) => void) => () => void; onExit: (listener: (status: TerminalExitStatus) => void) => () => void; onError: (listener: (event: PiConfigErrorEvent) => void) => () => void }
     github: {
       gitStatus: (options?: CacheReadOptions) => Promise<CachedResult<GitStatus>>

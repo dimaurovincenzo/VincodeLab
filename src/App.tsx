@@ -215,10 +215,12 @@ function normalizeAiSessionFailure(cause: unknown, context: AiFailureContext): A
     severity: context.severity,
   })
   const signature = `${classified.code ?? ''} ${classified.technicalMessage}`
+  const piMissing = classified.code === 'PI_NOT_INSTALLED'
   const rateLimited = /RATE.?LIMIT|TOO_MANY_REQUESTS|\b429\b/iu.test(signature)
   const configurationRequired = classified.category === 'authentication'
     || classified.category === 'configuration'
     || classified.category === 'permission'
+    || piMissing
     || /CONFIG|CREDENTIAL|API.?KEY|TOKEN_(?:EXPIRED|INVALID|MISSING)|NOT_CONFIGURED/iu.test(signature)
   const providerFailure = /PROVIDER|MODEL|UPSTREAM|AI_API|API_(?:FAILURE|UNAVAILABLE)/iu.test(signature)
   const category = configurationRequired
@@ -233,7 +235,12 @@ function normalizeAiSessionFailure(cause: unknown, context: AiFailureContext): A
         description: `L’operazione AI è stata annullata. ${context.preserved}`,
         title: 'Operazione AI annullata',
       }
-    : rateLimited
+    : piMissing
+      ? {
+          description: `Pi Coding Agent non è installato o non è rilevabile. ${context.preserved} Editor, Terminale locale, GitHub e Database restano disponibili. Installa Pi, quindi aggiorna la verifica nelle Impostazioni.`,
+          title: 'Pi Coding Agent non installato',
+        }
+      : rateLimited
       ? {
           description: `Il provider sta limitando temporaneamente le richieste. ${context.preserved} Attendi qualche minuto prima di riprovare.`,
           title: 'Limite del provider AI raggiunto',
@@ -375,6 +382,7 @@ function App() {
   const [appearance, setAppearance] = useState<'system' | 'light' | 'dark'>('system')
   const [aiTab, setAiTab] = useState<'terminal' | 'skills' | 'instructions'>('terminal')
   const [appSection, setAppSection] = useState<'ai' | 'terminal' | 'editor' | 'github' | 'database' | 'settings'>('ai')
+  const [settingsRuntimeRequest, setSettingsRuntimeRequest] = useState(0)
   const [loadedSections, setLoadedSections] = useState(createPersistentViewState)
   const [editorContext, setEditorContext] = useState<EditorWorkbenchContext>(emptyEditorContext)
   const [githubContext, setGitHubContext] = useState<GitHubWorkbenchContext>(emptyGitHubContext)
@@ -759,6 +767,7 @@ function App() {
   }, [])
 
   const openAiSettings = useCallback(() => {
+    setSettingsRuntimeRequest((current) => current + 1)
     setAppSection('settings')
     setLoadedSections((current) => visitPersistentView(current, 'settings'))
   }, [])
@@ -2148,7 +2157,7 @@ function App() {
 
       {workspace ? (
         <div className={shellStyles.sectionStack}>
-        {shouldMountPersistentView(loadedSections, 'settings', appSection === 'settings') && <Tabs.Content asChild key="settings" value="settings"><section className={shellStyles.sectionPage}><ViewErrorBoundary viewName="Impostazioni"><Suspense fallback={<div className={terminalStyles.loading}>Caricamento impostazioni…</div>}><AppSettings active={appSection === 'settings'} appearance={appearance} onAppearanceChange={changeAppearance} onWorkspaceGuardChange={handleSettingsWorkspaceGuardChange} /></Suspense></ViewErrorBoundary></section></Tabs.Content>}
+        {shouldMountPersistentView(loadedSections, 'settings', appSection === 'settings') && <Tabs.Content asChild key="settings" value="settings"><section className={shellStyles.sectionPage}><ViewErrorBoundary viewName="Impostazioni"><Suspense fallback={<div className={terminalStyles.loading}>Caricamento impostazioni…</div>}><AppSettings active={appSection === 'settings'} appearance={appearance} openRuntimeRequest={settingsRuntimeRequest} onAppearanceChange={changeAppearance} onWorkspaceGuardChange={handleSettingsWorkspaceGuardChange} /></Suspense></ViewErrorBoundary></section></Tabs.Content>}
         <Tabs.Content asChild key="ai" value="ai"><section className={`${shellStyles.sectionPage} ${aiStyles.workbench}`} key={workspace}>
           <Tabs.Root className={aiStyles.tabsRoot} value={aiTab} onValueChange={({ value }) => selectAiTab(value as typeof aiTab)}>
           <Tabs.List className={aiStyles.tabsList} aria-label="Sezioni AI">
@@ -2201,7 +2210,7 @@ function App() {
         </div>
       ) : (
         <>
-        {shouldMountPersistentView(loadedSections, 'settings', appSection === 'settings') && <Tabs.Content asChild value="settings"><section className={shellStyles.standalonePage}><ViewErrorBoundary viewName="Impostazioni"><Suspense fallback={<div className={terminalStyles.loading}>Caricamento impostazioni…</div>}><AppSettings active={appSection === 'settings'} appearance={appearance} onAppearanceChange={changeAppearance} onWorkspaceGuardChange={handleSettingsWorkspaceGuardChange} /></Suspense></ViewErrorBoundary></section></Tabs.Content>}
+        {shouldMountPersistentView(loadedSections, 'settings', appSection === 'settings') && <Tabs.Content asChild value="settings"><section className={shellStyles.standalonePage}><ViewErrorBoundary viewName="Impostazioni"><Suspense fallback={<div className={terminalStyles.loading}>Caricamento impostazioni…</div>}><AppSettings active={appSection === 'settings'} appearance={appearance} openRuntimeRequest={settingsRuntimeRequest} onAppearanceChange={changeAppearance} onWorkspaceGuardChange={handleSettingsWorkspaceGuardChange} /></Suspense></ViewErrorBoundary></section></Tabs.Content>}
         <Tabs.Content asChild value="home"><section className={homeStyles.root} aria-label="Workspace recenti">
           <div className={homeStyles.content}>
             <div className={homeStyles.toolbar}>

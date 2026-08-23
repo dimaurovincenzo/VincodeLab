@@ -1249,7 +1249,7 @@ test('le Impostazioni non smontano le sezioni persistenti del workspace', () => 
 
   assert.match(app, /\{workspace \? \(\n        <div className=\{shellStyles\.sectionStack\}>/)
   assert.match(app, /shouldMountPersistentView\(loadedSections, 'settings', appSection === 'settings'\) && <Tabs\.Content asChild[^>]*key="settings"[^>]*value="settings">/)
-  assert.match(app, /<AppSettings active=\{appSection === 'settings'\} appearance=\{appearance\} onAppearanceChange=\{changeAppearance\} onWorkspaceGuardChange=\{handleSettingsWorkspaceGuardChange\} \/>/)
+  assert.match(app, /<AppSettings active=\{appSection === 'settings'\} appearance=\{appearance\} openRuntimeRequest=\{settingsRuntimeRequest\} onAppearanceChange=\{changeAppearance\} onWorkspaceGuardChange=\{handleSettingsWorkspaceGuardChange\} \/>/)
   for (const section of ['editor', 'terminal', 'github', 'database']) {
     assert.match(app, new RegExp(`\\{\\(loadedSections\\.${section} \\|\\| appSection === '${section}'\\) && <Tabs\\.Content asChild[^>]*key="${section}"[^>]*value="${section}">`))
   }

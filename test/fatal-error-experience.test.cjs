@@ -55,6 +55,18 @@ test('l’avvio mostra recovery, copia diagnostica sanitizzata e riavvia', async
   assert.equal(calls.logs[0][2].technicalName, 'Error')
 })
 
+test('un’installazione incompleta indica la reinstallazione senza retry cieco', async () => {
+  const { calls, experience } = harness([1, 0])
+  const error = new Error('binding privato non disponibile')
+
+  assert.equal(await experience.handleInstallationFailure(error), 'exit')
+  assert.deepEqual(calls.dialogs[0].buttons, ['Esci e reinstalla', 'Copia diagnostica'])
+  assert.equal(calls.dialogs[0].title, 'Installazione da riparare')
+  assert.match(calls.dialogs[0].detail, /pacchetto adatto a questo Mac/u)
+  assert.match(calls.clipboard[0], /Operazione: load-bundled-runtime/u)
+  assert.deepEqual(calls.exits, [1])
+})
+
 test('una rejection non gestita può restare confinata senza terminare l’app', async () => {
   const { calls, experience } = harness([0])
 

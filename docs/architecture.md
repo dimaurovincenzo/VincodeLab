@@ -9,7 +9,7 @@ Ogni istanza Electron di VincodeLab gestisce una finestra e un workspace attivo.
 | Renderer | `src/` | Interfaccia React, stato delle viste, CodeMirror, xterm e feedback utente |
 | Design system | `src/components/ui/`, `src/theme/`, `panda.config.ts` | Primitive Ark UI, componenti Park-style, token e recipe Graphite |
 | Preload | `electron/preload.cjs` | API `window.vincodeLab`, serializzazione e ricostruzione degli errori pubblici |
-| Processo principale | `electron/main.cjs`, `electron/*.cjs` | Lifecycle, IPC, filesystem, processi, Git/GitHub, SSH/SFTP e database |
+| Processo principale | `electron/bootstrap.cjs`, `electron/main.cjs`, `electron/*.cjs` | Bootstrap protetto, lifecycle, IPC, filesystem, processi, Git/GitHub, SSH/SFTP e database |
 | Persistenza | `electron/workspace-store.cjs` e store di dominio | Stato applicativo locale, preferenze e metadati per workspace |
 | Verifica | `test/`, `scripts/` | Test di contratto/componenti, benchmark, stress e smoke del bundle |
 
@@ -45,6 +45,8 @@ Principi da preservare:
 ### Shell e Pi
 
 `node-pty` ospita sia le sessioni shell sia Pi Coding Agent. Il main possiede processi, backpressure, cronologia e lifecycle; xterm si occupa soltanto della presentazione e dell'input. Le viste terminale rimangono montate durante la navigazione per preservare sessione e viewport.
+
+`electron/bootstrap.cjs` installa l'esperienza fatal prima di caricare moduli nativi. `electron/pty-runtime.cjs` confina invece un componente PTY mancante o incompatibile: terminali e Pi risultano degradati, mentre le aree che non richiedono PTY restano operative. Una dipendenza essenziale del bundle assente viene presentata come installazione da riparare, senza esporre il messaggio raw del loader.
 
 La risoluzione di Pi è isolata in `electron/pi-executable.cjs`. Se l'eseguibile non è disponibile, l'errore resta confinato al Terminale AI.
 

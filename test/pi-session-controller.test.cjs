@@ -5,6 +5,15 @@ const path = require('node:path')
 const test = require('node:test')
 
 const { createPiSessionController } = require('../electron/pi-session-controller.cjs')
+const { isPublicError } = require('../electron/public-error.cjs')
+
+function hasPublicCode(code) {
+  return (error) => {
+    assert.equal(isPublicError(error), true)
+    assert.equal(error.publicCode, code)
+    return true
+  }
+}
 
 function fakePty({ pid, exitOnKill = true, ignoreGracefulKill = false, immediateExit, deferredExit, writeError } = {}) {
   const dataListeners = new Set()
@@ -114,16 +123,16 @@ function testHarness({ executable = '/opt/pi/bin/pi', outcomes = [], stopGraceMs
 }
 
 test('eseguibile assente e spawn throw non avvelenano i tentativi successivi', async () => {
-  const spawnError = new Error('posix_spawn ENOENT')
+  const spawnError = Object.assign(new Error('posix_spawn ENOENT'), { code: 'ENOENT' })
   const recoveredProcess = fakePty({ pid: 101 })
   const harness = testHarness({ executable: null, outcomes: [spawnError, recoveredProcess] })
 
-  await assert.rejects(harness.controller.start('/tmp/workspace'), /Pi non è stato trovato/)
+  await assert.rejects(harness.controller.start('/tmp/workspace'), hasPublicCode('PI_NOT_INSTALLED'))
   assert.equal(harness.processes.length, 0)
   assert.equal(harness.controller.getState().status, 'idle')
 
   harness.setExecutable('/opt/pi/bin/pi')
-  await assert.rejects(harness.controller.start('/tmp/workspace'), /posix_spawn ENOENT/)
+  await assert.rejects(harness.controller.start('/tmp/workspace'), hasPublicCode('PI_NOT_RUNNABLE'))
   assert.equal(harness.controller.getState().status, 'idle')
 
   await harness.controller.start('/tmp/workspace')
@@ -137,7 +146,12 @@ test('un crash immediato durante l’aggancio è notificato e consente recovery'
   const recovered = fakePty({ pid: 202 })
   const harness = testHarness({ outcomes: [crashed, recovered] })
 
-  await assert.rejects(harness.controller.start('/tmp/workspace'), /terminato durante l’avvio.*codice 127/)
+  await assert.rejects(harness.controller.start('/tmp/workspace'), (error) => {
+    assert.equal(hasPublicCode('PI_NOT_RUNNABLE')(error), true)
+    assert.equal(error.cause?.code, 'PI_EARLY_EXIT')
+    assert.match(error.cause?.message, /terminato durante l’avvio.*codice 127/)
+    return true
+  })
   assert.equal(harness.controller.getState().status, 'exited')
   assert.deepEqual(harness.exits.map(({ exitCode, reason }) => ({ exitCode, reason })), [{ exitCode: 127, reason: 'exit' }])
 

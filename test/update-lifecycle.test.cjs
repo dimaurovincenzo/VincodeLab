@@ -162,6 +162,35 @@ test('prepara senza lifecycle script le dipendenze dichiarate dal pacchetto Pi',
   assert.deepEqual(calls, ['gh', 'git', '/opt/node/bin/npm'])
 })
 
+test('spiega che npm manca solo quando un aggiornamento Pi ne richiede le dipendenze', async (t) => {
+  const root = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-update-no-npm-')), 'package')
+  t.after(() => fs.rmSync(path.dirname(root), { recursive: true, force: true }))
+  const calls = []
+  const run = async (command) => {
+    calls.push(command)
+    if (command === 'gh') {
+      fs.mkdirSync(path.join(root, '.git'), { recursive: true })
+      fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'pi-package', dependencies: { zod: '^4.0.0' } }))
+    }
+    return { stdout: command === 'git' ? 'abcdef2\n' : '' }
+  }
+
+  await assert.rejects(
+    () => downloadGitHub(
+      { owner: 'openai', repository: 'skills', ref: 'main', availableVersion: 'abcdef2' },
+      root,
+      run,
+      { piExecutable: null, resolveNpmExecutable: () => null },
+    ),
+    (error) => {
+      assert.equal(error.publicCode, 'UPDATE_NPM_NOT_INSTALLED')
+      assert.match(error.publicMessage, /VincodeLab continua a funzionare senza npm/u)
+      return true
+    },
+  )
+  assert.deepEqual(calls, ['gh', 'git'])
+})
+
 test('attiva una skill in modo atomico e mantiene un rollback', async (t) => {
   const { target } = fixture(t)
   await stageManagedUpdate('skill:review', { download: async (_record, destination) => fs.writeFileSync(path.join(destination, 'SKILL.md'), '---\nname: review\ndescription: Versione due\n---\n') })
