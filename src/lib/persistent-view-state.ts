@@ -6,6 +6,7 @@ export const persistentViewIds = [
   'terminal',
   'github',
   'database',
+  'redis',
 ] as const
 
 export type PersistentViewId = typeof persistentViewIds[number]

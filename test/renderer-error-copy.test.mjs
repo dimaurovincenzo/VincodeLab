@@ -46,7 +46,7 @@ test('Pi assente usa copy specifica e apre direttamente il recovery Runtime Pi',
   const settings = componentSource('settings.tsx')
   assert.match(app, /classified\.code === 'PI_NOT_INSTALLED'/u)
   assert.match(app, /title: 'Pi Coding Agent non installato'/u)
-  assert.match(app, /Editor, Terminale locale, GitHub e Database restano disponibili/u)
+  assert.match(app, /Editor, Terminale locale, GitHub, Database e Redis restano disponibili/u)
   assert.match(app, /setSettingsRuntimeRequest\(\(current\) => current \+ 1\)/u)
   assert.match(settings, /openRuntimeRequest <= 0\) return[\s\S]*?setTab\('runtime'\)/u)
 })

@@ -9,7 +9,7 @@ Ogni istanza Electron di VincodeLab gestisce una finestra e un workspace attivo.
 | Renderer | `src/` | Interfaccia React, stato delle viste, CodeMirror, xterm e feedback utente |
 | Design system | `src/components/ui/`, `src/theme/`, `panda.config.ts` | Primitive Ark UI, componenti Park-style, token e recipe Graphite |
 | Preload | `electron/preload.cjs` | API `window.vincodeLab`, serializzazione e ricostruzione degli errori pubblici |
-| Processo principale | `electron/bootstrap.cjs`, `electron/main.cjs`, `electron/*.cjs` | Bootstrap protetto, lifecycle, IPC, filesystem, processi, Git/GitHub, SSH/SFTP e database |
+| Processo principale | `electron/bootstrap.cjs`, `electron/main.cjs`, `electron/*.cjs` | Bootstrap protetto, lifecycle, IPC, filesystem, processi, Git/GitHub, SSH/SFTP, database e Redis |
 | Persistenza | `electron/workspace-store.cjs` e store di dominio | Stato applicativo locale, preferenze e metadati per workspace |
 | Verifica | `test/`, `scripts/` | Test di contratto/componenti, benchmark, stress e smoke del bundle |
 
@@ -64,6 +64,12 @@ Il contratto comune in `electron/database-service.cjs` normalizza SQLite, Postgr
 
 SQLite usa un worker dedicato, così query e cancellazione non bloccano il processo principale.
 
+### Redis
+
+`electron/redis-service.cjs` usa il client `node-redis` incluso nel pacchetto: l’installazione non dipende da `redis-cli`, Node.js o npm di sistema. Sono supportate connessioni Standalone e Sentinel con discovery e failover del master gestiti dal client nativo. Le credenziali del data node e quelle opzionali di Sentinel sono separate, cifrate con `safeStorage` e non tornano nel renderer.
+
+L’explorer usa `SCAN`, letture paginate per tipo, preflight della dimensione e budget rigidi sulle risposte IPC. Apertura, comandi e chiusura hanno timeout deterministici. La ricerca nei payload è progressiva, limitata e cancellabile; risultati parziali e stato della vista restano disponibili durante il recovery. Il renderer non espone un comando Redis generico e la prima implementazione è esclusivamente read-only.
+
 ### SSH, SFTP e file remoti
 
 Il servizio SSH usa gli eseguibili OpenSSH locali e una connessione controllata per workspace. SFTP esegue operazioni serializzate e limitate. I file aperti vengono copiati in una cache applicativa, confrontati tramite hash e sincronizzati soltanto su azione esplicita; lo stato di conflitto non sovrascrive automaticamente né la copia locale né quella remota.
@@ -76,9 +82,10 @@ VincodeLab mantiene i propri metadati interni nella directory `userData` di Elec
 - preferenze globali e override per workspace;
 - sessione di navigazione e viste;
 - connessioni database, query salvate e cronologia;
+- connessioni Redis, con configurazione pubblica separata dai segreti;
 - metadati dei file remoti tracciati.
 
-Le password database non vengono conservate nel JSON di configurazione: sono cifrate tramite Electron `safeStorage` quando l'archiviazione sicura è disponibile. La cache dei file remoti risiede in una sottodirectory applicativa protetta.
+Le password database e Redis non vengono conservate nel JSON di configurazione: sono cifrate tramite Electron `safeStorage` quando l'archiviazione sicura è disponibile. La cache dei file remoti risiede in una sottodirectory applicativa protetta.
 
 File del progetto, skill e istruzioni Pi appartengono invece al workspace e vengono modificati soltanto attraverso azioni esplicite dell'utente.
 

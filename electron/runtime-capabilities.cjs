@@ -8,6 +8,7 @@ const BUNDLED_DRIVERS = Object.freeze([
   { id: 'database-postgresql', label: 'PostgreSQL', moduleId: 'pg' },
   { id: 'database-mysql', label: 'MySQL', moduleId: 'mysql2/promise' },
   { id: 'database-sqlserver', label: 'SQL Server', moduleId: 'tedious' },
+  { id: 'redis-client', label: 'Redis', moduleId: 'redis' },
 ])
 
 const SYSTEM_TOOLS = Object.freeze([
@@ -27,7 +28,7 @@ const SYSTEM_TOOLS = Object.freeze([
     id: 'git-system',
     label: 'Git',
     names: ['git'],
-    missingDetail: 'Le funzioni Git non saranno disponibili finché Git non viene installato. Editor, Terminale AI e Database restano utilizzabili.',
+    missingDetail: 'Le funzioni Git non saranno disponibili finché Git non viene installato. Editor, Terminale AI, Database e Redis restano utilizzabili.',
   },
   {
     id: 'github-cli',

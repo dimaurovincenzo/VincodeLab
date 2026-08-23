@@ -1,8 +1,8 @@
-export const WORKSPACE_SESSION_VERSION = 1 as const
+export const WORKSPACE_SESSION_VERSION = 2 as const
 export const WORKSPACE_SESSION_DEBOUNCE_MS = 400
 export const MAX_WORKSPACE_SESSION_BYTES = 256 * 1024
 
-const APP_SECTIONS = ['ai', 'editor', 'terminal', 'github', 'database', 'settings'] as const
+const APP_SECTIONS = ['ai', 'editor', 'terminal', 'github', 'database', 'redis', 'settings'] as const
 const AI_TABS = ['terminal', 'skills', 'instructions'] as const
 const FILE_SOURCES = ['workspace', 'remote'] as const
 const EDITOR_FILE_MODES = ['source', 'preview'] as const
@@ -12,6 +12,9 @@ const GITHUB_TABS = ['changes', 'graph', 'issues', 'projects'] as const
 const ISSUE_STATE_FILTERS = ['all', 'OPEN', 'CLOSED'] as const
 const DATABASE_SIDEBAR_TABS = ['items', 'queries', 'history'] as const
 const DATABASE_VIEWS = ['sql', 'data'] as const
+const REDIS_VIEWS = ['keys', 'search'] as const
+const REDIS_KEY_TYPES = ['all', 'string', 'hash', 'list', 'set', 'zset', 'stream', 'json'] as const
+const REDIS_INSPECTOR_TABS = ['value', 'metadata'] as const
 const FOCUS_TARGETS = [
   'ai.terminal',
   'ai.instructions',
@@ -30,10 +33,13 @@ const FOCUS_TARGETS = [
   'database.query',
   'database.results',
   'database.schema',
+  'redis.keys',
+  'redis.search',
+  'redis.inspector',
   'settings.primary',
 ] as const
 
-const ROOT_KEYS = ['navigation', 'editor', 'terminal', 'github', 'database', 'panels', 'focus'] as const
+const ROOT_KEYS = ['navigation', 'editor', 'terminal', 'github', 'database', 'redis', 'panels', 'focus'] as const
 const PANEL_KEYS = ['editorExplorer', 'terminalCommands', 'remoteConnections', 'databaseSidebar', 'githubProjectPicker'] as const
 
 export type WorkspaceSessionClientState = WorkspaceSessionState
@@ -247,6 +253,10 @@ function compatibleDatabase(value: unknown) {
   return record
 }
 
+function compatibleRedis(value: unknown) {
+  return knownProperties(value, ['selectedConnectionId', 'databaseIndex', 'view', 'typeFilter', 'inspectorTab'])
+}
+
 function normalizeStoredWorkspaceSessionState(value: unknown): WorkspaceSessionState | null {
   const root = recordValue(value)
   if (!root) return null
@@ -272,6 +282,7 @@ function normalizeStoredWorkspaceSessionState(value: unknown): WorkspaceSessionS
     ])),
     github: normalizeSection('github', compatibleGitHub(root.github)),
     database: normalizeSection('database', compatibleDatabase(root.database)),
+    redis: normalizeSection('redis', compatibleRedis(root.redis)),
     panels: normalizeSection('panels', knownProperties(root.panels, PANEL_KEYS)),
     focus: normalizeSection('focus', knownProperties(root.focus, ['view', 'target'])),
   }
@@ -370,6 +381,21 @@ export function normalizeWorkspaceSessionState(value: unknown): WorkspaceSession
     || !databaseScroll
   ) return null
 
+  const redisInput = exactRecord(root.redis, ['selectedConnectionId', 'databaseIndex', 'view', 'typeFilter', 'inspectorTab'])
+  if (!redisInput) return null
+  const redisConnectionId = nullableTextValue(redisInput.selectedConnectionId, 128, { opaque: true })
+  const redisDatabaseIndex = integerValue(redisInput.databaseIndex, 0, 65_535)
+  const redisView = enumValue(redisInput.view, REDIS_VIEWS)
+  const redisTypeFilter = enumValue(redisInput.typeFilter, REDIS_KEY_TYPES)
+  const redisInspectorTab = enumValue(redisInput.inspectorTab, REDIS_INSPECTOR_TABS)
+  if (
+    redisConnectionId === undefined
+    || redisDatabaseIndex === undefined
+    || !redisView
+    || !redisTypeFilter
+    || !redisInspectorTab
+  ) return null
+
   const panelsInput = exactRecord(root.panels, PANEL_KEYS)
   if (!panelsInput) return null
   const panelValues: Record<string, number | null> = {}
@@ -419,6 +445,13 @@ export function normalizeWorkspaceSessionState(value: unknown): WorkspaceSession
         results: databaseScroll.results,
       },
     },
+    redis: {
+      selectedConnectionId: redisConnectionId,
+      databaseIndex: redisDatabaseIndex,
+      view: redisView,
+      typeFilter: redisTypeFilter,
+      inspectorTab: redisInspectorTab,
+    },
     panels: {
       editorExplorer: panelValues.editorExplorer,
       terminalCommands: panelValues.terminalCommands,
@@ -456,6 +489,13 @@ export function createDefaultWorkspaceSessionState(): WorkspaceSessionState {
       selectedTableName: null,
       activeSavedQueryId: null,
       scroll: { explorer: 0, editor: 0, results: 0 },
+    },
+    redis: {
+      selectedConnectionId: null,
+      databaseIndex: 0,
+      view: 'keys',
+      typeFilter: 'all',
+      inspectorTab: 'value',
     },
     panels: {
       editorExplorer: null,

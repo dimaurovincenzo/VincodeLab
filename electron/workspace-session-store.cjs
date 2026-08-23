@@ -2,10 +2,11 @@ const path = require('node:path')
 const { createCorrelationId } = require('./application-error.cjs')
 const { getDatabase } = require('./workspace-store.cjs')
 
-const WORKSPACE_SESSION_VERSION = 1
+const WORKSPACE_SESSION_VERSION = 2
+const LEGACY_WORKSPACE_SESSION_VERSION = 1
 const MAX_WORKSPACE_SESSION_BYTES = 256 * 1024
 
-const APP_SECTIONS = new Set(['ai', 'editor', 'terminal', 'github', 'database', 'settings'])
+const APP_SECTIONS = new Set(['ai', 'editor', 'terminal', 'github', 'database', 'redis', 'settings'])
 const AI_TABS = new Set(['terminal', 'skills', 'instructions'])
 const FILE_SOURCES = new Set(['workspace', 'remote'])
 const EDITOR_FILE_MODES = new Set(['source', 'preview'])
@@ -15,6 +16,9 @@ const GITHUB_TABS = new Set(['changes', 'graph', 'issues', 'projects'])
 const ISSUE_STATE_FILTERS = new Set(['all', 'OPEN', 'CLOSED'])
 const DATABASE_SIDEBAR_TABS = new Set(['items', 'queries', 'history'])
 const DATABASE_VIEWS = new Set(['sql', 'data'])
+const REDIS_VIEWS = new Set(['keys', 'search'])
+const REDIS_KEY_TYPES = new Set(['all', 'string', 'hash', 'list', 'set', 'zset', 'stream', 'json'])
+const REDIS_INSPECTOR_TABS = new Set(['value', 'metadata'])
 const FOCUS_TARGETS = new Set([
   'ai.terminal',
   'ai.instructions',
@@ -33,6 +37,9 @@ const FOCUS_TARGETS = new Set([
   'database.query',
   'database.results',
   'database.schema',
+  'redis.keys',
+  'redis.search',
+  'redis.inspector',
   'settings.primary',
 ])
 
@@ -164,6 +171,7 @@ function validateWorkspaceSessionState(input) {
     'terminal',
     'github',
     'database',
+    'redis',
     'panels',
     'focus',
   ])
@@ -250,6 +258,21 @@ function validateWorkspaceSessionState(input) {
     scroll: validateScrollGroup(databaseInput.scroll, 'Scroll database', ['explorer', 'editor', 'results']),
   }
 
+  const redisInput = assertObject(root.redis, 'Redis', [
+    'selectedConnectionId',
+    'databaseIndex',
+    'view',
+    'typeFilter',
+    'inspectorTab',
+  ])
+  const redis = {
+    selectedConnectionId: assertNullableString(redisInput.selectedConnectionId, 'Connessione Redis', 128, { opaque: true }),
+    databaseIndex: assertInteger(redisInput.databaseIndex, 'Database Redis', 0, 65_535),
+    view: assertEnum(redisInput.view, 'Vista Redis', REDIS_VIEWS),
+    typeFilter: assertEnum(redisInput.typeFilter, 'Filtro Redis', REDIS_KEY_TYPES),
+    inspectorTab: assertEnum(redisInput.inspectorTab, 'Scheda inspector Redis', REDIS_INSPECTOR_TABS),
+  }
+
   const panelsInput = assertObject(root.panels, 'Pannelli', [
     'editorExplorer',
     'terminalCommands',
@@ -271,7 +294,7 @@ function validateWorkspaceSessionState(input) {
     target: focusInput.target === null ? null : assertEnum(focusInput.target, 'Destinazione focus', FOCUS_TARGETS),
   }
 
-  return { navigation, editor, terminal, github, database, panels, focus }
+  return { navigation, editor, terminal, github, database, redis, panels, focus }
 }
 
 function createDefaultWorkspaceSessionState() {
@@ -301,6 +324,13 @@ function createDefaultWorkspaceSessionState() {
       activeSavedQueryId: null,
       scroll: { explorer: 0, editor: 0, results: 0 },
     },
+    redis: {
+      selectedConnectionId: null,
+      databaseIndex: 0,
+      view: 'keys',
+      typeFilter: 'all',
+      inspectorTab: 'value',
+    },
     panels: {
       editorExplorer: null,
       terminalCommands: null,
@@ -310,6 +340,22 @@ function createDefaultWorkspaceSessionState() {
     },
     focus: { view: 'ai', target: null },
   }
+}
+
+function migrateLegacyWorkspaceSessionState(input) {
+  const legacy = assertObject(input, 'Stato sessione workspace v1', [
+    'navigation',
+    'editor',
+    'terminal',
+    'github',
+    'database',
+    'panels',
+    'focus',
+  ])
+  return validateWorkspaceSessionState({
+    ...legacy,
+    redis: createDefaultWorkspaceSessionState().redis,
+  })
 }
 
 function defaultSnapshot() {
@@ -341,7 +387,7 @@ function getWorkspaceSession(workspacePath) {
     SELECT schema_version AS version, payload_json AS payloadJson, updated_at AS updatedAt
     FROM workspace_ui_state WHERE workspace_path = ?
   `).get(workspacePath)
-  if (!row || row.version !== WORKSPACE_SESSION_VERSION) return defaultSnapshot()
+  if (!row || (row.version !== WORKSPACE_SESSION_VERSION && row.version !== LEGACY_WORKSPACE_SESSION_VERSION)) return defaultSnapshot()
 
   if (
     typeof row.payloadJson !== 'string'
@@ -354,9 +400,21 @@ function getWorkspaceSession(workspacePath) {
   }
 
   try {
+    const parsed = JSON.parse(row.payloadJson)
+    const state = row.version === LEGACY_WORKSPACE_SESSION_VERSION
+      ? migrateLegacyWorkspaceSessionState(parsed)
+      : validateWorkspaceSessionState(parsed)
+    if (row.version === LEGACY_WORKSPACE_SESSION_VERSION) {
+      const payloadJson = JSON.stringify(state)
+      getDatabase().prepare(`
+        UPDATE workspace_ui_state
+        SET schema_version = ?, payload_json = ?, updated_at = ?
+        WHERE workspace_path = ? AND schema_version = ?
+      `).run(WORKSPACE_SESSION_VERSION, payloadJson, row.updatedAt, workspacePath, LEGACY_WORKSPACE_SESSION_VERSION)
+    }
     return {
       version: WORKSPACE_SESSION_VERSION,
-      state: validateWorkspaceSessionState(JSON.parse(row.payloadJson)),
+      state,
       updatedAt: row.updatedAt,
     }
   } catch {

@@ -1,4 +1,4 @@
-const APP_SECTIONS = new Set(['home', 'ai', 'ai-skills', 'ai-instructions', 'editor', 'terminal', 'github', 'database', 'settings'])
+const APP_SECTIONS = new Set(['home', 'ai', 'ai-skills', 'ai-instructions', 'editor', 'terminal', 'github', 'database', 'redis', 'settings'])
 
 const AI_RESOURCE_ACTIONS = [
   { label: 'Salva risorsa corrente', command: 'ai.save', accelerator: 'CmdOrCtrl+S' },
@@ -42,6 +42,13 @@ const ACTIONS_BY_SECTION = {
     { label: 'Formatta SQL', command: 'database.format', accelerator: 'Alt+Shift+F' },
     { label: 'Aggiorna schema', command: 'database.schema', accelerator: 'CmdOrCtrl+Alt+R' },
   ],
+  redis: [
+    { label: 'Cerca chiavi o contenuti', command: 'redis.focusSearch', accelerator: 'CmdOrCtrl+F' },
+    { label: 'Aggiorna chiavi', command: 'redis.refresh', accelerator: 'CmdOrCtrl+Alt+R' },
+    { label: 'Nuova connessione…', command: 'redis.newConnection' },
+    { label: 'Riconnetti', command: 'redis.reconnect' },
+    { label: 'Annulla ricerca', command: 'redis.cancel' },
+  ],
   settings: [],
 }
 
@@ -51,6 +58,7 @@ const NAVIGATION_ITEMS = [
   { label: 'Terminale', command: 'navigation.terminal', accelerator: 'CmdOrCtrl+3', requiresWorkspace: true },
   { label: 'GitHub', command: 'navigation.github', accelerator: 'CmdOrCtrl+4', requiresWorkspace: true },
   { label: 'Database', command: 'navigation.database', accelerator: 'CmdOrCtrl+5', requiresWorkspace: true },
+  { label: 'Redis', command: 'navigation.redis', accelerator: 'CmdOrCtrl+6', requiresWorkspace: true },
   { label: 'Focus Terminale', command: 'terminal.focus', accelerator: 'Ctrl+`', requiresWorkspace: true },
   { label: 'Nuovo terminale', command: 'terminal.new', accelerator: 'Ctrl+Shift+`', requiresWorkspace: true },
   { type: 'separator' },
@@ -89,6 +97,11 @@ const CONTEXT_MENU_APPLICATION_COMMANDS = [
   'database.begin',
   'database.commit',
   'database.rollback',
+  'redis.focusSearch',
+  'redis.refresh',
+  'redis.newConnection',
+  'redis.reconnect',
+  'redis.cancel',
   'settings.refresh',
   'settings.resetWorkspacePreferences',
 ]

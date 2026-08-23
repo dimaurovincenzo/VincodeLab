@@ -28,6 +28,10 @@ const { createCommandCategory, createWorkspaceCommand, deleteCommandCategory, de
 const { clearHistory, configureDatabaseSecretStorage, createConnection, deleteConnection, deleteSavedQuery, listConnections, listHistory, listSavedQueries, migrateLegacyConnectionSecrets, saveQuery, updateConnection, updateSavedQuery } = require('./database-store.cjs')
 const { beginTransaction, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, executeQuery, inspectSchema, readTableRows, rollbackTransaction, updateTableRows } = require('./database-service.cjs')
 const { createDatabaseOperationRegistry } = require('./database-operation-registry.cjs')
+const { configureRedisSecretStorage, createRedisConnection, deleteRedisConnection, getRedisConnectionWithSecrets, listRedisConnections, updateRedisConnection } = require('./redis-store.cjs')
+const { mergeRedisTestConnectionSecrets } = require('./redis-connection-input.cjs')
+const { closeConnectionSession: closeRedisConnectionSession, closeWorkspaceSessions: closeRedisWorkspaceSessions, readKey: readRedisKey, scanKeys: scanRedisKeys, searchKeys: searchRedisKeys, testConnectionInput: testRedisConnectionInput } = require('./redis-service.cjs')
+const { createRedisOperationRegistry } = require('./redis-operation-registry.cjs')
 const { createGithubOperationRegistry } = require('./github-operation-registry.cjs')
 const { createExternalMutationRegistry } = require('./external-mutation-registry.cjs')
 const { addGitHubRemote, addWorkspaceIssueToProject, archiveWorkspaceProjectItem, closeWorkspaceProject, commit, createBranch, createGitHubRepository, createIssue, createWorkspaceProject, createWorkspaceProjectDraft, editWorkspaceProject, fetchRemote, getCachedGitHubData, getCachedGitStatus, getCachedProjectBoard, getFileDiff, getWorkspaceProjectItemFields, initializeGitRepository, listBranches, pullRebase, push, revertCommit, stageFiles, switchBranch, unstageFiles, updateIssue, updateWorkspaceProjectItem } = require('./github-service.cjs')
@@ -92,6 +96,8 @@ const WORKSPACE_ROOT_CONTEXT_KIND = 'workspace-root'
 const RECENT_WORKSPACE_CONTEXT_KIND = 'recent-workspace'
 const TERMINAL_TAB_CONTEXT_KIND = 'terminal-tab'
 const GIT_FILE_CONTEXT_KINDS = new Set(['git-unstaged-file', 'git-staged-file'])
+const REDIS_KEY_CONTEXT_KIND = 'redis-key'
+const REDIS_KEY_REF_PATTERN = /^[A-Za-z0-9+/_=-]{1,21848}$/u
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const RELIABILITY_BENCHMARK_MODE = process.argv.includes('--reliability-benchmark')
 const RELIABILITY_FAULT_INJECTION_MODE = RELIABILITY_BENCHMARK_MODE && process.argv.includes('--reliability-fault-injection')
@@ -117,6 +123,7 @@ function benchmarkTrace(operation) {
 }
 const projectFileIndex = createProjectFileIndex()
 const databaseOperations = createDatabaseOperationRegistry()
+const redisOperations = createRedisOperationRegistry()
 const githubOperations = createGithubOperationRegistry()
 const externalMutations = createExternalMutationRegistry()
 const volatileDrafts = createVolatileDraftRegistry()
@@ -185,6 +192,34 @@ function publicApplicationErrorPayload(error, options) {
     recoverable: incident.recoverable,
     severity: incident.severity,
   })
+}
+
+function redisKeyForRenderer(keyRef) {
+  if (!keyRef || typeof keyRef !== 'object' || Array.isArray(keyRef) || typeof keyRef.encoded !== 'string') {
+    throw new Error('Riferimento chiave Redis non valido.')
+  }
+  const binary = keyRef.binary === true
+  const display = binary
+    ? `base64:${keyRef.encoded.slice(0, 48)}${keyRef.encoded.length > 48 ? '…' : ''}`
+    : typeof keyRef.display === 'string' && keyRef.display ? keyRef.display : '(chiave vuota)'
+  return { key: display, keyRef: keyRef.encoded, binary }
+}
+
+function redisSummaryForRenderer(summary) {
+  const { key, ...metadata } = summary
+  return { ...redisKeyForRenderer(key), ...metadata }
+}
+
+function redisInspectionForRenderer(inspection) {
+  const { key, resultBytes: _resultBytes, ...value } = inspection
+  return { ...value, ...redisKeyForRenderer(key) }
+}
+
+function redisSearchForRenderer(result) {
+  return {
+    ...result,
+    matches: Array.isArray(result?.matches) ? result.matches.map(redisSummaryForRenderer) : [],
+  }
 }
 
 function workspaceFailure(error, options) {
@@ -519,6 +554,9 @@ async function cleanupWorkspaceRuntime(workspacePath, reason) {
   const databaseDrain = databaseOperations.abortAndWaitMatching((operation) => !workspacePath || operation.workspacePath === workspacePath)
   const databaseSessionCleanup = workspacePath ? closeWorkspaceSessions(workspacePath) : Promise.resolve()
   await withCleanupDeadline(Promise.all([databaseDrain, databaseSessionCleanup]), 6_000, 'database-runtime')
+  const redisDrain = redisOperations.abortAndWaitMatching((operation) => !workspacePath || operation.workspacePath === workspacePath)
+  const redisSessionCleanup = workspacePath ? closeRedisWorkspaceSessions(workspacePath) : Promise.resolve()
+  await withCleanupDeadline(Promise.all([redisDrain, redisSessionCleanup]), 6_000, 'redis-runtime')
   await withCleanupDeadline(
     githubOperations.abortAndWaitMatching((operation) => !workspacePath || operation.workspacePath === workspacePath),
     4_000,
@@ -888,6 +926,10 @@ function createWindow() {
     const databaseSessionCleanup = activeWorkspacePath ? closeWorkspaceSessions(activeWorkspacePath) : Promise.resolve()
     void withCleanupDeadline(Promise.all([databaseOwnerDrain, databaseSessionCleanup]), 6_000, 'database-owner-runtime')
       .catch(() => log('error', 'database_owner_cleanup_failed'))
+    const redisOwnerDrain = redisOperations.abortOwner(window.webContents.id)
+    const redisSessionCleanup = activeWorkspacePath ? closeRedisWorkspaceSessions(activeWorkspacePath) : Promise.resolve()
+    void withCleanupDeadline(Promise.all([redisOwnerDrain, redisSessionCleanup]), 6_000, 'redis-owner-runtime')
+      .catch(() => log('error', 'redis_owner_cleanup_failed'))
     void recoveryController.handleProcessGone({ ...details, correlationId: incident.correlationId })
   })
   // Gli errori del renderer non devono trasformarsi in una finestra vuota senza traccia diagnostica.
@@ -996,6 +1038,7 @@ app.whenReady().then(() => {
 
 async function initializeApplication() {
   configureDatabaseSecretStorage(safeStorage)
+  configureRedisSecretStorage(safeStorage)
   migrateLegacyDatabaseSecretsInBatches()
   instanceRegistry = createInstanceRegistry({ database: getDatabase() })
   const admission = instanceRegistry.register({ instanceId, pid: process.pid })
@@ -1218,8 +1261,9 @@ async function initializeApplication() {
     const recentWorkspaceContext = request?.kind === RECENT_WORKSPACE_CONTEXT_KIND
     const terminalTabContext = request?.kind === TERMINAL_TAB_CONTEXT_KIND
     const gitFileContext = GIT_FILE_CONTEXT_KINDS.has(request?.kind)
+    const redisKeyContext = request?.kind === REDIS_KEY_CONTEXT_KIND
     const contextKind = remoteContextKind
-      ?? (workspaceFileContext || workspaceDirectoryContext || workspaceRootContext || recentWorkspaceContext || terminalTabContext || gitFileContext ? request.kind : null)
+      ?? (workspaceFileContext || workspaceDirectoryContext || workspaceRootContext || recentWorkspaceContext || terminalTabContext || gitFileContext || redisKeyContext ? request.kind : null)
     const contextId = typeof request?.contextId === 'string' ? request.contextId : null
     if (remoteContextKind && (!contextId || !UUID_PATTERN.test(request?.contextId))) throw new Error('Elemento remoto non valido.')
     if (terminalTabContext && (!contextId || !UUID_PATTERN.test(request?.contextId))) throw new Error('Sessione terminale non valida.')
@@ -1242,6 +1286,7 @@ async function initializeApplication() {
       const relative = path.relative(workspaceRoot, candidate)
       if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative) || contextId.includes('\0')) throw new Error('File Git non valido.')
     }
+    if (redisKeyContext && (!contextId || !REDIS_KEY_REF_PATTERN.test(contextId))) throw new Error('Chiave Redis non valida.')
     if (request?.enabledCommands !== undefined && (!Array.isArray(request.enabledCommands)
       || request.enabledCommands.length > 100
       || request.enabledCommands.some((command) => !isApplicationMenuCommand(command)))) {
@@ -1273,6 +1318,7 @@ async function initializeApplication() {
         hasRightTabs: request?.contextFlags?.hasRightTabs === true,
         operable: request?.contextFlags?.operable === true,
         canCreate: request?.contextFlags?.canCreate === true,
+        hasVisibleValue: request?.contextFlags?.hasVisibleValue === true,
       },
       ...(contextKind ? { contextKind, contextId } : {}),
     }
@@ -1897,6 +1943,115 @@ async function initializeApplication() {
   ipcMain.handle('database:deleteSavedQuery', (event, id) => { assertTrustedSender(event); deleteSavedQuery(requireActiveWorkspace(), id); return { deleted: true } })
   ipcMain.handle('database:listHistory', (event, id, limit) => { assertTrustedSender(event); return listHistory(requireActiveWorkspace(), id, limit) })
   ipcMain.handle('database:clearHistory', (event, id) => { assertTrustedSender(event); return clearHistory(requireActiveWorkspace(), id) })
+  ipcMain.handle('redis:listConnections', (event) => {
+    assertTrustedSender(event)
+    return listRedisConnections(requireActiveWorkspace())
+  })
+  ipcMain.handle('redis:createConnection', (event, input) => runWorkspaceMutation(event, 'redis:create-connection', (workspacePath) => createRedisConnection(workspacePath, input)))
+  ipcMain.handle('redis:updateConnection', (event, id, input) => runWorkspaceMutation(event, 'redis:update-connection', async (workspacePath) => {
+    const drain = redisOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === id)
+    await withCleanupDeadline(Promise.all([drain, closeRedisConnectionSession(workspacePath, id)]), 6_000, 'redis-connection-runtime')
+    return updateRedisConnection(workspacePath, id, input)
+  }))
+  ipcMain.handle('redis:deleteConnection', (event, id) => runWorkspaceMutation(event, 'redis:delete-connection', async (workspacePath) => {
+    const drain = redisOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === id)
+    await withCleanupDeadline(Promise.all([drain, closeRedisConnectionSession(workspacePath, id)]), 6_000, 'redis-connection-runtime')
+    deleteRedisConnection(workspacePath, id)
+    return { deleted: true }
+  }))
+  ipcMain.handle('redis:testConnection', async (event, input, connectionId) => {
+    assertTrustedSender(event)
+    const workspacePath = requireActiveWorkspace()
+    let testInput = input
+    if (connectionId !== undefined) {
+      const stored = getRedisConnectionWithSecrets(workspacePath, connectionId)
+      if (!stored) throw createPublicError('REDIS_CONNECTION_NOT_FOUND', 'La connessione Redis del workspace non è più disponibile. Aggiorna l’elenco e riprova.')
+      testInput = mergeRedisTestConnectionSecrets(input, stored)
+    }
+    const operation = redisOperations.start({ operationId: randomUUID(), senderId: event.sender.id, workspacePath, connectionId: connectionId ?? 'draft' })
+    try {
+      return await testRedisConnectionInput(testInput, { signal: operation.signal })
+    } finally {
+      operation.finish()
+    }
+  })
+  ipcMain.handle('redis:scanKeys', async (event, connectionId, input) => {
+    assertTrustedSender(event)
+    const workspacePath = requireActiveWorkspace()
+    const operation = redisOperations.start({ operationId: randomUUID(), senderId: event.sender.id, workspacePath, connectionId })
+    try {
+      const page = await scanRedisKeys(workspacePath, connectionId, {
+        cursor: input?.cursor,
+        match: input?.match,
+        type: input?.type,
+        count: input?.count,
+        signal: operation.signal,
+      })
+      return {
+        cursor: page.nextCursor,
+        keys: page.items.map(redisSummaryForRenderer),
+        scanned: page.scanned,
+        hasMore: !page.complete,
+      }
+    } finally {
+      operation.finish()
+    }
+  })
+  ipcMain.handle('redis:readKey', async (event, connectionId, encodedKey, input) => {
+    assertTrustedSender(event)
+    const workspacePath = requireActiveWorkspace()
+    const operation = redisOperations.start({ operationId: randomUUID(), senderId: event.sender.id, workspacePath, connectionId })
+    try {
+      const inspection = await readRedisKey(workspacePath, connectionId, { encoded: encodedKey }, {
+        cursor: input?.cursor,
+        offset: input?.offset,
+        count: input?.count,
+        signal: operation.signal,
+      })
+      return redisInspectionForRenderer(inspection)
+    } finally {
+      operation.finish()
+    }
+  })
+  ipcMain.handle('redis:reconnect', async (event, connectionId) => {
+    assertTrustedSender(event)
+    const workspacePath = requireActiveWorkspace()
+    await redisOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === connectionId)
+    await closeRedisConnectionSession(workspacePath, connectionId)
+    return { reconnected: true }
+  })
+  ipcMain.handle('redis:searchPayloads', async (event, connectionId, input) => {
+    assertTrustedSender(event)
+    const workspacePath = requireActiveWorkspace()
+    const operation = redisOperations.start({
+      operationId: input?.operationId,
+      senderId: event.sender.id,
+      workspacePath,
+      connectionId,
+    })
+    try {
+      return redisSearchForRenderer(await searchRedisKeys(workspacePath, connectionId, {
+        operationId: input?.operationId,
+        query: input?.query,
+        keyRef: input?.keyRef,
+        keyPattern: input?.keyPattern,
+        type: input?.type,
+        count: input?.count,
+        limit: input?.limit,
+        maxScanned: input?.maxScanned,
+        signal: operation.signal,
+      }, (progress) => {
+        sendToRenderer('redis:searchProgress', redisSearchForRenderer(progress))
+      }))
+    } finally {
+      operation.finish()
+    }
+  })
+  ipcMain.handle('redis:cancel', (event, operationId) => {
+    assertTrustedSender(event)
+    const result = redisOperations.cancel(operationId, event.sender.id)
+    return { cancelled: result.cancelled }
+  })
   ipcMain.on('piConfig:input', confineIpcOneWay('piConfig:input', (event, data) => {
     assertTrustedSender(event)
     if (typeof data !== 'string' || data.length === 0 || Buffer.byteLength(data, 'utf8') > 65_536) {
@@ -1978,6 +2133,9 @@ async function shutdownApplication() {
   const databaseDrain = databaseOperations.abortAll()
   const databaseSessionCleanup = activeWorkspacePath ? closeWorkspaceSessions(activeWorkspacePath) : Promise.resolve()
   await withCleanupDeadline(Promise.all([databaseDrain, databaseSessionCleanup]), 6_000, 'database-runtime')
+  const redisDrain = redisOperations.abortAll()
+  const redisSessionCleanup = activeWorkspacePath ? closeRedisWorkspaceSessions(activeWorkspacePath) : Promise.resolve()
+  await withCleanupDeadline(Promise.all([redisDrain, redisSessionCleanup]), 6_000, 'redis-runtime')
   await withCleanupDeadline(githubOperations.abortAndWaitMatching(), 4_000, 'github-operations')
   benchmarkTrace('github-stopped')
   benchmarkTrace('database-stopped')

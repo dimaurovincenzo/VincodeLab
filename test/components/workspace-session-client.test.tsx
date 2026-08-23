@@ -8,7 +8,7 @@ import {
 } from '@/lib/workspace-session'
 
 function storedSnapshot(state = createDefaultWorkspaceSessionState(), updatedAt: number | null = 1): WorkspaceSessionSnapshot {
-  return { version: 1, state, updatedAt }
+  return { version: 2, state, updatedAt }
 }
 
 function legacyTerminalState(): WorkspaceSessionState {
@@ -18,7 +18,7 @@ function legacyTerminalState(): WorkspaceSessionState {
   return state as unknown as WorkspaceSessionState
 }
 
-const SESSION_SECTION_KEYS = ['navigation', 'editor', 'terminal', 'github', 'database', 'panels', 'focus'] as const
+const SESSION_SECTION_KEYS = ['navigation', 'editor', 'terminal', 'github', 'database', 'redis', 'panels', 'focus'] as const
 
 function populatedWorkspaceSessionState(): WorkspaceSessionState {
   return {
@@ -57,6 +57,13 @@ function populatedWorkspaceSessionState(): WorkspaceSessionState {
       selectedTableName: 'users',
       activeSavedQueryId: 'query-1',
       scroll: { explorer: 55, editor: 66, results: 77 },
+    },
+    redis: {
+      selectedConnectionId: 'redis-connection-1',
+      databaseIndex: 2,
+      view: 'search',
+      typeFilter: 'hash',
+      inspectorTab: 'metadata',
     },
     panels: {
       editorExplorer: 280,
@@ -182,7 +189,7 @@ describe('WorkspaceSessionClient', () => {
   it('mantiene il fallback totale per una versione snapshot sconosciuta', async () => {
     const onError = vi.fn()
     const futureSnapshot = {
-      version: 2,
+      version: 3,
       state: populatedWorkspaceSessionState(),
       updatedAt: 99,
     } as unknown as WorkspaceSessionSnapshot

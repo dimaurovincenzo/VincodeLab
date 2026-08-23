@@ -76,6 +76,7 @@ const DOMAIN_CODE_PREFIX = Object.freeze({
   github: 'GITHUB',
   internal: 'OPERATION',
   persistence: 'PERSISTENCE',
+  redis: 'REDIS',
   remote: 'REMOTE',
   terminal: 'TERMINAL',
   update: 'UPDATE',
@@ -102,6 +103,15 @@ const CHANNEL_MESSAGES = Object.freeze({
   'database:inspectSchema': 'Impossibile leggere lo schema del database.',
   'database:rollback': 'Impossibile annullare la transazione.',
   'database:tableRows': 'Impossibile leggere i dati della tabella.',
+  'redis:createConnection': 'Impossibile salvare la connessione Redis.',
+  'redis:deleteConnection': 'Impossibile eliminare la connessione Redis.',
+  'redis:listConnections': 'Impossibile leggere le connessioni Redis.',
+  'redis:readKey': 'Impossibile leggere la chiave Redis.',
+  'redis:reconnect': 'Impossibile riconnettere Redis.',
+  'redis:scanKeys': 'Impossibile aggiornare le chiavi Redis.',
+  'redis:searchPayloads': 'Impossibile completare la ricerca nei dati Redis.',
+  'redis:testConnection': 'Impossibile verificare la connessione Redis.',
+  'redis:updateConnection': 'Impossibile aggiornare la connessione Redis.',
   'files:create': 'Impossibile creare il file.',
   'files:index': 'Impossibile aggiornare l’indice dei file.',
   'files:list': 'Impossibile leggere i file del workspace.',
@@ -192,6 +202,7 @@ function domainFromIpcChannel(channel) {
   const safeChannel = safeContext(channel, '')
   const [namespace, operation = ''] = safeChannel.split(':', 2)
   if (namespace === 'database') return 'database'
+  if (namespace === 'redis') return 'redis'
   if (namespace === 'github') return GIT_CHANNEL_OPERATIONS.has(operation) ? 'git' : 'github'
   if (namespace === 'remoteFiles' || namespace === 'managedSsh') return 'remote'
   if (namespace === 'files' || namespace === 'instructions' || namespace === 'skills' || namespace === 'systemSkills') return 'filesystem'
@@ -206,6 +217,7 @@ function domainFromIpcChannel(channel) {
 
 function fallbackCategoryForDomain(domain) {
   if (domain === 'database' || domain === 'git' || domain === 'github' || domain === 'filesystem' || domain === 'persistence') return domain
+  if (domain === 'redis') return 'database'
   if (domain === 'remote') return 'remote'
   if (domain === 'configuration') return 'configuration'
   if (domain === 'terminal' || domain === 'ai' || domain === 'update') return 'process'
@@ -339,6 +351,7 @@ function fallbackMessage(domain, operation) {
   if (/^(?:delete|remove|discard|clear)/u.test(operation)) return 'Impossibile eliminare la risorsa.'
   if (/^(?:open|resume|reload|restart)/u.test(operation)) return 'Impossibile ripristinare questa funzione.'
   if (domain === 'database') return 'Il database non ha completato la richiesta.'
+  if (domain === 'redis') return 'Redis non ha completato la richiesta.'
   if (domain === 'git') return 'Git non ha completato la richiesta.'
   if (domain === 'github') return 'GitHub non ha completato la richiesta.'
   if (domain === 'remote') return 'La risorsa remota non ha completato la richiesta.'
@@ -354,6 +367,7 @@ function categoryAdvice(category, domain, signal) {
   if (category === 'authentication') {
     if (domain === 'github') return 'Accedi di nuovo a GitHub e riprova.'
     if (domain === 'database') return 'Verifica le credenziali del database e riprova.'
+    if (domain === 'redis') return 'Verifica utente e password Redis, quindi riprova.'
     if (domain === 'remote') return 'Verifica le credenziali della connessione remota e riprova.'
     return 'Accedi di nuovo e riprova.'
   }

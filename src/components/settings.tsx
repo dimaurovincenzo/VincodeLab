@@ -1282,7 +1282,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
             {renderSectionFailure('runtime')}
             {status?.state === 'missing' && <div className={settingsStyles.runtimeMissing} role="status">
               <CircleAlert aria-hidden="true" size={18} />
-              <span><strong>Pi Coding Agent non è installato o non è rilevabile.</strong> Il Terminale AI resta disattivato; Editor, Terminale locale, GitHub e Database continuano a funzionare. Installa Pi, poi seleziona “Aggiorna”.</span>
+              <span><strong>Pi Coding Agent non è installato o non è rilevabile.</strong> Il Terminale AI resta disattivato; Editor, Terminale locale, GitHub, Database e Redis continuano a funzionare. Installa Pi, poi seleziona “Aggiorna”.</span>
             </div>}
             <Button className={settingsStyles.primaryPanelAction} size="sm" variant="outline" disabled={configBusy || !piReady} title={!piReady ? 'Installa Pi e aggiorna la verifica prima di configurarlo' : undefined} onClick={() => void startConfig()}>
               {configBusy && <Spinner size={14} />}

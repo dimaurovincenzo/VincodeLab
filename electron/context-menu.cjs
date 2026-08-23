@@ -83,6 +83,14 @@ const CONTEXT_ACTIONS_BY_SECTION = {
     { label: 'Commit transazione', command: 'database.commit' },
     { label: 'Rollback transazione', command: 'database.rollback' },
   ],
+  redis: [
+    { label: 'Cerca chiavi o contenuti', command: 'redis.focusSearch' },
+    { label: 'Aggiorna chiavi', command: 'redis.refresh' },
+    { label: 'Annulla ricerca', command: 'redis.cancel' },
+    { type: 'separator' },
+    { label: 'Riconnetti', command: 'redis.reconnect' },
+    { label: 'Nuova connessione…', command: 'redis.newConnection' },
+  ],
   settings: [
     { label: 'Aggiorna impostazioni e risorse', command: 'settings.refresh' },
     { label: 'Rimuovi personalizzazioni workspace…', command: 'settings.resetWorkspacePreferences' },
@@ -237,6 +245,15 @@ const GIT_FILE_ACTIONS = {
   ],
 }
 
+const REDIS_KEY_ACTIONS = [
+  { label: 'Apri nell’inspector', command: 'redisKey.open' },
+  { label: 'Cerca nel contenuto', command: 'redisKey.searchPayload' },
+  { label: 'Aggiorna', command: 'redisKey.refresh' },
+  { type: 'separator' },
+  { label: 'Copia nome chiave', command: 'redisKey.copyName' },
+  { label: 'Copia valore visibile', command: 'redisKey.copyVisibleValue', requiresFlag: 'hasVisibleValue' },
+]
+
 const NATIVE_ROLE_LABELS = {
   undo: 'Annulla',
   redo: 'Ripeti',
@@ -332,6 +349,9 @@ function createContextMenuTemplate({ activeSection, params = {}, onCommand, onCo
   }
   if (Object.hasOwn(GIT_FILE_ACTIONS, params.contextKind)) {
     return contextualItems(GIT_FILE_ACTIONS[params.contextKind], params, onContextCommand)
+  }
+  if (params.contextKind === 'redis-key') {
+    return contextualItems(REDIS_KEY_ACTIONS, params, onContextCommand)
   }
   const section = Object.hasOwn(CONTEXT_ACTIONS_BY_SECTION, activeSection) ? activeSection : 'home'
   const base = baseItems(section, params, onCommand)

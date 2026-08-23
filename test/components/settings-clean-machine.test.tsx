@@ -76,7 +76,7 @@ describe('Impostazioni su una macchina pulita', () => {
     expect(await screen.findByText('Pi Coding Agent non rilevato.')).toBeVisible()
     const status = screen.getByRole('status')
     expect(status).toHaveTextContent('Il Terminale AI resta disattivato')
-    expect(status).toHaveTextContent('Editor, Terminale locale, GitHub e Database continuano a funzionare')
+    expect(status).toHaveTextContent('Editor, Terminale locale, GitHub, Database e Redis continuano a funzionare')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Configura Pi' })).toBeDisabled()
     expect(bridge.list).not.toHaveBeenCalled()

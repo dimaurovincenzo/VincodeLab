@@ -22,7 +22,7 @@ test('una macchina senza Node, npm, Pi o tool esterni resta uno stato supportato
   assert.match(byId.get('node-system').detail, /Non serve per avviare VincodeLab/u)
   assert.equal(byId.get('npm-system').state, 'missing')
   assert.equal(byId.get('git-system').state, 'missing')
-  assert.ok(['database-sqlite', 'database-postgresql', 'database-mysql', 'database-sqlserver'].every((id) => byId.get(id).state === 'ready'))
+  assert.ok(['database-sqlite', 'database-postgresql', 'database-mysql', 'database-sqlserver', 'redis-client'].every((id) => byId.get(id).state === 'ready'))
 })
 
 test('un driver bundle mancante o incompatibile è distinto dai client di sistema', () => {

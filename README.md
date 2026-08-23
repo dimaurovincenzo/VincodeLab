@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  Un workbench macOS per lavorare su codice, terminali, Pi Coding Agent, GitHub e database senza cambiare applicazione.
+  Un workbench macOS per lavorare su codice, terminali, Pi Coding Agent, GitHub, database e Redis senza cambiare applicazione.
 </p>
 
 > [!IMPORTANT]
@@ -25,6 +25,7 @@ VincodeLab apre una cartella locale come workspace e mantiene editor, terminali,
 - **Terminali:** più sessioni shell per workspace, ripristino del layout, ricerca, cronologia, zoom e comandi riutilizzabili.
 - **Git e GitHub:** stato, diff, staging, commit, branch, fetch, pull con rebase, push, grafo, issue e GitHub Projects del repository corrente.
 - **Database:** connessioni SQLite, PostgreSQL, MySQL e SQL Server, schema explorer, editor SQL, cronologia, query salvate, transazioni e modifica controllata delle righe.
+- **Redis:** connessioni Standalone e Sentinel isolate per workspace, browser incrementale delle chiavi, inspector read-only per i tipi principali e ricerca cancellabile nei payload con limiti espliciti.
 - **File remoti:** sessioni SSH basate su OpenSSH, esplorazione SFTP, cache locale, confronto delle modifiche e sincronizzazione esplicita.
 - **Esperienza di errore:** errori confinati alla vista, messaggi contestuali, azioni di recupero, deduplicazione e diagnostica sanitizzata con correlation ID.
 
@@ -64,13 +65,13 @@ Le integrazioni seguenti sono opzionali:
 - [Pi Coding Agent](https://pi.dev/) per il Terminale AI;
 - [GitHub CLI](https://cli.github.com/) autenticata per issue e GitHub Projects;
 - OpenSSH, incluso normalmente in macOS, per SSH e SFTP;
-- un server compatibile per PostgreSQL, MySQL o SQL Server. SQLite funziona con un file locale.
+- un server compatibile per PostgreSQL, MySQL, SQL Server o Redis. SQLite funziona con un file locale.
 
 L'assenza di uno strumento opzionale disabilita la relativa integrazione, non l'intera applicazione.
 
 ### Pacchetto installato su un Mac pulito
 
-Il bundle `.app` include Electron, il runtime Node usato internamente, il componente PTY e i driver per SQLite, PostgreSQL, MySQL e SQL Server. Sul computer di destinazione **non** occorre installare Node.js, npm, `sqlite3`, `psql`, `mysql`, `sqlcmd`, ODBC o `libpq` per avviare VincodeLab.
+Il bundle `.app` include Electron, il runtime Node usato internamente, il componente PTY, i driver SQL e il client Redis. Sul computer di destinazione **non** occorre installare Node.js, npm, `redis-cli`, `sqlite3`, `psql`, `mysql`, `sqlcmd`, ODBC o `libpq` per avviare VincodeLab.
 
 Pi, Git, GitHub CLI e OpenSSH/SFTP restano integrazioni opzionali. In **Impostazioni → Compatibilità** l'app distingue i componenti inclusi dagli strumenti esterni e spiega quale sola funzione viene disattivata quando uno di essi manca. Consulta la [matrice runtime e recovery](docs/runtime-compatibility.md) per i dettagli.
 
@@ -113,13 +114,13 @@ preload isolato ── IPC validato ──► Electron main
                                       ├─ filesystem e workspace
                                       ├─ PTY, Pi e OpenSSH/SFTP
                                       ├─ Git e GitHub CLI
-                                      └─ database e persistenza locale
+                                      └─ database, Redis e persistenza locale
 ```
 
 - Il renderer è TypeScript/React e non accede direttamente a Node.js.
 - Il preload espone una superficie nominata tramite `contextBridge`.
 - Il processo principale valida il mittente e gli argomenti prima delle operazioni privilegiate.
-- Dati applicativi e log restano nelle directory utente di Electron; le password database vengono protette con `safeStorage` quando disponibile.
+- Dati applicativi e log restano nelle directory utente di Electron; le password database e Redis vengono protette con `safeStorage` quando disponibile.
 
 La [documentazione dell'architettura](docs/architecture.md) descrive confini, directory e flussi con maggiore precisione.
 

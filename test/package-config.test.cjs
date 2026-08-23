@@ -45,6 +45,7 @@ test('il bundle installabile include soltanto le dipendenze del main process', (
     'mysql2',
     'node-pty',
     'pg',
+    'redis',
     'tedious',
     'yaml',
   ])

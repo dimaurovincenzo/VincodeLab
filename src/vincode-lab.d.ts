@@ -210,7 +210,7 @@ interface RendererDraftSnapshot extends RendererDraftIdentity {
   baseline: string
 }
 
-type WorkspaceSessionSection = 'ai' | 'editor' | 'terminal' | 'github' | 'database' | 'settings'
+type WorkspaceSessionSection = 'ai' | 'editor' | 'terminal' | 'github' | 'database' | 'redis' | 'settings'
 type WorkspaceSessionFocusTarget =
   | 'ai.terminal'
   | 'ai.instructions'
@@ -229,6 +229,9 @@ type WorkspaceSessionFocusTarget =
   | 'database.query'
   | 'database.results'
   | 'database.schema'
+  | 'redis.keys'
+  | 'redis.search'
+  | 'redis.inspector'
   | 'settings.primary'
 
 interface WorkspaceSessionFileRef {
@@ -276,6 +279,13 @@ interface WorkspaceSessionState {
     activeSavedQueryId: string | null
     scroll: { explorer: number; editor: number; results: number }
   }
+  redis: {
+    selectedConnectionId: string | null
+    databaseIndex: number
+    view: 'keys' | 'search'
+    typeFilter: 'all' | 'string' | 'hash' | 'list' | 'set' | 'zset' | 'stream' | 'json'
+    inspectorTab: 'value' | 'metadata'
+  }
   panels: {
     editorExplorer: number | null
     terminalCommands: number | null
@@ -290,7 +300,7 @@ interface WorkspaceSessionState {
 }
 
 interface WorkspaceSessionWriteSnapshot {
-  version: 1
+  version: 2
   state: WorkspaceSessionState
 }
 
@@ -532,7 +542,7 @@ interface ManagedUpdate {
   lastError: string | null
 }
 
-type AppMenuSection = 'home' | 'ai' | 'ai-skills' | 'ai-instructions' | 'editor' | 'terminal' | 'github' | 'database' | 'settings'
+type AppMenuSection = 'home' | 'ai' | 'ai-skills' | 'ai-instructions' | 'editor' | 'terminal' | 'github' | 'database' | 'redis' | 'settings'
 type LifecycleCloseReason = 'window' | 'quit'
 type LifecycleCloseDecision = 'proceed' | 'cancel'
 type LifecycleCloseRequest = { requestId: string; reason: LifecycleCloseReason }
@@ -546,6 +556,7 @@ type AppMenuCommand =
   | 'navigation.terminal'
   | 'navigation.github'
   | 'navigation.database'
+  | 'navigation.redis'
   | 'navigation.settings'
   | 'ai.reload'
   | 'ai.restart'
@@ -597,6 +608,11 @@ type AppMenuCommand =
   | 'database.begin'
   | 'database.commit'
   | 'database.rollback'
+  | 'redis.focusSearch'
+  | 'redis.refresh'
+  | 'redis.newConnection'
+  | 'redis.reconnect'
+  | 'redis.cancel'
   | 'settings.refresh'
   | 'settings.resetWorkspacePreferences'
 
@@ -616,6 +632,7 @@ type ContextMenuKind =
   | 'recent-workspace'
   | 'git-unstaged-file'
   | 'git-staged-file'
+  | 'redis-key'
 
 type ContextMenuAction = {
   command:
@@ -671,9 +688,16 @@ type ContextMenuAction = {
     | 'gitFile.unstage'
     | 'gitFile.copyPath'
     | 'gitFile.reveal'
+    | 'redisKey.open'
+    | 'redisKey.searchPayload'
+    | 'redisKey.refresh'
+    | 'redisKey.copyName'
+    | 'redisKey.copyVisibleValue'
   contextId: string | null
   contextKind: Exclude<ContextMenuKind, 'default' | 'terminal'>
 }
+
+type VincodeRedisApi = import('./lib/redis-types').RedisApi
 
 interface Window {
   vincodeLab: {
@@ -716,7 +740,7 @@ interface Window {
         hasSelection: boolean
         contextId?: string
         enabledCommands?: AppMenuCommand[]
-        contextFlags?: { expanded?: boolean; cancellable?: boolean; retryable?: boolean; stageable?: boolean; operable?: boolean; canCreate?: boolean; dirty?: boolean; hasOtherTabs?: boolean; hasRightTabs?: boolean }
+        contextFlags?: { expanded?: boolean; cancellable?: boolean; retryable?: boolean; stageable?: boolean; operable?: boolean; canCreate?: boolean; dirty?: boolean; hasOtherTabs?: boolean; hasRightTabs?: boolean; hasVisibleValue?: boolean }
       }) => Promise<{ opened: true }>
       onAction: (listener: (action: ContextMenuAction) => void) => () => void
     }
@@ -881,6 +905,7 @@ interface Window {
       listHistory: (id: string, limit?: number) => Promise<DatabaseHistoryEntry[]>
       clearHistory: (id: string) => Promise<{ deleted: number }>
     }
+    redis: VincodeRedisApi
     shellSessions: {
       list: () => Promise<ShellSessionList>
       resume: (sessionId: string) => Promise<ShellSessionResumeSnapshot>

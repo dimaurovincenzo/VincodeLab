@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Terminal } from '@xterm/xterm'
-import { BookOpen, ChevronDown, ChevronRight, ChevronUp, Database, FileCode2, FolderOpen, GitFork, LayoutGrid, List, RefreshCw, ScrollText, Search, Settings, TerminalSquare, X } from 'lucide-react'
+import { BookOpen, Boxes, ChevronDown, ChevronRight, ChevronUp, Database, FileCode2, FolderOpen, GitFork, LayoutGrid, List, RefreshCw, ScrollText, Search, Settings, TerminalSquare, X } from 'lucide-react'
 import { Button, ErrorNotice, Field, IconButton, SegmentGroup, Spinner, Tabs, Toaster, WorkbenchPresence, toast } from '@/components/ui'
 import { TerminalToolbar } from '@/components/terminal-toolbar'
 import { TerminalAttachments, type TerminalContextAction } from '@/components/terminal-attachments'
@@ -31,6 +31,7 @@ import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-
 import type { EditorWorkbenchContext, EditorWorkbenchRequest, RemoteOpenRequest } from '@/components/project-editor'
 import type { GitHubWorkbenchContext, GitHubWorkbenchRequest } from '@/components/github-workspace'
 import type { DatabaseWorkbenchContext } from '@/components/database-workspace'
+import type { RedisWorkbenchContext } from '@/components/redis-workspace'
 import type { TerminalWorkspaceAction, TerminalWorkspaceActionRequest } from '@/components/terminal-workspace'
 import { aiStyles } from '@/theme/styles/ai'
 import { homeStyles } from '@/theme/styles/home'
@@ -46,6 +47,7 @@ const TerminalWorkspace = lazy(() => import('@/components/terminal-workspace').t
 const ProjectEditor = lazy(() => import('@/components/project-editor').then((module) => ({ default: module.ProjectEditor })))
 const GitHubWorkspace = lazy(() => import('@/components/github-workspace').then((module) => ({ default: module.GitHubWorkspace })))
 const DatabaseWorkspace = lazy(() => import('@/components/database-workspace').then((module) => ({ default: module.DatabaseWorkspace })))
+const RedisWorkspace = lazy(() => import('@/components/redis-workspace').then((module) => ({ default: module.RedisWorkspace })))
 const AppSettings = lazy(() => import('@/components/settings').then((module) => ({ default: module.Settings })))
 const ProjectSkills = lazy(() => import('@/components/project-skills').then((module) => ({ default: module.ProjectSkills })))
 const ProjectInstructions = lazy(() => import('@/components/project-instructions').then((module) => ({ default: module.ProjectInstructions })))
@@ -77,7 +79,7 @@ type AiInputFailureContext = { description: string; operation: string; title: st
 type TerminalPasteFailureRecovery = 'retry-paste' | 'retry-cancel' | 'restart-ai' | 'none'
 type TerminalPasteFailure = { error: UserError; recovery: TerminalPasteFailureRecovery }
 type WorkspaceGuardScope = 'editor' | 'skills' | 'instructions' | 'database' | 'settings'
-type AppSection = 'ai' | 'terminal' | 'editor' | 'github' | 'database' | 'settings'
+type AppSection = 'ai' | 'terminal' | 'editor' | 'github' | 'database' | 'redis' | 'settings'
 type WorkbenchCommandContext = {
   hasWorkspace: boolean
   section: AppSection
@@ -85,6 +87,7 @@ type WorkbenchCommandContext = {
   editor: EditorWorkbenchContext
   github: GitHubWorkbenchContext
   database: DatabaseWorkbenchContext
+  redis: RedisWorkbenchContext
 }
 
 type FitAddonInstance = { fit: () => void }
@@ -97,6 +100,7 @@ type SearchAddonInstance = {  clearDecorations: () => void
 const emptyEditorContext: EditorWorkbenchContext = { activeFileId: null, activeFileName: null, dirty: false, source: null, selection: null }
 const emptyGitHubContext: GitHubWorkbenchContext = { tab: 'changes', branch: null, changedFiles: [], selectedDiffPath: null }
 const emptyDatabaseContext: DatabaseWorkbenchContext = { connectionId: null, connectionName: null, executing: false, sql: '', tableName: null, transactionActive: false }
+const emptyRedisContext: RedisWorkbenchContext = { connectionId: null, searching: false }
 
 function workspaceName(workspacePath: string) {
   return workspacePath.split('/').filter(Boolean).at(-1) ?? workspacePath
@@ -237,7 +241,7 @@ function normalizeAiSessionFailure(cause: unknown, context: AiFailureContext): A
       }
     : piMissing
       ? {
-          description: `Pi Coding Agent non è installato o non è rilevabile. ${context.preserved} Editor, Terminale locale, GitHub e Database restano disponibili. Installa Pi, quindi aggiorna la verifica nelle Impostazioni.`,
+          description: `Pi Coding Agent non è installato o non è rilevabile. ${context.preserved} Editor, Terminale locale, GitHub, Database e Redis restano disponibili. Installa Pi, quindi aggiorna la verifica nelle Impostazioni.`,
           title: 'Pi Coding Agent non installato',
         }
       : rateLimited
@@ -328,6 +332,7 @@ function primaryFocusTarget(section: AppSection, aiTab: 'terminal' | 'skills' | 
   if (section === 'terminal') return 'terminal.shell'
   if (section === 'github') return 'github.changes'
   if (section === 'database') return 'database.query'
+  if (section === 'redis') return 'redis.keys'
   return 'settings.primary'
 }
 
@@ -341,6 +346,7 @@ function App() {
     editor: emptyEditorContext,
     github: emptyGitHubContext,
     database: emptyDatabaseContext,
+    redis: emptyRedisContext,
   }))
   const [usageHistory] = useState(() => new WorkbenchUsageHistory())
   const [commandRegistryRevision, setCommandRegistryRevision] = useState(0)
@@ -381,12 +387,13 @@ function App() {
   const [terminalRendererGeneration, setTerminalRendererGeneration] = useState(0)
   const [appearance, setAppearance] = useState<'system' | 'light' | 'dark'>('system')
   const [aiTab, setAiTab] = useState<'terminal' | 'skills' | 'instructions'>('terminal')
-  const [appSection, setAppSection] = useState<'ai' | 'terminal' | 'editor' | 'github' | 'database' | 'settings'>('ai')
+  const [appSection, setAppSection] = useState<AppSection>('ai')
   const [settingsRuntimeRequest, setSettingsRuntimeRequest] = useState(0)
   const [loadedSections, setLoadedSections] = useState(createPersistentViewState)
   const [editorContext, setEditorContext] = useState<EditorWorkbenchContext>(emptyEditorContext)
   const [githubContext, setGitHubContext] = useState<GitHubWorkbenchContext>(emptyGitHubContext)
   const [databaseContext, setDatabaseContext] = useState<DatabaseWorkbenchContext>(emptyDatabaseContext)
+  const [redisContext, setRedisContext] = useState<RedisWorkbenchContext>(emptyRedisContext)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [paletteMode, setPaletteMode] = useState<CommandPaletteMode>('commands')
   const [indexedFiles, setIndexedFiles] = useState<ProjectFileIndexEntry[]>([])
@@ -411,6 +418,7 @@ function App() {
   const [terminalFocusRequest, setTerminalFocusRequest] = useState(0)
   const [terminalActionRequest, setTerminalActionRequest] = useState<TerminalWorkspaceActionRequest | undefined>()
   const [databaseFocusRequest, setDatabaseFocusRequest] = useState(0)
+  const [redisFocusRequest, setRedisFocusRequest] = useState(0)
   const [remoteOpenRequest, setRemoteOpenRequest] = useState<RemoteOpenRequest | null>(null)
   const [workspaceChangeRequest, setWorkspaceChangeRequest] = useState<WorkspaceChangeRequest | null>(null)
   const [savingBeforeWorkspaceChange, setSavingBeforeWorkspaceChange] = useState(false)
@@ -933,6 +941,7 @@ function App() {
     setEditorContext(emptyEditorContext)
     setGitHubContext(emptyGitHubContext)
     setDatabaseContext(emptyDatabaseContext)
+    setRedisContext(emptyRedisContext)
     setIndexedFiles([])
     fileIndexRequest.current += 1
     setPaletteOpen(false)
@@ -992,7 +1001,7 @@ function App() {
     void refreshRecents()
   }, [clearAiFailure, loadAiTerminalPreferences, publishAiFailure, refreshRecents, restoreWorkspaceStateBeforeOpen, updateHasUnreadTerminalOutput, updateTerminalStreamState, workspaceSession])
 
-  const selectAppSection = useCallback((section: 'ai' | 'terminal' | 'editor' | 'github' | 'database' | 'settings') => {
+  const selectAppSection = useCallback((section: AppSection) => {
     setAppSection(section)
     if (section !== 'ai') setLoadedSections((current) => visitPersistentView(current, section))
   }, [])
@@ -1002,7 +1011,7 @@ function App() {
     if (tab !== 'terminal') setLoadedSections((current) => visitPersistentView(current, tab))
   }, [])
 
-  const navigateToAppSection = useCallback((section: 'ai' | 'terminal' | 'editor' | 'github' | 'database' | 'settings', focusPrimary = false) => {
+  const navigateToAppSection = useCallback((section: AppSection, focusPrimary = false) => {
     selectAppSection(section)
     if (!focusPrimary) return
     workbenchRequestNonce.current += 1
@@ -1015,6 +1024,7 @@ function App() {
     if (section === 'terminal') setTerminalFocusRequest(nonce)
     if (section === 'github') setGitHubWorkbenchRequest({ kind: 'focus-primary', nonce })
     if (section === 'database') setDatabaseFocusRequest(nonce)
+    if (section === 'redis') setRedisFocusRequest(nonce)
   }, [selectAiTab, selectAppSection])
 
   const requestEditorAction = useCallback((kind: Exclude<EditorWorkbenchRequest['kind'], 'open-file'>) => {
@@ -1148,6 +1158,7 @@ function App() {
           stageable: contextTarget?.dataset.contextStageable === 'true',
           operable: contextTarget?.dataset.contextOperable === 'true',
           canCreate: contextTarget?.dataset.contextCanCreate === 'true',
+          hasVisibleValue: contextTarget?.dataset.contextHasVisibleValue === 'true',
         },
       }
       const requestContextMenu = () => {
@@ -1847,7 +1858,8 @@ function App() {
     editor: editorContext,
     github: githubContext,
     database: databaseContext,
-  }), [aiTab, appSection, databaseContext, editorContext, githubContext, workspace])
+    redis: redisContext,
+  }), [aiTab, appSection, databaseContext, editorContext, githubContext, redisContext, workspace])
 
   useEffect(() => commandRegistry.setContext(workbenchContext), [commandRegistry, workbenchContext])
 
@@ -1865,6 +1877,7 @@ function App() {
       { id: 'navigation.terminal', title: 'Vai al Terminale', category: 'Navigazione', shortcut: '⌘3', when: workspaceOnly, run: navigate('terminal') },
       { id: 'navigation.github', title: 'Vai a GitHub', category: 'Navigazione', shortcut: '⌘4', when: workspaceOnly, run: navigate('github') },
       { id: 'navigation.database', title: 'Vai al Database', category: 'Navigazione', shortcut: '⌘5', when: workspaceOnly, run: navigate('database') },
+      { id: 'navigation.redis', title: 'Vai a Redis', category: 'Navigazione', shortcut: '⌘6', when: workspaceOnly, run: navigate('redis') },
       { id: 'navigation.settings', title: 'Apri Impostazioni', category: 'Navigazione', shortcut: '⌘,', run: navigate('settings') },
       { id: 'ai.skills', title: 'Apri Skill progetto', category: 'AI', when: workspaceOnly, run: () => { selectAppSection('ai'); selectAiTab('skills') } },
       { id: 'ai.instructions', title: 'Apri Istruzioni progetto', category: 'AI', when: workspaceOnly, run: () => { selectAppSection('ai'); selectAiTab('instructions') } },
@@ -1919,6 +1932,11 @@ function App() {
       { id: 'database.begin', title: 'Inizia transazione', category: 'Database', when: inSection('database'), enabled: (context) => Boolean(context.database.connectionId && !context.database.transactionActive && !context.database.executing), run: relay('database.begin') },
       { id: 'database.commit', title: 'Commit transazione', category: 'Database', when: inSection('database'), enabled: (context) => context.database.transactionActive, run: relay('database.commit') },
       { id: 'database.rollback', title: 'Rollback transazione', category: 'Database', when: inSection('database'), enabled: (context) => context.database.transactionActive, run: relay('database.rollback') },
+      { id: 'redis.focusSearch', title: 'Cerca chiavi o contenuti Redis', category: 'Redis', shortcut: '⌘F', when: inSection('redis'), run: relay('redis.focusSearch') },
+      { id: 'redis.refresh', title: 'Aggiorna chiavi Redis', category: 'Redis', when: inSection('redis'), enabled: (context) => Boolean(context.redis.connectionId), run: relay('redis.refresh') },
+      { id: 'redis.newConnection', title: 'Nuova connessione Redis', category: 'Redis', when: inSection('redis'), run: relay('redis.newConnection') },
+      { id: 'redis.reconnect', title: 'Riconnetti Redis', category: 'Redis', when: inSection('redis'), enabled: (context) => Boolean(context.redis.connectionId), run: relay('redis.reconnect') },
+      { id: 'redis.cancel', title: 'Annulla ricerca Redis', category: 'Redis', when: inSection('redis'), enabled: (context) => context.redis.searching, run: relay('redis.cancel') },
       { id: 'settings.refresh', title: 'Aggiorna impostazioni e risorse', category: 'Impostazioni', when: (context) => context.section === 'settings', run: relay('settings.refresh') },
       { id: 'settings.resetWorkspacePreferences', title: 'Rimuovi personalizzazioni del workspace', category: 'Impostazioni', when: (context) => context.section === 'settings', enabled: (context) => context.hasWorkspace, run: relay('settings.resetWorkspacePreferences') },
     ]
@@ -2045,6 +2063,18 @@ function App() {
     patchWorkspaceSession((state) => ({ ...state, database: { ...state.database, ...next } }))
   }, [patchWorkspaceSession, workspaceSession])
 
+  const updateRedisSession = useCallback((next: WorkspaceSessionState['redis']) => {
+    const current = workspaceSession.getSnapshot().state.redis
+    if (
+      current.selectedConnectionId === next.selectedConnectionId
+      && current.databaseIndex === next.databaseIndex
+      && current.view === next.view
+      && current.typeFilter === next.typeFilter
+      && current.inspectorTab === next.inspectorTab
+    ) return
+    patchWorkspaceSession((state) => ({ ...state, redis: next }))
+  }, [patchWorkspaceSession, workspaceSession])
+
   const aiContextActions: TerminalContextAction[] = [
     ...(editorContext.activeFileId && editorContext.source === 'workspace' ? [{
       id: 'editor-file',
@@ -2132,6 +2162,7 @@ function App() {
           <Tabs.Trigger value="terminal"><TerminalSquare aria-hidden="true" size={14} /> Terminale</Tabs.Trigger>
           <Tabs.Trigger value="github"><GitFork aria-hidden="true" size={14} /> GitHub</Tabs.Trigger>
           <Tabs.Trigger value="database"><Database aria-hidden="true" size={14} /> Database</Tabs.Trigger>
+          <Tabs.Trigger value="redis"><Boxes aria-hidden="true" size={14} /> Redis</Tabs.Trigger>
           </>}
           {!workspace && <Tabs.Trigger value="home"><LayoutGrid aria-hidden="true" size={14} /> Recenti</Tabs.Trigger>}
           <Tabs.Trigger value="settings"><Settings aria-hidden="true" size={14} /> Impostazioni</Tabs.Trigger>
@@ -2207,6 +2238,7 @@ function App() {
         {(loadedSections.terminal || appSection === 'terminal') && <Tabs.Content asChild key="terminal" value="terminal"><section className={shellStyles.sectionPage}><ViewErrorBoundary viewName="Terminale" onRetry={refreshWorkspaceSessionForRecovery}><Suspense fallback={<div className={terminalStyles.loading}>Caricamento terminale…</div>}><TerminalWorkspace actionRequest={terminalActionRequest} active={appSection === 'terminal'} focusRequest={terminalFocusRequest} initialState={workspaceSessionState?.terminal} key={workspace} workspace={workspace} onSessionChange={updateTerminalSession} onOpenRemoteFile={openRemoteFileInEditor} /></Suspense></ViewErrorBoundary></section></Tabs.Content>}
         {(loadedSections.github || appSection === 'github') && <Tabs.Content asChild key="github" value="github"><section className={shellStyles.sectionPage}><ViewErrorBoundary viewName="GitHub" onRetry={refreshWorkspaceSessionForRecovery}><Suspense fallback={<div className={terminalStyles.loading}>Caricamento GitHub…</div>}><GitHubWorkspace active={appSection === 'github'} initialState={workspaceSessionState?.github} key={workspace} workspace={workspace} workbenchRequest={githubWorkbenchRequest} onContextChange={setGitHubContext} onOpenFile={openWorkspaceFile} onSessionChange={updateGitHubSession} /></Suspense></ViewErrorBoundary></section></Tabs.Content>}
         {(loadedSections.database || appSection === 'database') && <Tabs.Content asChild key="database" value="database"><section className={shellStyles.sectionPage}><ViewErrorBoundary viewName="Database" onRetry={refreshWorkspaceSessionForRecovery}><Suspense fallback={<div className={terminalStyles.loading}>Caricamento Database…</div>}><DatabaseWorkspace focusRequest={databaseFocusRequest} initialState={workspaceSessionState?.database} key={workspace} workspace={workspace} onContextChange={setDatabaseContext} onSessionChange={updateDatabaseSession} onWorkspaceGuardChange={handleDatabaseWorkspaceGuardChange} /></Suspense></ViewErrorBoundary></section></Tabs.Content>}
+        {(loadedSections.redis || appSection === 'redis') && <Tabs.Content asChild key="redis" value="redis"><section className={shellStyles.sectionPage}><ViewErrorBoundary viewName="Redis" onRetry={refreshWorkspaceSessionForRecovery}><Suspense fallback={<div className={terminalStyles.loading}>Caricamento Redis…</div>}><RedisWorkspace focusRequest={redisFocusRequest} initialState={workspaceSessionState?.redis} key={workspace} workspace={workspace} onContextChange={setRedisContext} onSessionChange={updateRedisSession} /></Suspense></ViewErrorBoundary></section></Tabs.Content>}
         </div>
       ) : (
         <>

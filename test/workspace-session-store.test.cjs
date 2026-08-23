@@ -36,7 +36,7 @@ test('restituisce default versionati e isola lo stato durevole tra workspace', (
   const workspaceB = '/tmp/vincodelab-session-b'
 
   assert.deepEqual(getWorkspaceSession(workspaceA), {
-    version: 1,
+    version: WORKSPACE_SESSION_VERSION,
     state: createDefaultWorkspaceSessionState(),
     updatedAt: null,
   })
@@ -114,6 +114,29 @@ test('mantiene compatibili i file Editor v1 privi della modalità', (t) => {
   assert.deepEqual(getWorkspaceSession(workspace).state.editor, state.editor)
 })
 
+test('migra lo snapshot v1 aggiungendo Redis senza perdere il layout esistente', (t) => {
+  withTemporaryDatabase(t)
+  const workspace = '/tmp/vincodelab-session-redis-v1'
+  const legacyState = createDefaultWorkspaceSessionState()
+  delete legacyState.redis
+  legacyState.navigation.section = 'editor'
+  legacyState.database.selectedConnectionId = 'database-existing'
+
+  getWorkspaceSession(workspace)
+  getDatabase().prepare(`
+    INSERT INTO workspace_ui_state (workspace_path, schema_version, payload_json, updated_at)
+    VALUES (?, 1, ?, ?)
+  `).run(workspace, JSON.stringify(legacyState), 99)
+
+  const restored = getWorkspaceSession(workspace)
+  assert.equal(restored.version, WORKSPACE_SESSION_VERSION)
+  assert.equal(restored.updatedAt, 99)
+  assert.equal(restored.state.navigation.section, 'editor')
+  assert.equal(restored.state.database.selectedConnectionId, 'database-existing')
+  assert.deepEqual(restored.state.redis, createDefaultWorkspaceSessionState().redis)
+  assert.equal(getDatabase().prepare('SELECT schema_version AS version FROM workspace_ui_state WHERE workspace_path = ?').get(workspace).version, WORKSPACE_SESSION_VERSION)
+})
+
 test('rimuove uno stato corrente corrotto e riparte dai default senza propagare errori', (t) => {
   withTemporaryDatabase(t)
   const workspace = '/tmp/vincodelab-session-corrupt'
@@ -146,14 +169,14 @@ test('ignora versioni future senza distruggerle e rifiuta write con versione non
   getDatabase().prepare(`
     INSERT INTO workspace_ui_state (workspace_path, schema_version, payload_json, updated_at)
     VALUES (?, ?, ?, ?)
-  `).run(workspace, 2, JSON.stringify(createDefaultWorkspaceSessionState()), 123)
+  `).run(workspace, WORKSPACE_SESSION_VERSION + 1, JSON.stringify(createDefaultWorkspaceSessionState()), 123)
 
   const snapshot = getWorkspaceSession(workspace)
-  assert.equal(snapshot.version, 1)
+  assert.equal(snapshot.version, WORKSPACE_SESSION_VERSION)
   assert.equal(snapshot.updatedAt, null)
-  assert.equal(getDatabase().prepare('SELECT schema_version AS version FROM workspace_ui_state WHERE workspace_path = ?').get(workspace).version, 2)
+  assert.equal(getDatabase().prepare('SELECT schema_version AS version FROM workspace_ui_state WHERE workspace_path = ?').get(workspace).version, WORKSPACE_SESSION_VERSION + 1)
   assert.throws(
-    () => saveWorkspaceSession(workspace, { version: 2, state: createDefaultWorkspaceSessionState() }),
+    () => saveWorkspaceSession(workspace, { version: WORKSPACE_SESSION_VERSION + 1, state: createDefaultWorkspaceSessionState() }),
     /Versione sessione workspace non supportata/,
   )
 })
@@ -173,6 +196,8 @@ test('applica allowlist ricorsiva e non accetta contenuti sensibili o stato oper
     ['Titolo terminale', (state) => { state.terminal.title = 'deploy produzione' }],
     ['Risultati database', (state) => { state.database.results = [{ password: 'segreta' }] }],
     ['Transazione database', (state) => { state.database.transactionActive = true }],
+    ['Payload Redis', (state) => { state.redis.payload = '{"token":"segreto"}' }],
+    ['Query Redis', (state) => { state.redis.query = 'contenuto privato' }],
     ['Segreto generico', (state) => { state.secrets = { token: 'segreto' } }],
   ]
 

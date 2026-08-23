@@ -1,7 +1,7 @@
 {
   "name": "vincodelab",
   "productName": "VincodeLab",
-  "description": "Workbench macOS per workspace, coding agent, editor, terminale, Git, GitHub e database.",
+  "description": "Workbench macOS per workspace, coding agent, editor, terminale, Git, GitHub, database e Redis.",
   "author": "Vincenzo Di Mauro",
   "private": true,
   "version": "0.1.2",
@@ -19,6 +19,7 @@
     "developer-tools",
     "electron",
     "macos",
+    "redis",
     "workspace"
   ],
   "type": "module",
@@ -60,6 +61,7 @@
     "mysql2": "^3.23.4",
     "node-pty": "^1.1.0",
     "pg": "^8.23.0",
+    "redis": "^6.2.1",
     "tedious": "^20.0.0",
     "yaml": "^2.9.0"
   },

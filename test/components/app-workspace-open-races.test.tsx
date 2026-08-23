@@ -282,7 +282,7 @@ function installBridge({ activeWorkspace = null, activeWorkspaceResult, getActiv
       reveal: vi.fn(reveal ?? (async () => ({ revealed: true as const }))),
     },
     workspaceSession: {
-      get: vi.fn(async () => workspaceSession ?? ({ version: 1 as const, state: sessionState, updatedAt: null })),
+      get: vi.fn(async () => workspaceSession ?? ({ version: 2 as const, state: sessionState, updatedAt: null })),
       save: vi.fn(saveWorkspaceSession ?? (async (snapshot: WorkspaceSessionWriteSnapshot) => ({ ...snapshot, updatedAt: 1 }))),
     },
   }
@@ -382,7 +382,7 @@ describe('apertura workspace nel renderer', () => {
         recovery: { correlationId: 'ERR-A1B2C3', kind: 'corrupt' },
         state: createDefaultWorkspaceSessionState(),
         updatedAt: null,
-        version: 1,
+        version: 2,
       },
     })
 

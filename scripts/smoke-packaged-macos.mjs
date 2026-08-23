@@ -442,7 +442,8 @@ export function verifyCleanMachineScenario() {
     return {
       activeWorkspace: activeWorkspace?.path ?? null,
       databaseDriversReady: databaseDrivers.every((id) => byId.get(id)?.state === 'ready'),
-      navigationPreserved: ['Editor', 'Terminale', 'GitHub', 'Database'].every((label) => navigationText.includes(label)),
+      redisClientReady: byId.get('redis-client')?.state === 'ready',
+      navigationPreserved: ['Editor', 'Terminale', 'GitHub', 'Database', 'Redis'].every((label) => navigationText.includes(label)),
       nodeState: byId.get('node-system')?.state ?? null,
       npmOptional: byId.get('npm-system')?.kind === 'optional',
       npmState: byId.get('npm-system')?.state ?? null,
@@ -1059,6 +1060,7 @@ export async function runPackagedSmoke({ appPath, faultRecovery = false, timeout
       if (cleanMachineSummary.activeWorkspace !== fixture.workspace
         || cleanMachineSummary.piState !== 'missing'
         || !cleanMachineSummary.databaseDriversReady
+        || !cleanMachineSummary.redisClientReady
         || !cleanMachineSummary.navigationPreserved
         || cleanMachineSummary.nodeState !== 'missing'
         || !cleanMachineSummary.npmOptional
