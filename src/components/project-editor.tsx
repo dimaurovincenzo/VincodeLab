@@ -535,7 +535,7 @@ const SPECIAL_FILE_ICONS: Record<SpecialFileIconKey, typeof npmIcon> = {
 }
 
 const FOLDER_ICONS: Record<string, typeof sourceFolderIcon> = {
-  '.agents': botFolderIcon, '.codex': botFolderIcon, '.secrets': privateFolderIcon, '.superpowers': botFolderIcon, '.worktrees': gitFolderIcon,
+  '.agents': botFolderIcon, '.codex': botFolderIcon, '.secrets': privateFolderIcon, '.worktrees': gitFolderIcon,
   src: sourceFolderIcon, source: sourceFolderIcon, app: sourceFolderIcon, client: clientFolderIcon, server: serverFolderIcon,
   api: apiFolderIcon, services: servicesFolderIcon, service: servicesFolderIcon, test: testFolderIcon, tests: testFolderIcon,
   spec: testFolderIcon, specs: testFolderIcon, '__tests__': testFolderIcon, assets: imagesFolderIcon, images: imagesFolderIcon,

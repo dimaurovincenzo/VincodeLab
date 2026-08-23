@@ -135,7 +135,7 @@ La [documentazione dell'architettura](docs/architecture.md) descrive confini, di
 - [Contribuire](CONTRIBUTING.md)
 - [Sicurezza](SECURITY.md)
 
-I documenti in `docs/qa/` registrano audit e verifiche storiche. I file in `docs/superpowers/` sono decisioni e piani di implementazione: possono descrivere fasi precedenti e non sostituiscono il comportamento del codice corrente.
+I documenti in `docs/qa/` registrano audit e verifiche storiche e non sostituiscono il comportamento del codice corrente.
 
 ## Contribuire
 

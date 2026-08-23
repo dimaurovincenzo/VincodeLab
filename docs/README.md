@@ -1,6 +1,6 @@
 # Documentazione di VincodeLab
 
-Questa directory raccoglie le guide operative del progetto e le evidenze storiche di progettazione e qualità.
+Questa directory raccoglie le guide operative del progetto e le evidenze pubbliche di qualità.
 
 ## Guide correnti
 
@@ -17,16 +17,14 @@ Questa directory raccoglie le guide operative del progetto e le evidenze storich
 
 ## Altri documenti
 
-- `PRD/` contiene il documento di prodotto originario.
 - `qa/` conserva audit, baseline e risultati di verifiche eseguite in specifici momenti dello sviluppo.
-- `superpowers/specs/` e `superpowers/plans/` conservano specifiche e piani di implementazione.
 - `assets/screenshots/` contiene gli screenshot pubblici e le baseline visuali storiche.
 
-I documenti di audit e i piani sono **evidenze storiche**: possono citare branch, architetture o decisioni superate. Per conoscere il comportamento attuale, l'ordine delle fonti è:
+I documenti di audit sono **evidenze storiche**: possono citare branch, architetture o decisioni superate. Per conoscere il comportamento attuale, l'ordine delle fonti è:
 
 1. codice e test della revisione corrente;
 2. `package.json` e configurazioni versionate;
 3. guide correnti elencate sopra;
-4. audit, specifiche e piani storici.
+4. audit storici.
 
 Quando una modifica rende una guida corrente inesatta, aggiornala nella stessa pull request.

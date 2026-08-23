@@ -25,6 +25,10 @@ coverage/
 .env.*
 !.env.example
 
+# Documentazione di lavoro non pubblica
+docs/PRD/
+docs/superpowers/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
