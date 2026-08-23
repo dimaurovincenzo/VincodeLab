@@ -1,0 +1,14 @@
+{
+  "name": "orbit-metrics-demo",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit && npm test",
+    "test": "node --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "~6.0.2"
+  }
+}

@@ -1,0 +1,23 @@
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const test = require('node:test')
+const { environmentForPi } = require('../electron/pi-executable.cjs')
+
+test('Pi eseguito da NVM aggiunge il proprio bin al PATH del processo', () => {
+  const executable = '/Users/example/.nvm/versions/node/v24.19.0/bin/pi'
+  const environment = environmentForPi(executable, { PATH: '/usr/bin:/bin', LANG: 'it_IT.UTF-8' })
+
+  assert.equal(environment.PATH, '/Users/example/.nvm/versions/node/v24.19.0/bin:/usr/bin:/bin')
+  assert.equal(environment.LANG, 'it_IT.UTF-8')
+})
+
+test('avvia Pi Config senza oscurare il processo Node globale', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const startPiConfig = source.match(/function startPiConfig\(\) \{([\s\S]*?)\n\}/)?.[1]
+
+  assert.ok(startPiConfig, 'il gestore startPiConfig deve esistere')
+  assert.doesNotMatch(startPiConfig, /const process\s*=/)
+  assert.match(startPiConfig, /const ptyProcess = pty\.spawn/)
+  assert.match(startPiConfig, /env: \{ \.\.\.environmentForPi\(executable\), TERM: 'xterm-256color' \}/)
+})
