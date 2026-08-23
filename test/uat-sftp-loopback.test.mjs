@@ -69,10 +69,10 @@ function passingChecks() {
 
 test('la CLI richiede un consenso esplicito prima della fixture reale', () => {
   assert.deepEqual(parseCliArguments([]), { execute: false, help: false, outputPath: null, timeoutMs: 30_000 })
-  assert.deepEqual(parseCliArguments(['--run', '--timeout-ms', '45000', '--output', 'docs/qa/report.json']), {
+  assert.deepEqual(parseCliArguments(['--run', '--timeout-ms', '45000', '--output', '.local-reports/sftp-uat.json']), {
     execute: true,
     help: false,
-    outputPath: path.join(ROOT, 'docs', 'qa', 'report.json'),
+    outputPath: path.join(ROOT, '.local-reports', 'sftp-uat.json'),
     timeoutMs: 45_000,
   })
   assert.throws(() => parseCliArguments(['--timeout-ms', '9999']), /Timeout UAT non valido/)

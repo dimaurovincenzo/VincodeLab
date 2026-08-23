@@ -135,8 +135,6 @@ La [documentazione dell'architettura](docs/architecture.md) descrive confini, di
 - [Contribuire](CONTRIBUTING.md)
 - [Sicurezza](SECURITY.md)
 
-I documenti in `docs/qa/` registrano audit e verifiche storiche e non sostituiscono il comportamento del codice corrente.
-
 ## Contribuire
 
 Issue e pull request focalizzate sono benvenute. Prima di intervenire, leggi [CONTRIBUTING.md](CONTRIBUTING.md): contiene convenzioni del progetto, confini Electron/IPC e checklist di verifica.

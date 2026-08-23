@@ -56,7 +56,7 @@ npm run stress:architecture:smoke
 - `stress:architecture:smoke` controlla in modo limitato e ripetibile il ciclo di vita e le risorse principali.
 - `stress:architecture` esegue il profilo completo ed è riservato a cambiamenti architetturali o a una certificazione esplicita.
 
-Non presentare uno stress accelerato come equivalente a un soak prolungato. Registra durata, profilo, revisione e limiti della prova nei documenti QA.
+Non presentare uno stress accelerato come equivalente a un soak prolungato. Registra durata, profilo, revisione e limiti in un report locale non versionato.
 
 ## Smoke del pacchetto macOS
 
@@ -104,4 +104,4 @@ Per GitHub, database remoti e SFTP usa account e servizi fixture autorizzati. Se
 - Per regressioni di accessibilità preferisci query semantiche e interazioni reali da tastiera.
 - Per regressioni di prestazioni definisci un budget e separa la correttezza lossless dalla velocità.
 
-Le evidenze di certificazioni specifiche restano in `docs/qa/` e devono riportare chiaramente ciò che non è stato verificato.
+Conserva le evidenze dettagliate delle certificazioni fuori dal repository pubblico e indica sempre ciò che non è stato verificato.

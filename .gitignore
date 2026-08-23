@@ -17,6 +17,7 @@ release/
 coverage/
 .cache/
 .tmp/
+.local-reports/
 *.tsbuildinfo
 
 # Configurazione esclusivamente locale
@@ -27,6 +28,7 @@ coverage/
 
 # Documentazione di lavoro non pubblica
 docs/PRD/
+docs/qa/
 docs/superpowers/
 
 # Editor directories and files

@@ -73,7 +73,7 @@ src/
   theme/                  token, recipe e stili Panda Graphite
 scripts/                  audit, benchmark, stress e smoke packaged
 test/                     test Node e componenti
-docs/                     guide, specifiche ed evidenze QA
+docs/                     guide operative pubbliche
 panda.config.ts           configurazione del design system
 vite.config.ts            build e Content Security Policy del renderer
 ```

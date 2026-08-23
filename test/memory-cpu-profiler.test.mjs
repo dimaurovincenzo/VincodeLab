@@ -28,13 +28,13 @@ test('valida gli argomenti del profilo entro limiti accelerati e ripetibili', ()
     '--warmup-cycles', '100',
     '--idle-ms', '30000',
     '--diagnose-subsystems',
-    '--output', './docs/qa/profile.json',
+    '--output', './.local-reports/memory-cpu.json',
   ]), {
     checkpointEvery: 20,
     cycles: 240,
     diagnoseSubsystems: true,
     idleMs: 30_000,
-    output: path.resolve('./docs/qa/profile.json'),
+    output: path.resolve('./.local-reports/memory-cpu.json'),
     runs: 2,
     warmupCycles: 100,
   })
