@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import Database from 'better-sqlite3'
 import { createDemoWorkspace } from './create-demo-workspace.mjs'
-import { OFFLINE_CHROMIUM_FLAGS, resolvePackagedApp, validatePackagedApp } from './smoke-packaged-macos.mjs'
+import { OFFLINE_CHROMIUM_FLAGS, resolvePackagedApp, validatePackagedApp } from './lib/packaged-electron.mjs'
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const DEFAULT_OUTPUT = path.join(PROJECT_ROOT, 'docs', 'assets', 'screenshots')

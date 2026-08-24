@@ -20,6 +20,7 @@ import {
   packagedElectronArguments,
   parseArguments,
   prepareFaultRecoveryScenario,
+  resolvePackagedApp,
   validatePackagedApp,
   verifyCleanMachineScenario,
   verifyFaultLogEvidence,
@@ -28,6 +29,11 @@ import {
   verifyRedisSelectScenario,
   visibleCodeMirrorTextMarker,
 } from '../scripts/smoke-packaged-macos.mjs'
+import {
+  OFFLINE_CHROMIUM_FLAGS as SHARED_OFFLINE_CHROMIUM_FLAGS,
+  resolvePackagedApp as sharedResolvePackagedApp,
+  validatePackagedApp as sharedValidatePackagedApp,
+} from '../scripts/lib/packaged-electron.mjs'
 
 test('valida argomenti bounded senza introdurre un percorso di packaging', () => {
   assert.deepEqual(parseArguments(['--app', './release/Test.app', '--timeout', '12000', '--json']), {
@@ -47,6 +53,39 @@ test('valida argomenti bounded senza introdurre un percorso di packaging', () =>
 
   const source = fs.readFileSync(new URL('../scripts/smoke-packaged-macos.mjs', import.meta.url), 'utf8')
   assert.doesNotMatch(source, /electron-builder|npm\s+run\s+package/u)
+})
+
+test('smoke conserva l API bundle e capture usa direttamente l owner condiviso', () => {
+  assert.equal(OFFLINE_CHROMIUM_FLAGS, SHARED_OFFLINE_CHROMIUM_FLAGS)
+  assert.equal(resolvePackagedApp, sharedResolvePackagedApp)
+  assert.equal(validatePackagedApp, sharedValidatePackagedApp)
+
+  const captureSource = fs.readFileSync(new URL('../scripts/capture-app-screenshots.mjs', import.meta.url), 'utf8')
+  assert.match(captureSource, /from '\.\/lib\/packaged-electron\.mjs'/u)
+  assert.doesNotMatch(captureSource, /from '\.\/smoke-packaged-macos\.mjs'/u)
+})
+
+test('risolve il bundle esplicito preferito o unico e rifiuta assenza e ambiguita', async (t) => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-packaged-resolution-'))
+  t.after(() => fs.rmSync(projectRoot, { recursive: true, force: true }))
+
+  const explicit = path.join(projectRoot, 'Explicit.app')
+  assert.equal(await resolvePackagedApp({ appPath: explicit, architecture: 'unsupported', projectRoot }), explicit)
+  await assert.rejects(resolvePackagedApp({ architecture: 'arm64', projectRoot }), /Nessun artefatto macOS/)
+
+  const preferred = path.join(projectRoot, 'release', 'mac-arm64', 'VincodeLab.app')
+  fs.mkdirSync(preferred, { recursive: true })
+  assert.equal(await resolvePackagedApp({ architecture: 'arm64', projectRoot }), preferred)
+
+  fs.rmSync(path.join(projectRoot, 'release'), { recursive: true, force: true })
+  const fallback = path.join(projectRoot, 'release', 'mac-fixture', 'VincodeLab.app')
+  fs.mkdirSync(fallback, { recursive: true })
+  assert.equal(await resolvePackagedApp({ architecture: 'arm64', projectRoot }), fallback)
+
+  const second = path.join(projectRoot, 'release', 'mac-secondary', 'VincodeLab.app')
+  fs.mkdirSync(second, { recursive: true })
+  await assert.rejects(resolvePackagedApp({ architecture: 'arm64', projectRoot }), /Più bundle disponibili/u)
+  await assert.rejects(resolvePackagedApp({ architecture: 'unsupported', projectRoot }), /Architettura macOS non supportata/)
 })
 
 test('crea profilo e workspace isolati, applica il blocco rete e rimuove la fixture', async () => {
