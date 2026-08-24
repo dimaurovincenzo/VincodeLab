@@ -30,6 +30,7 @@ function createAiTerminalInvokeHandlers({
   prepareTerminalAttachment,
   reloadPi,
   restartPi,
+  runHerdrCommand,
   startPiConfig,
   stopPiConfig,
   toApplicationError,
@@ -50,6 +51,32 @@ function createAiTerminalInvokeHandlers({
         || options.runtime !== 'pi'
       )) throw new Error('Opzioni riavvio Terminale AI non valide.')
       return restartPi(options)
+    }],
+    [IPC_CHANNELS.HERDR_COMMAND, async (event, command) => {
+      assertTrustedSender(event)
+      if (!['new-pi', 'new-pi-right', 'new-pi-down', 'previous-agent', 'next-agent', 'zoom-pane', 'close-pane'].includes(command)) {
+        throw toApplicationError(new Error('Comando Herdr non valido.'), {
+          category: 'validation',
+          code: 'HERDR_COMMAND_INVALID',
+          domain: 'ai',
+          message: 'Il comando Herdr richiesto non è valido.',
+          operation: 'herdr-command',
+          recoverable: true,
+          severity: 'warning',
+        })
+      }
+      if (piSessionController.getState().runtime !== 'herdr') {
+        throw toApplicationError(new Error('Herdr non è il runtime attivo.'), {
+          category: 'validation',
+          code: 'HERDR_NOT_ACTIVE',
+          domain: 'ai',
+          message: 'Questi controlli sono disponibili solamente quando il Terminale AI usa Herdr.',
+          operation: 'herdr-command',
+          recoverable: true,
+          severity: 'info',
+        })
+      }
+      return runHerdrCommand(command)
     }],
     [IPC_CHANNELS.TERMINAL_RESUME, (event) => {
       assertTrustedSender(event)

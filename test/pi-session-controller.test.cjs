@@ -63,7 +63,7 @@ function fakePty({ pid, exitOnKill = true, ignoreGracefulKill = false, immediate
   return process
 }
 
-function testHarness({ executable = '/opt/pi/bin/pi', outcomes = [], stopGraceMs = 5, forceStopMs = 5, isProcessAlive, resolveLaunchCandidates } = {}) {
+function testHarness({ executable = '/opt/pi/bin/pi', outcomes = [], stopGraceMs = 5, forceStopMs = 5, initializeHerdr, isProcessAlive, resolveLaunchCandidates } = {}) {
   let resolvedExecutable = executable
   let nextId = 0
   const processes = []
@@ -77,6 +77,7 @@ function testHarness({ executable = '/opt/pi/bin/pi', outcomes = [], stopGraceMs
     environmentForExecutable: () => ({ PATH: '/opt/pi/bin:/usr/bin' }),
     getEnvironment: () => ({ PATH: '/usr/bin' }),
     inspectHerdr: async () => ({ available: false, reason: 'missing' }),
+    resolveHerdrSessionName: () => 'vincodelab-0123456789abcdef',
     resolvePiExecutable: () => resolvedExecutable,
   })
   const controller = createPiSessionController({
@@ -111,6 +112,7 @@ function testHarness({ executable = '/opt/pi/bin/pi', outcomes = [], stopGraceMs
       inputs.push(input)
       return input
     },
+    initializeHerdr,
     onStarted: (event) => starts.push(event),
     onExit: (event) => exits.push(event),
     onError: (event) => errors.push(event),
@@ -133,7 +135,7 @@ function testHarness({ executable = '/opt/pi/bin/pi', outcomes = [], stopGraceMs
 function herdrAndPiCandidates(workspacePath, { herdrWindow = 600, herdrFailure } = {}) {
   const environment = { PATH: '/opt/pi/bin:/opt/homebrew/bin:/usr/bin' }
   return [
-    createLaunchDescriptor({ runtime: 'herdr', executable: '/opt/homebrew/bin/herdr', workspacePath, environment, startupWindowMs: herdrWindow, terminalFailure: herdrFailure }),
+    createLaunchDescriptor({ runtime: 'herdr', executable: '/opt/homebrew/bin/herdr', args: ['--session', 'vincodelab-0123456789abcdef'], workspacePath, environment, startupWindowMs: herdrWindow, terminalFailure: herdrFailure, herdrSessionName: 'vincodelab-0123456789abcdef', bootstrapPi: true }),
     createLaunchDescriptor({ runtime: 'pi', executable: '/opt/pi/bin/pi', workspacePath, environment, startupWindowMs: 0 }),
   ]
 }
@@ -313,6 +315,31 @@ test('spawn Herdr fallito esegue un solo fallback Pi e pubblica uno stato saniti
   assert.equal(harness.controller.getState().runtime, 'pi')
   assert.equal(harness.controller.getState().fallbackReason, 'spawn-failed')
   assert.equal(harness.errors.some((event) => event.source === 'herdr-spawn'), true)
+})
+
+test('bootstrap Herdr riceve identità del progetto e su failure esegue fallback Pi', async () => {
+  const herdr = fakePty({ pid: 906 })
+  const pi = fakePty({ pid: 907 })
+  const bootstrapCalls = []
+  const harness = testHarness({
+    outcomes: [herdr, pi],
+    initializeHerdr: async (input) => {
+      bootstrapCalls.push(input)
+      throw new Error('socket Herdr non pronto')
+    },
+    resolveLaunchCandidates: (workspacePath) => herdrAndPiCandidates(workspacePath, { herdrWindow: 0 }),
+  })
+
+  const result = await harness.controller.start('/tmp/workspace')
+
+  assert.equal(result.runtime, 'pi')
+  assert.equal(result.fallbackReason, 'bootstrap-failed')
+  assert.equal(bootstrapCalls.length, 1)
+  assert.equal(bootstrapCalls[0].workspacePath, '/tmp/workspace')
+  assert.equal(bootstrapCalls[0].sessionName, 'vincodelab-0123456789abcdef')
+  assert.equal(bootstrapCalls[0].bootstrapPi, true)
+  assert.equal(herdr.alive, false)
+  assert.equal(harness.errors.some((event) => event.source === 'herdr-bootstrap'), true)
 })
 
 test('exit Herdr senza output esegue fallback Pi senza notificare una falsa sessione terminata', async () => {

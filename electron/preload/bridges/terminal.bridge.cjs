@@ -44,6 +44,7 @@ function createTerminalBridge(ipcRenderer, webUtils) {
       reportRendererMetrics: (metrics) => ipcRenderer.send(IPC_CHANNELS.TERMINAL_RENDERER_METRICS, metrics),
       diagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_DIAGNOSTICS),
       exportDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_EXPORT_DIAGNOSTICS),
+      herdrCommand: (command) => ipcRenderer.invoke(IPC_CHANNELS.HERDR_COMMAND, command),
       resize: (dimensions) => ipcRenderer.send(IPC_CHANNELS.TERMINAL_RESIZE, dimensions),
       onOutput: (listener) => {
         const handler = (_event, block) => listener(block)

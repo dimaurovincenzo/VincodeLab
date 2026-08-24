@@ -75,6 +75,7 @@ const CHANNEL_MESSAGES = Object.freeze({
   [IPC_CHANNELS.GITHUB_STAGE]: 'Impossibile preparare i file per il commit.',
   [IPC_CHANNELS.GITHUB_SWITCH_BRANCH]: 'Impossibile cambiare branch Git.',
   [IPC_CHANNELS.GITHUB_UNSTAGE]: 'Impossibile rimuovere i file dalla preparazione del commit.',
+  [IPC_CHANNELS.HERDR_COMMAND]: 'Impossibile completare il comando Herdr.',
   [IPC_CHANNELS.MANAGED_SSH_CHECK]: 'Impossibile verificare la connessione remota.',
   [IPC_CHANNELS.PI_RELOAD]: 'Impossibile ricaricare la sessione AI.',
   [IPC_CHANNELS.PI_RESTART]: 'Impossibile riavviare la sessione AI.',
@@ -143,7 +144,7 @@ function domainFromIpcChannel(channel) {
   if (namespace === 'workspace') return 'workspace'
   if (namespace === 'workspaceSession' || namespace === 'volatileDrafts') return 'persistence'
   if (namespace === 'terminal' || namespace === 'shellSessions' || namespace === 'workspaceCommands') return 'terminal'
-  if (namespace === 'pi') return 'ai'
+  if (namespace === 'pi' || namespace === 'herdr') return 'ai'
   if (namespace === 'piConfig' || namespace === 'piSystem' || namespace === 'runtime' || namespace === 'appearance' || namespace === 'preferences') return 'configuration'
   if (namespace === 'updates') return 'update'
   return 'internal'

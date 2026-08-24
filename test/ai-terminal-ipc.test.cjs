@@ -39,6 +39,7 @@ function dependencies(overrides = {}) {
     rejectOneWay: oneWayError,
     reloadPi: () => undefined,
     restartPi: () => undefined,
+    runHerdrCommand: () => undefined,
     sanitizeRendererMetrics: (metrics) => metrics,
     startPiConfig: () => undefined,
     stopPiConfig: async () => undefined,
@@ -48,7 +49,7 @@ function dependencies(overrides = {}) {
   }
 }
 
-test('i manifesti registrano 13 invoke e 7 send senza domini estranei', () => {
+test('i manifesti registrano 14 invoke e 7 send senza domini estranei', () => {
   const handles = new Map()
   const listeners = new Map()
   const confinement = []
@@ -76,6 +77,7 @@ test('i manifesti registrano 13 invoke e 7 send senza domini estranei', () => {
   assert.deepEqual(AI_TERMINAL_INVOKE_CHANNELS, [
     'pi:reload',
     'pi:restart',
+    'herdr:command',
     'terminal:resume',
     'terminal:writeInput',
     'terminal:pasteStart',
@@ -152,6 +154,50 @@ test('Pi lifecycle, resume e Pi Config invoke preservano guardie e return semant
   assert.throws(() => handlers.get('pi:restart')(event, { runtime: 'herdr' }), /Opzioni riavvio Terminale AI non valide/u)
   assert.throws(() => handlers.get('pi:restart')(event, {}), /Opzioni riavvio Terminale AI non valide/u)
   assert.equal(handlers.get('pi:restart')(event, { runtime: 'pi' }), restartResult)
+})
+
+test('comandi Herdr accettano solo azioni note e soltanto quando Herdr è attivo', async () => {
+  const calls = []
+  const event = { sender: { id: 52 } }
+  const handlers = createAiTerminalInvokeHandlers(dependencies({
+    assertTrustedSender: (receivedEvent) => calls.push(['guard', receivedEvent]),
+    piSessionController: {
+      getInput: () => null,
+      getState: () => ({ runtime: 'herdr' }),
+      getStream: () => null,
+      write: () => true,
+    },
+    runHerdrCommand: async (command) => {
+      calls.push(['command', command])
+      return { command, workspaceId: 'workspace-1' }
+    },
+    toApplicationError(cause, options) {
+      return Object.assign(new Error(options.message), { cause, options })
+    },
+  }))
+
+  assert.deepEqual(await handlers.get('herdr:command')(event, 'new-pi-right'), {
+    command: 'new-pi-right',
+    workspaceId: 'workspace-1',
+  })
+  assert.deepEqual(calls, [['guard', event], ['command', 'new-pi-right']])
+
+  await assert.rejects(
+    handlers.get('herdr:command')(event, 'run-arbitrary-command'),
+    (error) => error.options.code === 'HERDR_COMMAND_INVALID'
+      && error.options.category === 'validation',
+  )
+
+  const piHandlers = createAiTerminalInvokeHandlers(dependencies({
+    toApplicationError(cause, options) {
+      return Object.assign(new Error(options.message), { cause, options })
+    },
+  }))
+  await assert.rejects(
+    piHandlers.get('herdr:command')(event, 'new-pi'),
+    (error) => error.options.code === 'HERDR_NOT_ACTIVE'
+      && error.options.severity === 'info',
+  )
 })
 
 test('writeInput conserva limiti byte e ApplicationError pubblico per entrambi i failure', () => {

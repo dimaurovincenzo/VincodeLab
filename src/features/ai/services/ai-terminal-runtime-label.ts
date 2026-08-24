@@ -8,6 +8,7 @@ const fallbackDescriptions: Record<AiTerminalFallbackReason, string> = {
   'preflight-failed': 'La verifica iniziale di Herdr non è riuscita.',
   'spawn-failed': 'Il client Herdr non è stato avviato.',
   'early-exit': 'Il client Herdr si è chiuso prima di mostrare contenuti.',
+  'bootstrap-failed': 'Herdr non ha preparato il workspace del progetto; VincodeLab ha avviato Pi direttamente.',
   'nested-herdr': 'VincodeLab è già stato avviato dentro Herdr; il client annidato è stato evitato.',
   disabled: 'Herdr è disattivato in questa modalità di verifica di VincodeLab.',
 }

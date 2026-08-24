@@ -1,6 +1,7 @@
-import { Suspense } from 'react'
-import { BookOpen, ChevronDown, ChevronUp, RefreshCw, ScrollText, Search, TerminalSquare, X } from 'lucide-react'
-import { Button, Field, IconButton, Spinner, Tabs } from '@/components/ui'
+import { Suspense, useState } from 'react'
+import { Bot, BookOpen, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Columns2, Maximize2, MoreHorizontal, RefreshCw, Rows2, ScrollText, Search, TerminalSquare, Trash2, X } from 'lucide-react'
+import { Button, Field, IconButton, Popover, Spinner, Tabs } from '@/components/ui'
+import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
 import { TerminalToolbar } from '@/components/terminal-toolbar'
 import { TerminalPasteStatus } from './terminal-paste-status'
 import { ViewErrorBoundary } from '@/components/view-error-boundary'
@@ -41,6 +42,7 @@ export function AiWorkbench({
   aiTab,
   workspace,
 }: AiWorkbenchProps) {
+  const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null)
   const {
     aiFailure,
     cancelTerminalPaste,
@@ -58,6 +60,7 @@ export function AiWorkbench({
     reloadPi,
     resetTerminalZoom,
     restartPi,
+    runHerdrCommand,
     retryAiOutput,
     retryAiTerminal,
     revealTerminalOutput,
@@ -103,6 +106,31 @@ export function AiWorkbench({
                       <IconButton size="icon-xs" tooltip="Chiudi ricerca" onClick={closeTerminalSearch}><X aria-hidden="true" size={14} /></IconButton>
                     </Field.Root>
                   ) : <span className={terminalStyles.hint}>⌘F cerca · ⌘± zoom</span>}
+                  {terminalRuntime?.runtime === 'herdr' && <>
+                    <IconButton disabled={status !== 'running'} tooltip="Agente Herdr precedente" onClick={() => void runHerdrCommand('previous-agent')}><ChevronLeft aria-hidden="true" size={15} /></IconButton>
+                    <IconButton disabled={status !== 'running'} tooltip="Avvia un nuovo agente Pi in Herdr" onClick={() => void runHerdrCommand('new-pi')}><Bot aria-hidden="true" size={15} /></IconButton>
+                    <IconButton disabled={status !== 'running'} tooltip="Agente Herdr successivo" onClick={() => void runHerdrCommand('next-agent')}><ChevronRight aria-hidden="true" size={15} /></IconButton>
+                    <Popover.Root positioning={{ placement: 'bottom-end' }}>
+                      <Popover.Trigger asChild><IconButton disabled={status !== 'running'} tooltip="Comandi Herdr"><MoreHorizontal aria-hidden="true" size={15} /></IconButton></Popover.Trigger>
+                      <Popover.Portal><Popover.Positioner><Popover.Content className={terminalStyles.herdrCommands}>
+                        <Popover.Title>Comandi Herdr</Popover.Title>
+                        <Popover.Description>Gestisci gli agenti nel workspace corrente.</Popover.Description>
+                        <div className={terminalStyles.herdrCommandList}>
+                          <Popover.CloseTrigger asChild><Button variant="plain" onClick={() => void runHerdrCommand('new-pi')}><Bot aria-hidden="true" size={15} /> Nuovo Pi in una tab</Button></Popover.CloseTrigger>
+                          <Popover.CloseTrigger asChild><Button variant="plain" onClick={() => void runHerdrCommand('new-pi-right')}><Columns2 aria-hidden="true" size={15} /> Nuovo Pi a destra</Button></Popover.CloseTrigger>
+                          <Popover.CloseTrigger asChild><Button variant="plain" onClick={() => void runHerdrCommand('new-pi-down')}><Rows2 aria-hidden="true" size={15} /> Nuovo Pi in basso</Button></Popover.CloseTrigger>
+                          <Popover.CloseTrigger asChild><Button variant="plain" onClick={() => void runHerdrCommand('zoom-pane')}><Maximize2 aria-hidden="true" size={15} /> Zoom del pane</Button></Popover.CloseTrigger>
+                          <Popover.CloseTrigger asChild><Button tone="danger" variant="plain" onClick={() => setConfirmation({
+                            title: 'Chiudi pane Herdr',
+                            detail: 'Il processo attivo nel pane verrà terminato. Gli altri agenti e pane resteranno disponibili.',
+                            confirmLabel: 'Chiudi pane',
+                            destructive: true,
+                            onConfirm: () => { void runHerdrCommand('close-pane') },
+                          })}><Trash2 aria-hidden="true" size={15} /> Chiudi pane</Button></Popover.CloseTrigger>
+                        </div>
+                      </Popover.Content></Popover.Positioner></Popover.Portal>
+                    </Popover.Root>
+                  </>}
                   <IconButton className={terminalStyles.reload} disabled={terminalRuntime?.runtime === 'herdr'} tooltip={terminalRuntime?.runtime === 'herdr' ? 'Esegui /reload nel pane Pi desiderato in Herdr' : 'Ricarica risorse Pi'} onClick={() => void reloadPi()}><RefreshCw aria-hidden="true" size={15} /></IconButton>
                   <TerminalToolbar fontSize={fontSize} statusLabel={terminalStatus} onClear={clearTerminal} onCopy={() => void copyTerminalSelection()} onPaste={() => void pasteIntoTerminal()} onResetZoom={resetTerminalZoom} onRestart={() => void restartPi()} onSearch={() => setTerminalSearchOpen(true)} onZoom={changeFontSize} restartLabel={terminalRuntime?.runtime === 'herdr' ? 'Ricollega il client Herdr (la fleet resta attiva)' : 'Riavvia sessione Pi'} />
                 </div>
@@ -119,6 +147,7 @@ export function AiWorkbench({
                 />}
                 {hasUnreadTerminalOutput && <Button className={terminalStyles.newOutput} size="sm" variant="subtle" onClick={revealTerminalOutput}>Nuovo output</Button>}
                 {aiFailure && <AiSessionErrorNotice failure={aiFailure} onOpenSettings={onOpenSettings} onReload={reloadPi} onRestart={() => restartPi()} onResumeOutput={retryAiOutput} onRetryTerminal={retryAiTerminal} onStartPiDirect={() => restartPi({ runtime: 'pi' })} />}
+                <ConfirmationDialog request={confirmation} onCancel={() => setConfirmation(null)} />
               </div>
             </ViewErrorBoundary>
           </Tabs.Content>

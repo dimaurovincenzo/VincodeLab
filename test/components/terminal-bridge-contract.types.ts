@@ -29,6 +29,7 @@ type ExpectedAiTerminalFallbackReason =
   | 'preflight-failed'
   | 'spawn-failed'
   | 'early-exit'
+  | 'bootstrap-failed'
   | 'nested-herdr'
   | 'disabled'
 type ExpectedAiTerminalReloadResult =
@@ -108,6 +109,21 @@ type ExpectedTerminalPasteChunkResult =
   | { accepted: true; complete: boolean; sentBytes: number; totalBytes: number }
   | { accepted: false; reason: 'invalid-chunk' | 'cancelled' | 'not-running'; sentBytes: number; totalBytes: number }
 type ExpectedTerminalPasteCancelResult = { cancelled: boolean; sentBytes: number; totalBytes: number }
+type ExpectedHerdrCommand =
+  | 'new-pi'
+  | 'new-pi-right'
+  | 'new-pi-down'
+  | 'previous-agent'
+  | 'next-agent'
+  | 'zoom-pane'
+  | 'close-pane'
+type ExpectedHerdrCommandResult = {
+  command: ExpectedHerdrCommand
+  workspaceId: string
+  focused?: boolean
+  agentName?: string
+  paneId?: string
+}
 type ExpectedTerminalRendererMetrics = {
   queuedBlocks: number
   ackP50Ms: number
@@ -155,6 +171,7 @@ type ExpectedTerminalApi = {
   reportRendererMetrics: (metrics: ExpectedTerminalRendererMetrics) => void
   diagnostics: () => Promise<ExpectedTerminalDiagnosticsReport>
   exportDiagnostics: () => Promise<{ exported: boolean; filePath?: string }>
+  herdrCommand: (command: ExpectedHerdrCommand) => Promise<ExpectedHerdrCommandResult>
   resize: (dimensions: { cols: number; rows: number }) => void
   onOutput: (listener: (block: ExpectedTerminalOutputBlock) => void) => () => void
   onStreamState: (listener: (state: ExpectedTerminalStreamState) => void) => () => void
@@ -210,6 +227,7 @@ export type TerminalBridgeContractAssertions = [
     | 'reportRendererMetrics'
     | 'diagnostics'
     | 'exportDiagnostics'
+    | 'herdrCommand'
     | 'resize'
     | 'onOutput'
     | 'onStreamState'

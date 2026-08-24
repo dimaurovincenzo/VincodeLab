@@ -8,6 +8,7 @@ export type AiTerminalFallbackReason =
   | 'preflight-failed'
   | 'spawn-failed'
   | 'early-exit'
+  | 'bootstrap-failed'
   | 'nested-herdr'
   | 'disabled'
 

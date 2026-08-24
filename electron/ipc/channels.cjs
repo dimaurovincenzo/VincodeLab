@@ -76,6 +76,7 @@ const IPC_CHANNELS = Object.freeze({
   GITHUB_UNSTAGE: 'github:unstage',
   GITHUB_UPDATE_ISSUE: 'github:updateIssue',
   GITHUB_UPDATE_PROJECT_ITEM: 'github:updateProjectItem',
+  HERDR_COMMAND: 'herdr:command',
   INSTRUCTIONS_CLEAR: 'instructions:clear',
   INSTRUCTIONS_GET: 'instructions:get',
   INSTRUCTIONS_SAVE: 'instructions:save',
@@ -213,6 +214,7 @@ const IPC_CHANNELS = Object.freeze({
 const AI_TERMINAL_INVOKE_CHANNELS = Object.freeze([
   IPC_CHANNELS.PI_RELOAD,
   IPC_CHANNELS.PI_RESTART,
+  IPC_CHANNELS.HERDR_COMMAND,
   IPC_CHANNELS.TERMINAL_RESUME,
   IPC_CHANNELS.TERMINAL_WRITE_INPUT,
   IPC_CHANNELS.TERMINAL_PASTE_START,

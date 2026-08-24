@@ -241,6 +241,7 @@ const aiTerminalLaunchPolicy = createAiTerminalLaunchPolicy({
   getEnvironment: () => process.env,
   herdrEnabled: !RELIABILITY_BENCHMARK_MODE,
   inspectHerdr: herdrRuntime.inspect,
+  resolveHerdrSessionName: herdrRuntime.sessionNameForWorkspace,
   resolvePiExecutable,
 })
 const piPackageSkillsSource = createPiPackageSkillsFilesystemAdapter()
@@ -422,6 +423,7 @@ const piRuntime = createPiRuntime({
   environmentForExecutable: environmentForPiExecutable,
   getHomePath: () => applicationHomePath,
   getWindow: () => mainWindow,
+  initializeHerdr: herdrRuntime.initializeWorkspace,
   isProcessAlive: isPiProcessAlive,
   log,
   notifyWhenBackground,
@@ -765,6 +767,7 @@ function registerApplicationIpc(instanceRegistry) {
     rejectOneWay,
     reloadPi,
     restartPi,
+    runHerdrCommand: (command) => herdrRuntime.runWorkspaceCommand(requireActiveWorkspace(), command),
     sanitizeRendererMetrics,
     startPiConfig,
     stopPiConfig,

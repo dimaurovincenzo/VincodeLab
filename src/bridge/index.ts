@@ -165,6 +165,8 @@ export type {
   ShellSessionStatus,
 } from './contracts/shell-sessions.types'
 export type {
+  HerdrCommand,
+  HerdrCommandResult,
   TerminalApi,
   TerminalAttachment,
   TerminalDiagnosticsReport,

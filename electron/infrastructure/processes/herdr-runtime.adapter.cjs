@@ -1,9 +1,194 @@
 const { execFile } = require('node:child_process')
+const crypto = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
 
 const HERDR_PREFLIGHT_TIMEOUT_MS = 1_000
 const HERDR_VERSION_OUTPUT_LIMIT_BYTES = 4 * 1024
+const HERDR_COMMAND_OUTPUT_LIMIT_BYTES = 256 * 1024
+const HERDR_COMMAND_TIMEOUT_MS = 15_000
+const HERDR_WORKSPACE_COMMANDS = new Set([
+  'new-pi',
+  'new-pi-right',
+  'new-pi-down',
+  'previous-agent',
+  'next-agent',
+  'zoom-pane',
+  'close-pane',
+])
+
+function herdrSessionNameForWorkspace(workspacePath) {
+  if (typeof workspacePath !== 'string' || !path.isAbsolute(workspacePath) || workspacePath.includes('\0')) {
+    throw new TypeError('Percorso workspace Herdr non valido.')
+  }
+  const identity = crypto.createHash('sha256').update(path.resolve(workspacePath)).digest('hex').slice(0, 16)
+  return `vincodelab-${identity}`
+}
+
+function parseHerdrResponse(stdout) {
+  if (typeof stdout !== 'string' || Buffer.byteLength(stdout, 'utf8') > HERDR_COMMAND_OUTPUT_LIMIT_BYTES) {
+    throw Object.assign(new Error('Risposta Herdr non valida.'), { code: 'HERDR_RESPONSE_INVALID' })
+  }
+  try {
+    const parsed = JSON.parse(stdout)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !parsed.result || typeof parsed.result !== 'object') throw new Error('shape')
+    return parsed.result
+  } catch (cause) {
+    throw Object.assign(new Error('Herdr ha restituito una risposta non riconoscibile.'), { code: 'HERDR_RESPONSE_INVALID', cause })
+  }
+}
+
+function executeHerdrJson(executable, sessionName, args, environment, {
+  executeFile = execFile,
+  timeoutMs = HERDR_COMMAND_TIMEOUT_MS,
+} = {}) {
+  if (typeof executeFile !== 'function') throw new TypeError('Executor comando Herdr non valido.')
+  if (typeof executable !== 'string' || !path.isAbsolute(executable) || executable.includes('\0')) throw new TypeError('Eseguibile Herdr non valido.')
+  if (typeof sessionName !== 'string' || !/^vincodelab-[a-f0-9]{16}$/u.test(sessionName)) throw new TypeError('Sessione Herdr non valida.')
+  if (!Array.isArray(args) || args.some((argument) => typeof argument !== 'string' || argument.includes('\0'))) throw new TypeError('Argomenti comando Herdr non validi.')
+  if (!environment || typeof environment !== 'object' || Array.isArray(environment)) throw new TypeError('Ambiente comando Herdr non valido.')
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 60_000) throw new TypeError('Timeout comando Herdr non valido.')
+
+  return new Promise((resolve, reject) => {
+    executeFile(executable, ['--session', sessionName, ...args], {
+      env: environment,
+      maxBuffer: HERDR_COMMAND_OUTPUT_LIMIT_BYTES,
+      timeout: timeoutMs,
+      windowsHide: true,
+    }, (error, stdout) => {
+      if (error) {
+        const timedOut = error.killed === true || error.code === 'ETIMEDOUT' || error.signal === 'SIGTERM'
+        reject(Object.assign(new Error(timedOut ? 'Herdr non ha risposto entro il tempo previsto.' : 'Herdr non ha completato il comando richiesto.'), {
+          code: timedOut ? 'HERDR_COMMAND_TIMEOUT' : 'HERDR_COMMAND_FAILED',
+        }))
+        return
+      }
+      try {
+        resolve(parseHerdrResponse(stdout))
+      } catch (parseError) {
+        reject(parseError)
+      }
+    })
+  })
+}
+
+function normalizeWorkspacePath(candidate) {
+  if (typeof candidate !== 'string' || !path.isAbsolute(candidate) || candidate.includes('\0')) return null
+  return path.resolve(candidate)
+}
+
+function nextPiAgentName(agents) {
+  const names = new Set(agents.map((agent) => agent?.name).filter((name) => typeof name === 'string'))
+  if (!names.has('pi-main')) return 'pi-main'
+  for (let index = 2; index <= 99; index += 1) {
+    const candidate = `pi-${index}`
+    if (!names.has(candidate)) return candidate
+  }
+  throw Object.assign(new Error('Limite agenti Pi raggiunto.'), { code: 'HERDR_PI_AGENT_LIMIT' })
+}
+
+function createHerdrWorkspaceRuntime({ executeJson }) {
+  async function resolveWorkspace({ executable, environment, sessionName, workspacePath }) {
+    const normalizedWorkspace = normalizeWorkspacePath(workspacePath)
+    if (!normalizedWorkspace) throw new TypeError('Percorso workspace Herdr non valido.')
+    const paneResult = await executeJson(executable, sessionName, ['pane', 'list'], environment)
+    const panes = Array.isArray(paneResult.panes) ? paneResult.panes : []
+    const matchingPanes = panes.filter((candidate) => [candidate?.cwd, candidate?.foreground_cwd].some((cwd) => normalizeWorkspacePath(cwd) === normalizedWorkspace))
+    let pane = matchingPanes.find((candidate) => candidate?.focused === true) ?? matchingPanes[0]
+    let workspaceId = typeof pane?.workspace_id === 'string' ? pane.workspace_id : null
+
+    if (!workspaceId) {
+      const created = await executeJson(executable, sessionName, [
+        'workspace', 'create', '--cwd', normalizedWorkspace, '--label', path.basename(normalizedWorkspace), '--focus',
+      ], environment)
+      workspaceId = typeof created.workspace?.workspace_id === 'string' ? created.workspace.workspace_id : null
+      pane = created.root_pane
+    } else {
+      await executeJson(executable, sessionName, ['workspace', 'focus', workspaceId], environment)
+    }
+
+    const paneId = typeof pane?.pane_id === 'string' ? pane.pane_id : null
+    if (!workspaceId || !paneId) throw Object.assign(new Error('Workspace Herdr non disponibile.'), { code: 'HERDR_WORKSPACE_UNAVAILABLE' })
+    return { paneId, workspaceId }
+  }
+
+  async function startPi({ executable, environment, sessionName, workspaceId, paneId, agents, workspacePath, forceNewTab = false }) {
+    let targetPaneId = paneId
+    if (forceNewTab) {
+      const created = await executeJson(executable, sessionName, [
+        'tab', 'create', '--workspace', workspaceId, '--cwd', workspacePath, '--label', 'Pi', '--focus',
+      ], environment)
+      targetPaneId = typeof created.root_pane?.pane_id === 'string' ? created.root_pane.pane_id : null
+    }
+    if (!targetPaneId) throw Object.assign(new Error('Pane Herdr non disponibile.'), { code: 'HERDR_PANE_UNAVAILABLE' })
+    const agentName = nextPiAgentName(agents)
+    await executeJson(executable, sessionName, ['agent', 'start', agentName, '--kind', 'pi', '--pane', targetPaneId, '--timeout', '15000'], environment)
+    return { agentName, paneId: targetPaneId }
+  }
+
+  async function initialize(input) {
+    const environment = { ...input.environment }
+    const target = await resolveWorkspace({ ...input, environment })
+    const agentResult = await executeJson(input.executable, input.sessionName, ['agent', 'list'], environment)
+    const agents = Array.isArray(agentResult.agents) ? agentResult.agents : []
+    const existingPi = agents.find((agent) => agent?.workspace_id === target.workspaceId && agent?.agent === 'pi')
+    if (existingPi || input.startPi !== true) {
+      return Object.freeze({ workspaceId: target.workspaceId, piStarted: false, piAvailable: Boolean(existingPi) })
+    }
+    const occupied = new Set(agents.map((agent) => agent?.pane_id).filter((paneId) => typeof paneId === 'string'))
+    let started
+    try {
+      started = await startPi({ ...input, environment, ...target, agents, forceNewTab: occupied.has(target.paneId) })
+    } catch (error) {
+      if (occupied.has(target.paneId)) throw error
+      started = await startPi({ ...input, environment, ...target, agents, forceNewTab: true })
+    }
+    return Object.freeze({ workspaceId: target.workspaceId, piStarted: true, piAvailable: true, ...started })
+  }
+
+  async function command(input) {
+    if (!HERDR_WORKSPACE_COMMANDS.has(input.command)) throw new TypeError('Comando workspace Herdr non valido.')
+    const environment = { ...input.environment }
+    const target = await resolveWorkspace({ ...input, environment })
+    const agentResult = await executeJson(input.executable, input.sessionName, ['agent', 'list'], environment)
+    const agents = (Array.isArray(agentResult.agents) ? agentResult.agents : []).filter((agent) => agent?.workspace_id === target.workspaceId)
+
+    if (input.command === 'new-pi') {
+      const started = await startPi({ ...input, environment, ...target, agents, forceNewTab: true })
+      return Object.freeze({ command: input.command, workspaceId: target.workspaceId, ...started })
+    }
+    if (input.command === 'new-pi-right' || input.command === 'new-pi-down') {
+      const direction = input.command === 'new-pi-right' ? 'right' : 'down'
+      const split = await executeJson(input.executable, input.sessionName, [
+        'pane', 'split', target.paneId, '--direction', direction, '--cwd', input.workspacePath, '--focus',
+      ], environment)
+      const paneId = typeof split.pane?.pane_id === 'string' ? split.pane.pane_id : null
+      const started = await startPi({ ...input, environment, workspaceId: target.workspaceId, paneId, agents, forceNewTab: false })
+      return Object.freeze({ command: input.command, workspaceId: target.workspaceId, ...started })
+    }
+    if (input.command === 'zoom-pane') {
+      await executeJson(input.executable, input.sessionName, ['pane', 'zoom', target.paneId, '--toggle'], environment)
+      return Object.freeze({ command: input.command, workspaceId: target.workspaceId, paneId: target.paneId })
+    }
+    if (input.command === 'close-pane') {
+      await executeJson(input.executable, input.sessionName, ['pane', 'close', target.paneId], environment)
+      return Object.freeze({ command: input.command, workspaceId: target.workspaceId, paneId: target.paneId })
+    }
+    if (agents.length === 0) return Object.freeze({ command: input.command, workspaceId: target.workspaceId, focused: false })
+    const currentIndex = agents.findIndex((agent) => agent?.focused === true)
+    const offset = input.command === 'next-agent' ? 1 : -1
+    const nextIndex = currentIndex < 0
+      ? input.command === 'next-agent' ? 0 : agents.length - 1
+      : (currentIndex + offset + agents.length) % agents.length
+    const nextAgent = agents[nextIndex]
+    const targetId = typeof nextAgent?.name === 'string' ? nextAgent.name : nextAgent?.pane_id
+    if (typeof targetId !== 'string') throw Object.assign(new Error('Agente Herdr non disponibile.'), { code: 'HERDR_AGENT_UNAVAILABLE' })
+    await executeJson(input.executable, input.sessionName, ['agent', 'focus', targetId], environment)
+    return Object.freeze({ command: input.command, workspaceId: target.workspaceId, focused: true, paneId: nextAgent.pane_id })
+  }
+
+  return Object.freeze({ command, initialize })
+}
 
 function validateExecutable(candidate, dependencies = {}) {
   const accessFile = dependencies.accessFile ?? fs.accessSync
@@ -96,6 +281,9 @@ function createHerdrRuntimeAdapter({
 } = {}) {
   if (typeof getEnvironment !== 'function') throw new TypeError('Provider ambiente Herdr non valido.')
   if (typeof getHomePath !== 'function') throw new TypeError('Provider home Herdr non valido.')
+  const workspaceRuntime = createHerdrWorkspaceRuntime({
+    executeJson: (executable, sessionName, args, environment, options) => executeHerdrJson(executable, sessionName, args, environment, { executeFile, ...options }),
+  })
 
   async function inspect(environment = getEnvironment()) {
     if (!environment || typeof environment !== 'object' || Array.isArray(environment)) {
@@ -114,15 +302,45 @@ function createHerdrRuntimeAdapter({
     return preflightHerdr(resolved.executable, environment, { executeFile, timeoutMs })
   }
 
-  return Object.freeze({ inspect })
+  async function initializeWorkspace(input) {
+    return workspaceRuntime.initialize(input)
+  }
+
+  async function runWorkspaceCommand(workspacePath, command) {
+    const environment = getEnvironment()
+    const inspection = await inspect(environment)
+    if (inspection.available !== true || typeof inspection.executable !== 'string') {
+      throw Object.assign(new Error('Herdr non è disponibile.'), { code: 'HERDR_UNAVAILABLE' })
+    }
+    return workspaceRuntime.command({
+      command,
+      environment,
+      executable: inspection.executable,
+      sessionName: herdrSessionNameForWorkspace(workspacePath),
+      workspacePath,
+    })
+  }
+
+  return Object.freeze({
+    initializeWorkspace,
+    inspect,
+    runWorkspaceCommand,
+    sessionNameForWorkspace: herdrSessionNameForWorkspace,
+  })
 }
 
 module.exports = {
+  HERDR_COMMAND_OUTPUT_LIMIT_BYTES,
+  HERDR_COMMAND_TIMEOUT_MS,
   HERDR_PREFLIGHT_TIMEOUT_MS,
   HERDR_VERSION_OUTPUT_LIMIT_BYTES,
+  createHerdrWorkspaceRuntime,
   createHerdrRuntimeAdapter,
+  executeHerdrJson,
   executableFromPath,
   hasValidHerdrVersionOutput,
+  herdrSessionNameForWorkspace,
+  parseHerdrResponse,
   preflightHerdr,
   validateExecutable,
 }

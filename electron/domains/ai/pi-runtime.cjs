@@ -17,6 +17,7 @@ function createPiRuntime({
   environmentForExecutable,
   getHomePath,
   getWindow,
+  initializeHerdr = async () => undefined,
   isProcessAlive,
   log,
   notifyWhenBackground,
@@ -31,6 +32,7 @@ function createPiRuntime({
   if (typeof isProcessAlive !== 'function') throw new Error('Verifica processo runtime Pi non valida.')
   if (typeof resolveExecutable !== 'function') throw new Error('Resolver eseguibile runtime Pi non valido.')
   if (typeof resolveLaunchCandidates !== 'function') throw new Error('Resolver lancio Terminale AI non valido.')
+  if (typeof initializeHerdr !== 'function') throw new Error('Inizializzatore Herdr non valido.')
   if (typeof attachmentPreparer !== 'function') throw new Error('Porta allegati Terminale AI non valida.')
   if (typeof deliverPiConfigData !== 'function') throw new Error('Porta dati configurazione Pi non valida.')
   if (typeof deliverPiConfigExit !== 'function') throw new Error('Porta uscita configurazione Pi non valida.')
@@ -63,6 +65,7 @@ function createPiRuntime({
   }
 
   const controller = createSessionController({
+    initializeHerdr,
     resolveLaunchCandidates,
     isProcessAlive,
     processFactory: (executable, args, options) => ptyRuntime.spawn(executable, args, options),

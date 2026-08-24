@@ -68,6 +68,12 @@ function validateLaunchDescriptor(candidate, workspacePath) {
   if (!Number.isSafeInteger(startupWindowMs) || startupWindowMs < 0 || startupWindowMs > 10_000) {
     throw new Error('Finestra di avvio Terminale AI non valida.')
   }
+  if (runtime === 'herdr') {
+    if (typeof candidate.herdrSessionName !== 'string' || !/^vincodelab-[a-f0-9]{16}$/u.test(candidate.herdrSessionName)) throw new Error('Sessione Herdr non valida.')
+    if (candidate.bootstrapPi !== true && candidate.bootstrapPi !== false) throw new Error('Bootstrap Pi Herdr non valido.')
+  } else if (candidate.herdrSessionName !== undefined || candidate.bootstrapPi !== undefined) {
+    throw new Error('Metadati Herdr non validi per Pi diretto.')
+  }
   if (candidate.terminalFailure !== undefined && candidate.terminalFailure !== PI_NOT_INSTALLED.code && candidate.terminalFailure !== PI_NOT_RUNNABLE.code && candidate.terminalFailure !== HERDR_NOT_RUNNABLE.code) {
     throw new Error('Failure terminale Terminale AI non valido.')
   }
@@ -88,6 +94,7 @@ function createPiSessionController(options = {}) {
   if (typeof options.isProcessAlive !== 'function') throw new Error('Verifica processo Pi non valida.')
 
   const resolveLaunchCandidates = options.resolveLaunchCandidates
+  const initializeHerdr = options.initializeHerdr ?? (async () => undefined)
   const processFactory = options.processFactory
   const createStream = options.createStream
   const createInput = options.createInput
@@ -96,6 +103,7 @@ function createPiSessionController(options = {}) {
   const onExit = options.onExit ?? (() => undefined)
   const onError = options.onError ?? (() => undefined)
   const isProcessAlive = options.isProcessAlive
+  if (typeof initializeHerdr !== 'function') throw new Error('Inizializzatore workspace Herdr non valido.')
   const setTimer = options.setTimer ?? setTimeout
   const clearTimer = options.clearTimer ?? clearTimeout
   const scheduleStartCheck = options.scheduleStartCheck ?? setImmediate
@@ -423,6 +431,26 @@ function createPiSessionController(options = {}) {
         }
         const detail = exitStatus.signal ? `segnale ${exitStatus.signal}` : `codice ${exitStatus.exitCode ?? 'sconosciuto'}`
         throw publicPiFailure(terminalFailureFor(candidate), Object.assign(new Error(`Il Terminale AI è terminato durante l’avvio (${detail}).`), { code: 'AI_TERMINAL_EARLY_EXIT' }))
+      }
+
+      if (candidate.runtime === 'herdr') {
+        try {
+          await initializeHerdr({
+            bootstrapPi: candidate.bootstrapPi,
+            environment: candidate.options.env,
+            executable: candidate.executable,
+            sessionName: candidate.herdrSessionName,
+            workspacePath,
+          })
+        } catch (error) {
+          await cleanSpawnFailure(ptyProcess, subscriptions, workspacePath, error)
+          emit(onError, { source: 'herdr-bootstrap', error, workspacePath })
+          if (hasFallback) {
+            dynamicFallbackReason = 'bootstrap-failed'
+            continue
+          }
+          throw publicPiFailure(terminalFailureFor(candidate), error)
+        }
       }
 
       try {

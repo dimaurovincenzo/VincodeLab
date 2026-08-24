@@ -276,6 +276,7 @@ test('il bundle conserva superficie, argomenti IPC e flag benchmark condizionali
     'reportRendererMetrics',
     'diagnostics',
     'exportDiagnostics',
+    'herdrCommand',
     'resize',
     'onOutput',
     'onStreamState',

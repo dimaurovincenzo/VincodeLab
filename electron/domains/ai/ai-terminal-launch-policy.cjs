@@ -8,6 +8,7 @@ const HERDR_FALLBACK_REASONS = new Set([
   'invalid-version-output',
   'preflight-failed',
   'spawn-failed',
+  'bootstrap-failed',
   'early-exit',
   'nested-herdr',
   'disabled',
@@ -60,11 +61,11 @@ function publicPiFailure(definition, cause) {
   return error
 }
 
-function createLaunchDescriptor({ runtime, executable, workspacePath, environment, startupWindowMs, fallbackReason, terminalFailure }) {
+function createLaunchDescriptor({ runtime, executable, workspacePath, environment, startupWindowMs, args = [], fallbackReason, terminalFailure, herdrSessionName, bootstrapPi }) {
   const descriptor = {
     runtime,
     executable,
-    args: Object.freeze([]),
+    args: Object.freeze([...args]),
     options: Object.freeze({
       name: 'xterm-256color',
       cols: 120,
@@ -76,6 +77,8 @@ function createLaunchDescriptor({ runtime, executable, workspacePath, environmen
   }
   if (fallbackReason) descriptor.fallbackReason = fallbackReason
   if (terminalFailure) descriptor.terminalFailure = terminalFailure
+  if (herdrSessionName) descriptor.herdrSessionName = herdrSessionName
+  if (bootstrapPi !== undefined) descriptor.bootstrapPi = bootstrapPi
   return Object.freeze(descriptor)
 }
 
@@ -90,11 +93,13 @@ function createAiTerminalLaunchPolicy({
   getEnvironment,
   herdrEnabled = true,
   inspectHerdr,
+  resolveHerdrSessionName,
   resolvePiExecutable,
 } = {}) {
   if (typeof environmentForExecutable !== 'function') throw new TypeError('Provider ambiente Terminale AI non valido.')
   if (typeof getEnvironment !== 'function') throw new TypeError('Provider ambiente applicazione non valido.')
   if (typeof inspectHerdr !== 'function') throw new TypeError('Inspector Herdr non valido.')
+  if (typeof resolveHerdrSessionName !== 'function') throw new TypeError('Resolver sessione Herdr non valido.')
   if (typeof resolvePiExecutable !== 'function') throw new TypeError('Resolver Pi Terminale AI non valido.')
   if (typeof herdrEnabled !== 'boolean') throw new TypeError('Policy abilitazione Herdr non valida.')
 
@@ -169,14 +174,18 @@ function createAiTerminalLaunchPolicy({
       return Object.freeze([piDescriptor(reason)])
     }
 
+    const herdrSessionName = resolveHerdrSessionName(workspacePath)
     const candidates = [
       createLaunchDescriptor({
         runtime: 'herdr',
         executable: inspection.executable,
+        args: ['--session', herdrSessionName],
         workspacePath,
         environment: launchEnvironment,
         startupWindowMs: HERDR_STARTUP_WINDOW_MS,
         terminalFailure: piExecutable ? undefined : HERDR_NOT_RUNNABLE.code,
+        herdrSessionName,
+        bootstrapPi: Boolean(piExecutable),
       }),
     ]
     if (piExecutable) candidates.push(piDescriptor())

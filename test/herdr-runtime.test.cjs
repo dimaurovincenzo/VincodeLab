@@ -4,9 +4,11 @@ const path = require('node:path')
 const test = require('node:test')
 
 const {
+  createHerdrWorkspaceRuntime,
   createHerdrRuntimeAdapter,
   executableFromPath,
   hasValidHerdrVersionOutput,
+  herdrSessionNameForWorkspace,
   preflightHerdr,
 } = require('../electron/infrastructure/processes/herdr-runtime.adapter.cjs')
 const {
@@ -111,6 +113,118 @@ test('adapter Herdr distingue found e missing senza eseguire il binario reale', 
   assert.equal(executed, false)
 })
 
+test('identità sessione Herdr è stabile, isolata per workspace e valida solo per percorsi assoluti', () => {
+  const first = herdrSessionNameForWorkspace('/Users/test/Project A')
+  assert.equal(first, herdrSessionNameForWorkspace('/Users/test/Project A'))
+  assert.match(first, /^vincodelab-[a-f0-9]{16}$/u)
+  assert.notEqual(first, herdrSessionNameForWorkspace('/Users/test/Project B'))
+  assert.throws(() => herdrSessionNameForWorkspace('Project A'), /Percorso workspace Herdr non valido/u)
+})
+
+function herdrWorkspaceFixture(responses) {
+  const calls = []
+  const runtime = createHerdrWorkspaceRuntime({
+    async executeJson(executable, sessionName, args, environment) {
+      calls.push({ executable, sessionName, args, environment })
+      const response = responses.shift()
+      if (response instanceof Error) throw response
+      assert.notEqual(response, undefined, `Risposta test mancante per: ${args.join(' ')}`)
+      return response
+    },
+  })
+  const input = {
+    environment: { PATH: '/opt/homebrew/bin:/usr/bin' },
+    executable: '/opt/homebrew/bin/herdr',
+    sessionName: herdrSessionNameForWorkspace('/workspace'),
+    startPi: true,
+    workspacePath: '/workspace',
+  }
+  return { calls, input, runtime }
+}
+
+test('bootstrap Herdr recupera e focalizza il workspace corrente senza duplicare Pi', async () => {
+  const fixture = herdrWorkspaceFixture([
+    { panes: [{ pane_id: 'pane-1', workspace_id: 'workspace-1', cwd: '/workspace', focused: false }] },
+    { workspace: { workspace_id: 'workspace-1' } },
+    { agents: [{ name: 'pi-main', agent: 'pi', pane_id: 'pane-1', workspace_id: 'workspace-1' }] },
+  ])
+
+  assert.deepEqual(await fixture.runtime.initialize(fixture.input), {
+    workspaceId: 'workspace-1',
+    piStarted: false,
+    piAvailable: true,
+  })
+  assert.deepEqual(fixture.calls.map(({ args }) => args), [
+    ['pane', 'list'],
+    ['workspace', 'focus', 'workspace-1'],
+    ['agent', 'list'],
+  ])
+})
+
+test('bootstrap Herdr crea il workspace del progetto e garantisce il primo Pi', async () => {
+  const fixture = herdrWorkspaceFixture([
+    { panes: [] },
+    { workspace: { workspace_id: 'workspace-1' }, root_pane: { pane_id: 'pane-1' } },
+    { agents: [] },
+    { agent: { name: 'pi-main' } },
+  ])
+
+  assert.deepEqual(await fixture.runtime.initialize(fixture.input), {
+    workspaceId: 'workspace-1',
+    piStarted: true,
+    piAvailable: true,
+    agentName: 'pi-main',
+    paneId: 'pane-1',
+  })
+  assert.deepEqual(fixture.calls.map(({ args }) => args), [
+    ['pane', 'list'],
+    ['workspace', 'create', '--cwd', '/workspace', '--label', 'workspace', '--focus'],
+    ['agent', 'list'],
+    ['agent', 'start', 'pi-main', '--kind', 'pi', '--pane', 'pane-1', '--timeout', '15000'],
+  ])
+  assert.equal(fixture.calls.every(({ environment }) => environment.PATH === '/opt/homebrew/bin:/usr/bin'), true)
+})
+
+test('comandi toolbar Herdr creano Pi nello split e navigano circolarmente fra agenti', async () => {
+  const splitFixture = herdrWorkspaceFixture([
+    { panes: [{ pane_id: 'pane-1', workspace_id: 'workspace-1', cwd: '/workspace', focused: true }] },
+    { workspace: { workspace_id: 'workspace-1' } },
+    { agents: [{ name: 'pi-main', agent: 'pi', pane_id: 'pane-1', workspace_id: 'workspace-1', focused: true }] },
+    { pane: { pane_id: 'pane-2' } },
+    { agent: { name: 'pi-2' } },
+  ])
+  assert.deepEqual(await splitFixture.runtime.command({ ...splitFixture.input, command: 'new-pi-right' }), {
+    command: 'new-pi-right',
+    workspaceId: 'workspace-1',
+    agentName: 'pi-2',
+    paneId: 'pane-2',
+  })
+  assert.deepEqual(splitFixture.calls.map(({ args }) => args), [
+    ['pane', 'list'],
+    ['workspace', 'focus', 'workspace-1'],
+    ['agent', 'list'],
+    ['pane', 'split', 'pane-1', '--direction', 'right', '--cwd', '/workspace', '--focus'],
+    ['agent', 'start', 'pi-2', '--kind', 'pi', '--pane', 'pane-2', '--timeout', '15000'],
+  ])
+
+  const navigationFixture = herdrWorkspaceFixture([
+    { panes: [{ pane_id: 'pane-1', workspace_id: 'workspace-1', cwd: '/workspace', focused: true }] },
+    { workspace: { workspace_id: 'workspace-1' } },
+    { agents: [
+      { name: 'pi-main', pane_id: 'pane-1', workspace_id: 'workspace-1', focused: true },
+      { name: 'pi-2', pane_id: 'pane-2', workspace_id: 'workspace-1', focused: false },
+    ] },
+    { agent: { name: 'pi-2' } },
+  ])
+  assert.deepEqual(await navigationFixture.runtime.command({ ...navigationFixture.input, command: 'next-agent' }), {
+    command: 'next-agent',
+    workspaceId: 'workspace-1',
+    focused: true,
+    paneId: 'pane-2',
+  })
+  assert.deepEqual(navigationFixture.calls.at(-1).args, ['agent', 'focus', 'pi-2'])
+})
+
 function launchPolicyFixture({ environment, herdrEnabled = true, inspection, piExecutable = '/opt/pi/bin/pi' } = {}) {
   let inspections = 0
   const policy = createAiTerminalLaunchPolicy({
@@ -122,6 +236,7 @@ function launchPolicyFixture({ environment, herdrEnabled = true, inspection, piE
       assert.equal(receivedEnvironment.PATH.includes('/opt/homebrew/bin'), true)
       return inspection ?? { available: true, executable: '/opt/homebrew/bin/herdr' }
     },
+    resolveHerdrSessionName: herdrSessionNameForWorkspace,
     resolvePiExecutable: () => piExecutable,
   })
   return { inspections: () => inspections, policy }
@@ -131,7 +246,9 @@ test('policy preferisce Herdr e conserva PATH Pi/Homebrew in entrambi i descript
   const fixture = launchPolicyFixture()
   const candidates = await fixture.policy.resolveCandidates('/workspace')
   assert.deepEqual(candidates.map(({ runtime }) => runtime), ['herdr', 'pi'])
-  assert.deepEqual(candidates[0].args, [])
+  assert.deepEqual(candidates[0].args, ['--session', herdrSessionNameForWorkspace('/workspace')])
+  assert.equal(candidates[0].herdrSessionName, herdrSessionNameForWorkspace('/workspace'))
+  assert.equal(candidates[0].bootstrapPi, true)
   assert.equal(candidates[0].options.cwd, '/workspace')
   assert.match(candidates[0].options.env.PATH, /^\/opt\/pi\/bin:/u)
   assert.equal(candidates[0].options.env.HOMEBREW_PREFIX, '/opt/homebrew')

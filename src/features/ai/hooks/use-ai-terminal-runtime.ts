@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { Terminal } from '@xterm/xterm'
 import { toast } from '@/components/ui'
-import type { AiTerminalRestartOptions, AiTerminalRestartResult, TerminalStreamState } from '@/bridge'
+import type { AiTerminalRestartOptions, AiTerminalRestartResult, HerdrCommand, TerminalStreamState } from '@/bridge'
 import { reportRendererFailure, showUserErrorToast } from '@/lib/renderer-error'
 import { scheduleVisibleTerminalRefit } from '@/lib/terminal-activation.js'
 import { suppressGlobalTerminalShortcut } from '@/lib/workbench-shortcuts'
@@ -185,6 +185,29 @@ export function useAiTerminalRuntime({
       })
     }
   }, [clearAiFailure, publishAiFailure, resumeTerminal, setStatus, updateTerminalRuntime])
+
+  const runHerdrCommand = useCallback(async function runHerdrCommandAction(command: HerdrCommand) {
+    try {
+      const result = await aiBridge.terminal.herdrCommand(command)
+      if (command === 'new-pi' || command === 'new-pi-right' || command === 'new-pi-down') toast.success(`Agente ${result.agentName ?? 'Pi'} avviato in Herdr.`)
+      else if (command === 'close-pane') toast.success('Pane Herdr chiuso.')
+      else if (result.focused === false) toast.info('Nessun agente Herdr disponibile nel workspace.')
+      getTerminal()?.focus()
+      return result
+    } catch (nextError) {
+      const incident = reportRendererFailure(nextError, {
+        category: 'process',
+        component: 'ai-terminal',
+        operation: `herdr-${command}`,
+        title: command.startsWith('new-pi') ? 'Agente Pi non avviato' : 'Comando Herdr non completato',
+        fallbackDescription: command.startsWith('new-pi')
+          ? 'Herdr non ha potuto creare il nuovo agente. La sessione corrente è rimasta attiva.'
+          : 'Herdr non ha potuto cambiare agente. La sessione corrente è rimasta attiva.',
+      })
+      showUserErrorToast(incident, { label: 'Riprova', onClick: () => { void runHerdrCommandAction(command) } })
+      return null
+    }
+  }, [getTerminal])
 
   const retryAiOutput = useCallback(async () => {
     const controller = outputController.current
@@ -435,6 +458,7 @@ export function useAiTerminalRuntime({
     reloadPi,
     resetTerminalZoom,
     restartPi,
+    runHerdrCommand,
     retryAiOutput,
     retryAiTerminal,
     revealTerminalOutput,

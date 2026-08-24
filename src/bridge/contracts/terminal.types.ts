@@ -36,6 +36,21 @@ export type TerminalResumeSnapshot = {
   piAvailable?: boolean
 }
 export type TerminalStreamState = { sessionId: string; status: TerminalStreamStatus; queuedBytes: number }
+export type HerdrCommand =
+  | 'new-pi'
+  | 'new-pi-right'
+  | 'new-pi-down'
+  | 'previous-agent'
+  | 'next-agent'
+  | 'zoom-pane'
+  | 'close-pane'
+export type HerdrCommandResult = {
+  command: HerdrCommand
+  workspaceId: string
+  focused?: boolean
+  agentName?: string
+  paneId?: string
+}
 
 export interface TerminalAttachment {
   absolutePath: string
@@ -98,6 +113,7 @@ export type TerminalApi = {
   reportRendererMetrics: (metrics: TerminalRendererMetrics) => void
   diagnostics: () => Promise<TerminalDiagnosticsReport>
   exportDiagnostics: () => Promise<{ exported: boolean; filePath?: string }>
+  herdrCommand: (command: HerdrCommand) => Promise<HerdrCommandResult>
   resize: (dimensions: { cols: number; rows: number }) => void
   onOutput: (listener: (block: TerminalOutputBlock) => void) => () => void
   onStreamState: (listener: (state: TerminalStreamState) => void) => () => void
