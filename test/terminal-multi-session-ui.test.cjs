@@ -6,6 +6,8 @@ const { readTerminalModule } = require('./helpers/terminal-source.cjs')
 
 const projectRoot = path.join(__dirname, '..')
 const terminalWorkspace = fs.readFileSync(path.join(projectRoot, 'src/features/terminal/components/terminal-workspace.tsx'), 'utf8')
+const terminalWorkspaceController = readTerminalModule('hooks/use-terminal-workspace-controller.ts')
+const terminalWorkspaceCommands = readTerminalModule('model/terminal-workspace.ts')
 const freeTerminal = [
   readTerminalModule('components/free-terminal.tsx'),
   readTerminalModule('components/workspace-command-panel.tsx'),
@@ -43,15 +45,17 @@ test('FreeTerminal è un client isolato per sessionId e non crea PTY legacy', ()
   assert.match(freeTerminal, /snapshot\.truncated/)
 })
 
-test('TerminalWorkspace possiede lifecycle, limite e fallback delle sessioni', () => {
-  assert.match(terminalWorkspace, /const MAX_TERMINAL_SESSIONS = 8/)
-  assert.match(terminalWorkspace, /shellSessions\.list\(\)/)
-  assert.match(terminalWorkspace, /snapshot\.sessions\.length === 0[\s\S]*shellSessions\.create\(\)/)
-  assert.match(terminalWorkspace, /shellSessions\.focus\(sessionId\)/)
-  assert.match(terminalWorkspace, /shellSessions\.close\(sessionId\)/)
-  assert.match(terminalWorkspace, /result\.activeSessionId[\s\S]*mruSessionIds\.current\.find/)
+test('il controller TerminalWorkspace possiede lifecycle, limite e fallback delle sessioni', () => {
+  assert.match(terminalWorkspace, /useTerminalWorkspaceController\(/)
+  assert.doesNotMatch(terminalWorkspace, /terminalBridge/)
+  assert.match(terminalWorkspaceController, /const MAX_TERMINAL_SESSIONS = 8/)
+  assert.match(terminalWorkspaceController, /shellSessions\.list\(\)/)
+  assert.match(terminalWorkspaceController, /snapshot\.sessions\.length === 0[\s\S]*shellSessions\.create\(\)/)
+  assert.match(terminalWorkspaceController, /shellSessions\.focus\(sessionId\)/)
+  assert.match(terminalWorkspaceController, /shellSessions\.close\(sessionId\)/)
+  assert.match(terminalWorkspaceController, /result\.activeSessionId[\s\S]*mruSessionIds\.current\.find/)
   for (const action of ['focus', 'next', 'previous', 'new', 'close']) {
-    assert.match(terminalWorkspace, new RegExp(`['"]${action}['"]`))
+    assert.match(terminalWorkspaceCommands, new RegExp(`['"]${action}['"]`))
   }
   for (const status of ['starting', 'ready', 'exited', 'error']) {
     assert.match(terminalWorkspace, new RegExp(`['"]${status}['"]`))
@@ -59,8 +63,8 @@ test('TerminalWorkspace possiede lifecycle, limite e fallback delle sessioni', (
 })
 
 test('le tab Ark mantengono montati terminali e File remoti non attivi', () => {
-  assert.match(terminalWorkspace, /lazyMount=\{false\} unmountOnExit=\{false\}/)
-  assert.match(terminalWorkspace, /sessions\.map\(\(session\) => <Tabs\.Content[\s\S]*?<FreeTerminal/)
+  assert.match(terminalWorkspace, /lazyMount=\{false\}[\s\S]{0,80}unmountOnExit=\{false\}/)
+  assert.match(terminalWorkspace, /sessions\.map\(\(session\) => \([\s\S]*?<Tabs\.Content[\s\S]*?<FreeTerminal/)
   assert.match(terminalWorkspace, /sessionId=\{session\.sessionId\}/)
   assert.match(terminalWorkspace, /active=\{active && tab === 'shell' && activeSessionId === session\.sessionId\}/)
   assert.match(terminalWorkspace, /<Tabs\.Content value="remote"[^>]*>[\s\S]*?<RemoteFiles/)

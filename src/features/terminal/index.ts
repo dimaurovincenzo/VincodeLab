@@ -5,4 +5,4 @@ export { TerminalWorkspace } from './components/terminal-workspace'
 export type {
   TerminalWorkspaceAction,
   TerminalWorkspaceActionRequest,
-} from './components/terminal-workspace'
+} from './model/terminal-workspace'
