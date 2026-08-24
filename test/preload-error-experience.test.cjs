@@ -70,7 +70,7 @@ test('il main non passa path, messaggi, tabella o connessione grezzi ai log inte
   assert.doesNotMatch(preloadHandler, /log\([^\n]*(?:preloadPath|error\.message|message:)/u)
   assert.match(migrationHandler, /getApplicationErrorLogMetadata\(incident\)/u)
   assert.doesNotMatch(migrationHandler, /message:\s*error|String\(error\)/u)
-  assert.match(tableRowsHandler, /getApplicationErrorLogMetadata\(incident\)/u)
+  assert.doesNotMatch(tableRowsHandler, /catch\s*\(|toIpcApplicationError|getApplicationErrorLogMetadata/u)
   assert.doesNotMatch(tableRowsHandler, /log\([^\n]*(?:connectionId|tableName|error\.message|message:)/u)
   assert.match(main, /createApplicationStartupRuntime\(\{/u)
 })
