@@ -148,7 +148,7 @@ test("primitive e shell rispettano la geometria enterprise", () => {
   assert.match(shellStyles, /gridTemplateColumns:\s*'minmax\(0, 1fr\) auto minmax\(0, 1fr\)'/);
   assert.match(shellStyles, /overflowX:\s*'auto'/);
   assert.match(shellStyles, /@media \(max-width: 1340px\)/);
-  assert.match(shellStyles, /'\& \[data-scope="tabs"\]\[data-part="trigger"\]':\s*\{\s*gap:\s*'1',\s*px:\s*'1\.5'\s*\}/);
+  assert.match(shellStyles, /'& \[data-scope="tabs"\]\[data-part="trigger"\]':\s*\{\s*gap:\s*'1',\s*px:\s*'1\.5'\s*\}/);
   assert.match(recipes, /borderRadius:\s*'l2'/);
   assert.match(recipes, /_focusVisible:\s*\{[^}]*focusRing/);
   assert.doesNotMatch([recipes, shellStyles].join("\n"), /linear-gradient|radial-gradient/);
