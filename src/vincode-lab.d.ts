@@ -275,16 +275,6 @@ type PiRuntimeStatus =
   | { state: 'ready'; executable: string; version: string }
   | { state: 'missing'; code: 'PI_NOT_INSTALLED'; executable: null; version: null }
 
-type WorkspaceCommandKind = 'shell' | 'ssh'
-interface WorkspaceCommand { id: string; categoryId: string; title: string; kind: WorkspaceCommandKind; command: string; note: string; sshDestination: string; remoteRoot: string }
-interface WorkspaceCommandCategory { id: string; name: string; commands: WorkspaceCommand[] }
-interface WorkspaceCommandInput { categoryId: string; title: string; kind: WorkspaceCommandKind; command: string; note: string; sshDestination: string; remoteRoot: string }
-interface ManagedSshConnection { id: string; commandId: string; title: string; destination: string; remoteRoot: string; state: 'connecting' | 'connected' | 'disconnected' | 'error'; error?: string }
-interface RemoteEntry { id: string; name: string; kind: 'file' | 'directory' | 'link' | 'unknown'; displayPath: string; size: number | null; modifiedAt: number | null; mode: number | null; destructiveAllowed: boolean }
-interface RemoteTrackedFile { id: string; connectionId: string; name: string; remotePath: string; localState: 'synced' | 'modified' | 'conflict' | 'offline'; size: number | null; cacheSize: number; modifiedAt: number | null; mode: number | null; baselineHash: string; localHash: string; lastError: string | null; updatedAt: number }
-interface RemoteTransfer { id: string; direction: 'download' | 'upload'; name: string; state: 'queued' | 'running' | 'completed' | 'cancelled' | 'error'; bytes: number | null; total: number | null; error?: string }
-interface RemoteCompareResult { baselineChanged: boolean; binary: boolean; remoteHash: string; baselineHash: string; localHash: string; remoteContent?: string; localContent?: string }
-
 type AppMenuSection = 'home' | 'ai' | 'ai-skills' | 'ai-instructions' | 'editor' | 'terminal' | 'github' | 'database' | 'redis' | 'settings'
 type LifecycleCloseReason = 'window' | 'quit'
 type LifecycleCloseDecision = 'proceed' | 'cancel'
@@ -543,43 +533,9 @@ interface Window {
     piSystem: { status: () => Promise<PiRuntimeStatus>; list: () => Promise<string[]>; listSkills: () => Promise<PiPackageSkill[]>; install: (source: string) => Promise<{ output: string }>; update: (source: string) => Promise<{ output: string }>; remove: (source: string) => Promise<{ output: string }> }
     piConfig: { start: () => Promise<{ started: boolean; reused: boolean }>; close: () => Promise<{ closed: true }>; write: (data: string) => void; resize: (dimensions: { cols: number; rows: number }) => void; onData: (listener: (data: string) => void) => () => void; onExit: (listener: (status: TerminalExitStatus) => void) => () => void; onError: (listener: (event: PiConfigErrorEvent) => void) => () => void }
     github: import('./bridge').GitHubApi
-    workspaceCommands: {
-      list: () => Promise<{ categories: WorkspaceCommandCategory[] }>
-      createCategory: (name: string) => Promise<{ id: string; name: string }>
-      updateCategory: (categoryId: string, name: string) => Promise<{ id: string; name: string }>
-      deleteCategory: (categoryId: string) => Promise<{ deleted: true }>
-      create: (input: WorkspaceCommandInput) => Promise<WorkspaceCommand>
-      update: (commandId: string, input: WorkspaceCommandInput) => Promise<WorkspaceCommand>
-      move: (commandId: string, categoryId: string) => Promise<{ moved: true }>
-      delete: (commandId: string) => Promise<{ deleted: true }>
-      run: (commandId: string) => Promise<{ executed: true; managedConnectionId?: string }>
-    }
-    managedSsh: {
-      list: () => Promise<ManagedSshConnection[]>
-      check: (connectionId: string) => Promise<boolean>
-      disconnect: (connectionId: string) => Promise<{ disconnected: true }>
-      onStatus: (listener: (status: ManagedSshConnection) => void) => () => void
-    }
-    remoteFiles: {
-      browse: (connectionId: string, directoryId?: string | null) => Promise<{ path: string; entries: RemoteEntry[] }>
-      downloadAndTrack: (entryId: string) => Promise<RemoteTrackedFile>
-      downloadAs: (entryId: string) => Promise<{ saved: boolean }>
-      read: (fileId: string) => Promise<{ file: RemoteTrackedFile; content: string }>
-      preview: (fileId: string) => Promise<{ file: RemoteTrackedFile; binary: boolean; size: number }>
-      saveLocal: (fileId: string, content: string) => Promise<RemoteTrackedFile>
-      compare: (fileId: string) => Promise<RemoteCompareResult>
-      upload: (fileId: string, options?: { force?: boolean }) => Promise<{ status: 'synced' | 'conflict'; uploaded: boolean; file?: RemoteTrackedFile }>
-      chooseAndUpload: (connectionId: string, directoryId?: string | null) => Promise<Array<{ name: string; uploaded: true }>>
-      cancelTransfer: (transferId: string) => Promise<{ cancelled: boolean }>
-      createDirectory: (connectionId: string, parentId: string | null, name: string) => Promise<{ created: true }>
-      rename: (entryId: string, name: string) => Promise<{ renamed: true }>
-      remove: (entryId: string) => Promise<{ removed: true }>
-      discard: (fileId: string, options?: { force?: boolean }) => Promise<{ removed: true }>
-      listTracked: () => Promise<RemoteTrackedFile[]>
-      revealLocal: (fileId: string) => Promise<{ revealed: true }>
-      cleanup: (options?: { olderThan?: number }) => Promise<{ removed: number }>
-      onTransfer: (listener: (transfer: RemoteTransfer) => void) => () => void
-    }
+    workspaceCommands: import('./bridge').WorkspaceCommandsApi
+    managedSsh: import('./bridge').ManagedSshApi
+    remoteFiles: import('./bridge').RemoteFilesApi
     database: import('./bridge').DatabaseApi
     redis: VincodeRedisApi
     shellSessions: {

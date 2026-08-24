@@ -104,7 +104,7 @@ import testFolderIcon from '@iconify-icons/vscode-icons/folder-type-test'
 import themeFolderIcon from '@iconify-icons/vscode-icons/folder-type-theme'
 import toolsFolderIcon from '@iconify-icons/vscode-icons/folder-type-tools'
 import vscodeFolderIcon from '@iconify-icons/vscode-icons/folder-type-vscode'
-import type { GitFileStatus } from '@/bridge'
+import type { GitFileStatus, RemoteTrackedFile } from '@/bridge'
 import { editorStyles } from '@/theme/styles/editor'
 import { specialFileIconKey, type SpecialFileIconKey } from '../model/editor-icon-resolution'
 

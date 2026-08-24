@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react'
+import type { RemoteEntry, RemoteTrackedFile, RemoteTransfer, WorkspaceCommand } from '@/bridge'
 import { toast } from '@/components/ui'
 import { remoteFilesBridge } from '../api/remote-files.bridge'
 import type { RemoteFilesProps } from '../model/remote-files.types'

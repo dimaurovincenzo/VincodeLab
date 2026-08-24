@@ -1,3 +1,5 @@
+import type { RemoteTrackedFile } from '@/bridge'
+
 export type RemoteFilesProps = {
   active: boolean
   workspace: string

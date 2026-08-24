@@ -1,4 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import type {
+  ManagedSshConnection,
+  WorkspaceCommand,
+  WorkspaceCommandCategory,
+  WorkspaceCommandInput,
+  WorkspaceCommandKind,
+} from '@/bridge'
 import { toast, type ToastAction } from '@/components/ui'
 import type { ConfirmationRequest } from '@/components/confirmation-dialog'
 import type { UserError } from '@/lib/user-error'

@@ -1,4 +1,4 @@
-import type { WorkspaceSessionFileRef } from '@/bridge'
+import type { RemoteTrackedFile, WorkspaceSessionFileRef } from '@/bridge'
 import type { VolatileDraftIdentity } from '@/lib/volatile-draft-store'
 import type { EditorPreview, EditorTab } from './editor.types'
 

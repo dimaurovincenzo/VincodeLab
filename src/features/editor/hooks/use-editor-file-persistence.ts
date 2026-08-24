@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect } from 'react'
+import type { RemoteTrackedFile } from '@/bridge'
 import { toast } from '@/components/ui'
 import { commitVolatileDraft, discardVolatileDraft, writeVolatileDraft } from '@/lib/volatile-draft-store'
 import { normalizeUserError, reportUserError } from '@/lib/user-error'

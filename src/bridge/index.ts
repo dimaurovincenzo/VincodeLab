@@ -44,6 +44,10 @@ export type {
   GitHubProjectItemUpdate,
 } from './contracts/github.types'
 export type {
+  ManagedSshApi,
+  ManagedSshConnection,
+} from './contracts/managed-ssh.types'
+export type {
   AppPreferenceDefinition,
   AppPreferencesSnapshot,
   AppPreferenceValue,
@@ -73,6 +77,13 @@ export type {
   RedisZSetInspection,
 } from './contracts/redis.types'
 export type {
+  RemoteCompareResult,
+  RemoteEntry,
+  RemoteFilesApi,
+  RemoteTrackedFile,
+  RemoteTransfer,
+} from './contracts/remote-files.types'
+export type {
   RuntimeCapabilitiesApi,
   RuntimeCapabilitiesSnapshot,
   RuntimeCapability,
@@ -97,4 +108,11 @@ export type {
   WorkspaceSessionState,
   WorkspaceSessionWriteSnapshot,
 } from './contracts/workspace-session.types'
+export type {
+  WorkspaceCommand,
+  WorkspaceCommandCategory,
+  WorkspaceCommandInput,
+  WorkspaceCommandKind,
+  WorkspaceCommandsApi,
+} from './contracts/workspace-commands.types'
 export type { VincodeLabBridge } from './contracts/vincode-lab-bridge'

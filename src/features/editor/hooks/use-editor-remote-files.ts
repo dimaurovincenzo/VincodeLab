@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import type { RemoteTrackedFile } from '@/bridge'
 import { toast } from '@/components/ui'
 import { editorBridge } from '../api/editor.bridge'
 import { reportEditorFailure } from '../services/editor-error'

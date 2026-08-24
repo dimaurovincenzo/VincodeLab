@@ -1,4 +1,5 @@
 import { ChevronRight, Pencil, Play, Plus, Trash2, X } from 'lucide-react'
+import type { WorkspaceCommandKind } from '@/bridge'
 import { Button, Collapsible, Dialog, ErrorNotice, Field, IconButton, SegmentGroup, SelectField, Spinner, Splitter, type SplitterPanelData } from '@/components/ui'
 import type { RefObject } from 'react'
 import type { TerminalSessionUiStatus } from '../model/terminal-session'

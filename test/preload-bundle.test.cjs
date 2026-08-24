@@ -126,6 +126,43 @@ test('il bundle conserva superficie, argomenti IPC e flag benchmark condizionali
     'createProjectDraft',
     'archiveProjectItem',
   ])
+  assert.deepEqual(Array.from(Object.keys(api.workspaceCommands)), [
+    'list',
+    'createCategory',
+    'updateCategory',
+    'deleteCategory',
+    'create',
+    'update',
+    'move',
+    'delete',
+    'run',
+  ])
+  assert.deepEqual(Array.from(Object.keys(api.managedSsh)), [
+    'list',
+    'check',
+    'disconnect',
+    'onStatus',
+  ])
+  assert.deepEqual(Array.from(Object.keys(api.remoteFiles)), [
+    'browse',
+    'downloadAndTrack',
+    'downloadAs',
+    'read',
+    'preview',
+    'saveLocal',
+    'compare',
+    'upload',
+    'chooseAndUpload',
+    'cancelTransfer',
+    'createDirectory',
+    'rename',
+    'remove',
+    'discard',
+    'listTracked',
+    'revealLocal',
+    'cleanup',
+    'onTransfer',
+  ])
   assert.deepEqual(Array.from(Object.keys(api.database)), [
     'listConnections',
     'createConnection',

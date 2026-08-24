@@ -4,6 +4,13 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
+import type {
+  ManagedSshConnection,
+  RemoteEntry,
+  RemoteTrackedFile,
+  RemoteTransfer,
+  WorkspaceCommand,
+} from '@/bridge'
 import { RemoteFiles } from '@/features/remote-files'
 
 const connection: ManagedSshConnection = {

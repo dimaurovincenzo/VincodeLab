@@ -1,3 +1,5 @@
+import type { RemoteTrackedFile } from '@/bridge'
+
 export function formatRemoteFileSize(bytes: number | null) {
   if (bytes === null) return '—'
   if (bytes < 1_024) return `${bytes} B`

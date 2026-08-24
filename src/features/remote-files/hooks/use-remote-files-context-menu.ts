@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import type { RemoteEntry, RemoteTrackedFile, RemoteTransfer } from '@/bridge'
 import { remoteFilesBridge } from '../api/remote-files.bridge'
 import type { RemoteFilesContextAction } from '../model/remote-files.types'
 

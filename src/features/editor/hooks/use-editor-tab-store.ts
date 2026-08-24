@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { RemoteCompareResult, RemoteTrackedFile } from '@/bridge'
 import type { ConfirmationRequest } from '@/components/confirmation-dialog'
 import type { EditorAutoSaveTimer, EditorFailure, EditorFileConflict } from '../model/editor-runtime.types'
 import type { EditorTab } from '../model/editor.types'

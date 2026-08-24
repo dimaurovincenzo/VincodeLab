@@ -1,4 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
+import type {
+  ManagedSshConnection,
+  RemoteEntry,
+  RemoteTrackedFile,
+  RemoteTransfer,
+  WorkspaceCommand,
+} from '@/bridge'
 import { createListCollection } from '@/components/ui'
 import type { ConfirmationRequest } from '@/components/confirmation-dialog'
 import { createRemoteTransferRetryController } from '../model/remote-transfer-retry'
