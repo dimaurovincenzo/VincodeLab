@@ -50,7 +50,8 @@ I messaggi di commit dovrebbero essere imperativi e leggibili; il progetto usa c
 | `electron/infrastructure/` | adapter | CLI, cache, driver e integrazioni che implementano capacità del dominio |
 | `electron/ipc/domains/` | boundary IPC | manifesti di canale e handler con dipendenze iniettate |
 | `electron/preload/` | boundary preload | sorgenti canoniche dei bridge esposti al renderer |
-| `electron/main.cjs`, `electron/app/bootstrap.cjs` | composition root | wiring, lifecycle Electron e bootstrap protetto |
+| `electron/main.cjs` | composition root | wiring delle istanze, registrazione IPC e lifecycle Electron |
+| `electron/app/bootstrap.cjs` | entrypoint protetto | guardia fatal installata prima del caricamento del main e dei moduli nativi |
 
 La radice `electron/` è riservata a `main.cjs` e all'artefatto `preload.cjs` generato. Non aggiungere servizi o facciate compatibili in questa cartella e non ricreare i path rimossi: aggiorna test e import verso l'owner canonico.
 
@@ -67,7 +68,7 @@ IPC               → dipendenze iniettate dal main
 preload            → soli moduli electron/preload/ e pacchetto electron
 ```
 
-`npm run check:architecture` impedisce import profondi cross-feature, accessi profondi a UI/bridge, dipendenze inverse, path legacy rimossi, accessi diretti a `window.vincodeLab` e cicli interni.
+`npm run check:architecture` impedisce import profondi cross-feature, accessi profondi a UI/bridge, dipendenze inverse, path legacy rimossi, accessi a `window.vincodeLab` fuori da `src/bridge/` e cicli interni.
 
 ### Confine Electron
 
@@ -121,7 +122,7 @@ preload            → soli moduli electron/preload/ e pacchetto electron
 6. Aggiungi test del dominio/adapter, del registrar (guardie, argomenti, return, errori e cancellazione), della parità dei canali e della superficie preload.
 7. Esegui almeno `npm run build:preload`, `npm run check:preload`, i test mirati, `npm run check:architecture` e `git diff --check`. Per capacità native verifica anche il percorso reale in Electron.
 
-Per capacità remote o paginate aggiungi test che provino: zero chiamate remote al mount e alla selezione, anche in StrictMode; una sola chiamata dopo l'azione esplicita; validazione di `offset` e `limit`; coerenza di `hasMore` e `nextOffset`; merge e deduplicazione delle pagine; conservazione dei risultati già caricati se una pagina successiva fallisce.
+Per capacità remote o paginate aggiungi test che provino: zero chiamate remote al mount e alla selezione, anche in StrictMode; una sola chiamata dopo l'azione esplicita; validazione di `offset` e `limit`; coerenza di `hasMore` e `nextOffset`; merge e deduplicazione delle pagine; avanzamento automatico bounded; annullamento su disconnessione; conservazione dei risultati già caricati se una pagina successiva fallisce; retry esplicito soltanto dopo un'interruzione.
 
 ## Test e controlli
 
@@ -132,7 +133,7 @@ npm run check
 git diff --check
 ```
 
-`npm run check` esegue in sequenza controllo del repository, lint, audit CSS, test, type-check e build.
+`npm run check` esegue in sequenza controllo del repository, controllo architetturale, parità del preload, lint, audit CSS, test Node, test dei componenti e infine type-check con build.
 
 Usa inoltre i controlli mirati quando tocchi aree sensibili:
 

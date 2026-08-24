@@ -9,7 +9,7 @@ Ogni istanza Electron di VincodeLab gestisce una finestra e un workspace attivo.
 | Renderer | `src/app/`, `src/features/`, `src/bridge/`, `src/components/`, `src/lib/` | Composizione React, capacità verticali, confine Electron e codice condiviso |
 | Design system | `src/components/ui/`, `src/theme/`, `panda.config.ts` | Primitive Ark UI, componenti Park-style, token e recipe Graphite |
 | Preload | `electron/preload/` → `electron/preload.cjs` | Sorgenti canoniche dell'API `window.vincodeLab` e artefatto runtime generato |
-| Processo principale | `electron/app/`, `electron/domains/`, `electron/infrastructure/`, `electron/ipc/`, `electron/main.cjs` | Composition root, lifecycle, use case, adapter e boundary IPC |
+| Processo principale | `electron/main.cjs`, `electron/app/`, `electron/domains/`, `electron/infrastructure/`, `electron/ipc/` | Composition root unica, lifecycle, use case, adapter e boundary IPC |
 | Persistenza | `electron/infrastructure/persistence/` | Repository SQLite, preferenze e metadati per workspace |
 | Verifica | `test/`, `scripts/` | Test di contratto/componenti, benchmark, stress e smoke del bundle |
 
@@ -22,8 +22,8 @@ contenuto del workspace
           │
           ▼
  React renderer (sandbox, nessun Node.js)
-          │ src/bridge
-          │ window.vincodeLab
+          │ feature/app → ingresso pubblico @/bridge
+          │ src/bridge → window.vincodeLab
           ▼
  preload / contextBridge
           │ IPC nominato
@@ -54,7 +54,8 @@ src/main.tsx
 
 feature ──► API pubblica di altre feature, src/bridge, components/ui, theme, lib
 
-electron/main.cjs e app/bootstrap.cjs    composition root
+electron/app/bootstrap.cjs              entrypoint e guardia fatal
+    └── electron/main.cjs                composition root unica
     ├── electron/app                     orchestrazione applicativa
     ├── electron/ipc/domains             adapter IPC con dipendenze iniettate
     ├── electron/infrastructure ────────► electron/domains
@@ -65,7 +66,7 @@ electron/preload/ ──bundle deterministico──► electron/preload.cjs ─�
 
 Ogni feature espone un ingresso pubblico `index.ts`; tutti i consumer esterni, compreso `src/app`, devono usarlo. Lo stesso vale per `@/components/ui` e `@/bridge`. Una feature non dipende dalla composition root renderer, i componenti condivisi non dipendono da feature e il tema non dipende dalla UI. Il renderer non importa moduli Electron.
 
-Nel backend `electron/main.cjs` e `electron/app/bootstrap.cjs` sono gli unici composition root. Gli altri moduli application e i domini non dipendono dagli adapter; infrastructure implementa le porte concrete e i registrar IPC ricevono i collaboratori dal main. La radice `electron/` è riservata alla composition root e all'artefatto preload generato. Il preload è un confine isolato e può importare soltanto altri moduli canonici sotto `electron/preload/` oltre al pacchetto `electron`.
+Nel backend `electron/main.cjs` è l'unica composition root: crea le istanze, collega porte e adapter, registra gli handler IPC e governa il lifecycle Electron. `electron/app/bootstrap.cjs` è invece l'entrypoint protetto che installa la guardia fatal prima di caricare il main e i moduli nativi; non compone servizi applicativi. Gli altri moduli application e i domini non dipendono dagli adapter; infrastructure implementa le porte concrete e i registrar IPC ricevono i collaboratori dal main. La radice `electron/` è riservata alla composition root e all'artefatto preload generato. Il preload è un confine isolato e può importare soltanto altri moduli canonici sotto `electron/preload/` oltre al pacchetto `electron`.
 
 I template dei menu restano trasformazioni pure sotto `electron/domains/menu/`. Il routing dei comandi contestuali appartiene invece all'application layer in `electron/app/context-command-runtime.cjs`; clipboard, dialog, Finder e l'esecuzione bounded di `/usr/bin/open` sono confinati dall'adapter `electron/infrastructure/menu/context-command-host.adapter.cjs` e collegati esclusivamente dalla composition root.
 
@@ -74,6 +75,21 @@ I template dei menu restano trasformazioni pure sotto `electron/domains/menu/`. 
 I registratori in `electron/ipc/domains/` dichiarano manifesti invoke/send, ricevono dipendenze dalla composition root e lasciano alla boundary IPC globale la trasformazione degli errori. Le sorgenti preload sono modulari; `scripts/build-preload.mjs` genera deterministicamente `electron/preload.cjs`, mentre `npm run check:preload` impedisce drift dell'artefatto senza ridurre `sandbox` o `contextIsolation`.
 
 L'apertura di un workspace in una nuova istanza è coordinata dal caso d'uso `electron/domains/workspace/workspace-instance-use-cases.cjs`. Il lock di lancio, la validazione e il mapping dei failure rimangono privati al dominio; l'handler Workspace verifica il sender e delega, senza possedere stato di processo.
+
+### Eccezioni dimensionali sorvegliate
+
+La dimensione non costituisce da sola un errore architetturale. I file seguenti superano la soglia ordinaria perché concentrano registri dichiarativi o una singola macchina a stati/orchestrazione; i controlli architetturali continuano a impedirne l'espansione verso responsabilità di dominio estranee.
+
+| File | Motivo dell'eccezione | Confine da preservare |
+| --- | --- | --- |
+| `electron/main.cjs` | wiring dichiarativo e lifecycle dell'intera applicazione | resta l'unica composition root; nessuna policy di dominio o implementazione di driver |
+| `src/theme/recipes.ts` | registro centrale delle recipe Panda Graphite | sole definizioni dichiarative del design system; nessuna logica di feature |
+| `electron/ipc/channels.cjs` | registro versionato e dichiarativo dei canali IPC | soli identificatori e raggruppamenti; handler e policy restano nei moduli proprietari |
+| `electron/domains/ai/pi-session-controller.cjs` | macchina a stati serializzata e coesa della sessione AI | solo lifecycle della sessione; discovery degli eseguibili e I/O restano negli adapter |
+| `scripts/smoke-packaged-macos.mjs` | orchestrazione end-to-end di Electron, CDP e lifecycle del bundle | fixture, supporto processi e scenari riusabili restano nei moduli privati estratti |
+| `scripts/lib/architecture-check.mjs` | motore AST che applica tutte le regole al medesimo grafo | policy e configurazione restano in `architecture-policy.mjs`; il motore non incorpora eccezioni di prodotto ad hoc |
+
+Queste eccezioni sono intenzionali ma non permanenti per definizione: una nuova responsabilità indipendente va estratta e ogni crescita significativa deve essere motivata nella pull request.
 
 ## Domini applicativi
 
@@ -101,7 +117,7 @@ Il controller PTY possiede sempre un solo processo client. In modalità Herdr qu
 
 ### Editor e filesystem
 
-`src/features/editor/components/project-editor.tsx` coordina lifecycle React e CodeMirror. Tipi, trasformazioni pure, routing dei comandi e accesso al preload risiedono nella stessa feature, separati per responsabilità. Le operazioni reali sui file passano da `electron/domains/filesystem/project-files.cjs`, che risolve gli identificatori rispetto al workspace. Anteprime binarie e allegati applicano limiti di dimensione prima di raggiungere il renderer o Pi.
+`src/features/editor/components/project-editor.tsx` coordina lifecycle React e CodeMirror. Tipi, trasformazioni pure, routing dei comandi e accesso al preload risiedono nella stessa feature, separati per responsabilità. `electron/domains/filesystem/project-files.cjs` espone le factory dei casi d'uso e conserva validazione, policy di accesso e semantica delle operazioni; risoluzione dei percorsi, verifiche host e I/O appartengono invece agli adapter e ai servizi `electron/infrastructure/filesystem/` iniettati dal main. Anteprime binarie e allegati applicano limiti di dimensione prima di raggiungere il renderer o Pi.
 
 ### Impostazioni
 
@@ -109,7 +125,7 @@ Il controller della vista, il modello puro, i tipi di dominio, l'input numerico 
 
 ### Git e GitHub
 
-Il dominio GitHub vive in `electron/domains/github/`; gli adapter per GitHub CLI, cache e servizio composto vivono in `electron/infrastructure/github/`. L'area usa esclusivamente il repository associato al workspace attivo. Registri dedicati gestiscono annullamento e appartenenza delle operazioni lunghe.
+Il dominio GitHub vive in `electron/domains/github/`; `electron/main.cjs` compone esplicitamente `github-use-cases.cjs` con il collaboratore di dominio per GitHub Projects e con gli adapter per CLI e cache forniti da `electron/infrastructure/github/`. Non esiste un servizio composto o un default singleton nell'infrastruttura. L'area usa esclusivamente il repository associato al workspace attivo. Registri dedicati gestiscono annullamento e appartenenza delle operazioni lunghe.
 
 Nel renderer `src/features/git/` espone soltanto le operazioni sul repository locale, mentre `src/features/github/` possiede il controller canonico di repository remoti, issue e Projects. Ricerca, conteggi, gerarchia e copy dei limiti sono funzioni pure nel model; i feedback presentazionali riusabili sono separati dal controller. I due adapter risolvono il bridge Electron al momento di ogni invocazione e impediscono alla UI di dipendere direttamente da `window.vincodeLab`; questa separazione resta valida anche finché il preload mantiene entrambe le capacità nello stesso namespace storico `github`.
 
@@ -119,7 +135,7 @@ Nel renderer `src/features/git/` espone soltanto le operazioni sul repository lo
 
 L'ingresso nella sezione e il ripristino del profilo selezionato leggono soltanto metadati locali. La rete o il file database vengono aperti esclusivamente con l'azione **Connetti**: navigazione, mount e selezione non costituiscono autorizzazione implicita a collegarsi.
 
-Il contratto comune in `electron/domains/database/database-service.cjs` normalizza SQLite, PostgreSQL, MySQL e SQL Server. Le sessioni e le operazioni attive appartengono al main; il renderer riceve schemi e risultati sottoposti a budget. Le mutazioni della griglia avvengono in una transazione esplicita.
+Il contratto comune in `electron/domains/database/database-service.cjs` normalizza SQLite, PostgreSQL, MySQL e SQL Server. `electron/main.cjs` possiede la composizione dell'istanza di servizio e le inietta persistenza, worker SQLite e porta dei driver; cache schema e runtime restano privati all'istanza, mentre ogni runtime possiede i propri registri di sessione. Il renderer riceve schemi e risultati sottoposti a budget. Le mutazioni della griglia avvengono in una transazione esplicita.
 
 L'esecuzione streaming dei database remoti attraversa la porta `electron/domains/database/database-driver.port.cjs`. L'adapter `electron/infrastructure/database/node-database-driver.adapter.cjs` possiede Query e Request dei vendor, eventi, timeout, parametri e cancellazione; il dominio conserva invece coda per sessione, budget progressivo, invalidazione del lifecycle e mapping degli errori pubblici. Le factory Query/Request specifiche dei vendor non fanno parte della porta pubblica e un ratchet architetturale ne impedisce il ritorno nel dominio.
 
@@ -129,13 +145,13 @@ L'apertura remota usa `openRemoteSession` con una configurazione neutrale già v
 
 La porta restituisce un handle opaco, privo di proprietà pubbliche. Il node adapter conserva in un `WeakMap` privato l'associazione tra handle e client vendor e possiede l'intero protocollo remoto: query e transazioni sulla stessa connessione, sottoscrizione a `error`/`end`/`close`, chiusura ordinata e fallback forzato. Il dominio non accede a `client`, socket, stream o metodi di lifecycle dei driver; conserva invece single-flight, coda per sessione, stato transazionale, classificazione dei failure e deadline bounded del cleanup. Un ratchet AST preserva il protocollo opaco lasciando esplicitamente ammessi soltanto i `close` SQLite e del registry neutrale.
 
-Gli schemi grandi sono caricati in modo incrementale. `inspectSchema({ offset, limit, force })` restituisce `tables`, `routines`, `hasMore` e `nextOffset`; offset e limite si applicano separatamente a tabelle e routine e vengono imposti nel driver prima della materializzazione. Le pagine già ricevute vengono unite e deduplicate nel renderer. L'apertura di una tabella non presente nella cache usa un lookup puntuale invece di caricare l'intero catalogo.
+Gli schemi grandi sono caricati in modo incrementale e automatico dopo **Connetti**. `inspectSchema({ offset, limit, force })` restituisce `tables`, `routines`, `hasMore` e `nextOffset`; offset e limite si applicano separatamente a tabelle e routine e vengono imposti nel driver prima della materializzazione. Il renderer unisce e deduplica ogni pagina, conserva le risorse già ricevute e mostra l'avanzamento finché il catalogo è completo. **Disconnetti** annulla il caricamento in corso; un'azione manuale di retry compare soltanto se l'avanzamento viene interrotto da un errore. L'apertura di una tabella non presente nella cache usa un lookup puntuale invece di caricare l'intero catalogo.
 
 SQLite usa `electron/infrastructure/database/sqlite-worker-session.adapter.cjs`, iniettato nel servizio di dominio dalla composition root. Il worker dedicato mantiene query e cancellazione fuori dal processo principale senza invertire la direzione delle dipendenze.
 
 ### Redis
 
-`electron/domains/redis/redis-service.cjs` compone i casi d’uso senza caricare dipendenze concrete: `redis-session-runtime.cjs` possiede apertura, riuso, invalidazione e chiusura bounded delle sessioni; `redis-read-service.cjs` possiede SCAN e inspector; `redis-search-service.cjs` possiede la ricerca progressiva nei payload. Il client concreto `node-redis`, incluso nel pacchetto, è confinato in `electron/infrastructure/redis/node-redis-client.adapter.cjs` e viene iniettato dalla composition root. L’installazione non dipende quindi da `redis-cli`, Node.js o npm di sistema. Sono supportate connessioni Standalone e Sentinel con discovery e failover del master gestiti dal client nativo. Le credenziali del data node e quelle opzionali di Sentinel sono separate, cifrate con `safeStorage` e non tornano nel renderer.
+`electron/main.cjs` compone un'istanza di `electron/domains/redis/redis-service.cjs` iniettando persistenza e client concreti; il servizio non esporta configuratori mutabili né un'istanza predefinita. Nell'istanza, `redis-session-runtime.cjs` possiede apertura, riuso, invalidazione e chiusura bounded delle sessioni; `redis-read-service.cjs` possiede SCAN e inspector; `redis-search-service.cjs` possiede la ricerca progressiva nei payload. Il client concreto `node-redis`, incluso nel pacchetto, è confinato in `electron/infrastructure/redis/node-redis-client.adapter.cjs`. L’installazione non dipende quindi da `redis-cli`, Node.js o npm di sistema. Sono supportate connessioni Standalone e Sentinel con discovery e failover del master gestiti dal client nativo. Le credenziali del data node e quelle opzionali di Sentinel sono separate, cifrate con `safeStorage` e non tornano nel renderer.
 
 Anche Redis segue un lifecycle passivo: mount della vista, navigazione e ripristino dell'identificatore persistito non aprono sessioni e non eseguono `SCAN`. **Connetti** è l'unico trigger della prima connessione e scansione. L'identificatore salvato rappresenta una preferenza locale, non un consenso permanente ad accedere alla rete.
 

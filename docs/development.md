@@ -8,7 +8,7 @@
 - Git;
 - strumenti da riga di comando Xcode se i moduli nativi devono essere compilati localmente.
 
-Pi Coding Agent, GitHub CLI, OpenSSH, server database e server Redis sono opzionali: servono soltanto per sviluppare o collaudare le relative integrazioni. Il pacchetto include il client Redis applicativo e non richiede `redis-cli` sulla macchina dell'utente.
+Herdr, Pi Coding Agent, GitHub CLI, OpenSSH, server database e server Redis sono opzionali: servono soltanto per sviluppare o collaudare le relative integrazioni. Il pacchetto include il client Redis applicativo e non richiede `redis-cli` sulla macchina dell'utente.
 
 Verifica l'ambiente prima dell'installazione:
 
@@ -46,7 +46,7 @@ Chiudendo uno dei due processi, `concurrently` arresta anche l'altro. `npm start
 | Comando | Scopo |
 | --- | --- |
 | `npm run dev` | Renderer Vite ed Electron in sviluppo |
-| `npm run check` | Gate completo: repository, architettura, lint, CSS, test e build |
+| `npm run check` | Gate completo: repository, architettura, preload, lint, CSS, test Node/componenti e build |
 | `npm run check:repo` | Percorsi locali, artefatti, segreti evidenti e link Markdown |
 | `npm run check:architecture` | Confini dei moduli, accessi al bridge e dipendenze circolari |
 | `npm run build:preload` | Genera l'artefatto runtime dalle sorgenti preload canoniche |
@@ -70,21 +70,22 @@ Quando modifichi una delle due aree, verifica anche il lifecycle di rete:
 
 1. entrando nella sezione e cambiando profilo non deve partire traffico remoto;
 2. **Connetti** deve aprire una sola sessione, anche con React StrictMode;
-3. uno schema grande deve mostrare la prima pagina bounded e permettere **Carica altre risorse**;
-4. se una pagina successiva fallisce, le risorse già caricate devono rimanere disponibili;
-5. cambiando sezione e tornando indietro non deve partire una nuova connessione implicita.
+3. uno schema Database grande deve caricare automaticamente tutte le pagine bounded e mostrare un avanzamento visibile;
+4. **Disconnetti** deve annullare il caricamento progressivo senza perdere le risorse già ricevute;
+5. se una pagina successiva fallisce, le risorse già caricate devono rimanere disponibili e il retry manuale deve comparire soltanto dopo l'interruzione;
+6. cambiando sezione e tornando indietro non deve partire una nuova connessione implicita.
 
 ## Struttura del repository
 
 ```text
 electron/
-  app/                    bootstrap protetto, lifecycle e orchestrazione applicativa
+  app/                    entrypoint protetto, lifecycle e orchestrazione applicativa
   domains/                policy, modelli e use case del processo principale
   infrastructure/         adapter CLI, cache, driver e boundary tecniche
   ipc/domains/            registratori IPC per dominio con dipendenze iniettate
   preload/                sorgenti canoniche dei bridge context-isolated
   preload.cjs             artefatto runtime generato; non modificare
-  main.cjs                composition root e wiring Electron
+  main.cjs                unica composition root e wiring Electron
 src/
   app/                    composizione, provider, layout e stato della shell
   features/<nome>/        capacità verticali con API pubblica index.ts
@@ -108,7 +109,7 @@ vite.config.ts            build e Content Security Policy del renderer
 
 Artefatti locali come `node_modules/`, `styled-system/`, `dist/` e `release/` sono ignorati da Git.
 
-La radice `electron/` contiene soltanto la composition root e l'artefatto preload generato; servizi, repository e adapter devono entrare nel dominio o livello proprietario. Gli owner renderer non mantengono path alternativi. Non importare file interni di un'altra feature: usa il relativo `index.ts`; importa design system e bridge soltanto da `@/components/ui` e `@/bridge`.
+La radice `electron/` contiene soltanto la composition root `main.cjs` e l'artefatto preload generato; `electron/app/bootstrap.cjs` è l'entrypoint con guardia fatal, non una seconda composition root. Servizi, repository e adapter devono entrare nel dominio o livello proprietario. Gli owner renderer non mantengono path alternativi. Non importare file interni di un'altra feature: usa il relativo `index.ts`; importa design system e bridge soltanto da `@/components/ui` e `@/bridge`.
 
 Gli accessi diretti a `window.vincodeLab` sono confinati a `src/bridge/`. Il controllo architetturale blocca anche dipendenze inverse, deep import, path legacy rimossi e cicli; non aggirarlo con facciate o re-export fuori dall'owner.
 

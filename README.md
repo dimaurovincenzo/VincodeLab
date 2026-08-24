@@ -95,7 +95,7 @@ Esegui il gate completo prima di proporre una modifica:
 npm run check
 ```
 
-Il comando controlla l'igiene del repository, lint, design system, test, type-check e build di produzione.
+Il comando esegue, nell'ordine, igiene del repository, regole architetturali, parità del preload, lint, audit CSS, test Node, test dei componenti e infine type-check con build di produzione.
 
 Per creare localmente `.app`, DMG e ZIP macOS:
 
@@ -109,7 +109,7 @@ Il pacchetto prodotto è intenzionalmente **non firmato** (`build.mac.identity` 
 
 ```text
 React renderer
-      │ API window.vincodeLab
+      │ @/bridge (unico accesso a window.vincodeLab)
       ▼
 preload isolato ── IPC validato ──► Electron main
                                       ├─ filesystem e workspace
@@ -118,7 +118,7 @@ preload isolato ── IPC validato ──► Electron main
                                       └─ database, Redis e persistenza locale
 ```
 
-- Il renderer è TypeScript/React e non accede direttamente a Node.js.
+- Il renderer è TypeScript/React, non accede direttamente a Node.js e usa `window.vincodeLab` esclusivamente attraverso l'ingresso pubblico `@/bridge` (`src/bridge/`).
 - Il preload espone una superficie nominata tramite `contextBridge`.
 - Il processo principale valida il mittente e gli argomenti prima delle operazioni privilegiate.
 - Dati applicativi e log restano nelle directory utente di Electron; le password database e Redis vengono protette con `safeStorage` quando disponibile.
