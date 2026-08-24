@@ -296,13 +296,14 @@ const {
 
 const shellSessionRuntime = createShellSessionRuntime({
   canonicalizeWorkspace: shellHost.canonicalizeWorkspace,
+  deliverData: (payload) => sendToRenderer(IPC_CHANNELS.SHELL_SESSIONS_DATA, payload),
+  deliverExit: (payload) => sendToRenderer(IPC_CHANNELS.SHELL_SESSIONS_EXIT, payload),
   getActiveWorkspacePath: () => activeWorkspacePath,
   getEnvironment: shellHost.getEnvironment,
   getExecutable: shellHost.getExecutable,
   isProcessAlive: shellHost.isProcessAlive,
   log,
   processFactory: (executable, args, options) => ptyRuntime.spawn(executable, args, options),
-  sendToRenderer,
 })
 const shellSessionManager = shellSessionRuntime.manager
 const closeShellSessions = shellSessionRuntime.closeSessions

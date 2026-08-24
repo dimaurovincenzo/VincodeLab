@@ -3,7 +3,6 @@ const test = require('node:test')
 
 const { isApplicationError } = require('../electron/domains/errors/application-error.cjs')
 const {
-  SHELL_SESSION_ERROR_CHANNEL,
   createShellSessionErrorEvent,
   reportShellSessionOneWayFailure,
 } = require('../electron/domains/shell/shell-session-error-event.cjs')
@@ -41,7 +40,7 @@ test('write e resize producono eventi locali sanitizzati con recovery distinta',
         operation: fixture.operation,
         sessionId: SESSION_ID,
         log: (...entry) => logs.push(entry),
-        send: (...entry) => deliveries.push(entry),
+        send: (payload) => deliveries.push(payload),
       })
 
       assert.equal(isApplicationError(result.incident), true)
@@ -55,7 +54,7 @@ test('write e resize producono eventi locali sanitizzati con recovery distinta',
       assert.equal(result.payload.error.correlationId, result.incident.correlationId)
       assert.match(result.payload.error.message, fixture.message)
       assert.match(result.payload.error.message, new RegExp(`\\[${fixture.code}\\] \\[ERR-[A-F0-9]{6}\\]$`))
-      assert.deepEqual(deliveries, [[SHELL_SESSION_ERROR_CHANNEL, result.payload]])
+      assert.deepEqual(deliveries, [result.payload])
       assert.equal(logs.length, 1)
       assert.equal(logs[0][0], result.incident.severity)
       assert.equal(logs[0][1], 'shell_session_one_way_failed')
@@ -101,7 +100,7 @@ test('un sessionId non valido viene registrato ma non attraversa IPC', () => {
     operation: 'write',
     sessionId: unsafeSessionId,
     log: (...entry) => logs.push(entry),
-    send: (...entry) => deliveries.push(entry),
+    send: (payload) => deliveries.push(payload),
   })
 
   assert.equal(result.payload, null)

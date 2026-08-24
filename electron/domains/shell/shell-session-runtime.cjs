@@ -1,9 +1,10 @@
-const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
 const { createShellSessionManager } = require('./shell-session-manager.cjs')
 const { reportShellSessionOneWayFailure } = require('./shell-session-error-event.cjs')
 
 function createShellSessionRuntime({
   canonicalizeWorkspace,
+  deliverData,
+  deliverExit,
   getActiveWorkspacePath,
   getEnvironment,
   getExecutable,
@@ -11,7 +12,6 @@ function createShellSessionRuntime({
   log,
   managerFactory = createShellSessionManager,
   processFactory,
-  sendToRenderer,
 }) {
   let manager
 
@@ -27,32 +27,32 @@ function createShellSessionRuntime({
     }
   }
 
-  function handleData(event) {
+  function handleData(sessionEvent) {
     const state = activeState()
-    if (!state || state.workspacePath !== event.workspacePath) return
-    sendToRenderer(IPC_CHANNELS.SHELL_SESSIONS_DATA, {
-      sessionId: event.sessionId,
-      attachmentId: event.attachmentId,
-      generation: event.generation,
-      sequence: event.sequence,
-      data: event.data,
+    if (!state || state.workspacePath !== sessionEvent.workspacePath) return
+    deliverData({
+      sessionId: sessionEvent.sessionId,
+      attachmentId: sessionEvent.attachmentId,
+      generation: sessionEvent.generation,
+      sequence: sessionEvent.sequence,
+      data: sessionEvent.data,
     })
   }
 
-  function handleExit(event) {
+  function handleExit(sessionEvent) {
     const state = activeState()
-    if (!state || state.workspacePath !== event.workspacePath) return
-    sendToRenderer(IPC_CHANNELS.SHELL_SESSIONS_EXIT, {
-      sessionId: event.sessionId,
-      exitCode: event.exitCode,
-      signal: event.signal,
-      reason: event.reason,
+    if (!state || state.workspacePath !== sessionEvent.workspacePath) return
+    deliverExit({
+      sessionId: sessionEvent.sessionId,
+      exitCode: sessionEvent.exitCode,
+      signal: sessionEvent.signal,
+      reason: sessionEvent.reason,
     })
-    log(event.reason === 'exit' && (event.exitCode !== 0 || event.signal) ? 'error' : 'info', 'shell_session_exited', {
-      sessionId: event.sessionId,
-      reason: event.reason,
-      exitCode: event.exitCode,
-      signal: event.signal,
+    log(sessionEvent.reason === 'exit' && (sessionEvent.exitCode !== 0 || sessionEvent.signal) ? 'error' : 'info', 'shell_session_exited', {
+      sessionId: sessionEvent.sessionId,
+      reason: sessionEvent.reason,
+      exitCode: sessionEvent.exitCode,
+      signal: sessionEvent.signal,
     })
   }
 
@@ -66,7 +66,7 @@ function createShellSessionRuntime({
     onExit: handleExit,
   })
 
-  function handleOneWay(event, sessionId, operation, perform) {
+  function handleOneWay(sessionId, operation, perform, deliverFailure) {
     try {
       const result = perform()
       if (result === false) {
@@ -81,9 +81,7 @@ function createShellSessionRuntime({
         log,
         operation,
         sessionId,
-        send: (channel, payload) => {
-          if (!event.sender.isDestroyed()) event.sender.send(channel, payload)
-        },
+        send: deliverFailure,
       })
       return undefined
     }

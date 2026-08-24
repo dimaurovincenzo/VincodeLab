@@ -16,7 +16,8 @@ const {
 const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
 const applicationShutdownRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-shutdown-runtime.cjs'), 'utf8')
 const preload = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8'))
-const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
+const bridgeTypes = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
+const shellSessionTypes = fs.readFileSync(path.join(__dirname, '../src/bridge/contracts/shell-sessions.types.ts'), 'utf8')
 
 function createHarness(overrides = {}) {
   const calls = []
@@ -38,8 +39,8 @@ function createHarness(overrides = {}) {
   }
   const dependencies = {
     assertTrustedSender: (event) => calls.push(['guard', event]),
-    handleShellSessionOneWay: (event, sessionId, operation, perform) => {
-      calls.push(['one-way', event, sessionId, operation])
+    handleShellSessionOneWay: (sessionId, operation, perform, deliverFailure) => {
+      calls.push(['one-way', sessionId, operation, deliverFailure])
       return perform()
     },
     requireActiveWorkspace: () => '/workspace',
@@ -107,7 +108,7 @@ test('i listener one-way restano confinati e inoltrano solo la sessione richiest
   listeners.get('shellSessions:write')(event, 'session-1', 'pwd\r')
   listeners.get('shellSessions:resize')(event, 'session-1', dimensions)
 
-  assert.deepEqual(calls.filter(([type]) => type === 'one-way').map((entry) => entry.slice(2)), [
+  assert.deepEqual(calls.filter(([type]) => type === 'one-way').map((entry) => entry.slice(1, 3)), [
     ['session-1', 'ready'],
     ['session-1', 'ack'],
     ['session-1', 'disconnect'],
@@ -119,6 +120,33 @@ test('i listener one-way restano confinati e inoltrano solo la sessione richiest
   assert.deepEqual(calls.find(([type]) => type === 'disconnect'), ['disconnect', '/workspace', 'session-1', message])
   assert.deepEqual(calls.find(([type]) => type === 'write'), ['write', '/workspace', 'session-1', 'pwd\r'])
   assert.deepEqual(calls.find(([type]) => type === 'resize'), ['resize', '/workspace', 'session-1', dimensions])
+})
+
+test('il listener IPC possiede sender e canale mentre il dominio riceve solo deliverFailure', () => {
+  const sent = []
+  const failure = Object.freeze({ sessionId: 'session-1', operation: 'write' })
+  let domainArguments
+  const { listeners } = createHarness({
+    handleShellSessionOneWay: (...args) => {
+      domainArguments = args
+      args[3](failure)
+    },
+  })
+  const event = {
+    sender: {
+      isDestroyed: () => false,
+      send: (...entry) => sent.push(entry),
+    },
+  }
+
+  listeners.get('shellSessions:write')(event, 'session-1', 'pwd\r')
+
+  assert.equal(domainArguments[0], 'session-1')
+  assert.equal(domainArguments[1], 'write')
+  assert.equal(typeof domainArguments[2], 'function')
+  assert.equal(typeof domainArguments[3], 'function')
+  assert.equal(domainArguments.includes(event), false)
+  assert.deepEqual(sent, [['shellSessions:error', failure]])
 })
 
 test('un sender rifiutato non raggiunge manager o confine operativo', () => {
@@ -146,37 +174,45 @@ test('il preload espone sessioni tipizzate senza accettare un workspace path', (
   assert.match(surface, /ipcRenderer\.on\('shellSessions:exit'/)
   assert.match(surface, /ipcRenderer\.on\('shellSessions:error'/)
   assert.doesNotMatch(surface, /workspacePath|node:|require\(/)
-  assert.match(types, /shellSessions: \{[\s\S]*list: \(\) => Promise<ShellSessionList>[\s\S]*create: \(\) => Promise<ShellSessionMetadata>/)
-  assert.match(types, /resume: \(sessionId: string\) => Promise<ShellSessionResumeSnapshot>/)
-  assert.match(types, /interface ShellSessionDataEvent \{[\s\S]*attachmentId: string[\s\S]*generation: number[\s\S]*sequence: number/)
-  assert.match(types, /interface ShellSessionResumeSnapshot \{[\s\S]*attachmentId: string[\s\S]*watermark: number[\s\S]*truncated: boolean/)
-  assert.match(types, /ready: \(sessionId: string, message: ShellSessionRendererReady\) => void/)
-  assert.match(types, /ack: \(sessionId: string, message: ShellSessionOutputAck\) => void/)
-  assert.match(types, /disconnect: \(sessionId: string, message: \{ attachmentId: string; generation: number \}\) => void/)
-  assert.match(types, /onData: \(listener: \(event: ShellSessionDataEvent\)/)
-  assert.match(types, /onExit: \(listener: \(event: ShellSessionExitEvent\)/)
-  assert.match(types, /interface ShellSessionErrorEvent \{[\s\S]*sessionId: string[\s\S]*operation: ShellSessionOneWayOperation[\s\S]*correlationId: string[\s\S]*message: string/)
-  assert.match(types, /onError: \(listener: \(event: ShellSessionErrorEvent\)/)
+  assert.match(shellSessionTypes, /export type ShellSessionsApi = \{[\s\S]*list: \(\) => Promise<ShellSessionList>[\s\S]*create: \(\) => Promise<ShellSessionMetadata>/)
+  assert.match(shellSessionTypes, /resume: \(sessionId: string\) => Promise<ShellSessionResumeSnapshot>/)
+  assert.match(shellSessionTypes, /export interface ShellSessionDataEvent \{[\s\S]*attachmentId: string[\s\S]*generation: number[\s\S]*sequence: number/)
+  assert.match(shellSessionTypes, /export interface ShellSessionResumeSnapshot \{[\s\S]*attachmentId: string[\s\S]*watermark: number[\s\S]*truncated: boolean/)
+  assert.match(shellSessionTypes, /ready: \(sessionId: string, message: ShellSessionRendererReady\) => void/)
+  assert.match(shellSessionTypes, /ack: \(sessionId: string, message: ShellSessionOutputAck\) => void/)
+  assert.match(shellSessionTypes, /disconnect: \(sessionId: string, message: \{ attachmentId: string; generation: number \}\) => void/)
+  assert.match(shellSessionTypes, /onData: \(listener: \(event: ShellSessionDataEvent\)/)
+  assert.match(shellSessionTypes, /onExit: \(listener: \(event: ShellSessionExitEvent\)/)
+  assert.match(shellSessionTypes, /export interface ShellSessionErrorEvent \{[\s\S]*sessionId: string[\s\S]*operation: ShellSessionOneWayOperation[\s\S]*correlationId: string[\s\S]*message: string/)
+  assert.match(shellSessionTypes, /onError: \(listener: \(event: ShellSessionErrorEvent\)/)
 })
 
 test('main registra il dominio sessioni una volta e conserva il confine one-way', () => {
-  const runtime = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/domains/shell/shell-session-runtime.cjs'), 'utf8'))
+  const runtime = fs.readFileSync(path.join(__dirname, '../electron/domains/shell/shell-session-runtime.cjs'), 'utf8')
+  const errorEvent = fs.readFileSync(path.join(__dirname, '../electron/domains/shell/shell-session-error-event.cjs'), 'utf8')
   assert.match(main, /registerShellSessionsIpc\(\{/)
   assert.doesNotMatch(main, /ipcMain\.(?:handle|on)\('shellSessions:/)
   assert.match(main, /const handleShellSessionOneWay = shellSessionRuntime\.handleOneWay/)
-  assert.match(runtime, /function handleOneWay\(event, sessionId, operation, perform\)/)
-  assert.match(runtime, /reportShellSessionOneWayFailure\(\{[\s\S]*sessionId,[\s\S]*send:/)
+  assert.match(runtime, /function handleOneWay\(sessionId, operation, perform, deliverFailure\)/)
+  assert.match(runtime, /reportShellSessionOneWayFailure\(\{[\s\S]*sessionId,[\s\S]*send: deliverFailure/)
+  assert.match(errorEvent, /send\(result\.payload\)/)
+  for (const source of [runtime, errorEvent]) {
+    assert.doesNotMatch(source, /ipc\/channels|IPC_CHANNELS|shellSessions:/u)
+  }
+  assert.doesNotMatch(runtime, /event\.sender|function handleOneWay\(event/u)
   assert.doesNotMatch(main, /shell_session_(?:ready|ack|disconnect|input|resize)_rejected/)
 })
 
 test('ogni chunk terminale attraversa un solo canale IPC tipizzato', () => {
-  const runtime = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/domains/shell/shell-session-runtime.cjs'), 'utf8'))
-  assert.match(runtime, /sendToRenderer\('shellSessions:data', \{[\s\S]*sessionId: event\.sessionId,[\s\S]*attachmentId: event\.attachmentId,[\s\S]*generation: event\.generation,[\s\S]*sequence: event\.sequence,[\s\S]*data: event\.data/)
-  assert.match(runtime, /sendToRenderer\('shellSessions:exit', \{/)
+  const runtime = fs.readFileSync(path.join(__dirname, '../electron/domains/shell/shell-session-runtime.cjs'), 'utf8')
+  assert.match(runtime, /deliverData\(\{[\s\S]*sessionId: sessionEvent\.sessionId,[\s\S]*attachmentId: sessionEvent\.attachmentId,[\s\S]*generation: sessionEvent\.generation,[\s\S]*sequence: sessionEvent\.sequence,[\s\S]*data: sessionEvent\.data/)
+  assert.match(runtime, /deliverExit\(\{/)
+  assert.match(main, /deliverData: \(payload\) => sendToRenderer\(IPC_CHANNELS\.SHELL_SESSIONS_DATA, payload\)/)
+  assert.match(main, /deliverExit: \(payload\) => sendToRenderer\(IPC_CHANNELS\.SHELL_SESSIONS_EXIT, payload\)/)
   assert.doesNotMatch(main, /let shellProcess|let shellWorkspacePath/)
   assert.doesNotMatch(main, /['"]shell:(?:start|restart|input|resize|data|exit)['"]/)
   assert.doesNotMatch(preload, /\bshell: \{/)
-  assert.doesNotMatch(types, /\n\s*shell: \{/)
+  assert.doesNotMatch(bridgeTypes, /\n\s*shell: \{/)
 })
 
 test('il cambio workspace chiude tutte le sessioni del workspace precedente', () => {

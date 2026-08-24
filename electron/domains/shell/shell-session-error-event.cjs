@@ -1,8 +1,6 @@
-const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
 const { getApplicationErrorLogMetadata, toApplicationError } = require('../errors/application-error.cjs')
 const { SESSION_ID_PATTERN } = require('./shell-session-manager.cjs')
 
-const SHELL_SESSION_ERROR_CHANNEL = IPC_CHANNELS.SHELL_SESSIONS_ERROR
 const OPERATION_CONFIGURATION = Object.freeze({
   ready: Object.freeze({
     code: 'SHELL_SESSION_READY_FAILED',
@@ -62,7 +60,6 @@ function createShellSessionErrorEvent(error, { operation, sessionId } = {}) {
   const invalidSession = !safeSessionId
   const incident = toApplicationError(error, {
     category: invalidSession ? 'validation' : shellSessionErrorCategory(error),
-    channel: `shellSessions:${operation}`,
     code: invalidSession ? 'SHELL_SESSION_INVALID' : configuration.code,
     domain: 'terminal',
     message: invalidSession ? 'Richiesta terminale non valida.' : configuration.message,
@@ -102,7 +99,7 @@ function reportShellSessionOneWayFailure({ error, log, operation, send, sessionI
   }
   if (result.payload && typeof send === 'function') {
     try {
-      send(SHELL_SESSION_ERROR_CHANNEL, result.payload)
+      send(result.payload)
     } catch {
       if (typeof log === 'function') {
         try { log('warning', 'shell_session_error_delivery_failed', metadata) } catch { /* Il PTY resta isolato. */ }
@@ -113,7 +110,6 @@ function reportShellSessionOneWayFailure({ error, log, operation, send, sessionI
 }
 
 module.exports = {
-  SHELL_SESSION_ERROR_CHANNEL,
   createShellSessionErrorEvent,
   reportShellSessionOneWayFailure,
 }

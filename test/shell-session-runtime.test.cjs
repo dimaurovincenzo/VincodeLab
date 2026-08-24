@@ -42,6 +42,8 @@ test('inoltra data ed exit soltanto per il workspace attivo', () => {
   let emitExit
   const runtime = createShellSessionRuntime({
     ...shellHostCollaborators(),
+    deliverData: (payload) => deliveries.push(['data', payload]),
+    deliverExit: (payload) => deliveries.push(['exit', payload]),
     getActiveWorkspacePath: () => workspacePath,
     log: (...entry) => logs.push(entry),
     managerFactory: ({ onData, onExit }) => {
@@ -50,40 +52,48 @@ test('inoltra data ed exit soltanto per il workspace attivo', () => {
       return { list: () => ({ workspacePath }) }
     },
     processFactory() {},
-    sendToRenderer: (...entry) => deliveries.push(entry),
   })
   emitData({ workspacePath, sessionId: 'session', attachmentId: 'attachment', generation: 1, sequence: 2, data: 'output' })
   emitExit({ workspacePath, sessionId: 'session', exitCode: 1, signal: null, reason: 'exit' })
 
   assert.equal(runtime.activeState().workspacePath, workspacePath)
-  assert.equal(deliveries.some(([channel]) => channel === 'shellSessions:data'), true)
-  assert.equal(deliveries.some(([channel]) => channel === 'shellSessions:exit'), true)
+  assert.deepEqual(deliveries, [
+    ['data', { sessionId: 'session', attachmentId: 'attachment', generation: 1, sequence: 2, data: 'output' }],
+    ['exit', { sessionId: 'session', exitCode: 1, signal: null, reason: 'exit' }],
+  ])
   assert.equal(logs.some((entry) => entry[1] === 'shell_session_exited'), true)
 })
 
 test('la boundary one-way confina rifiuti del trasporto renderer', () => {
   const runtime = createShellSessionRuntime({
     ...shellHostCollaborators(),
+    deliverData() {},
+    deliverExit() {},
     getActiveWorkspacePath: () => null,
     log() {},
     processFactory: () => processFixture().process,
-    sendToRenderer() {},
   })
   const sent = []
-  const event = { sender: { isDestroyed: () => false, send: (...entry) => sent.push(entry) } }
 
-  assert.equal(runtime.handleOneWay(event, '123e4567-e89b-42d3-a456-426614174000', 'write', () => false), undefined)
-  assert.equal(sent[0][0], 'shellSessions:error')
+  assert.equal(runtime.handleOneWay(
+    '123e4567-e89b-42d3-a456-426614174000',
+    'write',
+    () => false,
+    (payload) => sent.push(payload),
+  ), undefined)
+  assert.equal(sent[0].sessionId, '123e4567-e89b-42d3-a456-426614174000')
+  assert.equal(sent[0].operation, 'write')
 })
 
 test('closeSessions è idempotente senza workspace e requireRunning preserva la guardia', async () => {
   const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-shell-runtime-'))
   const runtime = createShellSessionRuntime({
     ...shellHostCollaborators(),
+    deliverData() {},
+    deliverExit() {},
     getActiveWorkspacePath: () => null,
     log() {},
     processFactory: () => processFixture().process,
-    sendToRenderer() {},
   })
   assert.deepEqual(await runtime.closeSessions(), { closed: 0 })
   assert.throws(() => runtime.requireRunning(workspacePath), /La shell non è attiva/)

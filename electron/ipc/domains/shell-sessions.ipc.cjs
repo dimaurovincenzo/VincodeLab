@@ -42,7 +42,10 @@ function createShellSessionsListeners({
 }) {
   const invokeOneWay = (event, sessionId, operation, perform) => {
     assertTrustedSender(event)
-    handleShellSessionOneWay(event, sessionId, operation, perform)
+    const deliverFailure = (payload) => {
+      if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.SHELL_SESSIONS_ERROR, payload)
+    }
+    handleShellSessionOneWay(sessionId, operation, perform, deliverFailure)
   }
 
   return new Map([
