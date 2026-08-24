@@ -1,5 +1,6 @@
 const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
-const { getApplicationErrorLogMetadata, toApplicationError } = require('../../domains/errors/application-error.cjs')
+const { getApplicationErrorLogMetadata } = require('../../domains/errors/application-error.cjs')
+const { toIpcApplicationError } = require('./ipc-application-error.cjs')
 
 const ONE_WAY_ERROR_CONFIGURATION = Object.freeze({
   [IPC_CHANNELS.TERMINAL_READY]: Object.freeze({
@@ -54,16 +55,15 @@ const ONE_WAY_ERROR_CONFIGURATION = Object.freeze({
 
 function createIpcOneWayFailure(error, channel) {
   const configuration = ONE_WAY_ERROR_CONFIGURATION[channel]
-  const incident = toApplicationError(error, configuration
+  const incident = toIpcApplicationError(error, channel, configuration
     ? {
-        channel,
         code: configuration.code,
         domain: configuration.domain,
         message: configuration.message,
         operation: configuration.operation,
         recoverable: true,
       }
-    : { channel })
+    : undefined)
   const payload = configuration
     ? Object.freeze({
         operation: configuration.operation,

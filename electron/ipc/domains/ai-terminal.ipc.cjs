@@ -61,7 +61,6 @@ function createAiTerminalInvokeHandlers({
       if (typeof data !== 'string' || bytes === 0 || bytes > 65_536) {
         throw toApplicationError(new Error('Input programmatico non valido.'), {
           category: 'validation',
-          channel: IPC_CHANNELS.TERMINAL_WRITE_INPUT,
           code: 'TERMINAL_WRITE_INPUT_INVALID',
           domain: 'terminal',
           message: 'Il testo da inviare al Terminale AI non è valido.',
@@ -73,7 +72,6 @@ function createAiTerminalInvokeHandlers({
       if (piSessionController.getState().runtime === 'herdr') {
         throw toApplicationError(new Error('Programmatic input disabled for shared Herdr session.'), {
           category: 'validation',
-          channel: IPC_CHANNELS.TERMINAL_WRITE_INPUT,
           code: 'HERDR_PROGRAMMATIC_INPUT_DISABLED',
           domain: 'terminal',
           message: 'L’invio automatico è disattivato in Herdr. Seleziona il pane Pi desiderato e inserisci il contenuto direttamente.',
@@ -84,7 +82,6 @@ function createAiTerminalInvokeHandlers({
       }
       if (!piSessionController.write(data)) {
         throw toApplicationError(new Error('Il processo del Terminale AI non ha accettato l’input programmatico.'), {
-          channel: IPC_CHANNELS.TERMINAL_WRITE_INPUT,
           code: 'TERMINAL_WRITE_INPUT_FAILED',
           domain: 'terminal',
           message: 'Il testo non è stato inviato al Terminale AI. La sessione è rimasta disponibile.',

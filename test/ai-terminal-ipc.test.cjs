@@ -190,7 +190,6 @@ test('writeInput conserva limiti byte e ApplicationError pubblico per entrambi i
   assert.equal(invalidError.cause.message, 'Input programmatico non valido.')
   assert.deepEqual(invalidError.options, {
     category: 'validation',
-    channel: 'terminal:writeInput',
     code: 'TERMINAL_WRITE_INPUT_INVALID',
     domain: 'terminal',
     message: 'Il testo da inviare al Terminale AI non è valido.',
@@ -209,7 +208,6 @@ test('writeInput conserva limiti byte e ApplicationError pubblico per entrambi i
   assert.equal(rejectedError.message, 'public:TERMINAL_WRITE_INPUT_FAILED')
   assert.equal(rejectedError.cause.message, 'Il processo del Terminale AI non ha accettato l’input programmatico.')
   assert.deepEqual(rejectedError.options, {
-    channel: 'terminal:writeInput',
     code: 'TERMINAL_WRITE_INPUT_FAILED',
     domain: 'terminal',
     message: 'Il testo non è stato inviato al Terminale AI. La sessione è rimasta disponibile.',

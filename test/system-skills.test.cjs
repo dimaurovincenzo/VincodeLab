@@ -5,6 +5,7 @@ const path = require('node:path')
 const test = require('node:test')
 
 const { toApplicationError } = require('../electron/domains/errors/application-error.cjs')
+const { toIpcApplicationError } = require('../electron/infrastructure/ipc/ipc-application-error.cjs')
 const { createSystemSkillsUseCases } = require('../electron/domains/ai/system-skills.cjs')
 const { createSystemSkillsFilesystemAdapter } = require('../electron/infrastructure/filesystem/system-skills-filesystem.adapter.cjs')
 const {
@@ -44,7 +45,7 @@ test('rifiuta i nomi non validi prima di creare la root e li classifica come val
         assert.equal(error.publicCode, 'SYSTEM_SKILL_NAME_INVALID')
         assert.equal(error.publicMessage, 'Usa un nome di 1-64 caratteri con lettere minuscole e numeri separati da trattini.')
 
-        const incident = toApplicationError(error, { channel: 'systemSkills:create' })
+        const incident = toApplicationError(error, { domain: 'filesystem', operation: 'create' })
         assert.equal(incident.category, 'validation')
         assert.equal(incident.domain, 'filesystem')
         assert.equal(incident.operation, 'create')
@@ -67,7 +68,7 @@ test('rifiuta una collisione con una skill legacy senza creare una directory dup
     assert.throws(() => createSystemSkill(root, 'legacy'), (error) => {
       assert.equal(error.publicCode, 'SYSTEM_SKILL_ALREADY_EXISTS')
       assert.equal(error.publicMessage, 'Esiste già una skill Pi con questo nome. Scegli un nome diverso.')
-      const incident = toApplicationError(error, { channel: 'systemSkills:create' })
+      const incident = toApplicationError(error, { domain: 'filesystem', operation: 'create' })
       assert.equal(incident.category, 'conflict')
       assert.equal(incident.severity, 'warning')
       return true
@@ -119,9 +120,10 @@ test('rimuove la directory vuota riservata quando la scrittura della skill falli
 })
 
 test('usa il messaggio contestuale delle Skill Pi per gli errori tecnici di creazione', () => {
-  const incident = toApplicationError(Object.assign(new Error('I/O failure'), { code: 'EIO' }), {
-    channel: 'systemSkills:create',
-  })
+  const incident = toIpcApplicationError(
+    Object.assign(new Error('I/O failure'), { code: 'EIO' }),
+    'systemSkills:create',
+  )
 
   assert.equal(incident.category, 'filesystem')
   assert.match(incident.message, /^Impossibile creare la skill Pi\. Riprova\./u)

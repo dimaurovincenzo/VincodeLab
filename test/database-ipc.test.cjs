@@ -75,8 +75,8 @@ function databaseFixture(overrides = {}) {
       return operation('/workspace/current')
     },
     saveQuery: (workspacePath, input) => { calls.push(['save-query', workspacePath, input]); return results.query },
-    toApplicationError: (error, context) => {
-      calls.push(['to-application-error', error, context])
+    toIpcApplicationError: (error, channel, context) => {
+      calls.push(['to-ipc-application-error', error, channel, context])
       return Object.assign(new Error('Database non disponibile'), { correlationId: 'ERR-DB', severity: 'error' })
     },
     updateConnection: (workspacePath, id, input) => { calls.push(['update-connection', workspacePath, id, input]); return results.connection },
@@ -355,8 +355,8 @@ test('tableRows registra il numero righe e normalizza soltanto il percorso di er
   let incident
   const failedFixture = databaseFixture({
     readTableRows: async () => { throw failure },
-    toApplicationError: (error, context) => {
-      failedFixture.calls.push(['to-application-error', error, context])
+    toIpcApplicationError: (error, channel, context) => {
+      failedFixture.calls.push(['to-ipc-application-error', error, channel, context])
       incident = Object.assign(new Error('Tabella non leggibile'), { correlationId: 'ERR-TABLE', severity: 'warning' })
       return incident
     },
@@ -366,7 +366,7 @@ test('tableRows registra il numero righe e normalizza soltanto il percorso di er
   assert.deepEqual(failedFixture.calls, [
     ['guard', event],
     ['require-workspace'],
-    ['to-application-error', failure, { channel: 'database:tableRows' }],
+    ['to-ipc-application-error', failure, 'database:tableRows', undefined],
     ['error-metadata', incident],
     ['log', 'warning', 'database_table_rows_failed', { correlationId: 'ERR-TABLE' }],
   ])

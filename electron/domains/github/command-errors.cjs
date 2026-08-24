@@ -82,7 +82,6 @@ function applicationCommandError(command, error, { args = [], category, code, me
     : createPublicError(code ?? (github ? 'GITHUB_COMMAND_FAILED' : 'GIT_COMMAND_FAILED'), message ?? (github ? 'Operazione GitHub non riuscita.' : 'Operazione Git non riuscita.'))
   return toApplicationError(publicError, {
     category: category ?? publicCommandCategory(publicError),
-    channel: `github:${operation}`,
     domain: github ? 'github' : 'git',
     operation,
     recoverable,

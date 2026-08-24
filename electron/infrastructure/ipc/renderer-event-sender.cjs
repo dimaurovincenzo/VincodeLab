@@ -12,7 +12,6 @@ function createRendererEventSender({
       return true
     } catch (error) {
       const incident = toApplicationError(error, {
-        channel: 'renderer:eventDelivery',
         code: 'RENDERER_EVENT_DELIVERY_FAILED',
         domain: 'internal',
         message: 'Un aggiornamento non è stato consegnato all’interfaccia.',

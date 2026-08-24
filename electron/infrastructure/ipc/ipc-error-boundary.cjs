@@ -1,4 +1,5 @@
-const { getApplicationErrorLogMetadata, toApplicationError } = require('../../domains/errors/application-error.cjs')
+const { getApplicationErrorLogMetadata } = require('../../domains/errors/application-error.cjs')
+const { toIpcApplicationError } = require('./ipc-application-error.cjs')
 
 const IPC_INSTALLATION = Symbol.for('vincodelab.ipc-error-experience')
 const SAFE_CHANNEL_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_.:/-]{0,95}$/u
@@ -32,7 +33,7 @@ function wrapIpcHandler(channel, handler, options = {}) {
   const channelName = safeChannel(channel)
 
   function fail(error) {
-    const applicationError = toApplicationError(error, { ...options, channel: channelName })
+    const applicationError = toIpcApplicationError(error, channelName, options)
     reportIpcError(applicationError, options)
     throw applicationError
   }

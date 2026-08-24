@@ -25,7 +25,7 @@ function createDatabaseHandlers({
   rollbackTransaction,
   runWorkspaceMutation,
   saveQuery,
-  toApplicationError,
+  toIpcApplicationError,
   updateConnection,
   updateSavedQuery,
   updateTableRows,
@@ -87,7 +87,7 @@ function createDatabaseHandlers({
         log('info', 'database_table_rows_read', { rows: page.rows.length })
         return page
       } catch (error) {
-        const incident = toApplicationError(error, { channel: IPC_CHANNELS.DATABASE_TABLE_ROWS })
+        const incident = toIpcApplicationError(error, IPC_CHANNELS.DATABASE_TABLE_ROWS)
         log(incident.severity, 'database_table_rows_failed', getApplicationErrorLogMetadata(incident))
         throw incident
       }

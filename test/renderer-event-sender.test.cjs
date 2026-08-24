@@ -49,7 +49,6 @@ test('converte una failure di delivery in diagnostica sanitizzata senza rilancia
   assert.equal(sendToRenderer('redis:searchProgress', { private: 'payload' }), false)
   assert.equal(conversions[0][0], failure)
   assert.deepEqual(conversions[0][1], {
-    channel: 'renderer:eventDelivery',
     code: 'RENDERER_EVENT_DELIVERY_FAILED',
     domain: 'internal',
     message: 'Un aggiornamento non è stato consegnato all’interfaccia.',

@@ -15,6 +15,7 @@ const path = require('node:path')
 const { flushLogs, log, parseRendererDiagnosticMessage } = require('./infrastructure/logging/logger.adapter.cjs')
 const { getApplicationErrorLogMetadata, toApplicationError } = require('./domains/errors/application-error.cjs')
 const { installIpcMainErrorHandling } = require('./infrastructure/ipc/ipc-error-boundary.cjs')
+const { toIpcApplicationError } = require('./infrastructure/ipc/ipc-application-error.cjs')
 const { createFatalErrorExperience } = require('./app/fatal-error-experience.cjs')
 const { installNavigationGuards } = require('./infrastructure/security/ipc-security.adapter.cjs')
 const { createPublicError, toPublicErrorMessage } = require('./domains/errors/public-error.cjs')
@@ -818,7 +819,7 @@ function registerApplicationIpc(instanceRegistry) {
     rollbackTransaction,
     runWorkspaceMutation,
     saveQuery,
-    toApplicationError,
+    toIpcApplicationError,
     updateConnection,
     updateSavedQuery,
     updateTableRows,

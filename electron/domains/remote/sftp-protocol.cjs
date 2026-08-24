@@ -120,8 +120,8 @@ function toSftpApplicationError(error, { connection, operation, resource, stderr
   const classification = classifySftpFailure(error, { operation: normalizedOperation, stderr })
   const applicationError = toApplicationError(error, {
     category: classification.category,
-    channel: `remoteFiles:${normalizedOperation}`,
     code: classification.code,
+    domain: 'remote',
     message: classification.message,
     operation: normalizedOperation,
   })

@@ -1,13 +1,19 @@
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
 const test = require('node:test')
 
 const {
   classifyApplicationError,
-  domainFromIpcChannel,
   getApplicationErrorLogMetadata,
   isApplicationError,
   toApplicationError,
 } = require('../electron/domains/errors/application-error.cjs')
+const {
+  classifyIpcApplicationError,
+  domainFromIpcChannel,
+  toIpcApplicationError,
+} = require('../electron/infrastructure/ipc/ipc-application-error.cjs')
 const { installIpcMainErrorHandling, wrapIpcHandler } = require('../electron/infrastructure/ipc/ipc-error-boundary.cjs')
 const { createPublicError, isPublicError, toPublicError } = require('../electron/domains/errors/public-error.cjs')
 
@@ -80,8 +86,8 @@ test('intercetta rejection asincrone e conserva il valore dei successi', async (
 
 test('arricchisce un errore pubblico una volta sola preservando testo codice e identita', () => {
   const publicError = createPublicError('GITHUB_AUTH_REQUIRED', 'Accedi a GitHub e riprova.')
-  const first = toApplicationError(publicError, { channel: 'github:data' })
-  const second = toApplicationError(first, { channel: 'files:save' })
+  const first = toIpcApplicationError(publicError, 'github:data')
+  const second = toApplicationError(first, { domain: 'filesystem', operation: 'save' })
   const wrappedAgain = toPublicError(second, { code: 'OPERATION_FAILED', message: 'Messaggio sostitutivo.' })
 
   assert.equal(first, publicError)
@@ -158,16 +164,18 @@ test('deriva il dominio dal canale e produce soltanto metadati diagnostici conse
   assert.equal(domainFromIpcChannel('remoteFiles:upload'), 'remote')
   assert.equal(domainFromIpcChannel('pi:restart'), 'ai')
 
-  const classification = classifyApplicationError(Object.assign(new Error('rate limit token=secret'), { status: 429 }), {
-    channel: 'github:data',
-  })
+  const classification = classifyIpcApplicationError(
+    Object.assign(new Error('rate limit token=secret'), { status: 429 }),
+    'github:data',
+  )
   assert.equal(classification.category, 'network')
   assert.equal(classification.domain, 'github')
   assert.match(classification.message, /Attendi qualche minuto e riprova\./u)
 
-  const error = toApplicationError(new Error('/Users/alice/private.sql password=hunter2'), {
-    channel: 'database:inspectSchema',
-  })
+  const error = toIpcApplicationError(
+    new Error('/Users/alice/private.sql password=hunter2'),
+    'database:inspectSchema',
+  )
   const metadata = getApplicationErrorLogMetadata(error)
   assert.deepEqual(metadata, {
     category: 'database',
@@ -189,7 +197,7 @@ test('collega il correlation ID a diagnostica privata sanitizzata e a un fingerp
     Object.defineProperty(error, 'databaseDiagnostic', {
       value: 'DatabaseError ELOGIN password=hunter2 host=db.private.local SELECT * FROM private_customers',
     })
-    return toApplicationError(error, { channel: 'database:execute' })
+    return toIpcApplicationError(error, 'database:execute')
   }
 
   const first = databaseIncident()
@@ -215,12 +223,12 @@ test('classificazione e diagnostica restano total-safe con Proxy e getter ostili
     getPrototypeOf() { throw new Error('prototype /var/folders/private') },
   })
 
-  const classification = classifyApplicationError(hostile, { channel: 'files:read' })
+  const classification = classifyIpcApplicationError(hostile, 'files:read')
   assert.equal(classification.category, 'filesystem')
   assert.equal(classification.domain, 'filesystem')
   assert.equal(classification.operation, 'read')
 
-  const incident = toApplicationError(hostile, { channel: 'files:read' })
+  const incident = toIpcApplicationError(hostile, 'files:read')
   const metadata = getApplicationErrorLogMetadata(incident)
   assert.equal(isApplicationError(incident), true)
   assert.equal(metadata.technicalName, 'Error')
@@ -235,8 +243,7 @@ test('classificazione e diagnostica restano total-safe con Proxy e getter ostili
       get() { throw new Error(`getter ${key} non disponibile`) },
     })
   }
-  assert.doesNotThrow(() => toApplicationError(hostileGetters, {
-    channel: 'database:execute',
+  assert.doesNotThrow(() => toIpcApplicationError(hostileGetters, 'database:execute', {
     get technicalDiagnostic() { throw new Error('diagnostica getter non disponibile') },
   }))
 })
@@ -252,12 +259,9 @@ test('oscura email e percorsi temporanei in ogni diagnostica tecnica destinata a
 
   const databaseError = Object.assign(new Error('database indisponibile'), { code: 'EIO' })
   Object.defineProperty(databaseError, 'databaseDiagnostic', { value: sensitiveDetail })
-  const databaseMetadata = getApplicationErrorLogMetadata(toApplicationError(databaseError, {
-    channel: 'database:execute',
-  }))
+  const databaseMetadata = getApplicationErrorLogMetadata(toIpcApplicationError(databaseError, 'database:execute'))
 
-  const technicalMetadata = getApplicationErrorLogMetadata(toApplicationError(new Error('servizio indisponibile'), {
-    channel: 'files:read',
+  const technicalMetadata = getApplicationErrorLogMetadata(toIpcApplicationError(new Error('servizio indisponibile'), 'files:read', {
     technicalDiagnostic: sensitiveDetail,
   }))
 
@@ -267,4 +271,38 @@ test('oscura email e percorsi temporanei in ogni diagnostica tecnica destinata a
     assert.match(metadata.technicalDetail, /password=\[REDACTED\]/u)
     assert.doesNotMatch(JSON.stringify(metadata), /alice|example\.test|vincodelab-private|query\.sql|socket|folders|hunter2/iu)
   }
+})
+
+test('il core usa soltanto contesto semantico e i domini non dipendono dal transport IPC', () => {
+  const classification = classifyApplicationError(new Error('failure'))
+  assert.equal(classification.domain, 'internal')
+  assert.equal(classification.operation, 'operation')
+
+  const domainsRoot = path.join(__dirname, '../electron/domains')
+  const ipcRoot = `${path.join(__dirname, '../electron/ipc')}${path.sep}`
+  const pending = [domainsRoot]
+  while (pending.length > 0) {
+    const directory = pending.pop()
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const absolutePath = path.join(directory, entry.name)
+      if (entry.isDirectory()) {
+        pending.push(absolutePath)
+        continue
+      }
+      if (!entry.isFile() || !/\.(?:cjs|mjs|js)$/u.test(entry.name)) continue
+      const source = fs.readFileSync(absolutePath, 'utf8')
+      for (const match of source.matchAll(/(?:require\(\s*|from\s+)['"]([^'"]+)['"]/gu)) {
+        if (!match[1].startsWith('.')) continue
+        const dependency = path.resolve(path.dirname(absolutePath), match[1])
+        assert.equal(
+          dependency.startsWith(ipcRoot),
+          false,
+          `${path.relative(domainsRoot, absolutePath)} importa il transport IPC`,
+        )
+      }
+    }
+  }
+
+  const coreSource = fs.readFileSync(path.join(domainsRoot, 'errors/application-error.cjs'), 'utf8')
+  assert.doesNotMatch(coreSource, /IPC_CHANNELS|CHANNEL_MESSAGES|domainFromIpcChannel|ipc\/channels/u)
 })

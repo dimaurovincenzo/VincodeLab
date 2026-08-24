@@ -260,7 +260,6 @@ function createWindowLifecycleRuntime({
       })
     } catch (error) {
       const incident = toApplicationError(error, {
-        channel: 'renderer:load',
         code: 'RENDERER_LOAD_START_FAILED',
         domain: 'internal',
         message: 'L’interfaccia di VincodeLab non è stata caricata.',
