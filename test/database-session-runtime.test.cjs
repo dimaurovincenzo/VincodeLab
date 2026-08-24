@@ -17,6 +17,18 @@ function fakeDriverPort(overrides = {}) {
   }
 }
 
+function createRuntime(overrides = {}) {
+  return createDatabaseSessionRuntime({
+    createSqliteWorkerSession: () => undefined,
+    driverPort: fakeDriverPort(),
+    getConnectionWithSecrets: () => null,
+    invalidateSchema: () => undefined,
+    invalidateWorkspaceSchema: () => undefined,
+    sqliteWorkerDiagnostics: () => ({ activeWorkers: 0, pendingRequests: 0 }),
+    ...overrides,
+  })
+}
+
 function deferred() {
   let resolve
   let reject
@@ -27,21 +39,15 @@ function deferred() {
   return { promise, reject, resolve }
 }
 
-test('il runtime sessioni richiede porte esplicite e ritarda la dipendenza SQLite', () => {
-  assert.throws(() => createDatabaseSessionRuntime(), /Porta connessioni database non valida/u)
+test('il runtime sessioni richiede tutte le porte al costruttore e non espone riconfigurazione', () => {
+  assert.throws(() => createDatabaseSessionRuntime(), /Factory sessioni SQLite non valida/u)
+  assert.throws(() => createRuntime({ driverPort: undefined }), /Porta driver database non valida/u)
+  assert.throws(() => createRuntime({ getConnectionWithSecrets: undefined }), /Porta connessioni database non valida/u)
+  assert.throws(() => createRuntime({ sqliteWorkerDiagnostics: undefined }), /Diagnostica worker SQLite non valida/u)
 
-  const runtime = createDatabaseSessionRuntime({
-    getConnectionWithSecrets: () => null,
-    invalidateSchema: () => undefined,
-    invalidateWorkspaceSchema: () => undefined,
-  })
-
+  const runtime = createRuntime()
   assert.deepEqual(runtime.sqliteWorkerDiagnostics(), { activeWorkers: 0, pendingRequests: 0 })
-  assert.throws(() => runtime.configureRuntime({}), /Runtime database non valido/u)
-  assert.throws(() => runtime.configureRuntime({
-    createSqliteWorkerSession: () => undefined,
-    sqliteWorkerDiagnostics: () => ({}),
-  }), /Porta driver database non valida/u)
+  assert.equal('configureRuntime' in runtime, false)
 })
 
 test('il runtime sessioni mantiene single-flight e cleanup SQLite confinati al workspace', async () => {
@@ -52,12 +58,7 @@ test('il runtime sessioni mantiene single-flight e cleanup SQLite confinati al w
   const invalidatedWorkspaces = []
   const sessions = []
   let createCalls = 0
-  const runtime = createDatabaseSessionRuntime({
-    getConnectionWithSecrets: () => ({ driver: 'sqlite', sqlitePath: '/database.sqlite' }),
-    invalidateSchema: (candidate) => invalidated.push(candidate),
-    invalidateWorkspaceSchema: (candidate) => invalidatedWorkspaces.push(candidate),
-  })
-  runtime.configureRuntime({
+  const runtime = createRuntime({
     createSqliteWorkerSession: (_sqlitePath, onClosed) => {
       createCalls += 1
       const session = {
@@ -72,7 +73,9 @@ test('il runtime sessioni mantiene single-flight e cleanup SQLite confinati al w
       sessions.push(session)
       return session
     },
-    driverPort: fakeDriverPort(),
+    getConnectionWithSecrets: () => ({ driver: 'sqlite', sqlitePath: '/database.sqlite' }),
+    invalidateSchema: (candidate) => invalidated.push(candidate),
+    invalidateWorkspaceSchema: (candidate) => invalidatedWorkspaces.push(candidate),
     sqliteWorkerDiagnostics: () => ({ activeWorkers: sessions.length, pendingRequests: 0 }),
   })
 
@@ -121,7 +124,8 @@ test('il runtime remoto riceve il driver dalla composition root senza caricarlo 
       return handle
     },
   })
-  const runtime = createDatabaseSessionRuntime({
+  const runtime = createRuntime({
+    driverPort,
     getConnectionWithSecrets: () => ({
       database: 'app',
       driver: 'postgres',
@@ -132,11 +136,6 @@ test('il runtime remoto riceve il driver dalla composition root senza caricarlo 
     }),
     invalidateSchema: () => undefined,
     invalidateWorkspaceSchema: () => undefined,
-  })
-  runtime.configureRuntime({
-    createSqliteWorkerSession: () => undefined,
-    driverPort,
-    sqliteWorkerDiagnostics: () => ({ activeWorkers: 0, pendingRequests: 0 }),
   })
 
   const [session, sameSession] = await Promise.all([
@@ -187,7 +186,8 @@ test('il candidato remoto consente cleanup mentre openRemoteSession è ancora in
       return handle
     },
   })
-  const runtime = createDatabaseSessionRuntime({
+  const runtime = createRuntime({
+    driverPort,
     getConnectionWithSecrets: () => ({
       database: 'app',
       driver: 'postgres',
@@ -198,11 +198,6 @@ test('il candidato remoto consente cleanup mentre openRemoteSession è ancora in
     }),
     invalidateSchema: () => undefined,
     invalidateWorkspaceSchema: () => undefined,
-  })
-  runtime.configureRuntime({
-    createSqliteWorkerSession: () => undefined,
-    driverPort,
-    sqliteWorkerDiagnostics: () => ({ activeWorkers: 0, pendingRequests: 0 }),
   })
 
   const opening = runtime.getSession(workspacePath, connectionId)
@@ -236,7 +231,8 @@ test('un failure di apertura viene sanitizzato, pulito e consente un nuovo tenta
       return handle
     },
   })
-  const runtime = createDatabaseSessionRuntime({
+  const runtime = createRuntime({
+    driverPort,
     getConnectionWithSecrets: () => ({
       database: 'app',
       driver: 'postgres',
@@ -247,11 +243,6 @@ test('un failure di apertura viene sanitizzato, pulito e consente un nuovo tenta
     }),
     invalidateSchema: () => undefined,
     invalidateWorkspaceSchema: () => undefined,
-  })
-  runtime.configureRuntime({
-    createSqliteWorkerSession: () => undefined,
-    driverPort,
-    sqliteWorkerDiagnostics: () => ({ activeWorkers: 0, pendingRequests: 0 }),
   })
 
   await assert.rejects(runtime.getSession(workspacePath, connectionId), (error) => (
@@ -307,7 +298,8 @@ test('due runtime remoti isolano stessa chiave, single-flight, close in apertura
         }
       },
     })
-    const runtime = createDatabaseSessionRuntime({
+    const runtime = createRuntime({
+      driverPort,
       getConnectionWithSecrets: () => ({
         database: 'app',
         driver: 'postgres',
@@ -318,11 +310,6 @@ test('due runtime remoti isolano stessa chiave, single-flight, close in apertura
       }),
       invalidateSchema: (candidate) => invalidated.push(candidate),
       invalidateWorkspaceSchema: () => undefined,
-    })
-    runtime.configureRuntime({
-      createSqliteWorkerSession: () => undefined,
-      driverPort,
-      sqliteWorkerDiagnostics: () => ({ activeWorkers: 0, pendingRequests: 0 }),
     })
     return {
       closeCalls,

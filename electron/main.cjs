@@ -40,7 +40,7 @@ const { createProjectSkillsUseCases } = require('./domains/ai/project-skills.cjs
 const { createProjectSkillsFilesystemAdapter } = require('./infrastructure/filesystem/project-skills-filesystem.adapter.cjs')
 const { createCommandCategory, createWorkspaceCommand, deleteCommandCategory, deleteWorkspaceCommand, getWorkspaceCommand, listWorkspaceCommands, moveWorkspaceCommand, updateCommandCategory, updateWorkspaceCommand } = require('./infrastructure/persistence/workspace-commands.repository.cjs')
 const { clearHistory, configureDatabaseSecretStorage, createConnection, deleteConnection, deleteSavedQuery, getConnectionWithSecrets, listConnections, listHistory, listSavedQueries, migrateLegacyConnectionSecrets, recordHistory, saveQuery, updateConnection, updateSavedQuery } = require('./infrastructure/persistence/database.repository.cjs')
-const { beginTransaction, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, executeQuery, inspectRoutine, inspectSchema, openConnection, readTableRows, rollbackTransaction, updateTableRows } = require('./domains/database/database-service.cjs')
+const { classifySql, createDatabaseService } = require('./domains/database/database-service.cjs')
 const { createDatabaseOperationRegistry } = require('./domains/database/database-operation-registry.cjs')
 const { nodeDatabaseDriverAdapter } = require('./infrastructure/database/node-database-driver.adapter.cjs')
 const { SqliteWorkerSession, sqliteWorkerDiagnostics } = require('./infrastructure/database/sqlite-worker-session.adapter.cjs')
@@ -145,10 +145,23 @@ const {
   stageManagedUpdate: updateDownloader.stageManagedUpdate,
 })
 
-configureDatabasePersistence({ getConnectionWithSecrets, recordHistory })
-configureDatabaseRuntime({
+const {
+  beginTransaction,
+  closeConnectionSession,
+  closeWorkspaceSessions,
+  commitTransaction,
+  executeQuery,
+  inspectRoutine,
+  inspectSchema,
+  openConnection,
+  readTableRows,
+  rollbackTransaction,
+  updateTableRows,
+} = createDatabaseService({
   createSqliteWorkerSession: (sqlitePath, onClosed) => new SqliteWorkerSession(sqlitePath, onClosed),
   driverPort: nodeDatabaseDriverAdapter,
+  getConnectionWithSecrets,
+  recordHistory,
   sqliteWorkerDiagnostics,
 })
 const {

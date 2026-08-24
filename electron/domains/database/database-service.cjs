@@ -42,58 +42,64 @@ const {
   invalidateRemoteSession,
   raceRemoteSessionFailure,
 } = require('./remote-session-lifecycle.cjs')
-const schemaCache = new Map()
 const SCHEMA_CACHE_PAGE_LIMIT = 8
 const RESULT_ROW_LIMIT = 500
-let databasePersistence = null
 
-function configureDatabasePersistence(persistence) {
-  if (!persistence || typeof persistence.getConnectionWithSecrets !== 'function' || typeof persistence.recordHistory !== 'function') {
+function createDatabaseService({
+  createSqliteWorkerSession,
+  driverPort,
+  getConnectionWithSecrets,
+  recordHistory,
+  sqliteWorkerDiagnostics,
+} = {}) {
+  if (typeof getConnectionWithSecrets !== 'function' || typeof recordHistory !== 'function') {
     throw new TypeError('Persistenza database non valida.')
   }
-  databasePersistence = Object.freeze({
-    getConnectionWithSecrets: persistence.getConnectionWithSecrets,
-    recordHistory: persistence.recordHistory,
+
+  const schemaCache = new Map()
+  const invalidateWorkspaceSchema = (workspacePath) => {
+    for (const key of schemaCache.keys()) {
+      if (key.startsWith(`${workspacePath}\u0000`)) schemaCache.delete(key)
+    }
+  }
+  const runtime = createDatabaseSessionRuntime({
+    createSqliteWorkerSession,
+    driverPort,
+    getConnectionWithSecrets,
+    invalidateSchema: (key) => schemaCache.delete(key),
+    invalidateWorkspaceSchema,
+    sqliteWorkerDiagnostics,
+  })
+  const state = Object.freeze({
+    ...runtime,
+    recordHistory,
+    schemaCache,
+  })
+
+  return Object.freeze({
+    beginTransaction: (...args) => beginTransaction(state, ...args),
+    closeConnectionSession: runtime.closeConnectionSession,
+    closeWorkspaceSessions: runtime.closeWorkspaceSessions,
+    commitTransaction: (...args) => commitTransaction(state, ...args),
+    executeQuery: (...args) => executeQuery(state, ...args),
+    inspectRoutine: (...args) => inspectRoutine(state, ...args),
+    inspectSchema: (...args) => inspectSchema(state, ...args),
+    openConnection: (...args) => openConnection(state, ...args),
+    readTableRows: (...args) => readTableRows(state, ...args),
+    rollbackTransaction: (...args) => rollbackTransaction(state, ...args),
+    sqliteWorkerDiagnostics: runtime.sqliteWorkerDiagnostics,
+    updateTableRows: (...args) => updateTableRows(state, ...args),
   })
 }
 
-function getConnectionWithSecrets(...args) {
-  if (!databasePersistence) throw new Error('Persistenza database non configurata.')
-  return databasePersistence.getConnectionWithSecrets(...args)
-}
-
-function recordHistory(...args) {
-  if (!databasePersistence) throw new Error('Persistenza database non configurata.')
-  return databasePersistence.recordHistory(...args)
-}
-
-function invalidateWorkspaceSchema(workspacePath) {
-  for (const key of schemaCache.keys()) {
-    if (key.startsWith(`${workspacePath}\u0000`)) schemaCache.delete(key)
-  }
-}
-
-const {
-  closeConnectionSession,
-  closeWorkspaceSessions,
-  configureRuntime: configureDatabaseRuntime,
-  getSession,
-  requestSqlite,
-  sqliteWorkerDiagnostics,
-} = createDatabaseSessionRuntime({
-  getConnectionWithSecrets,
-  invalidateSchema: (key) => schemaCache.delete(key),
-  invalidateWorkspaceSchema,
-})
-
-async function openConnection(workspacePath, connectionId) {
-  await getSession(workspacePath, connectionId)
+async function openConnection(state, workspacePath, connectionId) {
+  await state.getSession(workspacePath, connectionId)
   return { connected: true }
 }
 
-async function readTableRows(workspacePath, connectionId, tableName, options = {}) {
-  const session = await getSession(workspacePath, connectionId)
-  const table = await inspectTableSchema(workspacePath, connectionId, session, tableName)
+async function readTableRows(state, workspacePath, connectionId, tableName, options = {}) {
+  const session = await state.getSession(workspacePath, connectionId)
+  const table = await inspectTableSchema(state, workspacePath, connectionId, session, tableName)
   if (!table) throw new Error('Tabella non disponibile nello schema.')
   const limit = Number.isInteger(options.limit) ? options.limit : 100
   const offset = Number.isInteger(options.offset) ? options.offset : 0
@@ -109,7 +115,7 @@ async function readTableRows(workspacePath, connectionId, tableName, options = {
   let rows
   let workerHasMore = false
   if (driver === 'sqlite') {
-    ;({ rows, hasMore: workerHasMore = false } = await requestSqlite(session, 'all', {
+    ;({ rows, hasMore: workerHasMore = false } = await state.requestSqlite(session, 'all', {
       sql: `SELECT * FROM ${quoteTableIdentifier(driver, tableName)}${where} LIMIT ? OFFSET ?`,
       parameters: [...parameters, limit + 1, offset],
       budgetRowLimit: limit,
@@ -126,11 +132,11 @@ async function readTableRows(workspacePath, connectionId, tableName, options = {
   return { table, rows: resultRows, offset, hasMore: workerHasMore || rows.length > limit, durationMs: Date.now() - startedAt, resultBytes, readOnlyReason: table.primaryKey.length ? undefined : 'Sola lettura: manca una chiave primaria.' }
 }
 
-async function updateTableRows(workspacePath, connectionId, tableName, changes) {
-  const session = await getSession(workspacePath, connectionId)
+async function updateTableRows(state, workspacePath, connectionId, tableName, changes) {
+  const session = await state.getSession(workspacePath, connectionId)
   if (!session.transactionActive) throw new Error('Transazione attiva richiesta per salvare le modifiche.')
   if (!Array.isArray(changes) || !changes.length || changes.length > 100) throw new Error('Modifiche tabella non valide.')
-  const table = await inspectTableSchema(workspacePath, connectionId, session, tableName)
+  const table = await inspectTableSchema(state, workspacePath, connectionId, session, tableName)
   if (!table?.primaryKey.length) throw new Error('Tabella non modificabile senza chiave primaria.')
   const driver = session.driver ?? 'sqlite'
   const updates = changes.map((change) => {
@@ -143,8 +149,8 @@ async function updateTableRows(workspacePath, connectionId, tableName, changes) 
     return { sql: `UPDATE ${quoteTableIdentifier(driver, tableName)} SET ${set} WHERE ${where}`, parameters }
   })
   if (driver === 'sqlite') {
-    await requestSqlite(session, 'updateRows', { updates })
-    schemaCache.delete(sessionKey(workspacePath, connectionId))
+    await state.requestSqlite(session, 'updateRows', { updates })
+    state.schemaCache.delete(sessionKey(workspacePath, connectionId))
     return { updated: changes.length }
   }
   const savepoint = 'vincodelab_table_update'
@@ -159,7 +165,7 @@ async function updateTableRows(workspacePath, connectionId, tableName, changes) 
     throw error
   }
   if (session.driver !== 'mssql') await executeRemote(session, `RELEASE SAVEPOINT ${savepoint}`)
-  schemaCache.delete(sessionKey(workspacePath, connectionId))
+  state.schemaCache.delete(sessionKey(workspacePath, connectionId))
   return { updated: changes.length }
 }
 
@@ -229,7 +235,7 @@ function limitRemoteReadSql(sql, offset, keyword, driver, rowLimit = RESULT_ROW_
   return `SELECT * FROM (${statement}) AS vincodelab_page LIMIT ${rowLimit + 1} OFFSET ${offset}`
 }
 
-function recordQueryHistoryOutcome(workspacePath, entry, writeHistory = recordHistory) {
+function recordQueryHistoryOutcome(workspacePath, entry, writeHistory) {
   try {
     writeHistory(workspacePath, entry)
     return true
@@ -240,7 +246,7 @@ function recordQueryHistoryOutcome(workspacePath, entry, writeHistory = recordHi
   }
 }
 
-async function executeQuery(workspacePath, connectionId, sql, options = {}) {
+async function executeQuery(state, workspacePath, connectionId, sql, options = {}) {
   const classification = classifySql(sql)
   if (classification.mutative && !options.confirmed) throw new Error('Conferma richiesta per la query mutativa.')
   if (!Number.isInteger(options.offset ?? 0) || (options.offset ?? 0) < 0) throw new Error('Offset risultati non valido.')
@@ -249,13 +255,13 @@ async function executeQuery(workspacePath, connectionId, sql, options = {}) {
   if (!Number.isInteger(rowLimit) || rowLimit < 1 || rowLimit > 5_000) throw new Error('Limite risultati non valido.')
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 300_000) throw new Error('Timeout query non valido.')
   const startedAt = Date.now()
-  const session = await getSession(workspacePath, connectionId)
+  const session = await state.getSession(workspacePath, connectionId)
   try {
     let rows = []
     let affectedRows = null
     let workerHasMore = false
     if (session.driver === 'sqlite') {
-      ;({ rows, affectedRows, hasMore: workerHasMore = false } = await requestSqlite(session, 'execute', {
+      ;({ rows, affectedRows, hasMore: workerHasMore = false } = await state.requestSqlite(session, 'execute', {
         sql: classification.mutative ? sql : limitReadSql(sql, options.offset ?? 0, classification.keyword, rowLimit),
         budgetRowLimit: rowLimit,
       }, { signal: options.signal, timeoutMs }))
@@ -263,13 +269,13 @@ async function executeQuery(workspacePath, connectionId, sql, options = {}) {
     const hasMore = workerHasMore || rows.length > rowLimit
     const resultRows = rows.slice(0, rowLimit)
     const result = { columns: rows[0] ? Object.keys(rows[0]) : [], rows: resultRows, affectedRows: normalizeAffectedRows(affectedRows, classification.mutative), durationMs: Date.now() - startedAt, hasMore, resultBytes: measureResultRows(resultRows) }
-    const historyRecorded = recordQueryHistoryOutcome(workspacePath, { connectionId, sql, durationMs: result.durationMs, affectedRows })
-    if (classification.mutative) schemaCache.delete(sessionKey(workspacePath, connectionId))
+    const historyRecorded = recordQueryHistoryOutcome(workspacePath, { connectionId, sql, durationMs: result.durationMs, affectedRows }, state.recordHistory)
+    if (classification.mutative) state.schemaCache.delete(sessionKey(workspacePath, connectionId))
     return { ...result, historyRecorded }
   } catch (error) {
     // Un errore del driver può lasciare una connessione remota in stato
     // incoerente; chiuderla forza una nuova sessione pulita alla prossima query.
-    const closing = closeConnectionSession(workspacePath, connectionId, { clearFailure: false })
+    const closing = state.closeConnectionSession(workspacePath, connectionId, { clearFailure: false })
     if (session.driver === 'sqlite') await closing
     else void closing.catch(() => {
       // La query restituisce il proprio errore classificato; il registry conserva
@@ -279,28 +285,28 @@ async function executeQuery(workspacePath, connectionId, sql, options = {}) {
   }
 }
 
-async function beginTransaction(workspacePath, connectionId) {
-  const session = await getSession(workspacePath, connectionId)
+async function beginTransaction(state, workspacePath, connectionId) {
+  const session = await state.getSession(workspacePath, connectionId)
   if (session.transactionActive) throw new Error('Una transazione è già attiva.')
-  if (session.driver === 'sqlite') await requestSqlite(session, 'exec', { sql: 'BEGIN' })
+  if (session.driver === 'sqlite') await state.requestSqlite(session, 'exec', { sql: 'BEGIN' })
   else await executeRemoteTransaction(session, 'begin')
   session.transactionActive = true
   return { active: true }
 }
 
-async function commitTransaction(workspacePath, connectionId) {
-  const session = await getSession(workspacePath, connectionId)
+async function commitTransaction(state, workspacePath, connectionId) {
+  const session = await state.getSession(workspacePath, connectionId)
   if (!session.transactionActive) throw new Error('Nessuna transazione attiva.')
-  if (session.driver === 'sqlite') await requestSqlite(session, 'exec', { sql: 'COMMIT' })
+  if (session.driver === 'sqlite') await state.requestSqlite(session, 'exec', { sql: 'COMMIT' })
   else await executeRemoteTransaction(session, 'commit')
   session.transactionActive = false
   return { active: false }
 }
 
-async function rollbackTransaction(workspacePath, connectionId) {
-  const session = await getSession(workspacePath, connectionId)
+async function rollbackTransaction(state, workspacePath, connectionId) {
+  const session = await state.getSession(workspacePath, connectionId)
   if (!session.transactionActive) throw new Error('Nessuna transazione attiva.')
-  if (session.driver === 'sqlite') await requestSqlite(session, 'exec', { sql: 'ROLLBACK' })
+  if (session.driver === 'sqlite') await state.requestSqlite(session, 'exec', { sql: 'ROLLBACK' })
   else await executeRemoteTransaction(session, 'rollback')
   session.transactionActive = false
   return { active: false }
@@ -315,8 +321,8 @@ function makeSqliteTableSchema({ name, columns }) {
   })))
 }
 
-function findCachedTable(key, tableName) {
-  const pages = schemaCache.get(key)
+function findCachedTable(state, key, tableName) {
+  const pages = state.schemaCache.get(key)
   if (!pages) return null
   for (const page of pages.values()) {
     const table = page.tables.find((item) => item.name === tableName)
@@ -327,9 +333,9 @@ function findCachedTable(key, tableName) {
   return null
 }
 
-function cacheInspectedTable(key, table) {
+function cacheInspectedTable(state, key, table) {
   if (!table) return
-  const pages = schemaCache.get(key)
+  const pages = state.schemaCache.get(key)
   if (!pages) return
   for (const page of pages.values()) {
     const index = page.tables.findIndex((item) => item.name === table.name)
@@ -338,12 +344,12 @@ function cacheInspectedTable(key, table) {
   }
 }
 
-async function inspectTableSchema(workspacePath, connectionId, session, tableName) {
+async function inspectTableSchema(state, workspacePath, connectionId, session, tableName) {
   const key = sessionKey(workspacePath, connectionId)
-  const cached = findCachedTable(key, tableName)
+  const cached = findCachedTable(state, key, tableName)
   if (cached) return cached
   if (session.driver === 'sqlite') {
-    const { table } = await requestSqlite(session, 'inspectTableSchema', { tableName })
+    const { table } = await state.requestSqlite(session, 'inspectTableSchema', { tableName })
     return table ? makeSqliteTableSchema(table) : null
   }
   const columnsQuery = remoteTableColumnsExactQuery(session.driver, tableName)
@@ -354,12 +360,12 @@ async function inspectTableSchema(workspacePath, connectionId, session, tableNam
     ? await executeRemote(session, primaryKeyQuery.sql, primaryKeyQuery.parameters)
     : { rows: [] }
   const table = mapRemoteTables(columnRows, primaryKeyRows, 1)[0] ?? null
-  cacheInspectedTable(key, table)
+  cacheInspectedTable(state, key, table)
   return table
 }
 
-async function inspectRoutine(workspacePath, connectionId, routineName, kind) {
-  const session = await getSession(workspacePath, connectionId)
+async function inspectRoutine(state, workspacePath, connectionId, routineName, kind) {
+  const session = await state.getSession(workspacePath, connectionId)
   if (session.driver === 'sqlite') return { name: routineName, kind, definition: null, definitionTruncated: false }
   const query = remoteRoutineDefinitionQuery(session.driver, routineName, kind)
   const { rows } = await executeRemote(session, query.sql, query.parameters)
@@ -403,18 +409,18 @@ async function inspectRemoteSchemaPage(session, { offset, limit }, execute = exe
   }
 }
 
-async function inspectSchema(workspacePath, connectionId, options = {}) {
+async function inspectSchema(state, workspacePath, connectionId, options = {}) {
   const pageOptions = normalizeSchemaPageOptions(options)
   const key = sessionKey(workspacePath, connectionId)
-  if (pageOptions.force) schemaCache.delete(key)
+  if (pageOptions.force) state.schemaCache.delete(key)
   const pageKey = schemaPageCacheKey(pageOptions)
-  const cached = schemaCache.get(key)?.get(pageKey)
+  const cached = state.schemaCache.get(key)?.get(pageKey)
   if (cached) return cached
 
-  const session = await getSession(workspacePath, connectionId)
+  const session = await state.getSession(workspacePath, connectionId)
   let schema
   if (session.driver === 'sqlite') {
-    const rawSchema = await requestSqlite(session, 'inspectSchema', pageOptions)
+    const rawSchema = await state.requestSqlite(session, 'inspectSchema', pageOptions)
     schema = {
       tables: rawSchema.tables.map(makeSqliteTableSchema),
       routines: [],
@@ -425,14 +431,14 @@ async function inspectSchema(workspacePath, connectionId, options = {}) {
   } else {
     schema = await inspectRemoteSchemaPage(session, pageOptions)
   }
-  let pages = schemaCache.get(key)
+  let pages = state.schemaCache.get(key)
   if (!pages) {
     pages = new Map()
-    schemaCache.set(key, pages)
+    state.schemaCache.set(key, pages)
   }
   pages.set(pageKey, schema)
   while (pages.size > SCHEMA_CACHE_PAGE_LIMIT) pages.delete(pages.keys().next().value)
   return schema
 }
 
-module.exports = { attachRemoteSessionLifecycle, beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, detachRemoteSessionLifecycle, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, invalidateRemoteSession, isEditableColumn, limitRemoteReadSql, makeTableSchema, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, safeQueryErrorMessage, sanitizeDatabaseDiagnostic, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig }
+module.exports = { attachRemoteSessionLifecycle, buildDriverConfig, classifySql, createDatabaseService, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, detachRemoteSessionLifecycle, disposeRemoteSession, enqueueRemoteOperation, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, invalidateRemoteSession, isEditableColumn, limitRemoteReadSql, makeTableSchema, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, recordQueryHistoryOutcome, routineMetadataSql, safeQueryErrorMessage, sanitizeDatabaseDiagnostic, tablePageParameters, toDatabasePublicError, validateConnectionConfig }

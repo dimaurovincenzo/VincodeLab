@@ -10,46 +10,29 @@ const {
 } = require('./remote-session-lifecycle.cjs')
 
 function createDatabaseSessionRuntime({
+  createSqliteWorkerSession,
+  driverPort,
   getConnectionWithSecrets,
   invalidateSchema,
   invalidateWorkspaceSchema,
+  sqliteWorkerDiagnostics,
 } = {}) {
+  if (typeof createSqliteWorkerSession !== 'function') throw new TypeError('Factory sessioni SQLite non valida.')
+  const remoteDriverPort = assertDatabaseDriverPort(driverPort)
   if (typeof getConnectionWithSecrets !== 'function') throw new TypeError('Porta connessioni database non valida.')
   if (typeof invalidateSchema !== 'function') throw new TypeError('Invalidazione schema database non valida.')
   if (typeof invalidateWorkspaceSchema !== 'function') throw new TypeError('Invalidazione schema workspace non valida.')
+  if (typeof sqliteWorkerDiagnostics !== 'function') throw new TypeError('Diagnostica worker SQLite non valida.')
 
   const sqliteSessions = new Map()
   const remoteSessions = createDatabaseSessionRegistry({
     closeSession: disposeRemoteSession,
     forceCloseSession: forceCloseRemoteSession,
   })
-  let driverPort = null
-  let sqliteRuntime = null
   const remoteSessionLifecycle = createRemoteSessionLifecycleController({
     closeSession: (key) => remoteSessions.close(key),
     invalidateSchema,
   })
-
-  function configureRuntime(runtime) {
-    if (!runtime || typeof runtime.createSqliteWorkerSession !== 'function' || typeof runtime.sqliteWorkerDiagnostics !== 'function') {
-      throw new TypeError('Runtime database non valido.')
-    }
-    driverPort = assertDatabaseDriverPort(runtime.driverPort)
-    sqliteRuntime = Object.freeze({
-      createSqliteWorkerSession: runtime.createSqliteWorkerSession,
-      sqliteWorkerDiagnostics: runtime.sqliteWorkerDiagnostics,
-    })
-  }
-
-  function createSqliteWorkerSession(...args) {
-    if (!sqliteRuntime) throw new Error('Runtime database non configurato.')
-    return sqliteRuntime.createSqliteWorkerSession(...args)
-  }
-
-  function sqliteWorkerDiagnostics() {
-    if (!sqliteRuntime) return { activeWorkers: 0, pendingRequests: 0 }
-    return sqliteRuntime.sqliteWorkerDiagnostics()
-  }
 
   async function requestSqlite(session, operation, payload, options) {
     try {
@@ -103,10 +86,10 @@ function createDatabaseSessionRuntime({
       const session = await remoteSessions.acquire(key, async ({ setCandidate }) => {
         const config = buildDriverConfig(connection)
         let candidate
-        const handle = await driverPort.openRemoteSession(config, {
+        const handle = await remoteDriverPort.openRemoteSession(config, {
           onCandidate: (openingHandle) => {
             if (candidate) throw new TypeError('Candidato database remoto duplicato.')
-            candidate = { driver: connection.driver, handle: openingHandle, driverPort }
+            candidate = { driver: connection.driver, handle: openingHandle, driverPort: remoteDriverPort }
             // Il registry e il lifecycle devono conoscere l'handle prima del
             // connect per poter confinare close o failure durante l'apertura.
             setCandidate(candidate)
@@ -155,7 +138,6 @@ function createDatabaseSessionRuntime({
   return {
     closeConnectionSession,
     closeWorkspaceSessions,
-    configureRuntime,
     getSession,
     requestSqlite,
     sqliteWorkerDiagnostics,

@@ -9,17 +9,19 @@ const Database = require('better-sqlite3')
 
 const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const { createConnection, getConnectionWithSecrets, recordHistory } = require('../electron/infrastructure/persistence/database.repository.cjs')
-const { attachRemoteSessionLifecycle, beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
+const { attachRemoteSessionLifecycle, buildDriverConfig, classifySql, createDatabaseService, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, recordQueryHistoryOutcome, routineMetadataSql, safeQueryErrorMessage, tablePageParameters, toDatabasePublicError, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
 const { MAX_ROUTINE_DEFINITION_CHARS, normalizeSchemaPageOptions, remotePrimaryKeyQuery, remoteRoutineDefinitionQuery, remoteRoutinePageSql, remoteTableIdentityPageSql } = require('../electron/domains/database/database-schema-model.cjs')
 const { createNodeDatabaseDriverAdapter, nodeDatabaseDriverAdapter } = require('../electron/infrastructure/database/node-database-driver.adapter.cjs')
 const { SqliteWorkerSession, sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics } = require('../electron/infrastructure/database/sqlite-worker-session.adapter.cjs')
 
-configureDatabasePersistence({ getConnectionWithSecrets, recordHistory })
-configureDatabaseRuntime({
+const databaseService = createDatabaseService({
   createSqliteWorkerSession: (sqlitePath, onClosed) => new SqliteWorkerSession(sqlitePath, onClosed),
   driverPort: nodeDatabaseDriverAdapter,
+  getConnectionWithSecrets,
+  recordHistory,
   sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics,
 })
+const { beginTransaction, closeConnectionSession, closeWorkspaceSessions, executeQuery, inspectRoutine, inspectSchema, openConnection, readTableRows, rollbackTransaction, sqliteWorkerDiagnostics, updateTableRows } = databaseService
 
 function withTemporaryDatabase(t) {
   const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-query-'))
@@ -97,6 +99,94 @@ function semanticLifecyclePort(emitter, {
   }
   return { driverPort, handle }
 }
+
+test('la factory richiede porte esplicite e non espone stato o riconfigurazione', () => {
+  assert.throws(() => createDatabaseService(), /Persistenza database non valida/u)
+  assert.throws(() => createDatabaseService({
+    getConnectionWithSecrets: () => null,
+    recordHistory: () => undefined,
+  }), /Factory sessioni SQLite non valida/u)
+  assert.equal('configureDatabasePersistence' in require('../electron/domains/database/database-service.cjs'), false)
+  assert.equal('configureDatabaseRuntime' in require('../electron/domains/database/database-service.cjs'), false)
+})
+
+test('due servizi isolano sessioni e cache schema sulla stessa chiave senza caricare driver vendor', async () => {
+  const workspacePath = '/workspace/database-service-isolation'
+  const connectionId = 'shared-connection'
+
+  function createHarness(label) {
+    let closeCalls = 0
+    let createCalls = 0
+    let schemaCalls = 0
+    let vendorLoads = 0
+    const driverPort = createNodeDatabaseDriverAdapter({
+      loadMssql: () => { vendorLoads += 1; throw new Error('vendor MSSQL non atteso') },
+      loadMysql: () => { vendorLoads += 1; throw new Error('vendor MySQL non atteso') },
+      loadPostgres: () => { vendorLoads += 1; throw new Error('vendor PostgreSQL non atteso') },
+    })
+    const service = createDatabaseService({
+      createSqliteWorkerSession: (_sqlitePath, onClosed) => {
+        createCalls += 1
+        return {
+          close: async () => { closeCalls += 1; onClosed() },
+          ready: async () => undefined,
+          request: async (operation) => {
+            assert.equal(operation, 'inspectSchema')
+            schemaCalls += 1
+            return {
+              hasMore: false,
+              tables: [{
+                columns: [{ name: 'id', notnull: 1, pk: 1, type: 'INTEGER' }],
+                name: `${label}_table`,
+              }],
+              totalResources: 1,
+            }
+          },
+        }
+      },
+      driverPort,
+      getConnectionWithSecrets: () => ({ driver: 'sqlite', sqlitePath: `/${label}.sqlite` }),
+      recordHistory: () => undefined,
+      sqliteWorkerDiagnostics: () => ({ activeWorkers: createCalls - closeCalls, pendingRequests: 0 }),
+    })
+    return {
+      closeCalls: () => closeCalls,
+      createCalls: () => createCalls,
+      schemaCalls: () => schemaCalls,
+      service,
+      vendorLoads: () => vendorLoads,
+    }
+  }
+
+  const first = createHarness('first')
+  const second = createHarness('second')
+  const [firstSchema, secondSchema] = await Promise.all([
+    first.service.inspectSchema(workspacePath, connectionId),
+    second.service.inspectSchema(workspacePath, connectionId),
+  ])
+
+  assert.equal(firstSchema.tables[0].name, 'first_table')
+  assert.equal(secondSchema.tables[0].name, 'second_table')
+  assert.equal(first.createCalls(), 1)
+  assert.equal(second.createCalls(), 1)
+  assert.equal(first.schemaCalls(), 1)
+  assert.equal(second.schemaCalls(), 1)
+  assert.equal(first.vendorLoads(), 0)
+  assert.equal(second.vendorLoads(), 0)
+
+  assert.equal(await first.service.inspectSchema(workspacePath, connectionId), firstSchema)
+  assert.equal(await second.service.inspectSchema(workspacePath, connectionId), secondSchema)
+  assert.equal(first.schemaCalls(), 1)
+  assert.equal(second.schemaCalls(), 1)
+
+  await first.service.closeConnectionSession(workspacePath, connectionId)
+  assert.equal(first.closeCalls(), 1)
+  assert.equal(second.closeCalls(), 0)
+  assert.equal(await second.service.inspectSchema(workspacePath, connectionId), secondSchema)
+  assert.equal(second.schemaCalls(), 1)
+  await second.service.closeConnectionSession(workspacePath, connectionId)
+  assert.equal(second.closeCalls(), 1)
+})
 
 test('classifica le mutazioni e richiede conferma prima di eseguirle', async (t) => {
   const { workspace, sqlitePath } = withTemporaryDatabase(t)
@@ -816,7 +906,9 @@ test('il dominio conserva stato e mapping mentre l adapter gestisce le transazio
   const driverPort = createNodeDatabaseDriverAdapter({
     loadMssql: () => ({ Connection: FakeConnection, Request: class {}, TYPES: {} }),
   })
-  configureDatabasePersistence({
+  const transactionService = createDatabaseService({
+    createSqliteWorkerSession: (sqlitePath, onClosed) => new SqliteWorkerSession(sqlitePath, onClosed),
+    driverPort,
     getConnectionWithSecrets: () => ({
       database: 'app',
       driver: 'mssql',
@@ -828,41 +920,31 @@ test('il dominio conserva stato e mapping mentre l adapter gestisce le transazio
       user: 'developer',
     }),
     recordHistory: () => undefined,
-  })
-  configureDatabaseRuntime({
-    createSqliteWorkerSession: (sqlitePath, onClosed) => new SqliteWorkerSession(sqlitePath, onClosed),
-    driverPort,
     sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics,
   })
 
   try {
     const driverError = Object.assign(new Error("Violation of UNIQUE KEY constraint 'private-key'"), { number: 2627 })
     failNext = driverError
-    await assert.rejects(beginTransaction(workspacePath, connectionId), (error) => (
+    await assert.rejects(transactionService.beginTransaction(workspacePath, connectionId), (error) => (
       error.publicCode === 'DATABASE_CONSTRAINT_VIOLATION'
       && !error.message.includes('private-key')
       && !error.databaseDiagnostic.includes('private-key')
     ))
 
-    assert.deepEqual(await beginTransaction(workspacePath, connectionId), { active: true })
-    await assert.rejects(beginTransaction(workspacePath, connectionId), /transazione è già attiva/iu)
-    assert.deepEqual(await commitTransaction(workspacePath, connectionId), { active: false })
-    await assert.rejects(commitTransaction(workspacePath, connectionId), /Nessuna transazione attiva/iu)
+    assert.deepEqual(await transactionService.beginTransaction(workspacePath, connectionId), { active: true })
+    await assert.rejects(transactionService.beginTransaction(workspacePath, connectionId), /transazione è già attiva/iu)
+    assert.deepEqual(await transactionService.commitTransaction(workspacePath, connectionId), { active: false })
+    await assert.rejects(transactionService.commitTransaction(workspacePath, connectionId), /Nessuna transazione attiva/iu)
 
-    assert.deepEqual(await beginTransaction(workspacePath, connectionId), { active: true })
+    assert.deepEqual(await transactionService.beginTransaction(workspacePath, connectionId), { active: true })
     failNext = driverError
-    await assert.rejects(rollbackTransaction(workspacePath, connectionId), (error) => error.publicCode === 'DATABASE_CONSTRAINT_VIOLATION')
-    await assert.rejects(beginTransaction(workspacePath, connectionId), /transazione è già attiva/iu)
-    assert.deepEqual(await rollbackTransaction(workspacePath, connectionId), { active: false })
+    await assert.rejects(transactionService.rollbackTransaction(workspacePath, connectionId), (error) => error.publicCode === 'DATABASE_CONSTRAINT_VIOLATION')
+    await assert.rejects(transactionService.beginTransaction(workspacePath, connectionId), /transazione è già attiva/iu)
+    assert.deepEqual(await transactionService.rollbackTransaction(workspacePath, connectionId), { active: false })
     assert.deepEqual(calls, ['begin', 'begin', 'commit', 'begin', 'rollback', 'rollback'])
   } finally {
-    await closeConnectionSession(workspacePath, connectionId)
-    configureDatabasePersistence({ getConnectionWithSecrets, recordHistory })
-    configureDatabaseRuntime({
-      createSqliteWorkerSession: (sqlitePath, onClosed) => new SqliteWorkerSession(sqlitePath, onClosed),
-      driverPort: nodeDatabaseDriverAdapter,
-      sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics,
-    })
+    await transactionService.closeConnectionSession(workspacePath, connectionId)
   }
 })
 
