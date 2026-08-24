@@ -28,6 +28,19 @@ const sourceRoots = ['src', 'electron']
 const ipcChannelRegistryFile = 'electron/ipc/channels.cjs'
 const ipcPublicChannelSet = new Set(IPC_PUBLIC_CHANNELS)
 const ipcChannelPattern = /^[a-z][A-Za-z0-9]*:[A-Za-z][A-Za-z0-9]*$/u
+const electronCompositionRootFile = 'electron/main.cjs'
+const electronProtectedEntrypointFile = 'electron/app/bootstrap.cjs'
+const protectedEntrypointAllowedBareSpecifiers = new Set(['electron'])
+const protectedEntrypointAllowedInternalModules = new Set([
+  'electron/app/fatal-error-experience',
+  'electron/app/startup-bootstrap-guard',
+  'electron/infrastructure/logging/logger.adapter',
+  'electron/main',
+])
+const protectedEntrypointAllowedFactories = new Set([
+  'createEmergencyFatalExperience',
+  'createFatalErrorExperience',
+])
 function normalize(filePath) {
   return filePath.split(path.sep).join('/')
 }
@@ -326,7 +339,82 @@ function isPublicEntry(file, directory) {
 }
 
 function isElectronCompositionRoot(file) {
-  return file === 'electron/main.cjs' || file === 'electron/app/bootstrap.cjs'
+  return file === electronCompositionRootFile
+}
+
+function isElectronProtectedEntrypoint(file) {
+  return file === electronProtectedEntrypointFile
+}
+
+function isElectronEntrypoint(file) {
+  return isElectronCompositionRoot(file) || isElectronProtectedEntrypoint(file)
+}
+
+function isProtectedEntrypointAllowedInternalModule(file) {
+  return protectedEntrypointAllowedInternalModules.has(extensionlessFile(file))
+}
+
+function protectedEntrypointImportProblem(root, importer, specifier) {
+  if (!isElectronProtectedEntrypoint(normalize(path.relative(root, importer)))) return null
+  if (protectedEntrypointAllowedBareSpecifiers.has(specifier)) return null
+  const requested = extensionlessModule(root, importer, specifier)
+  if (requested && protectedEntrypointAllowedInternalModules.has(requested)) return null
+  return `bootstrap protetto: dipendenza "${specifier}" non consentita; limita l'entrypoint alla guardia fatal e collega servizi o adapter in electron/main.cjs`
+}
+
+function protectedEntrypointCompositionReferences(sourceFile) {
+  const references = new Set()
+  const targetName = (expression) => {
+    const target = unwrapExpression(expression)
+    if (ts.isIdentifier(target)) return target.text
+    if (ts.isPropertyAccessExpression(target)) return target.name.text
+    if (ts.isElementAccessExpression(target) && target.argumentExpression && ts.isStringLiteralLike(target.argumentExpression)) {
+      return target.argumentExpression.text
+    }
+    return null
+  }
+  const visit = (node) => {
+    if (ts.isCallExpression(node)) {
+      const name = targetName(node.expression)
+      if (name && /^create[A-Z]/u.test(name) && !protectedEntrypointAllowedFactories.has(name)) references.add(name)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return [...references]
+}
+
+function protectedEntrypointLoaderProblems(sourceFile) {
+  const problems = new Set()
+  const memberName = (node) => {
+    if (ts.isPropertyAccessExpression(node)) return node.name.text
+    if (ts.isElementAccessExpression(node) && node.argumentExpression && ts.isStringLiteralLike(node.argumentExpression)) {
+      return node.argumentExpression.text
+    }
+    return null
+  }
+  const visit = (node) => {
+    if (ts.isCallExpression(node)) {
+      const dynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword
+      const directRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require'
+      if (dynamicImport) {
+        problems.add('bootstrap protetto usa import(); il caricamento deve restare sincrono tramite require(<letterale>) incluso nell\'allowlist fatal')
+      } else if (directRequire && (node.arguments.length !== 1 || !ts.isStringLiteralLike(node.arguments[0]))) {
+        problems.add('bootstrap protetto usa require con un argomento dinamico o non letterale; sono ammesse soltanto dipendenze statiche incluse nell\'allowlist fatal')
+      } else if ((ts.isPropertyAccessExpression(node.expression) || ts.isElementAccessExpression(node.expression)) && memberName(node.expression) === 'require') {
+        problems.add('bootstrap protetto usa require in forma indiretta o aliasata; invoca direttamente require(<letterale>)')
+      }
+    }
+    if (ts.isIdentifier(node) && node.text === 'require') {
+      const directCallee = ts.isCallExpression(node.parent) && node.parent.expression === node
+      if (!directCallee) problems.add('bootstrap protetto usa require in forma indiretta o aliasata; invoca direttamente require(<letterale>)')
+    } else if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && memberName(node) === 'require') {
+      problems.add('bootstrap protetto usa require in forma indiretta o aliasata; invoca direttamente require(<letterale>)')
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return [...problems]
 }
 
 function importBoundaryProblems(importer, imported) {
@@ -380,7 +468,9 @@ function importBoundaryProblems(importer, imported) {
     problems.push(`bridge dipende da UI o feature (${imported})`)
   }
 
-  if (importer.startsWith('electron/app/') && !isElectronCompositionRoot(importer) && /^(?:electron\/(?:infrastructure|ipc|preload)\/)/u.test(imported) && imported !== ipcChannelRegistryFile) {
+  const protectedEntrypointImport = isElectronProtectedEntrypoint(importer)
+    && isProtectedEntrypointAllowedInternalModule(imported)
+  if (importer.startsWith('electron/app/') && !protectedEntrypointImport && /^(?:electron\/(?:infrastructure|ipc|preload)\/)/u.test(imported) && imported !== ipcChannelRegistryFile) {
     problems.push(`application layer Electron dipende da un adapter esterno (${imported})`)
   }
 
@@ -400,8 +490,12 @@ function importBoundaryProblems(importer, imported) {
     problems.push(`preload esce dal proprio confine isolato (${imported})`)
   }
 
-  if (!isElectronCompositionRoot(importer) && isElectronCompositionRoot(imported)) {
+  if (!isElectronEntrypoint(importer) && isElectronCompositionRoot(imported)) {
     problems.push(`modulo interno dipende dalla composition root Electron (${imported})`)
+  }
+
+  if (!isElectronEntrypoint(importer) && isElectronProtectedEntrypoint(imported)) {
+    problems.push(`modulo interno dipende dall'entrypoint protetto Electron (${imported})`)
   }
 
   return problems
@@ -454,6 +548,13 @@ export function inspectArchitecture({ root }) {
     const sourceFile = sourceFileFor(file, source)
     const dependencies = []
 
+    if (isElectronProtectedEntrypoint(file)) {
+      for (const factory of protectedEntrypointCompositionReferences(sourceFile)) {
+        problems.push(`${file}: bootstrap protetto compone la factory "${factory}"; la composizione applicativa appartiene a electron/main.cjs`)
+      }
+      for (const problem of protectedEntrypointLoaderProblems(sourceFile)) problems.push(`${file}: ${problem}`)
+    }
+
     for (const problem of ipcChannelLiteralProblems(file, sourceFile)) problems.push(`${file}: ${problem}`)
     for (const problem of bridgeTypeContractProblems(file, sourceFile)) problems.push(problem)
 
@@ -480,6 +581,11 @@ export function inspectArchitecture({ root }) {
     }
 
     for (const specifier of moduleSpecifiers(sourceFile)) {
+      const protectedEntrypointProblem = protectedEntrypointImportProblem(absoluteRoot, absoluteFile, specifier)
+      if (protectedEntrypointProblem) {
+        problems.push(`${file}: ${protectedEntrypointProblem}`)
+        continue
+      }
       if (file.startsWith('electron/domains/database/') && isDatabaseDriverSpecifier(specifier)) {
         problems.push(`${file}: dominio Database dipende direttamente dal driver esterno "${specifier}"; usa la porta driver`)
         continue

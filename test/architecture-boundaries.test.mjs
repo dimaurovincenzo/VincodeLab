@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { inspectArchitecture } from '../scripts/lib/architecture-check.mjs'
+
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 function withFixture(files, assertion) {
   const root = mkdtempSync(path.join(os.tmpdir(), 'vincodelab-architecture-'))
@@ -180,6 +183,76 @@ test('isola application, infrastructure, IPC e preload nel backend', () => {
     assert.ok(problems.some((problem) => problem.includes('infrastruttura Electron dipende')))
     assert.ok(problems.some((problem) => problem.includes('preload esce dal proprio confine')))
     assert.ok(problems.some((problem) => problem.includes('composition root Electron')))
+  })
+})
+
+test('accetta il bootstrap reale come entrypoint fatal protetto e non come composition root', () => {
+  const bootstrap = readFileSync(path.join(repositoryRoot, 'electron/app/bootstrap.cjs'), 'utf8')
+  withFixture({
+    'electron/app/bootstrap.cjs': bootstrap,
+  }, (problems) => assert.deepEqual(problems, []))
+})
+
+test('il bootstrap protetto rifiuta dipendenze arbitrarie e composizione di servizi', () => {
+  withFixture({
+    'electron/app/bootstrap.cjs': [
+      "require('electron')",
+      "require('node:fs')",
+      "const { createDatabaseService } = require('../domains/database/database-service.cjs')",
+      "require('../infrastructure/database/node-database-driver.adapter.cjs')",
+      "require('../ipc/domains/database.ipc.cjs')",
+      "const dynamicService = '../domains/database/database-service.cjs'",
+      'require(dynamicService)',
+      'createDatabaseService({})',
+    ].join('\n'),
+    'electron/domains/database/database-service.cjs': 'exports.createDatabaseService = () => ({})\n',
+    'electron/infrastructure/database/node-database-driver.adapter.cjs': 'module.exports = {}\n',
+    'electron/ipc/domains/database.ipc.cjs': 'module.exports = {}\n',
+  }, (problems) => {
+    for (const dependency of [
+      'node:fs',
+      '../domains/database/database-service.cjs',
+      '../infrastructure/database/node-database-driver.adapter.cjs',
+      '../ipc/domains/database.ipc.cjs',
+    ]) {
+      assert.ok(problems.some((problem) => problem.includes(`dipendenza "${dependency}" non consentita`)), dependency)
+    }
+    assert.ok(problems.some((problem) => problem.includes('bootstrap protetto compone la factory "createDatabaseService"')))
+    assert.ok(problems.some((problem) => problem.includes('require con un argomento dinamico o non letterale')))
+  })
+})
+
+test('il bootstrap protetto vieta import asincroni, module.require e alias del loader', () => {
+  for (const { expected, source } of [
+    {
+      expected: 'bootstrap protetto usa import()',
+      source: "import('../main.cjs')\n",
+    },
+    {
+      expected: 'bootstrap protetto usa require in forma indiretta o aliasata',
+      source: "module.require('../ipc/domains/database.ipc.cjs')\n",
+    },
+    {
+      expected: 'bootstrap protetto usa require in forma indiretta o aliasata',
+      source: [
+        'const load = require',
+        "const { createDatabaseService: buildDatabase } = load('../domains/database/database-service.cjs')",
+        'buildDatabase({})',
+      ].join('\n'),
+    },
+  ]) {
+    withFixture({
+      'electron/app/bootstrap.cjs': source,
+    }, (problems) => assert.ok(problems.some((problem) => problem.includes(expected)), source))
+  }
+})
+
+test('i moduli interni non possono dipendere dal bootstrap protetto', () => {
+  withFixture({
+    'electron/app/bootstrap.cjs': "require('electron')\n",
+    'electron/domains/workspace/runtime.cjs': "require('../../app/bootstrap.cjs')\n",
+  }, (problems) => {
+    assert.ok(problems.some((problem) => problem.includes("modulo interno dipende dall'entrypoint protetto Electron")))
   })
 })
 
