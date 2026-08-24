@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 const { createPiSystemUseCases, getPiSystemStatus, installPiPackage, listPiPackages } = require('../electron/domains/ai/pi-system-service.cjs')
+const { createPiPackageSkillsSourcePort } = require('../electron/domains/ai/pi-package-skills-source.port.cjs')
 const { isPublicError } = require('../electron/domains/errors/public-error.cjs')
 
 function hasPublicCode(code) {
@@ -70,13 +71,17 @@ test('azioni pacchetto distinguono Pi assente e dipendenze npm/git mancanti', as
 
 test('i use case configurati usano soltanto il runner iniettato mantenendo le firme IPC', async () => {
   const calls = []
+  const scanCalls = []
   const run = async (executable, args) => {
     calls.push([executable, args])
     if (args[0] === '--version') return { stdout: 'pi 1.2.3\n', stderr: '' }
     if (args[0] === 'list') return { stdout: 'User packages:\n  npm:one\n    /tmp/pi/npm/one\n', stderr: '' }
     return { stdout: `${args[0]} complete`, stderr: '' }
   }
-  const useCases = createPiSystemUseCases({ run })
+  const packageSkillsSource = createPiPackageSkillsSourcePort({
+    scan(packages) { scanCalls.push(packages); return [] },
+  })
+  const useCases = createPiSystemUseCases({ packageSkillsSource, run })
   const resolve = () => '/opt/pi/bin/pi'
 
   assert.deepEqual(await useCases.getPiSystemStatus(resolve), {
@@ -85,9 +90,12 @@ test('i use case configurati usano soltanto il runner iniettato mantenendo le fi
     version: 'pi 1.2.3',
   })
   assert.deepEqual(await useCases.listPiPackages(resolve), ['npm:one'])
+  assert.deepEqual(await useCases.listPiPackageSkills(resolve), [])
+  assert.deepEqual(scanCalls, [[{ source: 'npm:one', root: '/tmp/pi/npm/one' }]])
   assert.deepEqual(await useCases.installPiPackage('npm:one', resolve), { output: 'install complete' })
   assert.deepEqual(await useCases.updatePiPackage('npm:one', resolve), { output: 'update complete' })
   assert.deepEqual(await useCases.removePiPackage('npm:one', resolve), { output: 'remove complete' })
-  assert.deepEqual(calls.map(([, args]) => args[0]), ['--version', 'list', 'install', 'update', 'remove'])
+  assert.deepEqual(calls.map(([, args]) => args[0]), ['--version', 'list', 'list', 'install', 'update', 'remove'])
   assert.throws(() => createPiSystemUseCases(), /Runner comando Pi non valido/u)
+  assert.throws(() => createPiSystemUseCases({ run }), /Porta catalogo skill dei pacchetti Pi non valida/u)
 })

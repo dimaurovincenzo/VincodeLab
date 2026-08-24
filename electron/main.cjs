@@ -26,6 +26,7 @@ const { createTerminalDiagnosticsReport, sanitizeRendererMetrics } = require('./
 const { createSystemSkillsUseCases } = require('./domains/ai/system-skills.cjs')
 const { createSystemSkillsFilesystemAdapter } = require('./infrastructure/filesystem/system-skills-filesystem.adapter.cjs')
 const { PI_COMMAND_TIMEOUT_MS, createPiSystemUseCases } = require('./domains/ai/pi-system-service.cjs')
+const { createPiPackageSkillsFilesystemAdapter } = require('./infrastructure/filesystem/pi-package-skills-filesystem.adapter.cjs')
 const { createProjectInstructionsUseCases } = require('./domains/ai/project-instructions.cjs')
 const { createProjectInstructionsFilesystemAdapter } = require('./infrastructure/filesystem/project-instructions-filesystem.adapter.cjs')
 const { createProjectDirectory, createProjectFile, duplicateProjectEntry, listDirectoryEntries, listProjectFiles, openProjectFileWith, prepareProjectFileAttachment, readProjectFile, readProjectPreview, renameProjectEntry, resolveProjectDirectory, resolveProjectFile, saveProjectFile } = require('./domains/filesystem/project-files.cjs')
@@ -211,6 +212,7 @@ const aiTerminalLaunchPolicy = createAiTerminalLaunchPolicy({
   inspectHerdr: herdrRuntime.inspect,
   resolvePiExecutable,
 })
+const piPackageSkillsSource = createPiPackageSkillsFilesystemAdapter()
 const {
   getPiSystemStatus,
   installPiPackage,
@@ -218,7 +220,7 @@ const {
   listPiPackages,
   removePiPackage,
   updatePiPackage,
-} = createPiSystemUseCases({ run: piCommandRunner.run })
+} = createPiSystemUseCases({ packageSkillsSource: piPackageSkillsSource, run: piCommandRunner.run })
 const reconcileManagedPiPackages = (resolveExecutableForReconciliation, allowedRoot) => reconcileManagedPiPackagesWithDependencies(
   resolveExecutableForReconciliation,
   allowedRoot,

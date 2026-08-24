@@ -1,4 +1,5 @@
 const { listPiPackageSkills: discoverPiPackageSkills, parsePiPackageList } = require('./pi-package-skills.cjs')
+const { assertPiPackageSkillsSourcePort } = require('./pi-package-skills-source.port.cjs')
 const { createPublicError, isPublicError } = require('../errors/public-error.cjs')
 
 const MAX_SOURCE_LENGTH = 2048
@@ -160,7 +161,9 @@ async function listPiPackageRecords(resolveExecutable, run) {
   return parsePiPackageList(result.stdout)
 }
 async function listPiPackages(resolveExecutable, run) { return (await listPiPackageRecords(resolveExecutable, run)).map((item) => item.source) }
-async function listPiPackageSkills(resolveExecutable, run) { return discoverPiPackageSkills(await listPiPackageRecords(resolveExecutable, run)) }
+async function listPiPackageSkills(resolveExecutable, run, packageSkillsSource) {
+  return discoverPiPackageSkills(await listPiPackageRecords(resolveExecutable, run), packageSkillsSource)
+}
 async function runPackageCommand(command, source, resolveExecutable, run) {
   const value = assertPackageSource(source)
   return normalizeResult(await runPiCommand(resolveOrThrow(resolveExecutable), [command, value], run))
@@ -169,13 +172,14 @@ function installPiPackage(source, resolveExecutable, run) { return runPackageCom
 function updatePiPackage(source, resolveExecutable, run) { return runPackageCommand('update', source, resolveExecutable, run) }
 function removePiPackage(source, resolveExecutable, run) { return runPackageCommand('remove', source, resolveExecutable, run) }
 
-function createPiSystemUseCases({ run } = {}) {
+function createPiSystemUseCases({ packageSkillsSource, run } = {}) {
   if (typeof run !== 'function') throw new TypeError('Runner comando Pi non valido.')
+  const skillsSource = assertPiPackageSkillsSourcePort(packageSkillsSource)
   return Object.freeze({
     getPiSystemStatus: (resolveExecutable) => getPiSystemStatus(resolveExecutable, run),
     installPiPackage: (source, resolveExecutable) => installPiPackage(source, resolveExecutable, run),
     listPiPackageRecords: (resolveExecutable) => listPiPackageRecords(resolveExecutable, run),
-    listPiPackageSkills: (resolveExecutable) => listPiPackageSkills(resolveExecutable, run),
+    listPiPackageSkills: (resolveExecutable) => listPiPackageSkills(resolveExecutable, run, skillsSource),
     listPiPackages: (resolveExecutable) => listPiPackages(resolveExecutable, run),
     removePiPackage: (source, resolveExecutable) => removePiPackage(source, resolveExecutable, run),
     updatePiPackage: (source, resolveExecutable) => updatePiPackage(source, resolveExecutable, run),
