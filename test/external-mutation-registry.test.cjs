@@ -64,7 +64,13 @@ test('il drain considera conclusa anche una mutazione fallita e non ne nasconde 
 })
 
 test('il main attende le mutazioni ai lifecycle boundary e registra GitHub Pi update e Database', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const domainsDirectory = path.join(__dirname, '../electron/ipc/domains')
+  const ipcDomains = fs.readdirSync(domainsDirectory)
+    .filter((fileName) => fileName.endsWith('.ipc.cjs'))
+    .map((fileName) => fs.readFileSync(path.join(domainsDirectory, fileName), 'utf8'))
+    .join('\n')
+  const source = `${main}\n${ipcDomains}`
   assert.match(source, /externalMutations\.waitMatching\([\s\S]*?'external-mutations'/u)
   assert.match(source, /externalMutations\.waitAll\(\)[\s\S]*?'external-mutations'/u)
   assert.match(source, /externalMutations\.run\(\{ ownerId: 0, workspacePath: null, type: 'startup:managed-updates' \}/u)
@@ -76,9 +82,9 @@ test('il main attende le mutazioni ai lifecycle boundary e registra GitHub Pi up
     ['database:commit', 'database:commit'],
     ['database:updateTableRows', 'database:update-table-rows'],
   ]) {
-    assert.match(source, new RegExp(`ipcMain\\.handle\\('${channel}'[\\s\\S]{0,240}'${type}'`, 'u'))
+    assert.match(source, new RegExp(`(?:ipcMain\\.handle\\('|\\[')${channel}'[\\s\\S]{0,320}'${type}'`, 'u'))
   }
   for (const channel of ['updates:download', 'updates:activatePending', 'piSystem:install', 'piSystem:update', 'piSystem:remove']) {
-    assert.match(source, new RegExp(`ipcMain\\.handle\\('${channel}'[\\s\\S]{0,260}runExternalMutation`, 'u'))
+    assert.match(source, new RegExp(`(?:ipcMain\\.handle\\('|\\[')${channel}'[\\s\\S]{0,320}runExternalMutation`, 'u'))
   }
 })

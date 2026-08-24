@@ -74,6 +74,14 @@ test('rifiuta contesti non validi', () => {
 
 test('il main applica latest wins soltanto alle letture e le cancella nei lifecycle boundary', () => {
   const source = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const gitIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/git.ipc.cjs'), 'utf8')
+  const githubIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/github.ipc.cjs'), 'utf8')
+  const domainSource = `${gitIpc}\n${githubIpc}`
+  const handlerSource = (channel) => {
+    const start = domainSource.indexOf(`['${channel}'`)
+    const end = domainSource.indexOf('\n    [', start + 1)
+    return domainSource.slice(start, end === -1 ? domainSource.length : end)
+  }
 
   for (const [channel, type] of [
     ['github:gitStatus', 'git-status'],
@@ -83,14 +91,18 @@ test('il main applica latest wins soltanto alle letture e le cancella nei lifecy
     ['github:projectBoard', 'project-board'],
     ['github:projectItemFields', 'project-fields'],
   ]) {
-    const handler = source.slice(source.indexOf(`ipcMain.handle('${channel}'`), source.indexOf("ipcMain.handle('", source.indexOf(`ipcMain.handle('${channel}'`) + 1))
-    assert.match(handler, new RegExp(`runLatestGithubRead\\(event, '${type}'`))
+    const handler = handlerSource(channel)
+    assert.match(handler, new RegExp(`runLatestGithubRead\\(\\s*event,\\s*'${type}'`))
   }
 
   for (const channel of ['github:commit', 'github:push', 'github:fetch', 'github:pullRebase', 'github:createIssue', 'github:updateIssue', 'github:updateProjectItem']) {
-    const handler = source.slice(source.indexOf(`ipcMain.handle('${channel}'`), source.indexOf("ipcMain.handle('", source.indexOf(`ipcMain.handle('${channel}'`) + 1))
+    const handler = handlerSource(channel)
     assert.doesNotMatch(handler, /runLatestGithubRead/)
   }
+
+  assert.match(source, /registerGitIpc\(\{/)
+  assert.match(source, /registerGithubIpc\(\{/)
+  assert.doesNotMatch(source, /ipcMain\.handle\('github:/)
 
   assert.match(source, /async function cleanupWorkspaceRuntime\(workspacePath, reason\)[\s\S]*?await stopTerminal\(reason\)[\s\S]*?githubOperations\.abortAndWaitMatching\(\(operation\) => !workspacePath \|\| operation\.workspacePath === workspacePath\)/)
   assert.match(source, /previousWorkspacePath !== normalizedWorkspacePath[\s\S]{0,180}await cleanupWorkspaceRuntime\(previousWorkspacePath, 'workspace-change'\)/)

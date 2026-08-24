@@ -202,6 +202,7 @@ test('preload espone refresh cache-aware senza API Node nel renderer', () => {
 test('preload espone il workspace Database senza accesso Node dal renderer', () => {
   const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const databaseIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/database.ipc.cjs'), 'utf8')
   const database = preload.slice(preload.indexOf('database:'), preload.indexOf('\n  shell:'))
 
   assert.match(database, /database: \{[\s\S]*execute: \(connectionId, sql, options\) => ipcRenderer\.invoke\('database:execute', connectionId, sql, options\)/)
@@ -212,10 +213,12 @@ test('preload espone il workspace Database senza accesso Node dal renderer', () 
   assert.match(database, /deleteSavedQuery: \(id\) => ipcRenderer\.invoke\('database:deleteSavedQuery', id\)/)
   assert.match(database, /clearHistory: \(connectionId\) => ipcRenderer\.invoke\('database:clearHistory', connectionId\)/)
   assert.doesNotMatch(database, /require\(|node:|better-sqlite3/)
-  assert.match(main, /database:updateConnection[\s\S]*closeConnectionSession\(workspacePath, id\)/)
-  assert.match(main, /database:deleteConnection[\s\S]*closeConnectionSession\(workspacePath, id\)/)
-  assert.match(main, /ipcMain\.handle\('database:execute'[\s\S]*databaseOperations\.start[\s\S]*event\.sender\.id[\s\S]*signal: operation\.signal/)
-  assert.match(main, /ipcMain\.handle\('database:cancel'[\s\S]*databaseOperations\.cancel\(operationId, event\.sender\.id\)/)
+  assert.match(databaseIpc, /database:updateConnection[\s\S]*closeConnectionSession\(workspacePath, id\)/)
+  assert.match(databaseIpc, /database:deleteConnection[\s\S]*closeConnectionSession\(workspacePath, id\)/)
+  assert.match(databaseIpc, /\['database:execute'[\s\S]*databaseOperations\.start[\s\S]*event\.sender\.id[\s\S]*signal: operation\.signal/)
+  assert.match(databaseIpc, /\['database:cancel'[\s\S]*databaseOperations\.cancel\(operationId, event\.sender\.id\)/)
+  assert.match(main, /registerDatabaseIpc\(\{/)
+  assert.doesNotMatch(main, /ipcMain\.handle\('database:/)
 })
 
 test('ogni API invoke esposta dal preload ha un handler nel main process', () => {

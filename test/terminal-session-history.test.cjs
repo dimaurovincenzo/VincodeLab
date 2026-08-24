@@ -11,7 +11,8 @@ test('il terminale ripristina l’output Pi già prodotto dopo il rimontaggio de
   assert.match(main, /createTerminalStreamController/)
   assert.match(main, /ipcMain\.handle\('terminal:resume'/)
   assert.match(preload, /resume: \(request\) => ipcRenderer\.invoke\('terminal:resume', request\)/)
-  assert.match(app, /window\.vincodeLab\.terminal\.resume/)
+  assert.match(app, /appBridge\.terminal\.resume/)
+  assert.doesNotMatch(app, /window\.vincodeLab/)
   assert.match(app, /snapshot/)
 })
 

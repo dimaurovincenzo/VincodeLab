@@ -60,8 +60,14 @@ const { getRuntimeCapabilities } = require('./runtime-capabilities.cjs')
 const { registerPreferencesIpc } = require('./ipc/domains/preferences.ipc.cjs')
 const { registerRuntimeIpc } = require('./ipc/domains/runtime.ipc.cjs')
 const { registerAppearanceIpc } = require('./ipc/domains/appearance.ipc.cjs')
+const { registerDatabaseIpc } = require('./ipc/domains/database.ipc.cjs')
+const { registerFilesystemIpc } = require('./ipc/domains/filesystem.ipc.cjs')
+const { registerGitIpc } = require('./ipc/domains/git.ipc.cjs')
+const { registerGithubIpc } = require('./ipc/domains/github.ipc.cjs')
+const { registerPiSystemIpc } = require('./ipc/domains/pi-system.ipc.cjs')
 const { registerProjectResourcesIpc } = require('./ipc/domains/project-resources.ipc.cjs')
 const { registerSystemSkillsIpc } = require('./ipc/domains/system-skills.ipc.cjs')
+const { registerUpdatesIpc } = require('./ipc/domains/updates.ipc.cjs')
 const { registerWorkspaceStateIpc } = require('./ipc/domains/workspace-state.ipc.cjs')
 
 // Ogni invoke attraversa lo stesso confine: gli errori raw restano nel main,
@@ -1344,13 +1350,18 @@ async function initializeApplication() {
     setGlobalPreference,
     setWorkspacePreference,
   })
-  ipcMain.handle('updates:list', (event) => { assertTrustedSender(event); return listManagedUpdates() })
-  ipcMain.handle('updates:check', (event, id) => { assertTrustedSender(event); return checkUpdates(id ?? null, { force: true }) })
-  ipcMain.handle('updates:download', (event, id) => runExternalMutation(event, 'updates:download', null, () => stageManagedUpdate(id)))
-  ipcMain.handle('updates:downloadAll', (event) => runExternalMutation(event, 'updates:download-all', null, () => downloadAllUpdates()))
-  ipcMain.handle('updates:setPolicy', (event, id, policy) => { assertTrustedSender(event); return setManagedUpdatePolicy(id, policy) })
-  ipcMain.handle('updates:rollback', (event, id) => runExternalMutation(event, 'updates:rollback', null, () => rollbackManagedUpdate(id)))
-  ipcMain.handle('updates:activatePending', (event) => runExternalMutation(event, 'updates:activate', null, () => activatePendingUpdates()))
+  registerUpdatesIpc({
+    activatePendingUpdates,
+    assertTrustedSender,
+    checkUpdates,
+    downloadAllUpdates,
+    ipcMain,
+    listManagedUpdates,
+    rollbackManagedUpdate,
+    runExternalMutation,
+    setManagedUpdatePolicy,
+    stageManagedUpdate,
+  })
   ipcMain.handle('workspace:listRecent', (event) => {
     assertTrustedSender(event)
     return listRecentWorkspaces()
@@ -1363,92 +1374,25 @@ async function initializeApplication() {
     assertTrustedSender(event)
     return openWorkspace(workspacePath)
   })
-  ipcMain.handle('files:list', (event) => {
-    assertTrustedSender(event)
-    return listProjectFiles(requireActiveWorkspace())
-  })
-  ipcMain.handle('files:listDirectory', (event, directoryId) => {
-    assertTrustedSender(event)
-    return listDirectoryEntries(requireActiveWorkspace(), directoryId)
-  })
-  ipcMain.handle('files:index', (event, options) => {
-    assertTrustedSender(event)
-    const force = options?.force === true
-    if (options !== undefined && (!options || typeof options !== 'object' || Array.isArray(options) || Object.keys(options).some((key) => key !== 'force') || (options.force !== undefined && typeof options.force !== 'boolean'))) {
-      throw new Error('Opzioni indice file non valide.')
-    }
-    return projectFileIndex.build(requireActiveWorkspace(), { force })
-  })
-  ipcMain.handle('files:indexStatus', (event) => {
-    assertTrustedSender(event)
-    return projectFileIndex.getStatus(requireActiveWorkspace())
-  })
-  ipcMain.handle('files:read', (event, fileId) => {
-    assertTrustedSender(event)
-    return readProjectFile(requireActiveWorkspace(), fileId)
-  })
-  ipcMain.handle('files:preview', (event, fileId) => {
-    assertTrustedSender(event)
-    return readProjectPreview(requireActiveWorkspace(), fileId)
-  })
-  ipcMain.handle('files:prepareAttachment', (event, fileId) => {
-    assertTrustedSender(event)
-    return prepareProjectFileAttachment(requireActiveWorkspace(), fileId)
-  })
-  ipcMain.handle('files:create', (event, directoryId, fileName) => {
-    assertTrustedSender(event)
-    const result = createProjectFile(requireActiveWorkspace(), directoryId, fileName)
-    log('info', 'project_file_created')
-    projectFileIndex.invalidate(requireActiveWorkspace())
-    return result
-  })
-  ipcMain.handle('files:createDirectory', (event, parentId, directoryName) => {
-    assertTrustedSender(event)
-    const workspacePath = requireActiveWorkspace()
-    const result = createProjectDirectory(workspacePath, parentId, directoryName)
-    log('info', 'project_directory_created')
-    projectFileIndex.invalidate(workspacePath)
-    return result
-  })
-  ipcMain.handle('files:rename', (event, entryId, entryName, expectedKind) => {
-    assertTrustedSender(event)
-    const workspacePath = requireActiveWorkspace()
-    const result = renameProjectEntry(workspacePath, entryId, entryName, expectedKind)
-    if (result.renamed) {
-      log('info', 'project_entry_renamed', { kind: expectedKind })
-      projectFileIndex.invalidate(workspacePath)
-    }
-    return result
-  })
-  ipcMain.handle('files:duplicate', async (event, entryId, expectedKind) => {
-    assertTrustedSender(event)
-    const workspacePath = requireActiveWorkspace()
-    const result = await duplicateProjectEntry(workspacePath, entryId, expectedKind)
-    log('info', 'project_entry_duplicated', { kind: expectedKind })
-    projectFileIndex.invalidate(workspacePath)
-    return result
-  })
-  ipcMain.handle('files:trash', async (event, entryId, expectedKind) => {
-    assertTrustedSender(event)
-    const workspacePath = requireActiveWorkspace()
-    if (!entryId || (expectedKind !== 'file' && expectedKind !== 'directory')) throw new Error('Elemento del workspace non valido.')
-    const entryPath = expectedKind === 'file'
-      ? resolveProjectFile(workspacePath, entryId)
-      : resolveProjectDirectory(workspacePath, entryId)
-    await shell.trashItem(entryPath)
-    log('info', 'project_entry_moved_to_trash', { kind: expectedKind })
-    projectFileIndex.invalidate(workspacePath)
-    return { id: entryId, kind: expectedKind, trashed: true }
-  })
-  ipcMain.handle('files:save', (event, fileId, content, options) => {
-    assertTrustedSender(event)
-    if (!options || typeof options !== 'object' || Array.isArray(options) || Object.keys(options).some((key) => key !== 'force' && key !== 'revision')) {
-      throw new Error('Opzioni salvataggio file non valide.')
-    }
-    return saveProjectFile(requireActiveWorkspace(), fileId, content, options).then((result) => {
-      log('info', 'project_file_saved', { size: result.size })
-      return result
-    })
+  registerFilesystemIpc({
+    assertTrustedSender,
+    createProjectDirectory,
+    createProjectFile,
+    duplicateProjectEntry,
+    ipcMain,
+    listDirectoryEntries,
+    listProjectFiles,
+    log,
+    prepareProjectFileAttachment,
+    projectFileIndex,
+    readProjectFile,
+    readProjectPreview,
+    renameProjectEntry,
+    requireActiveWorkspace,
+    resolveProjectDirectory,
+    resolveProjectFile,
+    saveProjectFile,
+    trashItem: (entryPath) => shell.trashItem(entryPath),
   })
   registerProjectResourcesIpc({
     ipcMain,
@@ -1465,95 +1409,46 @@ async function initializeApplication() {
     saveProjectInstructions,
     updateProjectSkill,
   })
-  ipcMain.handle('github:gitStatus', (event, options) => {
-    assertTrustedSender(event)
-    const readOptions = assertCacheReadOptions(options)
-    return runLatestGithubRead(event, 'git-status', (workspacePath, signal) => getCachedGitStatus(workspacePath, { ...readOptions, signal }))
+  registerGitIpc({
+    addGitHubRemote,
+    assertCacheReadOptions,
+    assertTrustedSender,
+    commit,
+    createBranch,
+    fetchRemote,
+    getCachedGitStatus,
+    getFileDiff,
+    initializeGitRepository,
+    ipcMain,
+    listBranches,
+    pullRebase,
+    push,
+    revertCommit,
+    runLatestGithubRead,
+    runWorkspaceMutation,
+    stageFiles,
+    switchBranch,
+    unstageFiles,
   })
-  ipcMain.handle('github:initRepository', (event) => {
-    return runWorkspaceMutation(event, 'github:init-repository', initializeGitRepository)
-  })
-  ipcMain.handle('github:addRemote', (event, remoteUrl) => {
-    return runWorkspaceMutation(event, 'github:add-remote', (workspacePath) => addGitHubRemote(workspacePath, remoteUrl))
-  })
-  ipcMain.handle('github:createRepository', (event, repositoryName, visibility) => {
-    return runWorkspaceMutation(event, 'github:create-repository', (workspacePath) => createGitHubRepository(workspacePath, repositoryName, visibility))
-  })
-  ipcMain.handle('github:stage', (event, filePaths) => {
-    return runWorkspaceMutation(event, 'github:stage', (workspacePath) => stageFiles(workspacePath, filePaths))
-  })
-  ipcMain.handle('github:unstage', (event, filePaths) => {
-    return runWorkspaceMutation(event, 'github:unstage', (workspacePath) => unstageFiles(workspacePath, filePaths))
-  })
-  ipcMain.handle('github:commit', (event, message) => {
-    return runWorkspaceMutation(event, 'github:commit', (workspacePath) => commit(workspacePath, message))
-  })
-  ipcMain.handle('github:push', (event) => {
-    return runWorkspaceMutation(event, 'github:push', push)
-  })
-  ipcMain.handle('github:fetch', (event) => {
-    return runWorkspaceMutation(event, 'github:fetch', fetchRemote)
-  })
-  ipcMain.handle('github:pullRebase', (event) => {
-    return runWorkspaceMutation(event, 'github:pull-rebase', pullRebase)
-  })
-  ipcMain.handle('github:branches', (event) => {
-    assertTrustedSender(event)
-    return runLatestGithubRead(event, 'branches', (workspacePath, signal) => listBranches(workspacePath, { signal }))
-  })
-  ipcMain.handle('github:switchBranch', (event, branchName) => {
-    return runWorkspaceMutation(event, 'github:switch-branch', (workspacePath) => switchBranch(workspacePath, branchName))
-  })
-  ipcMain.handle('github:createBranch', (event, branchName) => {
-    return runWorkspaceMutation(event, 'github:create-branch', (workspacePath) => createBranch(workspacePath, branchName))
-  })
-  ipcMain.handle('github:fileDiff', (event, filePath) => {
-    assertTrustedSender(event)
-    return runLatestGithubRead(event, 'file-diff', (workspacePath, signal) => getFileDiff(workspacePath, filePath, { signal }))
-  })
-  ipcMain.handle('github:revert', (event, sha) => {
-    return runWorkspaceMutation(event, 'github:revert', (workspacePath) => revertCommit(workspacePath, sha))
-  })
-  ipcMain.handle('github:data', (event, options) => {
-    assertTrustedSender(event)
-    const readOptions = assertCacheReadOptions(options)
-    return runLatestGithubRead(event, 'data', (workspacePath, signal) => getCachedGitHubData(workspacePath, { ...readOptions, signal }))
-  })
-  ipcMain.handle('github:createIssue', (event, title, body) => {
-    return runWorkspaceMutation(event, 'github:create-issue', (workspacePath) => createIssue(workspacePath, title, body))
-  })
-  ipcMain.handle('github:updateIssue', (event, issueNumber, title, body, state) => {
-    return runWorkspaceMutation(event, 'github:update-issue', (workspacePath) => updateIssue(workspacePath, issueNumber, title, body, state))
-  })
-  ipcMain.handle('github:projectBoard', (event, projectNumber, options) => {
-    assertTrustedSender(event)
-    const readOptions = assertCacheReadOptions(options)
-    return runLatestGithubRead(event, 'project-board', (workspacePath, signal) => getCachedProjectBoard(workspacePath, projectNumber, { ...readOptions, signal }))
-  })
-  ipcMain.handle('github:createProject', (event, title) => {
-    return runWorkspaceMutation(event, 'github:create-project', (workspacePath) => createWorkspaceProject(workspacePath, title))
-  })
-  ipcMain.handle('github:editProject', (event, projectNumber, title, description) => {
-    return runWorkspaceMutation(event, 'github:edit-project', (workspacePath) => editWorkspaceProject(workspacePath, projectNumber, title, description))
-  })
-  ipcMain.handle('github:closeProject', (event, projectNumber, undo) => {
-    return runWorkspaceMutation(event, 'github:close-project', (workspacePath) => closeWorkspaceProject(workspacePath, projectNumber, undo))
-  })
-  ipcMain.handle('github:addIssueToProject', (event, projectNumber, issueUrl) => {
-    return runWorkspaceMutation(event, 'github:add-issue-to-project', (workspacePath) => addWorkspaceIssueToProject(workspacePath, projectNumber, issueUrl))
-  })
-  ipcMain.handle('github:updateProjectItem', (event, projectNumber, itemId, fieldId, update) => {
-    return runWorkspaceMutation(event, 'github:update-project-item', (workspacePath) => updateWorkspaceProjectItem(workspacePath, projectNumber, itemId, fieldId, update))
-  })
-  ipcMain.handle('github:projectItemFields', (event, projectNumber, itemId) => {
-    assertTrustedSender(event)
-    return runLatestGithubRead(event, 'project-fields', (workspacePath, signal) => getWorkspaceProjectItemFields(workspacePath, projectNumber, itemId, { signal }))
-  })
-  ipcMain.handle('github:createProjectDraft', (event, projectNumber, title, body) => {
-    return runWorkspaceMutation(event, 'github:create-project-draft', (workspacePath) => createWorkspaceProjectDraft(workspacePath, projectNumber, title, body))
-  })
-  ipcMain.handle('github:archiveProjectItem', (event, projectNumber, itemId, undo) => {
-    return runWorkspaceMutation(event, 'github:archive-project-item', (workspacePath) => archiveWorkspaceProjectItem(workspacePath, projectNumber, itemId, undo))
+  registerGithubIpc({
+    addWorkspaceIssueToProject,
+    archiveWorkspaceProjectItem,
+    assertCacheReadOptions,
+    assertTrustedSender,
+    closeWorkspaceProject,
+    createGitHubRepository,
+    createIssue,
+    createWorkspaceProject,
+    createWorkspaceProjectDraft,
+    editWorkspaceProject,
+    getCachedGitHubData,
+    getCachedProjectBoard,
+    getWorkspaceProjectItemFields,
+    ipcMain,
+    runLatestGithubRead,
+    runWorkspaceMutation,
+    updateIssue,
+    updateWorkspaceProjectItem,
   })
   ipcMain.handle('pi:reload', (event) => {
     assertTrustedSender(event)
@@ -1653,12 +1548,20 @@ async function initializeApplication() {
     getRuntimeCapabilities,
     resolvePiExecutable,
   })
-  ipcMain.handle('piSystem:status', (event) => { assertTrustedSender(event); return getPiSystemStatus(resolvePiExecutable) })
-  ipcMain.handle('piSystem:list', (event) => { assertTrustedSender(event); return listPiPackages(resolvePiExecutable) })
-  ipcMain.handle('piSystem:listSkills', (event) => { assertTrustedSender(event); return listPiPackageSkills(resolvePiExecutable) })
-  ipcMain.handle('piSystem:install', (event, source) => runExternalMutation(event, 'pi-system:install', null, async () => { const result = await installPiPackage(source, resolvePiExecutable); await reconcileManagedPiPackages(resolvePiExecutable, piAgentRoot); return result }))
-  ipcMain.handle('piSystem:update', (event, source) => runExternalMutation(event, 'pi-system:update', null, async () => { const result = await updatePiPackage(source, resolvePiExecutable); await reconcileManagedPiPackages(resolvePiExecutable, piAgentRoot); return result }))
-  ipcMain.handle('piSystem:remove', (event, source) => runExternalMutation(event, 'pi-system:remove', null, () => removePiPackage(source, resolvePiExecutable)))
+  registerPiSystemIpc({
+    assertTrustedSender,
+    getPiSystemStatus,
+    installPiPackage,
+    ipcMain,
+    listPiPackageSkills,
+    listPiPackages,
+    piAgentRoot,
+    reconcileManagedPiPackages,
+    removePiPackage,
+    resolvePiExecutable,
+    runExternalMutation,
+    updatePiPackage,
+  })
   ipcMain.handle('piConfig:start', (event) => { assertTrustedSender(event); return startPiConfig() })
   ipcMain.handle('piConfig:close', async (event) => { assertTrustedSender(event); await stopPiConfig(); return { closed: true } })
   ipcMain.handle('shellSessions:list', (event) => {
@@ -1841,64 +1744,36 @@ async function initializeApplication() {
     assertTrustedSender(event)
     return getRemoteFileService().cleanup(requireActiveWorkspace(), options)
   })
-  ipcMain.handle('database:listConnections', (event) => { assertTrustedSender(event); return listConnections(requireActiveWorkspace()) })
-  ipcMain.handle('database:createConnection', (event, input) => { assertTrustedSender(event); return createConnection(requireActiveWorkspace(), input) })
-  ipcMain.handle('database:updateConnection', (event, id, input) => runWorkspaceMutation(event, 'database:update-connection', async (workspacePath) => {
-    const drain = databaseOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === id)
-    await withCleanupDeadline(Promise.all([drain, closeConnectionSession(workspacePath, id)]), 6_000, 'database-connection-runtime')
-    return updateConnection(workspacePath, id, input)
-  }))
-  ipcMain.handle('database:deleteConnection', (event, id) => runWorkspaceMutation(event, 'database:delete-connection', async (workspacePath) => {
-    const drain = databaseOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === id)
-    await withCleanupDeadline(Promise.all([drain, closeConnectionSession(workspacePath, id)]), 6_000, 'database-connection-runtime')
-    deleteConnection(workspacePath, id)
-    return { deleted: true }
-  }))
-  ipcMain.handle('database:execute', async (event, id, sql, options) => {
-    assertTrustedSender(event)
-    const workspacePath = requireActiveWorkspace()
-    const operationId = options?.operationId
-    const operation = databaseOperations.start({
-      operationId,
-      senderId: event.sender.id,
-      workspacePath,
-      connectionId: id,
-      mutative: classifySql(sql).mutative,
-    })
-    try {
-      const { operationId: _operationId, ...queryOptions } = options
-      return await executeQuery(workspacePath, id, sql, { ...queryOptions, signal: operation.signal })
-    } finally {
-      operation.finish()
-    }
+  registerDatabaseIpc({
+    assertTrustedSender,
+    beginTransaction,
+    classifySql,
+    clearHistory,
+    closeConnectionSession,
+    commitTransaction,
+    createConnection,
+    databaseOperations,
+    deleteConnection,
+    deleteSavedQuery,
+    executeQuery,
+    getApplicationErrorLogMetadata,
+    inspectSchema,
+    ipcMain,
+    listConnections,
+    listHistory,
+    listSavedQueries,
+    log,
+    readTableRows,
+    requireActiveWorkspace,
+    rollbackTransaction,
+    runWorkspaceMutation,
+    saveQuery,
+    toApplicationError,
+    updateConnection,
+    updateSavedQuery,
+    updateTableRows,
+    withCleanupDeadline,
   })
-  ipcMain.handle('database:cancel', (event, operationId) => {
-    assertTrustedSender(event)
-    return databaseOperations.cancel(operationId, event.sender.id)
-  })
-  ipcMain.handle('database:begin', (event, id) => runWorkspaceMutation(event, 'database:begin', (workspacePath) => beginTransaction(workspacePath, id)))
-  ipcMain.handle('database:commit', (event, id) => runWorkspaceMutation(event, 'database:commit', (workspacePath) => commitTransaction(workspacePath, id)))
-  ipcMain.handle('database:rollback', (event, id) => runWorkspaceMutation(event, 'database:rollback', (workspacePath) => rollbackTransaction(workspacePath, id)))
-  ipcMain.handle('database:inspectSchema', (event, id, options) => { assertTrustedSender(event); return inspectSchema(requireActiveWorkspace(), id, options) })
-  ipcMain.handle('database:tableRows', async (event, id, tableName, options) => {
-    assertTrustedSender(event)
-    try {
-      const page = await readTableRows(requireActiveWorkspace(), id, tableName, options)
-      log('info', 'database_table_rows_read', { rows: page.rows.length })
-      return page
-    } catch (error) {
-      const incident = toApplicationError(error, { channel: 'database:tableRows' })
-      log(incident.severity, 'database_table_rows_failed', getApplicationErrorLogMetadata(incident))
-      throw incident
-    }
-  })
-  ipcMain.handle('database:updateTableRows', (event, id, tableName, changes) => runWorkspaceMutation(event, 'database:update-table-rows', (workspacePath) => updateTableRows(workspacePath, id, tableName, changes)))
-  ipcMain.handle('database:listSavedQueries', (event, id) => { assertTrustedSender(event); return listSavedQueries(requireActiveWorkspace(), id) })
-  ipcMain.handle('database:saveQuery', (event, input) => { assertTrustedSender(event); return saveQuery(requireActiveWorkspace(), input) })
-  ipcMain.handle('database:updateSavedQuery', (event, id, input) => { assertTrustedSender(event); return updateSavedQuery(requireActiveWorkspace(), id, input) })
-  ipcMain.handle('database:deleteSavedQuery', (event, id) => { assertTrustedSender(event); deleteSavedQuery(requireActiveWorkspace(), id); return { deleted: true } })
-  ipcMain.handle('database:listHistory', (event, id, limit) => { assertTrustedSender(event); return listHistory(requireActiveWorkspace(), id, limit) })
-  ipcMain.handle('database:clearHistory', (event, id) => { assertTrustedSender(event); return clearHistory(requireActiveWorkspace(), id) })
   ipcMain.handle('redis:listConnections', (event) => {
     assertTrustedSender(event)
     return listRedisConnections(requireActiveWorkspace())

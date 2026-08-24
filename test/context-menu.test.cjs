@@ -197,12 +197,15 @@ test('tutti i comandi inviati come stato del menu sono accettati dal bridge nati
 
 test('main e preload espongono mutazioni filesystem confinate e Cestino macOS', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const filesystemIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/filesystem.ipc.cjs'), 'utf8')
   const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
 
-  assert.match(main, /ipcMain\.handle\('files:createDirectory'/)
-  assert.match(main, /ipcMain\.handle\('files:rename'/)
-  assert.match(main, /ipcMain\.handle\('files:duplicate'/)
-  assert.match(main, /ipcMain\.handle\('files:trash'[\s\S]*resolveProject(File|Directory)[\s\S]*shell\.trashItem/)
+  assert.match(filesystemIpc, /\['files:createDirectory'/)
+  assert.match(filesystemIpc, /\['files:rename'/)
+  assert.match(filesystemIpc, /\['files:duplicate'/)
+  assert.match(filesystemIpc, /\['files:trash'[\s\S]*resolveProject(File|Directory)[\s\S]*trashItem/)
+  assert.match(main, /registerFilesystemIpc\(\{[\s\S]*trashItem: \(entryPath\) => shell\.trashItem\(entryPath\)/)
+  assert.doesNotMatch(main, /ipcMain\.handle\('files:/)
   assert.match(preload, /createDirectory: .*files:createDirectory/)
   assert.match(preload, /rename: .*files:rename/)
   assert.match(preload, /duplicate: .*files:duplicate/)

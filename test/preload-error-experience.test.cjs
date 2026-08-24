@@ -58,9 +58,10 @@ test('mantiene disponibile il recovery anche se il logger è degradato', () => {
 
 test('il main non passa path, messaggi, tabella o connessione grezzi ai log interessati', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const databaseIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/database.ipc.cjs'), 'utf8')
   const preloadHandler = main.match(/webContents\.on\('preload-error',[\s\S]*?\n  \}\)/u)?.[0] ?? ''
   const migrationHandler = main.match(/function migrateLegacyDatabaseSecretsInBatches\(\) \{[\s\S]*?\n\}/u)?.[0] ?? ''
-  const tableRowsHandler = main.match(/ipcMain\.handle\('database:tableRows',[\s\S]*?\n  \}\)/u)?.[0] ?? ''
+  const tableRowsHandler = databaseIpc.match(/\['database:tableRows',[\s\S]*?\n    \}\],/u)?.[0] ?? ''
 
   assert.match(preloadHandler, /reportPreloadFailure\(error/u)
   assert.doesNotMatch(preloadHandler, /log\([^\n]*(?:preloadPath|error\.message|message:)/u)

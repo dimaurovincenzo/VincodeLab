@@ -10,13 +10,9 @@ const projectRoot = path.join(__dirname, '..')
 test('Settings Skill e Istruzioni sono chunk differiti e conservano il mount dopo la prima visita', () => {
   const app = fs.readFileSync(path.join(projectRoot, 'src/App.tsx'), 'utf8')
 
-  for (const [component, moduleName] of [
-    ['AppSettings', 'settings'],
-    ['ProjectSkills', 'project-skills'],
-    ['ProjectInstructions', 'project-instructions'],
-  ]) {
-    assert.match(app, new RegExp(`const ${component} = lazy\\(\\(\\) => import\\('@/components/${moduleName}'\\)`))
-  }
+  assert.match(app, /const AppSettings = lazy\(\(\) => import\('@\/features\/settings'\)/)
+  assert.match(app, /const ProjectSkills = lazy\(\(\) => loadProjectSkills\(\)/)
+  assert.match(app, /const ProjectInstructions = lazy\(\(\) => loadProjectInstructions\(\)/)
   assert.doesNotMatch(app, /import \{ ProjectSkills \} from|import \{ ProjectInstructions \} from|import \{ Settings as AppSettings \} from/)
   for (const [view, active] of [
     ['settings', "appSection === 'settings'"],

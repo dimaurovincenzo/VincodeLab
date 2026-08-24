@@ -6,12 +6,13 @@ const vm = require('node:vm')
 
 const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
 const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+const updatesIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/updates.ipc.cjs'), 'utf8')
 
 function ipcHandlerSource(channel) {
-  const start = main.indexOf(`ipcMain.handle('${channel}'`)
+  const start = updatesIpc.indexOf(`['${channel}'`)
   assert.notEqual(start, -1, `Handler IPC mancante: ${channel}`)
-  const nextHandler = main.indexOf('\n  ipcMain.', start + 1)
-  return main.slice(start, nextHandler === -1 ? main.length : nextHandler)
+  const nextHandler = updatesIpc.indexOf('\n    [', start + 1)
+  return updatesIpc.slice(start, nextHandler === -1 ? updatesIpc.length : nextHandler)
 }
 
 function namedFunctionSource(name) {
@@ -35,6 +36,8 @@ test('preload espone solo operazioni update per id e policy', () => {
 })
 
 test('ogni canale aggiornamenti verifica il sender prima del servizio', () => {
+  assert.match(main, /registerUpdatesIpc\(\{/)
+  assert.doesNotMatch(main, /ipcMain\.handle\('updates:/)
   const directChannels = new Map([
     ['updates:list', 'listManagedUpdates'],
     ['updates:check', 'checkUpdates'],
@@ -56,7 +59,7 @@ test('ogni canale aggiornamenti verifica il sender prima del servizio', () => {
   ])
   for (const [channel, service] of wrappedChannels) {
     const handler = ipcHandlerSource(channel)
-    assert.match(handler, new RegExp(`runExternalMutation\\(event,[\\s\\S]*?\\(\\) => ${service}\\(`))
+    assert.match(handler, new RegExp(`runExternalMutation\\(\\s*event,[\\s\\S]*?\\(\\) => ${service}\\(`))
   }
 
   const calls = []
