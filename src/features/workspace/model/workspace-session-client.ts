@@ -1,4 +1,4 @@
-import { optionalVincodeLabBridge, type WorkspaceSessionSnapshot, type WorkspaceSessionState } from '@/bridge'
+import type { WorkspaceSessionSnapshot, WorkspaceSessionState } from '@/bridge'
 
 import {
   cloneWorkspaceSessionState,
@@ -26,14 +26,6 @@ type SaveQueueEntry = {
   generation: number
   revision: number
   promise: Promise<WorkspaceSessionSnapshot | null>
-}
-
-function defaultStorage(): WorkspaceSessionStorage {
-  const storage = optionalVincodeLabBridge()?.workspaceSession
-  if (!storage) {
-    throw new Error('Il bridge della sessione workspace non è disponibile.')
-  }
-  return storage
 }
 
 function debounceDelay(value: number | undefined) {
@@ -64,8 +56,8 @@ export class WorkspaceSessionClient {
   #lastQueued: SaveQueueEntry | null = null
   #disposed = false
 
-  constructor(options: WorkspaceSessionClientOptions = {}) {
-    this.#storage = options.storage ?? defaultStorage()
+  constructor(options: WorkspaceSessionClientOptions) {
+    this.#storage = options.storage
     this.#debounceMs = debounceDelay(options.debounceMs)
     this.#onError = options.onError
   }
@@ -265,6 +257,6 @@ export class WorkspaceSessionClient {
   }
 }
 
-export function createWorkspaceSessionClient(options: WorkspaceSessionClientOptions = {}) {
+export function createWorkspaceSessionClient(options: WorkspaceSessionClientOptions) {
   return new WorkspaceSessionClient(options)
 }

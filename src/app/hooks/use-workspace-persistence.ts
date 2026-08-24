@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { WorkspaceSessionFocusTarget, WorkspaceSessionState } from '@/bridge'
-import { createWorkspaceSessionClient } from '@/features/workspace'
+import { createWorkspaceSessionClient, workspaceBridge } from '@/features/workspace'
 import { reportRendererFailure } from '@/lib/renderer-error'
 import type { AppSection, WorkspaceSessionFailure } from '../model/app-controller.types'
 
@@ -24,19 +24,22 @@ export function useWorkspacePersistence({ aiTab, appSection, workspace }: UseWor
   const mounted = useRef(false)
   const [workspaceSessionState, setWorkspaceSessionState] = useState<WorkspaceSessionState | null>(null)
   const [workspaceSessionRecovery, setWorkspaceSessionRecovery] = useState<WorkspaceSessionFailure | null>(null)
-  const [workspaceSession] = useState(() => createWorkspaceSessionClient({ onError: (nextError) => {
-    setWorkspaceSessionRecovery({
-      error: reportRendererFailure(nextError, {
-        category: 'persistence',
-        component: 'workspace-shell',
-        operation: 'save-layout',
-        severity: 'warning',
-        title: 'Layout del workspace non salvato',
-        description: 'La disposizione corrente resta attiva, ma non è stata salvata. Puoi riprovare senza perdere file o modifiche.',
-      }),
-      kind: 'persistence',
-    })
-  } }))
+  const [workspaceSession] = useState(() => createWorkspaceSessionClient({
+    storage: workspaceBridge.workspaceSession,
+    onError: (nextError) => {
+      setWorkspaceSessionRecovery({
+        error: reportRendererFailure(nextError, {
+          category: 'persistence',
+          component: 'workspace-shell',
+          operation: 'save-layout',
+          severity: 'warning',
+          title: 'Layout del workspace non salvato',
+          description: 'La disposizione corrente resta attiva, ma non è stata salvata. Puoi riprovare senza perdere file o modifiche.',
+        }),
+        kind: 'persistence',
+      })
+    },
+  }))
 
   const patchWorkspaceSession = useCallback((updater: (state: Readonly<WorkspaceSessionState>) => WorkspaceSessionState) => {
     if (!workspaceSession.getSnapshot().loaded) return

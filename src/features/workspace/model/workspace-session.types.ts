@@ -41,7 +41,7 @@ export type WorkspaceSessionLoadResult = Readonly<{
 }>
 
 export type WorkspaceSessionClientOptions = Readonly<{
-  storage?: WorkspaceSessionStorage
+  storage: WorkspaceSessionStorage
   debounceMs?: number
   onError?: (error: Error) => void
 }>
