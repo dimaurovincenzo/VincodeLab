@@ -431,6 +431,27 @@ test('mantiene filesystem e resolver concreto fuori da reader, porta e revisione
   })
 })
 
+test('mantiene filesystem e resolver concreto fuori dal salvataggio file progetto e dalla sua porta', () => {
+  withFixture({
+    'electron/domains/filesystem/project-file-save.cjs': [
+      "require('node:fs')",
+      "require('node:path')",
+      "require('./project-path-model.cjs')",
+    ].join('\n'),
+    'electron/domains/filesystem/project-file-save-host.port.cjs': [
+      "require('fs/promises')",
+      "require('path')",
+    ].join('\n'),
+    'electron/domains/filesystem/project-path-model.cjs': 'module.exports = {}\n',
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('dominio Salvataggio file progetto dipende direttamente')).length, 2)
+    assert.equal(problems.filter((problem) => problem.includes('dominio Porta host salvataggio file progetto')).length, 2)
+    assert.equal(problems.filter((problem) => problem.includes('dominio Salvataggio file progetto dipende dal resolver path concreto')).length, 1)
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "path"')))
+  })
+})
+
 test('mantiene processi host ed Electron fuori dal dominio Menu', () => {
   withFixture({
     'electron/domains/menu/runtime.cjs': [
@@ -478,6 +499,7 @@ test('impedisce import e ricreazione dei path legacy rimossi', () => {
     'electron/domains/ai/pi-executable.cjs': 'module.exports = {}\n',
     'electron/domains/ai/terminal-attachments.cjs': 'module.exports = {}\n',
     'electron/domains/menu/context-command-dispatcher.cjs': 'module.exports = {}\n',
+    'electron/domains/filesystem/project-file-content.cjs': 'module.exports = {}\n',
     'electron/managed-ssh-service.cjs': 'module.exports = {}\n',
     'electron/remote-file-store.cjs': 'module.exports = {}\n',
     'electron/runtime.cjs': "module.exports = require('./shell-session-manager.cjs')\n",
@@ -488,6 +510,7 @@ test('impedisce import e ricreazione dei path legacy rimossi', () => {
     assert.ok(problems.some((problem) => problem.includes('electron/domains/ai/pi-executable.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('electron/domains/ai/terminal-attachments.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('electron/domains/menu/context-command-dispatcher.cjs: path legacy rimosso ricreato')))
+    assert.ok(problems.some((problem) => problem.includes('electron/domains/filesystem/project-file-content.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('path legacy "electron/shell-session-manager" rimosso')))
     assert.ok(problems.some((problem) => problem.includes('electron/managed-ssh-service.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('electron/remote-file-store.cjs: path legacy rimosso ricreato')))

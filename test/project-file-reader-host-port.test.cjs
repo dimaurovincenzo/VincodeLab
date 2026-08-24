@@ -13,7 +13,6 @@ const { createFileRevision } = require('../electron/domains/filesystem/project-f
 const {
   createProjectFileReaderFilesystemAdapter,
 } = require('../electron/infrastructure/filesystem/project-file-reader-filesystem.adapter.cjs')
-const projectFileContent = require('../electron/domains/filesystem/project-file-content.cjs')
 const projectFiles = require('../electron/domains/filesystem/project-files.cjs')
 
 test('la porta reader espone solo prepare e bounded read, preserva il receiver ed è immutabile', async () => {
@@ -47,7 +46,6 @@ test('la revisione pura conserva esattamente formato, prefisso e arrotondamento 
     createFileRevision(Buffer.alloc(0), { size: 0, mtimeMs: 0 }),
     'v1-3NSRhVJc3OCnAR8eXdAcpzQ6WqUeyBAw442LDTjmNMo',
   )
-  assert.equal(projectFileContent.createFileRevision, createFileRevision)
 })
 
 test('il dominio conserva ordine, limiti, MIME, testo binario, revisione e DTO', async () => {

@@ -11,11 +11,11 @@ const {
   createProjectFile,
   createProjectFileActions,
   createProjectFileReader,
+  createProjectFileSaver,
   duplicateProjectEntry,
   isEditorVisibleFile,
   renameProjectEntry,
   resolveProjectDirectory,
-  saveProjectFile,
 } = require('../electron/domains/filesystem/project-files.cjs')
 const {
   createProjectDirectoryListingFilesystemAdapter,
@@ -26,6 +26,9 @@ const {
 const {
   createProjectFileReaderFilesystemAdapter,
 } = require('../electron/infrastructure/filesystem/project-file-reader-filesystem.adapter.cjs')
+const {
+  createProjectFileSaveFilesystemAdapter,
+} = require('../electron/infrastructure/filesystem/project-file-save-filesystem.adapter.cjs')
 
 const { listProjectFiles } = createProjectDirectoryListing(createProjectDirectoryListingFilesystemAdapter())
 const {
@@ -37,6 +40,7 @@ const {
   readProjectFile,
   readProjectPreview,
 } = createProjectFileReader(createProjectFileReaderFilesystemAdapter())
+const { saveProjectFile } = createProjectFileSaver(createProjectFileSaveFilesystemAdapter())
 
 test('il percorso IPC del file explorer usa soltanto scansione e letture asincrone', () => {
   const source = [
@@ -44,6 +48,7 @@ test('il percorso IPC del file explorer usa soltanto scansione e letture asincro
     '../electron/infrastructure/filesystem/project-directory-listing-filesystem.adapter.cjs',
     '../electron/domains/filesystem/project-file-reader.cjs',
     '../electron/infrastructure/filesystem/project-file-reader-filesystem.adapter.cjs',
+    '../electron/infrastructure/filesystem/project-file-io-filesystem.service.cjs',
   ].map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8')).join('\n')
   assert.doesNotMatch(source, /readdirSync/)
   assert.doesNotMatch(source, /readFileSync/)

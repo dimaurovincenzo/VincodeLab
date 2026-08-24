@@ -50,6 +50,8 @@ const projectFilesystemIsolatedDomains = new Map([
   ['electron/domains/filesystem/project-file-reader-host.port.cjs', 'Porta host lettura file progetto'],
   ['electron/domains/filesystem/project-file-reader.cjs', 'Lettura file progetto'],
   ['electron/domains/filesystem/project-file-revision.cjs', 'Revisione file progetto'],
+  ['electron/domains/filesystem/project-file-save-host.port.cjs', 'Porta host salvataggio file progetto'],
+  ['electron/domains/filesystem/project-file-save.cjs', 'Salvataggio file progetto'],
 ])
 const projectFileIndexIsolatedDomains = new Map([
   ['electron/domains/filesystem/project-file-index-host.port.cjs', 'Porta host Indice file progetto'],
@@ -168,6 +170,7 @@ export const removedLegacyModules = new Map([
   ['electron/application-error', 'electron/domains/errors/application-error.cjs'],
   ['electron/project-files', 'electron/domains/filesystem/project-files.cjs'],
   ['electron/project-file-index', 'electron/domains/filesystem/project-file-index.cjs'],
+  ['electron/domains/filesystem/project-file-content', 'electron/domains/filesystem/project-file-save.cjs'],
   ['electron/project-instructions', 'electron/domains/ai/project-instructions.cjs'],
   ['electron/project-skills', 'electron/domains/ai/project-skills.cjs'],
   ['electron/preload-error-experience', 'electron/app/preload-error-experience.cjs'],

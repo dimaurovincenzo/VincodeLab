@@ -1,7 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { randomUUID } = require('node:crypto')
-const { createFileRevision } = require('./project-file-content.cjs')
+const { createFileRevision } = require('./project-file-revision.cjs')
 const {
   assertEditorAccessiblePath,
   EXCLUDED_DIRECTORIES,
