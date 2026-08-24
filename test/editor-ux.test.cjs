@@ -120,7 +120,7 @@ test('l’editor rende Markdown in sicurezza tramite una widget extension CodeMi
 
 test('l’editor usa Graphite e conserva stato e viewport per file in una sola EditorView', () => {
   const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
-  const database = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const database = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
   const packageJson = fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8')
   const packageLock = fs.readFileSync(path.join(__dirname, '../package-lock.json'), 'utf8')
 

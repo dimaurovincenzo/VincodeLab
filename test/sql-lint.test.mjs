@@ -21,7 +21,7 @@ test('il lint SQL segnala la sintassi incompleta senza errori sulle query valide
 })
 
 test('l editor Database abilita tema Graphite, dialetto persistente e diagnostica CodeMirror', () => {
-  const component = fs.readFileSync(path.join(import.meta.dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(import.meta.dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
 
   assert.match(component, /graphiteCodeMirrorTheme/)
   assert.match(component, /sqlLanguageCompartment\.current\.of/)

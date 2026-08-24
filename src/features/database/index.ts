@@ -1,6 +1,7 @@
 export { databaseBridge } from './api/database.bridge'
 export { DatabaseTableGrid } from './components/database-table-grid'
 export type { DatabaseTableDraftGuard, DatabaseTableGridProps } from './components/database-table-grid'
+export { DatabaseWorkspace } from './components/database-workspace'
 export {
   connectionDraftFor,
   connectionDraftIdentity,

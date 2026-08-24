@@ -315,7 +315,7 @@ test('la Presence Ark e WorkbenchPresence non avvolgono le viste operative persi
 
 test('la griglia Database reimposta le bozze al remount senza aggiornamenti sincroni in effect', () => {
   const grid = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-table-grid.tsx'), 'utf8')
-  const workspace = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const workspace = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
 
   assert.doesNotMatch(grid, /useEffect\(\(\) => \{\s*setDrafts\(\{\}\)/)
   assert.match(grid, /useEffect\(\(\) => \{[\s\S]*onDraftGuardChange\(guard\)[\s\S]*onDraftGuardChange\(null\)/)
@@ -324,7 +324,7 @@ test('la griglia Database reimposta le bozze al remount senza aggiornamenti sinc
 
 test('la griglia Database usa ruoli semantici Graphite e viste locali accessibili', () => {
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
-  const workspace = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const workspace = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
 
   assert.match(styles, /stateSuccess/)
   assert.match(styles, /stateWarning/)
@@ -346,7 +346,7 @@ test('la navigazione principale conserva tutte le tab senza overflow nei viewpor
 })
 
 test('il caricamento della tabella Database parte nel task asincrono senza render a cascata', () => {
-  const workspace = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const workspace = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
   assert.match(workspace, /if \(!currentConnectionId \|\| !selectedTableName\)[\s\S]*?const timer = window\.setTimeout\([\s\S]*?\(\) => \{[\s\S]*?setTableLoading\(true\)/)
 })
 
@@ -363,7 +363,7 @@ test('le sezioni operative consumano le preferenze effettive globali o del works
   const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
   const terminal = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
   const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
-  const database = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const database = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
 
   for (const key of ['editor.fontSize', 'editor.tabSize', 'editor.wordWrap', 'editor.autoSave', 'editor.explorerWidth']) assert.match(editor, new RegExp(key.replace('.', '\\.')))
   for (const key of ['terminal.fontSize', 'terminal.fontFamily', 'terminal.cursorStyle', 'terminal.scrollback', 'terminal.commandsWidth']) assert.match(terminal, new RegExp(key.replace('.', '\\.')))
@@ -641,7 +641,7 @@ test('il selettore Project si richiude e gli assegnatari restano compatti nella 
 test('le superfici laterali condividono resize accessibile e persistente', () => {
   const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
   const skills = fs.readFileSync(path.join(__dirname, '../src/components/project-skills.tsx'), 'utf8')
-  const database = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const database = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
   const terminal = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
   const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
   const remote = fs.readFileSync(path.join(__dirname, '../src/components/remote-files.tsx'), 'utf8')
@@ -1011,7 +1011,7 @@ test('le tab Impostazioni usano tutta la larghezza disponibile', () => {
 })
 
 test('Database offre tutti i driver, CRUD e paginazione nel layout dell’app', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
 
   assert.match(component, /databaseStyles as db/)
@@ -1034,7 +1034,7 @@ test('Database offre tutti i driver, CRUD e paginazione nel layout dell’app', 
 })
 
 test('Database usa un explorer con tab, albero schema e modifica della connessione in modal', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
   const dialog = fs.readFileSync(path.join(__dirname, '../src/components/ui/dialog.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
 
@@ -1076,7 +1076,7 @@ test('Database mantiene compatta la connessione e il pannello comandi mostra il 
 })
 
 test('Database distingue procedure e funzioni dalle tabelle nell explorer', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
 
   assert.match(component, /schema\.routines/)
   assert.match(component, /Array\.isArray\(schema\.routines\) \? schema\.routines : \[\]/)
@@ -1085,7 +1085,7 @@ test('Database distingue procedure e funzioni dalle tabelle nell explorer', () =
 })
 
 test('Database apre una griglia dati ricercabile e salva solo nella transazione', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
   const grid = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-table-grid.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
 
@@ -1110,7 +1110,7 @@ test('Database apre una griglia dati ricercabile e salva solo nella transazione'
 })
 
 test('Database separa SQL e dati in sotto-tab locali e apre i dati dopo una query riuscita', () => {
-  const workspace = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const workspace = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
   const grid = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-table-grid.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
 
@@ -1288,7 +1288,7 @@ test('il grafo Git mantiene continui i rami e differenzia le corsie', () => {
 })
 
 test('Database ignora il risultato di una query conclusa dopo il cambio connessione', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
 
   assert.match(component, /const executionRequest = useRef\(0\)/)
   assert.match(component, /const selectedConnectionId = useRef<string \| null>\(null\)/)
@@ -1297,7 +1297,7 @@ test('Database ignora il risultato di una query conclusa dopo il cambio connessi
 })
 
 test('Database mostra un recupero inline se non riesce a leggere le connessioni', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
 
   assert.match(component, /const \[connectionError, setConnectionError\] = useState<UserError \| null>\(null\)/)
   assert.match(component, /connectionError \? <ErrorNotice/)
@@ -1305,7 +1305,7 @@ test('Database mostra un recupero inline se non riesce a leggere le connessioni'
 })
 
 test('Database comunica il caricamento iniziale di connessioni e risorse', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
 
   assert.match(component, /const \[loadingResources, setLoadingResources\] = useState\(false\)/)
@@ -1317,7 +1317,7 @@ test('Database comunica il caricamento iniziale di connessioni e risorse', () =>
 })
 
 test('Database mostra avanzamento e conferma per Schema e Inizia', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
 
   assert.match(component, /const \[toolbarAction, setToolbarAction\]\s*=\s*useState<DatabaseToolbarAction>\(null\)/)
   assert.match(component, /toolbarAction === ["']schema["']\s*\? ["']Aggiornamento…["']\s*: ["']Schema["']/)
@@ -1328,7 +1328,7 @@ test('Database mostra avanzamento e conferma per Schema e Inizia', () => {
 })
 
 test('Database consente di pulire la cronologia della connessione attiva', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
 
   assert.match(component, /aria-label="Pulisci cronologia query"/)
   assert.match(component, /database\s*\.\s*clearHistory\(connectionId\)/)

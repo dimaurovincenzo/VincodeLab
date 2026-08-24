@@ -350,7 +350,7 @@ test('Splitter centralizza persistenza, reset e dimensioni controllate senza sep
   const splitter = read('src/components/ui/splitter.tsx')
   const consumers = [
     'src/components/project-skills.tsx',
-    'src/components/database-workspace.tsx',
+    'src/features/database/components/database-workspace.tsx',
     'src/components/remote-files.tsx',
     'src/components/github-workspace.tsx',
     'src/components/project-editor.tsx',
@@ -384,7 +384,7 @@ test('Splitter centralizza persistenza, reset e dimensioni controllate senza sep
 test('l’explorer Database delega al TreeView Ark espansione selezione e tastiera', () => {
   const treeView = read('src/components/ui/tree-view.tsx')
   const index = read('src/components/ui/index.ts')
-  const database = read('src/components/database-workspace.tsx')
+  const database = read('src/features/database/components/database-workspace.tsx')
   const recipes = read('src/theme/recipes.ts')
 
   assert.match(treeView, /TreeView as ArkTreeView[^\n]*from '@ark-ui\/react\/tree-view'/)
@@ -432,7 +432,7 @@ test('Dialog delega focus trap, Escape e semantica modale ad Ark senza ruoli man
     'src/components/confirmation-dialog.tsx',
     'src/components/workspace-change-dialog.tsx',
     'src/components/remote-diff-dialog.tsx',
-    'src/components/database-workspace.tsx',
+    'src/features/database/components/database-workspace.tsx',
     'src/components/remote-files.tsx',
     'src/components/github-workspace.tsx',
     'src/components/terminal-paste-status.tsx',
@@ -457,7 +457,7 @@ test('Dialog delega focus trap, Escape e semantica modale ad Ark senza ruoli man
     ['src/components/confirmation-dialog.tsx', 'cancelButton', /finalFocusEl=\{\(\) => focusState\.opener\}/],
     ['src/components/workspace-change-dialog.tsx', 'cancelButton', /finalFocusEl=\{\(\) => focusState\.opener\}/],
     ['src/components/remote-diff-dialog.tsx', 'closeButton', /finalFocusEl=\{\(\) => opener\.current\}/],
-    ['src/components/database-workspace.tsx', 'connectionNameInput', /finalFocusEl=\{\(\) => connectionDialogOpener\.current\}/],
+    ['src/features/database/components/database-workspace.tsx', 'connectionNameInput', /finalFocusEl=\{\(\) => connectionDialogOpener\.current\}/],
     ['src/components/remote-files.tsx', 'renameInput', /finalFocusEl=\{\(\) => renameDialogOpener\.current\}/],
     ['src/components/terminal-paste-status.tsx', 'primaryAction', /finalFocusEl=\{\(\) => opener\.current\}/],
   ]
@@ -467,13 +467,13 @@ test('Dialog delega focus trap, Escape e semantica modale ad Ark senza ruoli man
     assert.match(source, finalFocusPattern, `${file} deve affidare ad Ark il ritorno all'opener`)
   }
 
-  for (const file of ['src/components/database-workspace.tsx', 'src/components/terminal-paste-status.tsx', 'src/components/remote-files.tsx', 'src/components/remote-diff-dialog.tsx']) {
+  for (const file of ['src/features/database/components/database-workspace.tsx', 'src/components/terminal-paste-status.tsx', 'src/components/remote-files.tsx', 'src/components/remote-diff-dialog.tsx']) {
     const source = read(file)
     assert.match(source, /<Dialog\.CloseTrigger asChild><IconButton[^>]*tooltip=/, `${file} deve usare IconButton con tooltip per la chiusura icon-only`)
     assert.doesNotMatch(source, /<Dialog\.CloseTrigger asChild><Button[^>]*(?:size="icon|aria-label="Chiudi)/, `${file} non deve ricreare un icon button con Button`)
   }
 
-  const database = read('src/components/database-workspace.tsx')
+  const database = read('src/features/database/components/database-workspace.tsx')
   const remoteFiles = read('src/components/remote-files.tsx')
   const workspaceChange = read('src/components/workspace-change-dialog.tsx')
   assert.doesNotMatch(database, /\{connectionModalOpen && <Dialog\.Root/)
@@ -596,7 +596,7 @@ test('lo stato delle tab Ark non viene duplicato da classi attive legacy', () =>
     'src/features/settings/components/settings.tsx',
     'src/components/terminal-workspace.tsx',
     'src/components/remote-files.tsx',
-    'src/components/database-workspace.tsx',
+    'src/features/database/components/database-workspace.tsx',
     'src/components/github-workspace.tsx',
   ].map(read).join('\n')
   const styles = [
@@ -613,7 +613,7 @@ test('le viste operative restano montate dopo la prima apertura', () => {
   const record = (file) => rendererRecords.find((candidate) => candidate.file === file)
   const app = record('src/App.tsx')
   const terminal = record('src/components/terminal-workspace.tsx')
-  const database = record('src/components/database-workspace.tsx')
+  const database = record('src/features/database/components/database-workspace.tsx')
   const settings = record('src/features/settings/components/settings.tsx')
   const editor = record('src/components/project-editor.tsx')
   const freeTerminal = record('src/components/free-terminal.tsx')
