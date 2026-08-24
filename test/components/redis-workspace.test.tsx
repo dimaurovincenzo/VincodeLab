@@ -1,9 +1,9 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { RedisWorkspace } from '@/components/redis-workspace'
+import { RedisWorkspace } from '@/features/redis'
 import { toast } from '@/components/ui'
-import type { RedisApi, RedisPayloadSearchProgress, RedisPayloadSearchResult } from '@/lib/redis-types'
+import type { RedisApi, RedisPayloadSearchProgress, RedisPayloadSearchResult } from '@/features/redis'
 
 const connection = { id: 'redis-local', name: 'Redis locale', mode: 'standalone' as const, host: '127.0.0.1', port: 6379, database: 0, hasPassword: false }
 const keyRef = (key: string) => btoa(key)
@@ -245,6 +245,7 @@ describe('Redis workspace read-only', () => {
 
     await user.keyboard('{Enter}')
     modeList = await screen.findByRole('listbox', { name: 'Modalità' })
+    await waitFor(() => expect(modeList).toHaveFocus())
     await user.keyboard('{End}{Enter}')
     await waitFor(() => expect(modeSelect).toHaveTextContent('Sentinel'))
     await waitFor(() => expect(modeSelect).toHaveFocus())

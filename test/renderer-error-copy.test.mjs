@@ -9,8 +9,8 @@ import { normalizeUserError, reportUserError } from '../src/lib/user-error.js'
 const testDirectory = path.dirname(fileURLToPath(import.meta.url))
 const components = [
   'features/settings/components/settings.tsx',
-  'components/project-skills.tsx',
-  'components/project-instructions.tsx',
+  'features/ai/components/project-skills.tsx',
+  'features/ai/components/project-instructions.tsx',
   'features/ai/components/terminal-diagnostics.tsx',
   'features/ai/components/terminal-attachments.tsx',
 ]

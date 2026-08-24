@@ -1,3 +1,5 @@
 export { aiBridge } from './api/ai.bridge'
+export { ProjectInstructions } from './components/project-instructions'
+export { ProjectSkills } from './components/project-skills'
 export { TerminalAttachments, type TerminalContextAction } from './components/terminal-attachments'
 export { TerminalDiagnostics } from './components/terminal-diagnostics'

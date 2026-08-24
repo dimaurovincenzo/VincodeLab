@@ -215,10 +215,10 @@ test('system light e dark attraversano preferenza Electron, DOM e token senza ri
   const freeTerminal = read('src/features/terminal/components/free-terminal.tsx')
 
   assert.match(app, /useState<'system' \| 'light' \| 'dark'>\('system'\)/)
-  assert.match(app, /window\.vincodeLab\.appearance\.get\(\)[\s\S]*?setAppearance\(value\)/)
+  assert.match(app, /appBridge\.appearance\.get\(\)[\s\S]*?setAppearance\(value\)/)
   assert.match(app, /document\.documentElement\.dataset\.theme = appearance/)
   assert.match(app, /document\.documentElement\.style\.colorScheme = appearance === 'system' \? 'light dark' : appearance/)
-  assert.match(app, /setAppearance\(await window\.vincodeLab\.appearance\.set\(value\)\)/)
+  assert.match(app, /setAppearance\(await appBridge\.appearance\.set\(value\)\)/)
   for (const [value, label] of [['system', 'Sistema'], ['light', 'Chiaro'], ['dark', 'Scuro']]) {
     assert.match(settings, new RegExp(`value: '${value}', label: '${label}'`))
   }
@@ -263,7 +263,7 @@ test('le liste selezionabili delegano focus composito tastiera e selezione a Lis
   const primitive = read('src/components/ui/listbox.tsx')
   const index = read('src/components/ui/index.ts')
   const recipes = read('src/theme/recipes.ts')
-  const projectSkills = read('src/components/project-skills.tsx')
+  const projectSkills = read('src/features/ai/components/project-skills.tsx')
   const remoteFiles = read('src/features/remote-files/components/remote-files.tsx')
   const settings = read('src/features/settings/components/settings.tsx')
 
@@ -349,7 +349,7 @@ test('gli allegati Pi delegano drop, focus e tastiera a FileUpload senza cambiar
 test('Splitter centralizza persistenza, reset e dimensioni controllate senza separator manuali', () => {
   const splitter = read('src/components/ui/splitter.tsx')
   const consumers = [
-    'src/components/project-skills.tsx',
+    'src/features/ai/components/project-skills.tsx',
     'src/features/database/components/database-workspace.tsx',
     'src/features/remote-files/components/remote-files.tsx',
     'src/features/github/components/github-workspace.tsx',

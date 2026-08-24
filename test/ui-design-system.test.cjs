@@ -159,7 +159,10 @@ test('logo nome e workspace sono centrati sulla fascia dei controlli finestra ma
 
 test('il selettore workspace è centrato e consente una seconda finestra controllata', () => {
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const switcher = fs.readFileSync(path.join(__dirname, '../src/components/workspace-switcher.tsx'), 'utf8')
+  const switcher = fs.readFileSync(
+    path.join(__dirname, '../src/features/workspace/components/workspace-switcher.tsx'),
+    'utf8',
+  )
   const popover = fs.readFileSync(path.join(__dirname, '../src/components/ui/popover.tsx'), 'utf8')
   const recipes = fs.readFileSync(path.join(__dirname, '../src/theme/recipes.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/home.ts'), 'utf8')
@@ -431,7 +434,7 @@ test('impostazioni usa un unico scorrimento della pagina e una superficie operat
 })
 
 test('i messaggi di sistema usano una terminologia italiana coerente', () => {
-  const instructions = fs.readFileSync(path.join(__dirname, '../src/components/project-instructions.tsx'), 'utf8')
+  const instructions = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/project-instructions.tsx'), 'utf8')
   const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   assert.doesNotMatch(instructions, /project-local/)
   assert.match(github, /Progetti GitHub del workspace/)
@@ -442,7 +445,7 @@ test('i messaggi di sistema usano una terminologia italiana coerente', () => {
 test('i controlli icon-only espongono un tooltip operativo', () => {
   const iconButton = fs.readFileSync(path.join(__dirname, '../src/components/ui/icon-button.tsx'), 'utf8')
   const tooltip = fs.readFileSync(path.join(__dirname, '../src/components/ui/tooltip.tsx'), 'utf8')
-  const skills = fs.readFileSync(path.join(__dirname, '../src/components/project-skills.tsx'), 'utf8')
+  const skills = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/project-skills.tsx'), 'utf8')
   const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
   const attachments = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/terminal-attachments.tsx'), 'utf8')
@@ -642,7 +645,7 @@ test('il selettore Project si richiude e gli assegnatari restano compatti nella 
 
 test('le superfici laterali condividono resize accessibile e persistente', () => {
   const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
-  const skills = fs.readFileSync(path.join(__dirname, '../src/components/project-skills.tsx'), 'utf8')
+  const skills = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/project-skills.tsx'), 'utf8')
   const database = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
   const terminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
   const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
@@ -867,7 +870,7 @@ test('il terminale AI viene rifatto al ritorno nella tab e non eccede orizzontal
 
   assert.match(app, /appSection !== 'ai' \|\| aiTab !== 'terminal'/)
   assert.match(app, /fitAddon\.current\?\.fit\(\)/)
-  assert.match(app, /window\.vincodeLab\.terminal\.resize\(\{ cols: terminal\.current\.cols, rows: terminal\.current\.rows \}\)/)
+  assert.match(app, /appBridge\.terminal\.resize\(\{ cols: terminal\.current\.cols, rows: terminal\.current\.rows \}\)/)
   assert.match(styles, /workspace:\s*css\(\{[\s\S]*?minW:\s*'0'/)
   assert.match(styles, /surface:\s*css\(\{[\s\S]*?minW:\s*'0'/)
 })
@@ -906,7 +909,7 @@ test('il reload di Pi ripristina la geometria completa di xterm e non espone il 
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
   const bridge = fs.readFileSync(path.join(__dirname, '../src/styles/views/terminal.css'), 'utf8')
 
-  assert.match(app, /await window\.vincodeLab\.pi\.reload\(\)[\s\S]*scheduleVisibleTerminalRefit/)
+  assert.match(app, /await appBridge\.pi\.reload\(\)[\s\S]*scheduleVisibleTerminalRefit/)
   assert.match(app, /window\.setTimeout\(refitAfterReload, 160\)/)
   assert.match(styles, /xtermHost:\s*css\(\{[\s\S]*?h:\s*'full'[\s\S]*?w:\s*'full'/)
   assert.match(bridge, /\[data-xterm-host\] \.xterm\s*\{[^}]*width:\s*100%[^}]*height:\s*100%/)
@@ -1219,7 +1222,7 @@ test('un errore di sezione mantiene disponibile la toolbar principale', () => {
 })
 
 test('l’editor Skill ignora una risposta IPC superata da una selezione più recente', () => {
-  const skills = fs.readFileSync(path.join(__dirname, '../src/components/project-skills.tsx'), 'utf8')
+  const skills = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/project-skills.tsx'), 'utf8')
 
   assert.match(skills, /const selectionRequestId = useRef\(0\)/)
   assert.match(skills, /const requestId = \+\+selectionRequestId\.current/)
@@ -1344,7 +1347,7 @@ test('Database consente di pulire la cronologia della connessione attiva', () =>
 })
 
 test('Skill progetto distingue il caricamento fallito da un elenco vuoto', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/project-skills.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/project-skills.tsx'), 'utf8')
 
   assert.match(component, /const \[loadError, setLoadError\] = useState<UserError \| null>\(null\)/)
   assert.match(component, /loadError \? <div className=\{aiStyles\.skillsList\}><ErrorNotice/)
@@ -1352,7 +1355,7 @@ test('Skill progetto distingue il caricamento fallito da un elenco vuoto', () =>
 })
 
 test('Istruzioni progetto non consente modifiche prima della lettura iniziale e offre retry', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/project-instructions.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/project-instructions.tsx'), 'utf8')
 
   assert.match(component, /const \[loadError, setLoadError\] = useState<UserError \| null>\(null\)/)
   assert.match(component, /disabled=\{loading \|\| Boolean\(loadError\)\}/)
