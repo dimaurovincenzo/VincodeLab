@@ -178,6 +178,7 @@ export type RedisApi = Readonly<{
   createConnection: (input: RedisConnectionInput) => Promise<RedisConnection>
   updateConnection: (id: string, input: RedisConnectionInput) => Promise<RedisConnection>
   deleteConnection: (id: string) => Promise<{ deleted: true }>
+  disconnect: (connectionId: string) => Promise<{ disconnected: true }>
   testConnection: (input: RedisConnectionInput, connectionId?: string) => Promise<RedisConnectionTestResult>
   scanKeys: (connectionId: string, input: RedisScanInput) => Promise<RedisScanPage>
   readKey: (connectionId: string, keyRef: string, input?: RedisInspectInput) => Promise<RedisInspection>
@@ -197,6 +198,7 @@ export type RedisWorkspaceSession = Readonly<{
 
 export type RedisWorkbenchContext = Readonly<{
   connectionId: string | null
+  canDisconnect: boolean
   searching: boolean
 }>
 

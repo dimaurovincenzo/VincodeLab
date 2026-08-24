@@ -81,13 +81,17 @@ test('il bundle conserva superficie, argomenti IPC e flag benchmark condizionali
 
   await api.database.connect('db-1')
   await api.database.disconnect('db-1')
+  await api.redis.disconnect('redis-1')
+  await api.redis.reconnect('redis-1')
   await api.database.inspectRoutine('db-1', 'public.refresh_cache', 'procedure')
   await api.database.execute('db-1', 'select 1', { limit: 10 })
   api.shellSessions.ready('shell-1', { generation: 2 })
   await api.terminal.prepareDroppedAttachments([{ name: 'query.sql' }])
-  assert.deepEqual(calls.slice(-6), [
+  assert.deepEqual(calls.slice(-8), [
     ['invoke', 'database:connect', 'db-1'],
     ['invoke', 'database:disconnect', 'db-1'],
+    ['invoke', 'redis:disconnect', 'redis-1'],
+    ['invoke', 'redis:reconnect', 'redis-1'],
     ['invoke', 'database:inspectRoutine', 'db-1', 'public.refresh_cache', 'procedure'],
     ['invoke', 'database:execute', 'db-1', 'select 1', { limit: 10 }],
     ['send', 'shellSessions:ready', 'shell-1', { generation: 2 }],

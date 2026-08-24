@@ -612,6 +612,7 @@ type AppMenuCommand =
   | 'redis.focusSearch'
   | 'redis.refresh'
   | 'redis.newConnection'
+  | 'redis.disconnect'
   | 'redis.reconnect'
   | 'redis.cancel'
   | 'settings.refresh'

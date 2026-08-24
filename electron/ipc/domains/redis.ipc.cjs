@@ -24,6 +24,24 @@ function createRedisHandlers({
   updateRedisConnection,
   withCleanupDeadline,
 }) {
+  async function drainAndCloseConnection(workspacePath, connectionId) {
+    const drain = redisOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === connectionId)
+    try {
+      await withCleanupDeadline(
+        Promise.all([drain, closeRedisConnectionSession(workspacePath, connectionId)]),
+        6_000,
+        'redis-connection-runtime',
+      )
+    } catch (cause) {
+      const error = createPublicError(
+        'REDIS_DISCONNECT_FAILED',
+        'Redis non ha confermato la disconnessione. La sessione resta disponibile: riprova prima di cambiare configurazione.',
+      )
+      try { Object.defineProperty(error, 'cause', { value: cause }) } catch { /* La causa tecnica resta best effort. */ }
+      throw error
+    }
+  }
+
   return new Map([
     [IPC_CHANNELS.REDIS_LIST_CONNECTIONS, (event) => {
       assertTrustedSender(event)
@@ -95,11 +113,16 @@ function createRedisHandlers({
         operation.finish()
       }
     }],
+    [IPC_CHANNELS.REDIS_DISCONNECT, async (event, connectionId) => {
+      assertTrustedSender(event)
+      const workspacePath = requireActiveWorkspace()
+      await drainAndCloseConnection(workspacePath, connectionId)
+      return { disconnected: true }
+    }],
     [IPC_CHANNELS.REDIS_RECONNECT, async (event, connectionId) => {
       assertTrustedSender(event)
       const workspacePath = requireActiveWorkspace()
-      await redisOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === connectionId)
-      await closeRedisConnectionSession(workspacePath, connectionId)
+      await drainAndCloseConnection(workspacePath, connectionId)
       return { reconnected: true }
     }],
     [IPC_CHANNELS.REDIS_SEARCH_PAYLOADS, async (event, connectionId, input) => {

@@ -30,6 +30,7 @@ function createDataBridge(ipcRenderer) {
       createConnection: (input) => ipcRenderer.invoke(IPC_CHANNELS.REDIS_CREATE_CONNECTION, input),
       updateConnection: (id, input) => ipcRenderer.invoke(IPC_CHANNELS.REDIS_UPDATE_CONNECTION, id, input),
       deleteConnection: (id) => ipcRenderer.invoke(IPC_CHANNELS.REDIS_DELETE_CONNECTION, id),
+      disconnect: (connectionId) => ipcRenderer.invoke(IPC_CHANNELS.REDIS_DISCONNECT, connectionId),
       testConnection: (input, connectionId) => ipcRenderer.invoke(IPC_CHANNELS.REDIS_TEST_CONNECTION, input, connectionId),
       scanKeys: (connectionId, input) => ipcRenderer.invoke(IPC_CHANNELS.REDIS_SCAN_KEYS, connectionId, input),
       readKey: (connectionId, keyRef, input) => ipcRenderer.invoke(IPC_CHANNELS.REDIS_READ_KEY, connectionId, keyRef, input),

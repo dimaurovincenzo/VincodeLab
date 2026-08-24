@@ -8,6 +8,7 @@ const {
   normalizeRedisError,
   toRedisPublicError,
 } = require('../electron/domains/redis/redis-service.cjs')
+const { createRedisSessionRuntime } = require('../electron/domains/redis/redis-session-runtime.cjs')
 
 function fakeRedisClient() {
   const values = new Map([
@@ -78,6 +79,90 @@ test('SCAN non perde gli elementi restituiti oltre il suggerimento COUNT', async
 
   assert.deepEqual(page.items.map((item) => item.key.display), ['greeting', 'profile', 'queue'])
   await api.closeWorkspaceSessions('/workspace')
+})
+
+test('la chiusura esplicita propaga il fallimento e consente di ritentare destroy', async () => {
+  const client = fakeRedisClient()
+  let destroyAttempts = 0
+  client.quit = async () => { throw new Error('quit failed') }
+  client.destroy = async () => {
+    destroyAttempts += 1
+    if (destroyAttempts < 3) throw new Error('destroy failed')
+    client.isOpen = false
+  }
+  const api = createRedisService({
+    createClient: () => client,
+    getConnectionWithSecrets: () => ({ host: '127.0.0.1', port: 6379, database: 0 }),
+  })
+  await api.scanKeys('/workspace', 'connection', { count: 1 })
+
+  await assert.rejects(
+    api.closeConnectionSession('/workspace', 'connection'),
+    (error) => error.code === 'REDIS_SESSION_CLEANUP_FAILED',
+  )
+  await api.closeConnectionSession('/workspace', 'connection')
+  assert.equal(destroyAttempts, 3)
+})
+
+test('la chiusura esplicita non accetta un destroy risolto che lascia il client aperto', async () => {
+  const client = fakeRedisClient()
+  client.quit = async () => { throw new Error('quit failed') }
+  client.destroy = async () => undefined
+  const api = createRedisService({
+    createClient: () => client,
+    getConnectionWithSecrets: () => ({ host: '127.0.0.1', port: 6379, database: 0 }),
+  })
+  await api.scanKeys('/workspace', 'connection', { count: 1 })
+
+  await assert.rejects(
+    api.closeConnectionSession('/workspace', 'connection'),
+    (error) => error.code === 'REDIS_SESSION_CLEANUP_FAILED',
+  )
+  assert.equal(client.isOpen, true)
+})
+
+test('un destroy scaduto viene rimosso dal single-flight e il retry può chiudere la sessione', async () => {
+  let destroyAttempts = 0
+  const client = {
+    isOpen: true,
+    destroy() {
+      destroyAttempts += 1
+      if (destroyAttempts === 1) return new Promise(() => undefined)
+      this.isOpen = false
+      return undefined
+    },
+  }
+  const runtime = createRedisSessionRuntime({
+    cleanupTimeoutMs: 5,
+    connectionTimeoutMs: 5,
+    createClient: () => client,
+    createSentinel: () => client,
+    getConnectionWithSecrets: () => null,
+  })
+
+  await assert.rejects(runtime.forceDisposeSession(client), (error) => error.code === 'ETIMEDOUT')
+  await runtime.forceDisposeSession(client)
+  assert.equal(destroyAttempts, 2)
+  assert.equal(client.isOpen, false)
+})
+
+test('una sessione ancora in connect viene forzata anche se il client non è ancora open', async () => {
+  let destroyAttempts = 0
+  const client = {
+    isOpen: false,
+    destroy() { destroyAttempts += 1 },
+    off() {},
+  }
+  const runtime = createRedisSessionRuntime({
+    cleanupTimeoutMs: 20,
+    connectionTimeoutMs: 20,
+    createClient: () => client,
+    createSentinel: () => client,
+    getConnectionWithSecrets: () => null,
+  })
+
+  await runtime.disposeSession({ client, connecting: true, errorListener() {} })
+  assert.equal(destroyAttempts, 1)
 })
 
 test('testConnectionInput usa un client effimero e lo chiude senza consultare lo store', async () => {

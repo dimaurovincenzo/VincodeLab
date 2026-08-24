@@ -21,6 +21,7 @@ function installRedis(overrides: Partial<RedisApi> = {}) {
     createConnection: vi.fn(),
     updateConnection: vi.fn(),
     deleteConnection: vi.fn(),
+    disconnect: vi.fn(async () => ({ disconnected: true as const })),
     testConnection: vi.fn(async () => ({ ok: true, latencyMs: 2 })),
     scanKeys: vi.fn(async () => ({ cursor: '0', keys: [{ key: 'user:1', keyRef: keyRef('user:1'), type: 'string' as const, ttlMs: null }], scanned: 1, hasMore: false })),
     readKey: vi.fn(async () => ({ key: 'user:1', keyRef: keyRef('user:1'), type: 'string' as const, ttlMs: null, encoding: 'embstr', value: 'Ada Lovelace' })),
@@ -61,6 +62,7 @@ describe('Redis workspace read-only', () => {
     expect(harness.api.readKey).not.toHaveBeenCalled()
     expect(harness.api.searchPayloads).not.toHaveBeenCalled()
     expect(harness.api.testConnection).not.toHaveBeenCalled()
+    expect(harness.api.disconnect).not.toHaveBeenCalled()
     expect(harness.api.reconnect).not.toHaveBeenCalled()
 
     act(() => {
@@ -97,15 +99,30 @@ describe('Redis workspace read-only', () => {
     expect(harness.api.scanKeys).not.toHaveBeenCalled()
   })
 
+  it('chiude la sessione backend se il primo SCAN fallisce dopo l apertura', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const scanKeys = vi.fn().mockRejectedValue(new Error('NOPERM this user has no permissions to run SCAN'))
+    const harness = installRedis({ scanKeys })
+    const user = userEvent.setup()
+    render(<RedisWorkspace workspace="/tmp/redis-open-acl" />)
+
+    await connectSelected(user)
+
+    expect(await screen.findByRole('heading', { name: 'Connessione Redis inattiva' })).toBeVisible()
+    expect(harness.api.disconnect).toHaveBeenCalledWith('redis-local')
+    expect(screen.queryByRole('button', { name: 'Disconnetti' })).not.toBeInTheDocument()
+  })
+
   it('rende recuperabili apertura e disconnessione senza riconnettere automaticamente', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const scanKeys = vi.fn()
       .mockRejectedValueOnce(new Error('connection refused'))
       .mockResolvedValue({ cursor: '0', keys: [{ key: 'user:1', keyRef: keyRef('user:1'), type: 'string', ttlMs: null }], scanned: 1, hasMore: false })
-    const reconnect = vi.fn()
+    const disconnect = vi.fn()
+      .mockResolvedValueOnce({ disconnected: true as const })
       .mockRejectedValueOnce(new Error('close failed'))
-      .mockResolvedValue({ reconnected: true as const })
-    installRedis({ reconnect, scanKeys })
+      .mockResolvedValue({ disconnected: true as const })
+    installRedis({ disconnect, scanKeys })
     const user = userEvent.setup()
     render(<RedisWorkspace workspace="/tmp/redis-recovery" />)
 
@@ -120,7 +137,71 @@ describe('Redis workspace read-only', () => {
     await user.click(screen.getByRole('button', { name: 'Riprova disconnessione' }))
     expect(await screen.findByRole('heading', { name: 'Connessione Redis inattiva' })).toBeVisible()
     expect(scanKeys).toHaveBeenCalledTimes(2)
-    expect(reconnect).toHaveBeenCalledTimes(2)
+    expect(disconnect).toHaveBeenCalledTimes(3)
+  })
+
+  it('mostra Disconnetti durante l apertura e ignora lo SCAN completato in ritardo', async () => {
+    let finishScan!: (value: { cursor: string; keys: Array<{ key: string; keyRef: string; type: 'string'; ttlMs: null }>; scanned: number; hasMore: boolean }) => void
+    const scanKeys = vi.fn(() => new Promise<Parameters<typeof finishScan>[0]>((resolve) => { finishScan = resolve }))
+    const harness = installRedis({ scanKeys })
+    const user = userEvent.setup()
+    render(<RedisWorkspace workspace="/tmp/redis-cancel-open" />)
+
+    await connectSelected(user)
+    expect(await screen.findByRole('button', { name: 'Disconnetti' })).toBeEnabled()
+    expect(screen.getByText('Connessione…').closest('[role="status"]')).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Disconnetti' }))
+
+    expect(await screen.findByRole('heading', { name: 'Connessione Redis inattiva' })).toBeVisible()
+    expect(harness.api.disconnect).toHaveBeenCalledWith('redis-local')
+    act(() => finishScan({ cursor: '0', keys: [{ key: 'late', keyRef: keyRef('late'), type: 'string', ttlMs: null }], scanned: 1, hasMore: false }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: /late/i })).not.toBeInTheDocument())
+  })
+
+  it('mantiene Disconnetti durante la riconnessione e confina il completamento precedente', async () => {
+    let finishReconnect!: (value: { reconnected: true }) => void
+    const reconnect = vi.fn(() => new Promise<{ reconnected: true }>((resolve) => { finishReconnect = resolve }))
+    const harness = installRedis({ reconnect })
+    const user = userEvent.setup()
+    render(<RedisWorkspace workspace="/tmp/redis-cancel-reconnect" />)
+    await connectSelected(user)
+    await screen.findByRole('button', { name: /user:1/i })
+
+    await user.click(screen.getByRole('button', { name: 'Riconnetti e aggiorna' }))
+    expect(await screen.findByRole('button', { name: 'Disconnetti' })).toBeEnabled()
+    expect(screen.getByText('Riconnessione…').closest('[role="status"]')).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Disconnetti' }))
+    expect(await screen.findByRole('heading', { name: 'Connessione Redis inattiva' })).toBeVisible()
+
+    act(() => finishReconnect({ reconnected: true }))
+    await waitFor(() => expect(harness.api.scanKeys).toHaveBeenCalledTimes(1))
+    expect(harness.api.disconnect).toHaveBeenCalledWith('redis-local')
+  })
+
+  it('preserva query e risultati visibili attraverso disconnect e nuova connessione manuale', async () => {
+    const searchPayloads = vi.fn(async (_id: string, input: { operationId: string }) => ({
+      operationId: input.operationId,
+      scanned: 1,
+      matches: [{ key: 'user:1', keyRef: keyRef('user:1'), type: 'string' as const, excerpt: 'Ada preservata' }],
+      truncated: false,
+      cancelled: false,
+    }))
+    installRedis({ searchPayloads })
+    const user = userEvent.setup()
+    render(<RedisWorkspace workspace="/tmp/redis-preserve-search" />)
+    await connectSelected(user)
+    await user.click(await screen.findByRole('tab', { name: /Cerca nei payload/ }))
+    const input = screen.getByRole('textbox', { name: 'Testo da cercare nei payload' })
+    await user.type(input, 'Ada')
+    await user.click(screen.getByRole('button', { name: 'Cerca' }))
+    expect(await screen.findByText('Ada preservata')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Disconnetti' }))
+    await screen.findByRole('heading', { name: 'Connessione Redis inattiva' })
+    await user.click(screen.getByRole('button', { name: `Connetti a ${connection.name}` }))
+
+    expect(await screen.findByRole('textbox', { name: 'Testo da cercare nei payload' })).toHaveValue('Ada')
+    expect(screen.getByText('Ada preservata')).toBeVisible()
   })
 
   it('naviga con SCAN, applica i filtri e legge una chiave tramite key ref sicuro', async () => {

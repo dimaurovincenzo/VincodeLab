@@ -15,6 +15,7 @@ export function RedisWorkspaceToolbar({ controller }: Props) {
     selected,
     selectedId,
     sessionBusy,
+    sessionCanDisconnect,
     sessionPhase,
   } = controller.state
 
@@ -39,14 +40,20 @@ export function RedisWorkspaceToolbar({ controller }: Props) {
         />
       </div>}
       {selected && <>
-        {operational
+        {sessionPhase === 'disconnecting'
+          ? <Button disabled size="sm" variant="outline"><Spinner size={14} /> Disconnessione…</Button>
+          : sessionCanDisconnect
           ? <>
-              <IconButton tooltip="Riconnetti e aggiorna" onClick={() => void controller.reconnect()}><RefreshCw aria-hidden="true" size={14} /></IconButton>
+              {operational
+                ? <IconButton tooltip="Riconnetti e aggiorna" onClick={() => void controller.reconnect()}><RefreshCw aria-hidden="true" size={14} /></IconButton>
+                : sessionPhase === 'disconnect-failed'
+                  ? <span className={rs.meta} role="status">Disconnessione non confermata</span>
+                  : <span className={rs.meta} role="status"><Spinner size={14} /> {sessionPhase === 'reconnecting' ? 'Riconnessione…' : 'Connessione…'}</span>}
               <Button size="sm" variant="outline" onClick={() => void controller.disconnect()}><Unplug aria-hidden="true" size={14} /> Disconnetti</Button>
             </>
-          : <Button disabled={sessionBusy} size="sm" onClick={() => void controller.connectSelected()}>
-              {sessionBusy ? <Spinner size={14} /> : <Plug aria-hidden="true" size={14} />}
-              {sessionPhase === 'connecting' ? 'Connessione…' : sessionPhase === 'disconnecting' ? 'Disconnessione…' : 'Connetti'}
+          : <Button size="sm" onClick={() => void controller.connectSelected()}>
+              <Plug aria-hidden="true" size={14} />
+              Connetti
             </Button>}
         <IconButton disabled={sessionBusy} tooltip={`Modifica ${selected.name}`} onClick={() => controller.editConnection(selected)}><FilePenLine aria-hidden="true" size={14} /></IconButton>
         <IconButton disabled={sessionBusy} tone="danger" tooltip={`Elimina ${selected.name}`} onClick={() => controller.deleteConnection(selected)}><Trash2 aria-hidden="true" size={14} /></IconButton>

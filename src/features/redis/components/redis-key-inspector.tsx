@@ -9,6 +9,7 @@ import { redisStyles as rs, redisTypeBadge } from '@/theme/styles/redis'
 const MAX_VISIBLE_ITEMS_LABEL = '2.000'
 
 type Props = {
+  disabled?: boolean
   error: UserError | null
   inspection: RedisInspection | null
   loading: boolean
@@ -51,7 +52,7 @@ const InspectionValue = memo(function InspectionValue({ inspection }: { inspecti
   return <KeyValueTable headers={['ID', 'Campi']} rows={inspection.entries.map((entry) => [entry.id, entry.fields.map((field) => `${field.field}: ${field.value}`).join('\n')])} />
 })
 
-export const RedisKeyInspector = memo(function RedisKeyInspector({ error, inspection, loading, selectedKey, tab, onLoadMore, onRefresh, onTabChange }: Props) {
+export const RedisKeyInspector = memo(function RedisKeyInspector({ disabled = false, error, inspection, loading, selectedKey, tab, onLoadMore, onRefresh, onTabChange }: Props) {
   if (!selectedKey) return <EmptyState description="Scegli una chiave dal browser per leggerne valore, struttura e scadenza." eyebrow="Inspector in sola lettura" icon={<Database size={24} />} title="Nessuna chiave selezionata" />
   if (error) return <ErrorNotice action={{ label: 'Riprova lettura', onClick: onRefresh }} className={rs.notice} error={error} />
   if (loading || !inspection) return <div className={rs.centerState} role="status"><Spinner size={20} /><span>Lettura della chiave…</span></div>
@@ -69,7 +70,7 @@ export const RedisKeyInspector = memo(function RedisKeyInspector({ error, inspec
           {inspection.encoding && <span className={rs.fact}>Encoding · {inspection.encoding}</span>}
         </div>
       </div>
-      <Button size="sm" variant="outline" onClick={onRefresh}><RefreshCw aria-hidden="true" size={14} /> Aggiorna</Button>
+      <Button disabled={disabled} size="sm" variant="outline" onClick={onRefresh}><RefreshCw aria-hidden="true" size={14} /> Aggiorna</Button>
     </header>
     <div className={rs.content}>
       <Tabs.List aria-label="Dettagli chiave Redis" className={rs.viewTabs}><Tabs.Trigger value="value">Valore</Tabs.Trigger><Tabs.Trigger value="metadata">Metadati</Tabs.Trigger><Tabs.Indicator /></Tabs.List>
@@ -83,7 +84,7 @@ export const RedisKeyInspector = memo(function RedisKeyInspector({ error, inspec
         ['Encoding', inspection.encoding ?? 'non disponibile'],
       ]} /></div></Tabs.Content>
     </div>
-    {inspectionHasMore(inspection) && <footer className={rs.loadMore}><Button size="sm" variant="outline" onClick={onLoadMore}>Carica altri elementi</Button></footer>}
+    {inspectionHasMore(inspection) && <footer className={rs.loadMore}><Button disabled={disabled} size="sm" variant="outline" onClick={onLoadMore}>Carica altri elementi</Button></footer>}
   </section></Tabs.Root>
 })
 

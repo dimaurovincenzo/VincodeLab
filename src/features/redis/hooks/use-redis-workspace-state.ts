@@ -86,11 +86,23 @@ export function useRedisWorkspaceState(initialState?: RedisWorkspaceSession) {
   const currentSnapshot = scanHistory[pageIndex]
   const page = currentSnapshot?.page ?? emptyRedisScanPage
   const operational = sessionPhase === 'connected' && activeConnectionId === selectedId
-  const sessionBusy = sessionPhase === 'connecting' || sessionPhase === 'disconnecting'
+  const sessionBusy = sessionPhase === 'connecting' || sessionPhase === 'reconnecting' || sessionPhase === 'disconnecting'
+  const sessionCanDisconnect = Boolean(
+    activeConnectionId
+    && activeConnectionId === selectedId
+    && sessionPhase !== 'passive'
+    && sessionPhase !== 'disconnecting',
+  )
 
-  const resetRemoteState = useCallback(() => {
+  const invalidateRemoteRequests = useCallback(() => {
     scanRequest.current += 1
     inspectionRequest.current += 1
+    setInspectionLoading(false)
+    setScanLoading(false)
+  }, [])
+
+  const resetRemoteState = useCallback(() => {
+    invalidateRemoteRequests()
     inspectionRef.current = null
     visibleMatchesRef.current = []
     setScanHistory([])
@@ -98,13 +110,11 @@ export function useRedisWorkspaceState(initialState?: RedisWorkspaceSession) {
     setSelectedKey(null)
     setSelectedKeyRef(null)
     setInspection(null)
-    setInspectionLoading(false)
     setInspectionError(null)
     setScanError(null)
-    setScanLoading(false)
     setSearching(false)
     setSearchKeyRequest(undefined)
-  }, [])
+  }, [invalidateRemoteRequests])
 
   return {
     activeConnectionId,
@@ -127,6 +137,7 @@ export function useRedisWorkspaceState(initialState?: RedisWorkspaceSession) {
     getInspectionSnapshot,
     getVisibleMatches,
     inspectorTab,
+    invalidateRemoteRequests,
     loadingConnections,
     mode,
     operational,
@@ -144,6 +155,7 @@ export function useRedisWorkspaceState(initialState?: RedisWorkspaceSession) {
     selectedKey,
     selectedKeyRef,
     sessionBusy,
+    sessionCanDisconnect,
     sessionError,
     sessionPhase,
     sessionRecovery,

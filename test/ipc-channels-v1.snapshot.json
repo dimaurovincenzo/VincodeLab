@@ -94,6 +94,7 @@
     "redis:cancel",
     "redis:createConnection",
     "redis:deleteConnection",
+    "redis:disconnect",
     "redis:listConnections",
     "redis:readKey",
     "redis:reconnect",

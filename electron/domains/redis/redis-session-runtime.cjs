@@ -82,37 +82,54 @@ function createRedisSessionRuntime({
     const client = session?.client ?? session
     if (!client) return Promise.resolve()
     if ((typeof client === 'object' || typeof client === 'function') && forcedDisposals.has(client)) return forcedDisposals.get(client)
-    const closing = Promise.resolve().then(() => {
-      if (typeof client.destroy === 'function') return client.destroy()
-      if (typeof client.disconnect === 'function') return client.disconnect()
-      return undefined
-    }).catch(() => undefined)
-    if (typeof client === 'object' || typeof client === 'function') forcedDisposals.set(client, closing)
-    return closing
+    const wasConnecting = session?.connecting === true
+    const attempt = Promise.resolve().then(async () => {
+      if (client.isOpen === false && !wasConnecting) return
+      if (typeof client.destroy === 'function') await client.destroy()
+      else if (typeof client.disconnect === 'function') await client.disconnect()
+      else throw Object.assign(new Error('redis_session_force_close_unavailable'), { code: 'REDIS_SESSION_CLEANUP_FAILED' })
+      if (client.isOpen !== false) throw Object.assign(new Error('redis_session_force_close_unconfirmed'), { code: 'REDIS_SESSION_CLEANUP_FAILED' })
+    })
+    const closing = withTimeout(attempt, cleanupTimeoutMs)
+    if (typeof client !== 'object' && typeof client !== 'function') return closing
+    let tracked
+    tracked = closing.finally(() => {
+      if (forcedDisposals.get(client) === tracked) forcedDisposals.delete(client)
+    })
+    forcedDisposals.set(client, tracked)
+    return tracked
   }
 
   async function disposeSession(session) {
     const client = session?.client ?? session
     if (!client) return
-    let cleanupComplete = true
+    let cleanupComplete = false
     try {
-      const close = client.isOpen !== false && typeof client.quit === 'function'
+      const forceRequired = session?.connecting === true
+      const close = forceRequired || client.isOpen === false
+        ? undefined
+        : typeof client.quit === 'function'
         ? client.quit()
         : typeof client.close === 'function' ? client.close() : undefined
       if (close) await withTimeout(close, cleanupTimeoutMs)
+      else if (forceRequired || client.isOpen !== false) await withTimeout(forceDisposeSession(session), cleanupTimeoutMs)
+      cleanupComplete = true
     } catch {
-      try { await withTimeout(forceDisposeSession(session), cleanupTimeoutMs) } catch { cleanupComplete = false }
+      await withTimeout(forceDisposeSession(session), cleanupTimeoutMs)
+      cleanupComplete = true
     } finally {
       if (cleanupComplete) client.off?.('error', session?.errorListener)
     }
   }
 
   function connectSession(session, signal) {
+    const forceCloseBestEffort = () => { void forceDisposeSession(session).catch(() => undefined) }
+    session.connecting = true
     return withTimeout(
-      withAbort(session.client.connect(), signal, () => forceDisposeSession(session)),
+      withAbort(session.client.connect(), signal, forceCloseBestEffort),
       connectionTimeoutMs,
-      () => forceDisposeSession(session),
-    )
+      forceCloseBestEffort,
+    ).finally(() => { session.connecting = false })
   }
 
   const sessions = sessionRegistry ?? createRedisSessionRegistry({

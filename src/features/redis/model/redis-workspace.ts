@@ -18,7 +18,7 @@ export type RedisScanSnapshot = Readonly<{
   page: RedisScanPage
 }>
 
-export type RedisSessionPhase = 'passive' | 'connecting' | 'connected' | 'disconnecting'
+export type RedisSessionPhase = 'passive' | 'connecting' | 'connected' | 'reconnecting' | 'disconnecting' | 'disconnect-failed'
 export type RedisSessionRecovery = 'connect' | 'disconnect' | 'reconnect'
 
 export const emptyRedisScanPage: RedisScanPage = {

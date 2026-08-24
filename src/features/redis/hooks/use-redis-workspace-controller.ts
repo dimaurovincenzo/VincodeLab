@@ -23,9 +23,10 @@ export function useRedisWorkspaceController({
   useEffect(() => {
     onContextChange?.({
       connectionId: state.operational ? state.activeConnectionId : null,
+      canDisconnect: state.sessionCanDisconnect,
       searching: state.searching,
     })
-  }, [onContextChange, state.activeConnectionId, state.operational, state.searching])
+  }, [onContextChange, state.activeConnectionId, state.operational, state.searching, state.sessionCanDisconnect])
 
   useEffect(() => {
     onSessionChange?.({
@@ -56,6 +57,9 @@ export function useRedisWorkspaceController({
   useRedisMenuCommand('redis.reconnect', () => {
     if (state.operational) void session.reconnect()
   })
+  useRedisMenuCommand('redis.disconnect', () => {
+    if (state.sessionCanDisconnect) void session.disconnect()
+  })
   useRedisMenuCommand('redis.newConnection', session.openNewConnection)
 
   useRedisContextMenu({
@@ -70,7 +74,7 @@ export function useRedisWorkspaceController({
     setSearchKeyRequest: state.setSearchKeyRequest,
   })
 
-  const sessionErrorAction = state.sessionRecovery === 'disconnect' && state.operational
+  const sessionErrorAction = state.sessionRecovery === 'disconnect' && state.sessionCanDisconnect
     ? { label: 'Riprova disconnessione', onClick: session.disconnect }
     : state.sessionRecovery === 'reconnect' && state.operational
       ? { label: 'Riprova riconnessione', onClick: session.reconnect }

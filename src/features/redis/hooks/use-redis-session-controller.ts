@@ -20,6 +20,7 @@ export function useRedisSessionController({ api, browser, initialState, state, w
     currentSnapshot,
     editingConnection,
     getActiveConnectionId,
+    invalidateRemoteRequests,
     invalidateSessionRequest,
     isConnectionRequestCurrent,
     isSessionRequestCurrent,
@@ -27,6 +28,7 @@ export function useRedisSessionController({ api, browser, initialState, state, w
     selectedId,
     selectedKeyRef,
     sessionBusy,
+    sessionCanDisconnect,
     sessionPhase,
     setConfirmation,
     setConnectionError,
@@ -66,29 +68,48 @@ export function useRedisSessionController({ api, browser, initialState, state, w
   // eslint-disable-next-line react-hooks/set-state-in-effect -- l'apertura del workspace avvia il caricamento asincrono e il relativo stato osservabile
   useEffect(() => { void loadConnections() }, [loadConnections, workspace])
 
+  const closeFailedOpen = useCallback(async (connectionId: string, request: number) => {
+    if (!isSessionRequestCurrent(request)) return
+    setSessionPhase('disconnecting')
+    try {
+      await api.disconnect(connectionId)
+    } catch (cause) {
+      if (!isSessionRequestCurrent(request)) return
+      setSessionPhase('disconnect-failed')
+      setSessionRecovery('disconnect')
+      setSessionError(reportRedisFailure(cause, 'disconnect-failed-open', 'Sessione Redis non chiusa', 'Redis non ha confermato la chiusura dopo il caricamento fallito. Riprova la disconnessione.'))
+      return
+    }
+    if (!isSessionRequestCurrent(request)) return
+    publishActiveConnectionId(null)
+    invalidateRemoteRequests()
+    setSessionPhase('passive')
+  }, [api, invalidateRemoteRequests, isSessionRequestCurrent, publishActiveConnectionId, setSessionError, setSessionPhase, setSessionRecovery])
+
   const connectSelected = useCallback(async () => {
     if (!selectedId || sessionPhase !== 'passive') return
     const request = beginSessionRequest()
+    publishActiveConnectionId(selectedId)
     setSessionPhase('connecting')
     setSessionError(null)
     setSessionRecovery('connect')
-    resetRemoteState()
-    const opened = await scan(undefined, false, undefined, selectedId, true)
+    invalidateRemoteRequests()
+    const opened = await scan(currentSnapshot?.inputCursor, Boolean(currentSnapshot), undefined, selectedId, true)
     if (!isSessionRequestCurrent(request)) return
     if (!opened) {
-      publishActiveConnectionId(null)
-      setSessionPhase('passive')
+      await closeFailedOpen(selectedId, request)
       return
     }
-    publishActiveConnectionId(selectedId)
     setSessionPhase('connected')
-  }, [beginSessionRequest, isSessionRequestCurrent, publishActiveConnectionId, resetRemoteState, scan, selectedId, sessionPhase, setSessionError, setSessionPhase, setSessionRecovery])
+    if (selectedKeyRef) void readKey(selectedKeyRef)
+  }, [beginSessionRequest, closeFailedOpen, currentSnapshot, invalidateRemoteRequests, isSessionRequestCurrent, publishActiveConnectionId, readKey, scan, selectedId, selectedKeyRef, sessionPhase, setSessionError, setSessionPhase, setSessionRecovery])
 
   const reconnect = useCallback(async () => {
     const connectionId = getActiveConnectionId()
     if (!connectionId || sessionPhase !== 'connected') return
     const request = beginSessionRequest()
-    setSessionPhase('connecting')
+    invalidateRemoteRequests()
+    setSessionPhase('reconnecting')
     setSessionError(null)
     setSessionRecovery('reconnect')
     setScanError(null)
@@ -96,8 +117,8 @@ export function useRedisSessionController({ api, browser, initialState, state, w
       await api.reconnect(connectionId)
     } catch (cause) {
       if (!isSessionRequestCurrent(request)) return
-      setSessionPhase('connected')
-      setSessionRecovery('reconnect')
+      setSessionPhase('disconnect-failed')
+      setSessionRecovery('disconnect')
       setSessionError(reportRedisFailure(cause, 'reconnect', 'Redis non riconnesso', 'La sessione corrente resta selezionata. Riprova oppure disconnettiti.'))
       return
     }
@@ -105,27 +126,27 @@ export function useRedisSessionController({ api, browser, initialState, state, w
     const opened = await scan(currentSnapshot?.inputCursor, Boolean(currentSnapshot), undefined, connectionId, true)
     if (!isSessionRequestCurrent(request)) return
     if (!opened) {
-      publishActiveConnectionId(null)
-      setSessionPhase('passive')
+      await closeFailedOpen(connectionId, request)
       return
     }
     publishActiveConnectionId(connectionId)
     setSessionPhase('connected')
     if (selectedKeyRef) void readKey(selectedKeyRef)
-  }, [api, beginSessionRequest, currentSnapshot, getActiveConnectionId, isSessionRequestCurrent, publishActiveConnectionId, readKey, scan, selectedKeyRef, sessionPhase, setScanError, setSessionError, setSessionPhase, setSessionRecovery])
+  }, [api, beginSessionRequest, closeFailedOpen, currentSnapshot, getActiveConnectionId, invalidateRemoteRequests, isSessionRequestCurrent, publishActiveConnectionId, readKey, scan, selectedKeyRef, sessionPhase, setScanError, setSessionError, setSessionPhase, setSessionRecovery])
 
   const disconnect = useCallback(async () => {
     const connectionId = getActiveConnectionId()
-    if (!connectionId || sessionPhase !== 'connected') return
+    if (!connectionId || !sessionCanDisconnect) return
     const request = beginSessionRequest()
+    invalidateRemoteRequests()
     setSessionPhase('disconnecting')
     setSessionError(null)
     setSessionRecovery('disconnect')
     try {
-      await api.reconnect(connectionId)
+      await api.disconnect(connectionId)
     } catch (cause) {
       if (!isSessionRequestCurrent(request)) return
-      setSessionPhase('connected')
+      setSessionPhase('disconnect-failed')
       setSessionRecovery('disconnect')
       setSessionError(reportRedisFailure(cause, 'disconnect', 'Redis non disconnesso', 'La sessione resta disponibile. Riprova la disconnessione prima di cambiare configurazione.'))
       return
@@ -133,8 +154,7 @@ export function useRedisSessionController({ api, browser, initialState, state, w
     if (!isSessionRequestCurrent(request)) return
     publishActiveConnectionId(null)
     setSessionPhase('passive')
-    resetRemoteState()
-  }, [api, beginSessionRequest, getActiveConnectionId, isSessionRequestCurrent, publishActiveConnectionId, resetRemoteState, sessionPhase, setSessionError, setSessionPhase, setSessionRecovery])
+  }, [api, beginSessionRequest, getActiveConnectionId, invalidateRemoteRequests, isSessionRequestCurrent, publishActiveConnectionId, sessionCanDisconnect, setSessionError, setSessionPhase, setSessionRecovery])
 
   const selectConnection = useCallback((connectionId: string | null) => {
     if (connectionId === selectedId || sessionBusy) return
@@ -146,10 +166,11 @@ export function useRedisSessionController({ api, browser, initialState, state, w
       return
     }
     const request = beginSessionRequest()
+    invalidateRemoteRequests()
     setSessionPhase('disconnecting')
     setSessionError(null)
     setSessionRecovery('disconnect')
-    void api.reconnect(activeId).then(() => {
+    void api.disconnect(activeId).then(() => {
       if (!isSessionRequestCurrent(request)) return
       publishActiveConnectionId(null)
       resetRemoteState()
@@ -157,17 +178,30 @@ export function useRedisSessionController({ api, browser, initialState, state, w
       setSessionPhase('passive')
     }).catch((cause) => {
       if (!isSessionRequestCurrent(request)) return
-      setSessionPhase('connected')
+      setSessionPhase('disconnect-failed')
       setSessionRecovery('disconnect')
       setSessionError(reportRedisFailure(cause, 'switch-connection', 'Connessione Redis non cambiata', 'La sessione corrente resta aperta. Riprova la disconnessione, poi seleziona la nuova configurazione.'))
     })
-  }, [api, beginSessionRequest, getActiveConnectionId, isSessionRequestCurrent, publishActiveConnectionId, resetRemoteState, selectedId, sessionBusy, setSelectedId, setSessionError, setSessionPhase, setSessionRecovery])
+  }, [api, beginSessionRequest, getActiveConnectionId, invalidateRemoteRequests, isSessionRequestCurrent, publishActiveConnectionId, resetRemoteState, selectedId, sessionBusy, setSelectedId, setSessionError, setSessionPhase, setSessionRecovery])
 
   const saveConnection = useCallback(async (input: RedisConnectionInput) => {
     const activeId = getActiveConnectionId()
     if (activeId) {
-      await api.reconnect(activeId)
-      invalidateSessionRequest()
+      const request = beginSessionRequest()
+      invalidateRemoteRequests()
+      setSessionPhase('disconnecting')
+      setSessionError(null)
+      setSessionRecovery('disconnect')
+      try {
+        await api.disconnect(activeId)
+      } catch (cause) {
+        if (isSessionRequestCurrent(request)) {
+          setSessionPhase('disconnect-failed')
+          setSessionError(reportRedisFailure(cause, 'disconnect-before-save', 'Connessione Redis non modificata', 'La sessione non ha confermato la chiusura. Riprova la disconnessione prima di salvare.'))
+        }
+        throw cause
+      }
+      if (!isSessionRequestCurrent(request)) return
       publishActiveConnectionId(null)
       setSessionPhase('passive')
       setSessionError(null)
@@ -178,7 +212,7 @@ export function useRedisSessionController({ api, browser, initialState, state, w
       : await api.createConnection(input)
     await loadConnections()
     setSelectedId(saved.id)
-  }, [api, editingConnection, getActiveConnectionId, invalidateSessionRequest, loadConnections, publishActiveConnectionId, resetRemoteState, setSelectedId, setSessionError, setSessionPhase])
+  }, [api, beginSessionRequest, editingConnection, getActiveConnectionId, invalidateRemoteRequests, isSessionRequestCurrent, loadConnections, publishActiveConnectionId, resetRemoteState, setSelectedId, setSessionError, setSessionPhase, setSessionRecovery])
 
   const deleteConnection = useCallback((connection: RedisConnection) => {
     setConfirmation({

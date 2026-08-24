@@ -25,4 +25,4 @@ export type WorkbenchCommandContext = {
 export const emptyEditorContext: EditorWorkbenchContext = { activeFileId: null, activeFileName: null, dirty: false, source: null, selection: null }
 export const emptyGitHubContext: GitHubWorkbenchContext = { tab: 'changes', branch: null, changedFiles: [], selectedDiffPath: null }
 export const emptyDatabaseContext: DatabaseWorkbenchContext = { connectionId: null, connectionName: null, executing: false, sql: '', tableName: null, transactionActive: false }
-export const emptyRedisContext: RedisWorkbenchContext = { connectionId: null, searching: false }
+export const emptyRedisContext: RedisWorkbenchContext = { connectionId: null, canDisconnect: false, searching: false }

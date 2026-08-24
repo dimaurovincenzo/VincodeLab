@@ -121,7 +121,7 @@ function redisFixture(overrides = {}) {
   return { calls, dependencies, ipcMain, operationSignal, predicates, registrations, results }
 }
 
-test('registra una sola volta il manifesto completo dei 10 canali IPC Redis', () => {
+test('registra una sola volta il manifesto completo degli 11 canali IPC Redis', () => {
   const fixture = redisFixture()
   const registration = registerRedisIpc({ ipcMain: fixture.ipcMain, ...fixture.dependencies })
 
@@ -133,6 +133,7 @@ test('registra una sola volta il manifesto completo dei 10 canali IPC Redis', ()
     'redis:testConnection',
     'redis:scanKeys',
     'redis:readKey',
+    'redis:disconnect',
     'redis:reconnect',
     'redis:searchPayloads',
     'redis:cancel',
@@ -145,12 +146,13 @@ test('registra una sola volta il manifesto completo dei 10 canali IPC Redis', ()
 
 test('gli handler diretti verificano il sender prima di workspace, registry e servizi', async () => {
   const rejection = new Error('sender non attendibile')
-  const asyncChannels = new Set(['redis:testConnection', 'redis:scanKeys', 'redis:readKey', 'redis:reconnect', 'redis:searchPayloads'])
+  const asyncChannels = new Set(['redis:testConnection', 'redis:scanKeys', 'redis:readKey', 'redis:disconnect', 'redis:reconnect', 'redis:searchPayloads'])
   const argumentsByChannel = new Map([
     ['redis:listConnections', []],
     ['redis:testConnection', [{ host: 'localhost' }, undefined]],
     ['redis:scanKeys', ['redis-1', {}]],
     ['redis:readKey', ['redis-1', 'dXNlcjox', {}]],
+    ['redis:disconnect', ['redis-1']],
     ['redis:reconnect', ['redis-1']],
     ['redis:searchPayloads', ['redis-1', { operationId: 'search-1' }]],
     ['redis:cancel', ['search-1']],
@@ -356,9 +358,48 @@ test('readKey mantiene il riferimento codificato, pagina l’ispezione e applica
   ])
 })
 
-test('reconnect attende drain e chiusura della sola connessione richiesta', async () => {
+test('disconnect esplicito attende drain e chiusura bounded della sola connessione richiesta', async () => {
   const fixture = redisFixture()
   const event = { sender: { id: 31 } }
+  const handler = createRedisHandlers(fixture.dependencies).get('redis:disconnect')
+
+  assert.deepEqual(await handler(event, 'redis-1'), { disconnected: true })
+  assert.deepEqual(fixture.calls, [
+    ['guard', event],
+    ['require-workspace'],
+    ['abort-and-wait'],
+    ['close-session', '/workspace/current', 'redis-1'],
+    ['cleanup-deadline', 6_000, 'redis-connection-runtime'],
+  ])
+  assert.equal(fixture.predicates[0]({ workspacePath: '/workspace/current', connectionId: 'redis-1' }), true)
+  assert.equal(fixture.predicates[0]({ workspacePath: '/workspace/current', connectionId: 'redis-2' }), false)
+})
+
+test('disconnect non dichiara successo quando la sessione non conferma la chiusura', async () => {
+  const failure = Object.assign(new Error('destroy failed'), { code: 'REDIS_SESSION_CLEANUP_FAILED' })
+  const fixture = redisFixture({
+    closeRedisConnectionSession: async (workspacePath, connectionId) => {
+      fixture.calls.push(['close-session', workspacePath, connectionId])
+      throw failure
+    },
+  })
+  const event = { sender: { id: 32 } }
+  const handler = createRedisHandlers(fixture.dependencies).get('redis:disconnect')
+
+  await assert.rejects(handler(event, 'redis-1'), (error) => error.publicCode === 'REDIS_DISCONNECT_FAILED' && error.cause === failure)
+  assert.deepEqual(fixture.calls, [
+    ['guard', event],
+    ['require-workspace'],
+    ['abort-and-wait'],
+    ['close-session', '/workspace/current', 'redis-1'],
+    ['cleanup-deadline', 6_000, 'redis-connection-runtime'],
+    ['public-error', 'REDIS_DISCONNECT_FAILED', 'Redis non ha confermato la disconnessione. La sessione resta disponibile: riprova prima di cambiare configurazione.'],
+  ])
+})
+
+test('reconnect compatibile usa lo stesso drain bounded del disconnect', async () => {
+  const fixture = redisFixture()
+  const event = { sender: { id: 33 } }
   const handler = createRedisHandlers(fixture.dependencies).get('redis:reconnect')
 
   assert.deepEqual(await handler(event, 'redis-1'), { reconnected: true })
@@ -367,6 +408,7 @@ test('reconnect attende drain e chiusura della sola connessione richiesta', asyn
     ['require-workspace'],
     ['abort-and-wait'],
     ['close-session', '/workspace/current', 'redis-1'],
+    ['cleanup-deadline', 6_000, 'redis-connection-runtime'],
   ])
   assert.equal(fixture.predicates[0]({ workspacePath: '/workspace/current', connectionId: 'redis-1' }), true)
   assert.equal(fixture.predicates[0]({ workspacePath: '/workspace/current', connectionId: 'redis-2' }), false)

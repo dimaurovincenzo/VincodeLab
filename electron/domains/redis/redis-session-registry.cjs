@@ -6,6 +6,14 @@ class RedisSessionInvalidatedError extends Error {
   }
 }
 
+class RedisSessionCleanupError extends Error {
+  constructor(message = 'La sessione Redis non ha confermato la chiusura.') {
+    super(message)
+    this.name = 'RedisSessionCleanupError'
+    this.code = 'REDIS_SESSION_CLEANUP_FAILED'
+  }
+}
+
 function deadline(timeoutMs) {
   let timer
   const promise = new Promise((resolve) => {
@@ -23,6 +31,7 @@ function createRedisSessionRegistry({ closeSession, forceCloseSession = () => un
   const sessions = new Map()
   const openings = new Map()
   const closings = new Map()
+  const failedClosures = new Map()
   const generations = new Map()
   const disposals = new WeakMap()
 
@@ -52,11 +61,27 @@ function createRedisSessionRegistry({ closeSession, forceCloseSession = () => un
         timeout.promise,
       ])
       timeout.cancel()
-      if (outcome !== 'closed') await force(session)
-      return outcome
+      if (outcome === 'closed') return outcome
+      const forced = await force(session)
+      if (forced === 'forced') return forced
+      throw new RedisSessionCleanupError(forced === 'timeout'
+        ? 'La chiusura forzata della sessione Redis ha superato il tempo disponibile.'
+        : 'La chiusura forzata della sessione Redis non è riuscita.')
     })()
-    if (typeof session === 'object' || typeof session === 'function') disposals.set(session, promise)
-    return promise
+    if (typeof session !== 'object' && typeof session !== 'function') return promise
+    let tracked
+    tracked = promise.catch((error) => {
+      if (disposals.get(session) === tracked) disposals.delete(session)
+      throw error
+    })
+    disposals.set(session, tracked)
+    return tracked
+  }
+
+  function retainFailedClosure(key, candidates) {
+    const retained = failedClosures.get(key) ?? []
+    for (const candidate of candidates) if (candidate && !retained.includes(candidate)) retained.push(candidate)
+    if (retained.length) failedClosures.set(key, retained)
   }
 
   async function settle(promise) {
@@ -70,6 +95,7 @@ function createRedisSessionRegistry({ closeSession, forceCloseSession = () => un
     if (typeof key !== 'string' || !key) throw new TypeError('Chiave sessione Redis non valida.')
     if (typeof openSession !== 'function') throw new TypeError('openSession deve essere una funzione.')
     while (closings.has(key)) await closings.get(key)
+    if (failedClosures.has(key)) throw new RedisSessionCleanupError('La precedente sessione Redis richiede un nuovo tentativo di disconnessione.')
     if (sessions.has(key)) return sessions.get(key)
     if (openings.has(key)) return openings.get(key).promise
 
@@ -77,7 +103,7 @@ function createRedisSessionRegistry({ closeSession, forceCloseSession = () => un
     const record = { candidate: null, generation, invalidated: false, promise: null }
     const setCandidate = (candidate) => {
       record.candidate = candidate
-      if (record.invalidated) void dispose(candidate)
+      if (record.invalidated) void dispose(candidate).catch(() => retainFailedClosure(key, [candidate]))
     }
     record.promise = Promise.resolve()
       .then(() => openSession({ setCandidate }))
@@ -104,20 +130,29 @@ function createRedisSessionRegistry({ closeSession, forceCloseSession = () => un
     nextGeneration(key)
     const session = sessions.get(key)
     const opening = openings.get(key)
+    const retained = failedClosures.get(key) ?? []
+    failedClosures.delete(key)
     sessions.delete(key)
     if (opening) {
       opening.invalidated = true
       openings.delete(key)
     }
-    const cleanup = Promise.allSettled([
-      dispose(session),
-      dispose(opening?.candidate),
-      opening ? settle(opening.promise) : Promise.resolve(),
-    ]).then(() => undefined)
-    const tracked = cleanup.finally(() => {
+    const targets = [...new Set([session, opening?.candidate, ...retained].filter(Boolean))]
+    const cleanup = Promise.all([
+      Promise.allSettled(targets.map((candidate) => dispose(candidate))),
+      opening ? settle(opening.promise) : Promise.resolve('settled'),
+    ]).then(([disposalResults, openingOutcome]) => {
+      const failed = disposalResults.find((result) => result.status === 'rejected')
+      if (failed) throw failed.reason
+      if (openingOutcome === 'timeout') throw new RedisSessionCleanupError('La connessione Redis in apertura non ha confermato la chiusura.')
+    })
+    const tracked = cleanup.catch((error) => {
+      retainFailedClosure(key, targets)
+      throw error
+    }).finally(() => {
       if (closings.get(key) === tracked) {
         closings.delete(key)
-        if (!sessions.has(key) && !openings.has(key)) generations.delete(key)
+        if (!sessions.has(key) && !openings.has(key) && !failedClosures.has(key)) generations.delete(key)
       }
     })
     closings.set(key, tracked)
@@ -126,11 +161,11 @@ function createRedisSessionRegistry({ closeSession, forceCloseSession = () => un
 
   async function closeMatching(predicate) {
     if (typeof predicate !== 'function') throw new TypeError('Filtro sessioni Redis non valido.')
-    const keys = new Set([...sessions.keys(), ...openings.keys(), ...closings.keys()])
+    const keys = new Set([...sessions.keys(), ...openings.keys(), ...closings.keys(), ...failedClosures.keys()])
     await Promise.allSettled([...keys].filter(predicate).map((key) => close(key)))
   }
 
   return { acquire, close, closeMatching, has: (key) => sessions.has(key) }
 }
 
-module.exports = { RedisSessionInvalidatedError, createRedisSessionRegistry }
+module.exports = { RedisSessionCleanupError, RedisSessionInvalidatedError, createRedisSessionRegistry }

@@ -9,6 +9,7 @@ import { redisStyles as rs, redisTypeBadge } from '@/theme/styles/redis'
 
 type Props = {
   connectionId: string
+  disabled?: boolean
   focusRequest?: number
   keyRequest?: { keyPattern: string; keyRef: string; nonce: number }
   onOpenKey: (match: RedisPayloadMatch) => void
@@ -38,7 +39,7 @@ function matchCountLabel(value: number) {
   return `${value.toLocaleString('it-IT')} ${value === 1 ? 'risultato' : 'risultati'}`
 }
 
-export function RedisPayloadSearch({ connectionId, focusRequest = 0, keyRequest, onOpenKey, onSearchingChange, onVisibleMatchesChange }: Props) {
+export function RedisPayloadSearch({ connectionId, disabled = false, focusRequest = 0, keyRequest, onOpenKey, onSearchingChange, onVisibleMatchesChange }: Props) {
   const api = redisApi()
   const [query, setQuery] = useState('')
   const [keyPattern, setKeyPattern] = useState('*')
@@ -99,6 +100,20 @@ export function RedisPayloadSearch({ connectionId, focusRequest = 0, keyRequest,
   useLayoutEffect(() => onVisibleMatchesChange?.(matches), [matches, onVisibleMatchesChange])
 
   useEffect(() => {
+    if (!disabled) return
+    requestRevision.current += 1
+    clearPendingProgress()
+    const operationId = activeOperation.current
+    activeOperation.current = null
+    if (operationId) void api.cancel(operationId).catch((cause) => {
+      reportSearchError(cause, 'cancel-search-on-disconnect', 'Ricerca Redis non annullata', 'La disconnessione principale confina comunque la sessione.')
+    })
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- il confine di sessione annulla immediatamente lo stato operativo locale
+    setSearching(false)
+    setCancelling(false)
+  }, [api, clearPendingProgress, disabled])
+
+  useEffect(() => {
     const unsubscribe = api.onSearchProgress((progress) => {
       if (progress.operationId !== activeOperation.current) return
       pendingProgress.current = progress
@@ -144,7 +159,7 @@ export function RedisPayloadSearch({ connectionId, focusRequest = 0, keyRequest,
 
   const runSearch = useCallback(async () => {
     const normalizedQuery = query.trim()
-    if (!normalizedQuery || searching || activeOperation.current) return
+    if (disabled || !normalizedQuery || searching || activeOperation.current) return
     const revision = ++requestRevision.current
     const operationId = crypto.randomUUID()
     clearPendingProgress()
@@ -190,7 +205,7 @@ export function RedisPayloadSearch({ connectionId, focusRequest = 0, keyRequest,
         setCancelling(false)
       }
     }
-  }, [api, clearPendingProgress, connectionId, exactKeyRef, flushPendingProgress, keyPattern, query, searching, type])
+  }, [api, clearPendingProgress, connectionId, disabled, exactKeyRef, flushPendingProgress, keyPattern, query, searching, type])
 
   const cancelSearch = useCallback(async () => {
     const operationId = activeOperation.current
@@ -212,13 +227,13 @@ export function RedisPayloadSearch({ connectionId, focusRequest = 0, keyRequest,
 
   const progressValue = useMemo(() => estimatedTotal && estimatedTotal > 0 ? Math.min(100, scanned / estimatedTotal * 100) : null, [estimatedTotal, scanned])
 
-  return <section aria-label="Ricerca nei payload Redis" className={rs.search}>
+  return <section aria-disabled={disabled || undefined} aria-label="Ricerca nei payload Redis" className={rs.search}>
     <span aria-atomic="true" className={rs.srOnly} role="status">{announcement}</span>
     <form className={rs.searchForm} onSubmit={(event) => { event.preventDefault(); void runSearch() }}>
-      <Field.Root><Field.Input aria-label="Testo da cercare nei payload" placeholder="Testo nel valore, campo o membro…" ref={inputRef} required value={query} onChange={(event) => setQuery(event.target.value)} /></Field.Root>
-      <Field.Root><Field.Input aria-label="Pattern chiavi per ricerca payload" placeholder="Chiavi: *" value={keyPattern} onChange={(event) => { setKeyPattern(event.target.value); setExactKeyRef(undefined) }} /></Field.Root>
-      <SelectField aria-label="Tipo payload Redis" options={redisTypeOptions} value={type} onValueChange={(value) => setType(value as RedisKeyTypeFilter)} />
-      {searching ? <Button disabled={cancelling} type="button" variant="outline" onClick={() => void cancelSearch()}><Square aria-hidden="true" size={13} /> {cancelling ? 'Annullamento…' : 'Annulla'}</Button> : <Button disabled={!query.trim()} type="submit"><Search aria-hidden="true" size={14} /> Cerca</Button>}
+      <Field.Root disabled={disabled}><Field.Input aria-label="Testo da cercare nei payload" placeholder="Testo nel valore, campo o membro…" ref={inputRef} required value={query} onChange={(event) => setQuery(event.target.value)} /></Field.Root>
+      <Field.Root disabled={disabled}><Field.Input aria-label="Pattern chiavi per ricerca payload" placeholder="Chiavi: *" value={keyPattern} onChange={(event) => { setKeyPattern(event.target.value); setExactKeyRef(undefined) }} /></Field.Root>
+      <SelectField aria-label="Tipo payload Redis" disabled={disabled} options={redisTypeOptions} value={type} onValueChange={(value) => setType(value as RedisKeyTypeFilter)} />
+      {searching ? <Button disabled={disabled || cancelling} type="button" variant="outline" onClick={() => void cancelSearch()}><Square aria-hidden="true" size={13} /> {cancelling ? 'Annullamento…' : 'Annulla'}</Button> : <Button disabled={disabled || !query.trim()} type="submit"><Search aria-hidden="true" size={14} /> Cerca</Button>}
     </form>
     <div>
       {error && <ErrorNotice action={{ label: searching ? 'Annulla di nuovo' : 'Riprova ricerca', onClick: searching ? cancelSearch : runSearch }} className={rs.notice} error={error} />}

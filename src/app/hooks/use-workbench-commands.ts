@@ -248,6 +248,7 @@ export function useWorkbenchCommands({
       { id: 'redis.focusSearch', title: 'Cerca chiavi o contenuti Redis', category: 'Redis', shortcut: '⌘F', when: inSection('redis'), run: relay('redis.focusSearch') },
       { id: 'redis.refresh', title: 'Aggiorna chiavi Redis', category: 'Redis', when: inSection('redis'), enabled: (context) => Boolean(context.redis.connectionId), run: relay('redis.refresh') },
       { id: 'redis.newConnection', title: 'Nuova connessione Redis', category: 'Redis', when: inSection('redis'), run: relay('redis.newConnection') },
+      { id: 'redis.disconnect', title: 'Disconnetti Redis', category: 'Redis', when: inSection('redis'), enabled: (context) => context.redis.canDisconnect, run: relay('redis.disconnect') },
       { id: 'redis.reconnect', title: 'Riconnetti Redis', category: 'Redis', when: inSection('redis'), enabled: (context) => Boolean(context.redis.connectionId), run: relay('redis.reconnect') },
       { id: 'redis.cancel', title: 'Annulla ricerca Redis', category: 'Redis', when: inSection('redis'), enabled: (context) => context.redis.searching, run: relay('redis.cancel') },
       { id: 'settings.refresh', title: 'Aggiorna impostazioni e risorse', category: 'Impostazioni', when: (context) => context.section === 'settings', run: relay('settings.refresh') },

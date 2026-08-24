@@ -28,6 +28,7 @@ test('il registro IPC v1 coincide con lo snapshot pubblico compatibile', () => {
   assert.deepEqual(sorted(registry.IPC_RENDERER_SEND_CHANNELS), baseline.rendererSend)
   assert.deepEqual(sorted(registry.IPC_MAIN_TO_RENDERER_CHANNELS), baseline.mainEvent)
   assert.ok(baseline.invoke.includes('database:disconnect'))
+  assert.ok(baseline.invoke.includes('redis:disconnect'))
 })
 
 test('ogni stringa e ogni direzione del contratto hanno ownership univoca', () => {
