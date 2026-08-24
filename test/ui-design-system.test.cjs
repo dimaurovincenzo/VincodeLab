@@ -9,6 +9,13 @@ const { readRemoteFilesSource } = require('./helpers/remote-files-source.cjs')
 const { readSettingsSource } = require('./helpers/settings-source.cjs')
 const { readTerminalSource } = require('./helpers/terminal-source.cjs')
 
+function readProjectSkillsSource() {
+  return [
+    '../src/features/ai/components/project-skills.tsx',
+    '../src/features/ai/hooks/use-project-skills-controller.ts',
+  ].map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8')).join('\n')
+}
+
 test('design system definisce token e focus condivisi', () => {
   const tokens = fs.readFileSync(path.join(__dirname, '../src/theme/tokens.ts'), 'utf8')
   const globalCss = fs.readFileSync(path.join(__dirname, '../src/theme/global-css.ts'), 'utf8')
@@ -1268,7 +1275,7 @@ test('un errore di sezione mantiene disponibile la toolbar principale', () => {
 })
 
 test('l’editor Skill ignora una risposta IPC superata da una selezione più recente', () => {
-  const skills = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/project-skills.tsx'), 'utf8')
+  const skills = readProjectSkillsSource()
 
   assert.match(skills, /const selectionRequestId = useRef\(0\)/)
   assert.match(skills, /const requestId = \+\+selectionRequestId\.current/)
@@ -1401,11 +1408,23 @@ test('Database consente di pulire la cronologia della connessione attiva', () =>
 })
 
 test('Skill progetto distingue il caricamento fallito da un elenco vuoto', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/project-skills.tsx'), 'utf8')
+  const component = readProjectSkillsSource()
 
   assert.match(component, /const \[loadError, setLoadError\] = useState<UserError \| null>\(null\)/)
   assert.match(component, /loadError \? <div className=\{aiStyles\.skillsList\}><ErrorNotice/)
   assert.match(component, /action=\{\{ label: 'Riprova', onClick: loadSkills \}\}/)
+})
+
+test('Skill progetto separa la view dal coordinamento asincrono', () => {
+  const view = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/project-skills.tsx'), 'utf8')
+  const controller = fs.readFileSync(path.join(__dirname, '../src/features/ai/hooks/use-project-skills-controller.ts'), 'utf8')
+
+  assert.match(view, /useProjectSkillsController\(\{ workspace, onWorkspaceGuardChange \}\)/)
+  assert.doesNotMatch(view, /\b(?:useEffect|useRef|useState)\b/)
+  assert.doesNotMatch(view, /aiBridge\./)
+  assert.match(controller, /const selectionRequestId = useRef\(0\)/)
+  assert.match(controller, /const loadSkills = useCallback\(async \(\) =>/)
+  assert.match(controller, /onWorkspaceGuardChange\(guard\)/)
 })
 
 test('Istruzioni progetto non consente modifiche prima della lettura iniziale e offre retry', () => {

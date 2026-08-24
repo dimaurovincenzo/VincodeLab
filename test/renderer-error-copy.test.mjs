@@ -19,7 +19,10 @@ const components = [
 ]
 
 function componentSource(fileName) {
-  return fs.readFileSync(path.join(testDirectory, '../src', fileName), 'utf8')
+  const component = fs.readFileSync(path.join(testDirectory, '../src', fileName), 'utf8')
+  if (fileName !== 'features/ai/components/project-skills.tsx') return component
+  const controller = fs.readFileSync(path.join(testDirectory, '../src/features/ai/hooks/use-project-skills-controller.ts'), 'utf8')
+  return `${component}\n${controller}`
 }
 
 test('le superfici renderer selezionate non mostrano proprieta message grezze', () => {
