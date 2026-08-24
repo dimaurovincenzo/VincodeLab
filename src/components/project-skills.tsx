@@ -1,1 +1,1 @@
-export { ProjectSkills } from '@/features/ai'
+export { ProjectSkills } from '@/features/ai/components/project-skills'
