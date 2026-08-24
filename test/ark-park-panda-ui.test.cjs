@@ -211,6 +211,7 @@ test('system light e dark attraversano preferenza Electron, DOM e token senza ri
   const settings = read('src/features/settings/components/settings.tsx')
   const tokens = read('src/theme/tokens.ts')
   const electron = read('electron/main.cjs')
+  const appearanceIpc = read('electron/ipc/domains/appearance.ipc.cjs')
   const xtermTheme = read('src/lib/xterm-theme.ts')
   const freeTerminal = read('src/features/terminal/components/free-terminal.tsx')
 
@@ -230,7 +231,8 @@ test('system light e dark attraversano preferenza Electron, DOM e token senza ri
   assert.match(tokens, /systemTheme:\s*':where\(:root:not\(\[data-theme\]\), :root\[data-theme="system"\]\) &'/)
 
   assert.match(electron, /nativeTheme\.themeSource = getAppearance\(\)/)
-  assert.match(electron, /ipcMain\.handle\('appearance:set'[\s\S]*?nativeTheme\.themeSource = value/)
+  assert.match(appearanceIpc, /\['appearance:set', \(event, appearance\)[\s\S]*?applyAppearance\(value\)/)
+  assert.match(electron, /registerAppearanceIpc\(\{[\s\S]*?nativeTheme\.themeSource = value/)
   assert.match(xtermTheme, /MutationObserver\(updateTheme\)/)
   assert.match(xtermTheme, /attributeFilter:\s*\['data-theme'\]/)
   assert.match(xtermTheme, /matchMedia\('\(prefers-color-scheme: dark\)'\)/)

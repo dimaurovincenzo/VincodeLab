@@ -59,6 +59,10 @@ const { createPtyRuntime } = require('./pty-runtime.cjs')
 const { getRuntimeCapabilities } = require('./runtime-capabilities.cjs')
 const { registerPreferencesIpc } = require('./ipc/domains/preferences.ipc.cjs')
 const { registerRuntimeIpc } = require('./ipc/domains/runtime.ipc.cjs')
+const { registerAppearanceIpc } = require('./ipc/domains/appearance.ipc.cjs')
+const { registerProjectResourcesIpc } = require('./ipc/domains/project-resources.ipc.cjs')
+const { registerSystemSkillsIpc } = require('./ipc/domains/system-skills.ipc.cjs')
+const { registerWorkspaceStateIpc } = require('./ipc/domains/workspace-state.ipc.cjs')
 
 // Ogni invoke attraversa lo stesso confine: gli errori raw restano nel main,
 // mentre renderer e log condividono categoria, operazione e correlation ID.
@@ -1107,37 +1111,22 @@ async function initializeApplication() {
     assertTrustedSender(event)
     return activeWorkspacePath ? { path: activeWorkspacePath, error: activeWorkspaceError, errorIncident: activeWorkspaceIncident } : null
   })
-  ipcMain.handle('workspaceSession:get', (event) => {
-    assertTrustedSender(event)
-    reliabilityFaultInjection?.beforeWorkspaceSessionRead()
-    const snapshot = getWorkspaceSession(requireActiveWorkspace())
-    if (snapshot.recovery) {
-      log('warning', 'workspace_session_recovered', {
-        category: 'persistence',
-        code: 'PERSISTENCE_SESSION_CORRUPT',
-        component: 'workspace-session',
-        correlationId: snapshot.recovery.correlationId,
-        operation: 'restore-layout',
-        severity: 'warning',
-      })
-    }
-    return snapshot
-  })
-  ipcMain.handle('workspaceSession:save', (event, snapshot) => {
-    assertTrustedSender(event)
-    return saveWorkspaceSession(requireActiveWorkspace(), snapshot)
-  })
-  ipcMain.handle('volatileDrafts:list', (event) => {
-    assertTrustedSender(event)
-    return volatileDrafts.list()
-  })
-  ipcMain.handle('volatileDrafts:write', (event, draft) => {
-    assertTrustedSender(event)
-    return volatileDrafts.write(draft)
-  })
-  ipcMain.handle('volatileDrafts:discard', (event, identity) => {
-    assertTrustedSender(event)
-    return volatileDrafts.discard(identity)
+  registerWorkspaceStateIpc({
+    ipcMain,
+    assertTrustedSender,
+    beforeWorkspaceSessionRead: () => reliabilityFaultInjection?.beforeWorkspaceSessionRead(),
+    getWorkspaceSession,
+    logWorkspaceSessionRecovery: (recovery) => log('warning', 'workspace_session_recovered', {
+      category: 'persistence',
+      code: 'PERSISTENCE_SESSION_CORRUPT',
+      component: 'workspace-session',
+      correlationId: recovery.correlationId,
+      operation: 'restore-layout',
+      severity: 'warning',
+    }),
+    requireActiveWorkspace,
+    saveWorkspaceSession,
+    volatileDrafts,
   })
   ipcMain.handle('workspace:instanceStatus', (event, workspacePath) => {
     assertTrustedSender(event)
@@ -1333,16 +1322,15 @@ async function initializeApplication() {
     Menu.buildFromTemplate(template).popup({ window: mainWindow })
     return { opened: true }
   })
-  ipcMain.handle('appearance:get', (event) => {
-    assertTrustedSender(event)
-    return getAppearance()
-  })
-  ipcMain.handle('appearance:set', (event, appearance) => {
-    assertTrustedSender(event)
-    const value = setAppearance(appearance)
-    nativeTheme.themeSource = value
-    mainWindow?.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#1c1c1e' : '#ececec')
-    return value
+  registerAppearanceIpc({
+    ipcMain,
+    assertTrustedSender,
+    applyAppearance: (value) => {
+      nativeTheme.themeSource = value
+      mainWindow?.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#1c1c1e' : '#ececec')
+    },
+    getAppearance,
+    setAppearance,
   })
   registerPreferencesIpc({
     ipcMain,
@@ -1462,46 +1450,20 @@ async function initializeApplication() {
       return result
     })
   })
-  ipcMain.handle('instructions:get', (event) => {
-    assertTrustedSender(event)
-    return getProjectInstructions(requireActiveWorkspace())
-  })
-  ipcMain.handle('instructions:save', (event, content) => {
-    assertTrustedSender(event)
-    const result = saveProjectInstructions(requireActiveWorkspace(), content)
-    log('info', 'project_instructions_saved')
-    return result
-  })
-  ipcMain.handle('instructions:clear', (event) => {
-    assertTrustedSender(event)
-    const result = clearProjectInstructions(requireActiveWorkspace())
-    log('info', 'project_instructions_cleared')
-    return result
-  })
-  ipcMain.handle('skills:list', (event) => {
-    assertTrustedSender(event)
-    return listProjectSkills(requireActiveWorkspace())
-  })
-  ipcMain.handle('skills:get', (event, skillId) => {
-    assertTrustedSender(event)
-    return getProjectSkill(requireActiveWorkspace(), skillId)
-  })
-  ipcMain.handle('skills:create', (event, name) => {
-    assertTrustedSender(event)
-    return createProjectSkill(requireActiveWorkspace(), name)
-  })
-  ipcMain.handle('skills:update', (event, skillId, content) => {
-    assertTrustedSender(event)
-    return updateProjectSkill(requireActiveWorkspace(), skillId, content)
-  })
-  ipcMain.handle('skills:delete', (event, skillId) => {
-    assertTrustedSender(event)
-    deleteProjectSkill(requireActiveWorkspace(), skillId)
-    return { deleted: true }
-  })
-  ipcMain.handle('skills:reload', (event) => {
-    assertTrustedSender(event)
-    return reloadPi()
+  registerProjectResourcesIpc({
+    ipcMain,
+    assertTrustedSender,
+    clearProjectInstructions,
+    createProjectSkill,
+    deleteProjectSkill,
+    getProjectInstructions,
+    getProjectSkill,
+    listProjectSkills,
+    log,
+    reloadPi,
+    requireActiveWorkspace,
+    saveProjectInstructions,
+    updateProjectSkill,
   })
   ipcMain.handle('github:gitStatus', (event, options) => {
     assertTrustedSender(event)
@@ -1673,11 +1635,16 @@ async function initializeApplication() {
     if (!Array.isArray(filePaths) || filePaths.length > 20) throw new Error('Allegati non validi.')
     return filePaths.map(prepareTerminalAttachment)
   })
-  ipcMain.handle('systemSkills:list', (event) => { assertTrustedSender(event); return listSystemSkills(systemSkillsRoot) })
-  ipcMain.handle('systemSkills:get', (event, id) => { assertTrustedSender(event); return getSystemSkill(systemSkillsRoot, id) })
-  ipcMain.handle('systemSkills:create', (event, name) => { assertTrustedSender(event); return createSystemSkill(systemSkillsRoot, name) })
-  ipcMain.handle('systemSkills:update', (event, id, content) => { assertTrustedSender(event); return updateSystemSkill(systemSkillsRoot, id, content) })
-  ipcMain.handle('systemSkills:delete', (event, id) => { assertTrustedSender(event); deleteSystemSkill(systemSkillsRoot, id); return { deleted: true } })
+  registerSystemSkillsIpc({
+    ipcMain,
+    assertTrustedSender,
+    createSystemSkill,
+    deleteSystemSkill,
+    getSystemSkill,
+    listSystemSkills,
+    systemSkillsRoot,
+    updateSystemSkill,
+  })
   registerRuntimeIpc({
     ipcMain,
     assertTrustedSender,
