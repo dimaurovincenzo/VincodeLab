@@ -1,10 +1,15 @@
-const { createDatabaseSessionRegistry } = require('./database-session-registry.cjs')
 const { toDatabasePublicError } = require('./database-error-mapper.cjs')
 
-const REMOTE_SESSION_CLEANUP_TIMEOUT_MS = 2_000
 const REMOTE_SESSION_LIFECYCLE = Symbol('vincodelab.database-remote-session-lifecycle')
-const remoteSessionDisposals = new WeakMap()
-const forceClosedRemoteSessions = new WeakSet()
+const REMOTE_SESSION_DISPOSAL = Symbol('vincodelab.database-remote-session-disposal')
+
+function remoteSessionDisposalState(session) {
+  const existing = session[REMOTE_SESSION_DISPOSAL]
+  if (existing) return existing
+  const state = { forceClosed: false, promise: null }
+  Object.defineProperty(session, REMOTE_SESSION_DISPOSAL, { value: state })
+  return state
+}
 
 function detachRemoteSessionLifecycle(session) {
   const lifecycle = session?.[REMOTE_SESSION_LIFECYCLE]
@@ -65,8 +70,8 @@ function raceRemoteSessionFailure(session, operation) {
 
 function disposeRemoteSession(session) {
   if (!session || (typeof session !== 'object' && typeof session !== 'function')) return Promise.resolve()
-  const existing = remoteSessionDisposals.get(session)
-  if (existing) return existing
+  const disposalState = remoteSessionDisposalState(session)
+  if (disposalState.promise) return disposalState.promise
 
   const disposal = (async () => {
     markRemoteSessionClosing(session)
@@ -89,13 +94,15 @@ function disposeRemoteSession(session) {
       if (closed) detachRemoteSessionLifecycle(session)
     }
   })()
-  remoteSessionDisposals.set(session, disposal)
+  disposalState.promise = disposal
   return disposal
 }
 
 function forceCloseRemoteSession(session) {
-  if (!session || (typeof session !== 'object' && typeof session !== 'function') || forceClosedRemoteSessions.has(session)) return
-  forceClosedRemoteSessions.add(session)
+  if (!session || (typeof session !== 'object' && typeof session !== 'function')) return
+  const disposalState = remoteSessionDisposalState(session)
+  if (disposalState.forceClosed) return
+  disposalState.forceClosed = true
   markRemoteSessionClosing(session)
   try {
     session?.driverPort?.forceCloseRemoteSession?.(session.handle)
@@ -112,12 +119,6 @@ function invalidateRemoteSession(session, error) {
   }
   forceCloseRemoteSession(session)
 }
-
-const remoteSessions = createDatabaseSessionRegistry({
-  cleanupTimeoutMs: REMOTE_SESSION_CLEANUP_TIMEOUT_MS,
-  closeSession: disposeRemoteSession,
-  forceCloseSession: forceCloseRemoteSession,
-})
 
 function createRemoteSessionLifecycleController({ closeSession, invalidateSchema = () => undefined } = {}) {
   if (typeof closeSession !== 'function') throw new TypeError('closeSession deve essere una funzione.')
@@ -191,5 +192,4 @@ module.exports = {
   forceCloseRemoteSession,
   invalidateRemoteSession,
   raceRemoteSessionFailure,
-  remoteSessions,
 }

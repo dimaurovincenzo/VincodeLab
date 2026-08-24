@@ -1,8 +1,13 @@
 const { createPublicError } = require('../errors/public-error.cjs')
 const { assertDatabaseDriverPort } = require('./database-driver.port.cjs')
 const { sqliteInfrastructurePublicError, toDatabasePublicError } = require('./database-error-mapper.cjs')
+const { createDatabaseSessionRegistry } = require('./database-session-registry.cjs')
 const { buildDriverConfig, sessionKey } = require('./sql-model.cjs')
-const { createRemoteSessionLifecycleController, remoteSessions } = require('./remote-session-lifecycle.cjs')
+const {
+  createRemoteSessionLifecycleController,
+  disposeRemoteSession,
+  forceCloseRemoteSession,
+} = require('./remote-session-lifecycle.cjs')
 
 function createDatabaseSessionRuntime({
   getConnectionWithSecrets,
@@ -14,6 +19,10 @@ function createDatabaseSessionRuntime({
   if (typeof invalidateWorkspaceSchema !== 'function') throw new TypeError('Invalidazione schema workspace non valida.')
 
   const sqliteSessions = new Map()
+  const remoteSessions = createDatabaseSessionRegistry({
+    closeSession: disposeRemoteSession,
+    forceCloseSession: forceCloseRemoteSession,
+  })
   let driverPort = null
   let sqliteRuntime = null
   const remoteSessionLifecycle = createRemoteSessionLifecycleController({
