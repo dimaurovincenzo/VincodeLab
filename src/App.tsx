@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Terminal } from '@xterm/xterm'
 import { BookOpen, Boxes, ChevronDown, ChevronRight, ChevronUp, Database, FileCode2, FolderOpen, GitFork, LayoutGrid, List, RefreshCw, ScrollText, Search, Settings, TerminalSquare, X } from 'lucide-react'
+import { appBridge } from '@/app/api/app.bridge'
 import { Button, ErrorNotice, Field, IconButton, SegmentGroup, Spinner, Tabs, Toaster, WorkbenchPresence, toast } from '@/components/ui'
 import { TerminalToolbar } from '@/components/terminal-toolbar'
 import { TerminalAttachments, type TerminalContextAction } from '@/features/ai'
@@ -380,9 +381,9 @@ function App() {
   const [pasteProgress, setPasteProgress] = useState<TerminalPasteProgress | null>(null)
   const [pasteFailure, setPasteFailure] = useState<TerminalPasteFailure | null>(null)
   const [pasteController] = useState(() => createTerminalPasteController({
-    startPaste: window.vincodeLab.terminal.startPaste,
-    writePasteChunk: window.vincodeLab.terminal.writePasteChunk,
-    cancelPaste: window.vincodeLab.terminal.cancelPaste,
+    startPaste: appBridge.terminal.startPaste,
+    writePasteChunk: appBridge.terminal.writePasteChunk,
+    cancelPaste: appBridge.terminal.cancelPaste,
   }))
   const [terminalRendererGeneration, setTerminalRendererGeneration] = useState(0)
   const [appearance, setAppearance] = useState<'system' | 'light' | 'dark'>('system')
@@ -481,7 +482,7 @@ function App() {
 
   const refreshRecents = useCallback(async () => {
     try {
-      setRecents(await window.vincodeLab.workspace.listRecent())
+      setRecents(await appBridge.workspace.listRecent())
       setHomeFailure(null)
     } catch (nextError) {
       const incident = reportRendererFailure(nextError, {
@@ -544,7 +545,7 @@ function App() {
 
   useEffect(() => {
     let active = true
-    void window.vincodeLab.appearance.get().then((value) => {
+    void appBridge.appearance.get().then((value) => {
       if (active) setAppearance(value)
     }).catch((nextError) => {
       // L'app resta utilizzabile con il tema di sistema anche se la preferenza non è disponibile.
@@ -592,7 +593,7 @@ function App() {
 
   const changeAppearance = async (value: 'system' | 'light' | 'dark') => {
     try {
-      setAppearance(await window.vincodeLab.appearance.set(value))
+      setAppearance(await appBridge.appearance.set(value))
     } catch (nextError) {
       reportTransientFailure(nextError, {
         category: 'configuration',
@@ -674,14 +675,14 @@ function App() {
 
   const reloadPi = useCallback(async function reloadPiAction() {
     try {
-      await window.vincodeLab.pi.reload()
+      await appBridge.pi.reload()
       // Pi ridisegna il proprio footer dopo /reload: il PTY deve ricevere la geometria
       // della superficie ormai stabilizzata, non quella precedente al repaint.
       const refitAfterReload = () => {
         const xterm = terminal.current
         if (!xterm) return
         fitAddon.current?.fit()
-        window.vincodeLab.terminal.resize({ cols: xterm.cols, rows: xterm.rows })
+        appBridge.terminal.resize({ cols: xterm.cols, rows: xterm.rows })
       }
       scheduleVisibleTerminalRefit(refitAfterReload)
       // Il renderer di Pi completa il proprio layout dopo il comando. Un secondo fit
@@ -703,7 +704,7 @@ function App() {
   const restartPi = useCallback(async () => {
     setStatus('launching')
     try {
-      await window.vincodeLab.pi.restart()
+      await appBridge.pi.restart()
     } catch (nextError) {
       publishAiFailure(nextError, {
         operation: 'restart-ai-session',
@@ -729,7 +730,7 @@ function App() {
       return
     }
     try {
-      await controller.reconnect(() => window.vincodeLab.terminal.resume({}))
+      await controller.reconnect(() => appBridge.terminal.resume({}))
       toast.success('Sessione Pi riavviata')
     } catch (nextError) {
       publishAiFailure(nextError, {
@@ -756,7 +757,7 @@ function App() {
     }
     const attemptedFailure = aiFailureRef.current
     try {
-      await controller.reconnect(() => window.vincodeLab.terminal.resume({}))
+      await controller.reconnect(() => appBridge.terminal.resume({}))
       if (aiFailureRef.current === attemptedFailure) clearAiFailure()
     } catch (nextError) {
       publishAiFailure(nextError, {
@@ -1057,7 +1058,7 @@ function App() {
     if (!workspace) return
     const request = ++fileIndexRequest.current
     setIndexingFiles(true)
-    void window.vincodeLab.files.list().then((result) => {
+    void appBridge.files.list().then((result) => {
       if (request !== fileIndexRequest.current) return
       const rootFiles = result.entries.filter((entry) => entry.kind === 'file').map((entry) => ({
         id: entry.id,
@@ -1079,7 +1080,7 @@ function App() {
         fallbackDescription: 'Quick Open continua usando l’indice completo.',
       })
     })
-    void window.vincodeLab.files.index().then((result) => {
+    void appBridge.files.index().then((result) => {
       if (request === fileIndexRequest.current) setIndexedFiles(result.files)
     }).catch((nextError) => {
       if (request === fileIndexRequest.current) {
@@ -1116,7 +1117,7 @@ function App() {
     const section: AppMenuSection = workspace
       ? appSection === 'ai' && aiTab !== 'terminal' ? `ai-${aiTab}` : appSection
       : appSection === 'settings' ? 'settings' : 'home'
-    window.vincodeLab.appMenu.setContext(section)
+    appBridge.appMenu.setContext(section)
   }, [aiTab, appSection, workspace])
 
   useEffect(() => {
@@ -1162,7 +1163,7 @@ function App() {
         },
       }
       const requestContextMenu = () => {
-        void window.vincodeLab.contextMenu.open(request).catch((nextError) => {
+        void appBridge.contextMenu.open(request).catch((nextError) => {
           reportTransientFailure(nextError, {
             component: 'context-menu',
             operation: 'open-context-menu',
@@ -1216,8 +1217,8 @@ function App() {
     if (operationId !== workspaceOpenGeneration.current) return
     try {
       const result = request.kind === 'recent'
-        ? await window.vincodeLab.workspace.openRecent(request.path)
-        : await window.vincodeLab.workspace.open()
+        ? await appBridge.workspace.openRecent(request.path)
+        : await appBridge.workspace.open()
       if (operationId !== workspaceOpenGeneration.current) return
       if (result?.error && !result.path) {
         const incident = reportWorkspaceResultError(result, 'Il workspace non è stato aperto. Il workspace precedente è rimasto disponibile.')
@@ -1257,7 +1258,7 @@ function App() {
   const openRecentWorkspace = useCallback((workspacePath: string) => requestWorkspaceChange({ kind: 'recent', path: workspacePath }), [requestWorkspaceChange])
   const revealWorkspace = useCallback(async function revealWorkspaceAction() {
     try {
-      await window.vincodeLab.workspace.reveal()
+      await appBridge.workspace.reveal()
     } catch (nextError) {
       reportTransientFailure(nextError, {
         component: 'workspace-shell',
@@ -1268,7 +1269,7 @@ function App() {
     }
   }, [])
 
-  useEffect(() => window.vincodeLab.appMenu.onCommand((command) => {
+  useEffect(() => appBridge.appMenu.onCommand((command) => {
     if (command === 'workspace.open') {
       setPaletteOpen(false)
       openWorkspace()
@@ -1334,7 +1335,7 @@ function App() {
       lifecycleCloseOperation.current = null
     }
     setLifecycleCloseRequest((current) => current?.requestId === requestId ? null : current)
-    window.vincodeLab.lifecycle.respondToClose(requestId, decision)
+    appBridge.lifecycle.respondToClose(requestId, decision)
     return true
   }, [])
 
@@ -1381,7 +1382,7 @@ function App() {
     })
   }, [flushWorkspaceSessionForClose, respondToLifecycleClose])
 
-  useEffect(() => window.vincodeLab.lifecycle.onCloseRequested(handleLifecycleCloseRequest), [handleLifecycleCloseRequest])
+  useEffect(() => appBridge.lifecycle.onCloseRequested(handleLifecycleCloseRequest), [handleLifecycleCloseRequest])
 
   const cancelLifecycleClose = useCallback(() => {
     const request = activeLifecycleCloseRequest.current
@@ -1411,7 +1412,7 @@ function App() {
 
   const openWorkspaceInNewInstance = useCallback(async function openWorkspaceInNewInstanceAction(workspacePath: string) {
     try {
-      const result = await window.vincodeLab.workspace.openInNewInstance(workspacePath)
+      const result = await appBridge.workspace.openInNewInstance(workspacePath)
       if (!result.launched) {
         const refusalCode = result.reason ? `WORKSPACE_NEW_INSTANCE_${result.reason.replaceAll('-', '_').toUpperCase()}` : 'WORKSPACE_NEW_INSTANCE_REFUSED'
         reportTransientFailure(new Error(`Workspace new instance refused: ${result.reason ?? 'unknown'} [${refusalCode}]`), {
@@ -1436,7 +1437,7 @@ function App() {
     }
   }, [])
 
-  useEffect(() => window.vincodeLab.contextMenu?.onAction?.((action) => {
+  useEffect(() => appBridge.contextMenu?.onAction?.((action) => {
     if (action.contextKind !== 'recent-workspace' || !action.contextId) return
     if (action.command === 'recentWorkspace.open') openRecentWorkspace(action.contextId)
     if (action.command === 'recentWorkspace.openNew') void openWorkspaceInNewInstance(action.contextId)
@@ -1444,7 +1445,7 @@ function App() {
 
   useEffect(() => {
     let active = true
-    void window.vincodeLab.workspace.listRecent().then((recentWorkspaces) => {
+    void appBridge.workspace.listRecent().then((recentWorkspaces) => {
       if (active) setRecents(recentWorkspaces)
     }).catch((nextError) => {
       if (active) {
@@ -1466,7 +1467,7 @@ function App() {
   useEffect(() => {
     let active = true
     const operationId = workspaceOpenGeneration.current
-    void window.vincodeLab.workspace.getActive().then((result) => {
+    void appBridge.workspace.getActive().then((result) => {
       if (active && operationId === workspaceOpenGeneration.current && result?.path) handleWorkspaceResult(result, false)
     }).catch((nextError) => {
       if (!active || operationId !== workspaceOpenGeneration.current) return
@@ -1484,7 +1485,7 @@ function App() {
   }, [handleWorkspaceResult])
 
   useEffect(() => {
-    const unsubscribeExit = window.vincodeLab.terminal.onExit(({ exitCode, signal }) => {
+    const unsubscribeExit = appBridge.terminal.onExit(({ exitCode, signal }) => {
       setStatus(exitCode === 0 && !signal ? 'ended' : 'error')
       if (exitCode === 0 && !signal) {
         showEndedAiSession()
@@ -1513,7 +1514,7 @@ function App() {
   }, [publishAiFailure, showEndedAiSession])
 
   useEffect(() => {
-    const subscribe = window.vincodeLab.terminal.onError
+    const subscribe = appBridge.terminal.onError
     if (!subscribe) return
     return subscribe((event) => {
       if (event.operation === 'resize') {
@@ -1533,7 +1534,7 @@ function App() {
             const xterm = terminal.current
             if (!xterm) return
             fitAddon.current?.fit()
-            window.vincodeLab.terminal.resize({ cols: xterm.cols, rows: xterm.rows })
+            appBridge.terminal.resize({ cols: xterm.cols, rows: xterm.rows })
           },
         })
         return
@@ -1559,7 +1560,7 @@ function App() {
   }, [publishAiFailure])
 
   useEffect(() => {
-    const unsubscribe = window.vincodeLab.workspace.onOpened((result) => {
+    const unsubscribe = appBridge.workspace.onOpened((result) => {
       workspaceOpenGeneration.current += 1
       handleWorkspaceResult(result)
     })
@@ -1587,7 +1588,7 @@ function App() {
     return scheduleVisibleTerminalRefit(() => {
       fitAddon.current?.fit()
       if (terminal.current) {
-        window.vincodeLab.terminal.resize({ cols: terminal.current.cols, rows: terminal.current.rows })
+        appBridge.terminal.resize({ cols: terminal.current.cols, rows: terminal.current.rows })
       }
     })
   }, [aiTab, appSection, workspace])
@@ -1596,7 +1597,7 @@ function App() {
     if (appSection !== 'ai' || aiTab !== 'terminal') return
     const report = () => {
       const metrics = outputController.current?.metrics()
-      if (metrics) window.vincodeLab.terminal.reportRendererMetrics(metrics)
+      if (metrics) appBridge.terminal.reportRendererMetrics(metrics)
     }
     report()
     const intervalId = window.setInterval(report, 2_000)
@@ -1685,7 +1686,7 @@ function App() {
         const nextDimensions = { cols: xterm.cols, rows: xterm.rows }
         if (nextDimensions.cols === dimensions.cols && nextDimensions.rows === dimensions.rows) return
         dimensions = nextDimensions
-        window.vincodeLab.terminal.resize(nextDimensions)
+        appBridge.terminal.resize(nextDimensions)
       }
       const resizeScheduler = createAnimationFrameResizeScheduler(fit)
       const resizeObserver = new ResizeObserver(resizeScheduler.schedule)
@@ -1696,8 +1697,8 @@ function App() {
 
       const controller = createXtermOutputController({
         write: (data, done) => xterm.write(data, done),
-        ack: window.vincodeLab.terminal.ack,
-        ready: window.vincodeLab.terminal.ready,
+        ack: appBridge.terminal.ack,
+        ready: appBridge.terminal.ready,
         onRendered: () => {
           if (shouldFollowTerminalOutput({ viewportY: xterm.buffer.active.viewportY, baseY: xterm.buffer.active.baseY })) xterm.scrollToBottom()
           else updateHasUnreadTerminalOutput(true)
@@ -1711,11 +1712,11 @@ function App() {
         }),
       })
       outputController.current = controller
-      const unsubscribeOutput = window.vincodeLab.terminal.onOutput((block) => controller.accept(block))
-      const unsubscribeStreamState = window.vincodeLab.terminal.onStreamState(updateTerminalStreamState)
+      const unsubscribeOutput = appBridge.terminal.onOutput((block) => controller.accept(block))
+      const unsubscribeStreamState = appBridge.terminal.onStreamState(updateTerminalStreamState)
       // Il PTY resta nel processo principale: uno xterm ricreato riparte dallo snapshot
       // e conferma il watermark prima che il flusso live possa proseguire.
-      void window.vincodeLab.terminal.resume({}).then((snapshot) => {
+      void appBridge.terminal.resume({}).then((snapshot) => {
         controller.restore(snapshot)
         clearAiFailure('restore-ai-output')
       }).catch((nextError) => {
@@ -1732,7 +1733,7 @@ function App() {
         })
       })
 
-      const inputDisposable = xterm.onData(window.vincodeLab.terminal.writeKey)
+      const inputDisposable = xterm.onData(appBridge.terminal.writeKey)
       const scrollDisposable = xterm.onScroll(() => updateHasUnreadTerminalOutput(!shouldFollowTerminalOutput({ viewportY: xterm.buffer.active.viewportY, baseY: xterm.buffer.active.baseY })))
       xterm.focus()
       cleanup = () => {
@@ -1788,7 +1789,7 @@ function App() {
   }, [preferredTerminalCursorStyle, preferredTerminalFontFamily, preferredTerminalFontSize, preferredTerminalScrollback])
 
   const sendAiInput = useCallback(async (data: string) => {
-    await window.vincodeLab.terminal.writeInput(data)
+    await appBridge.terminal.writeInput(data)
     terminal.current?.focus()
   }, [])
 
@@ -1818,7 +1819,7 @@ function App() {
       return
     }
     try {
-      const attachment = await window.vincodeLab.files.prepareAttachment(editorContext.activeFileId)
+      const attachment = await appBridge.files.prepareAttachment(editorContext.activeFileId)
       const lineRange = includeSelection && editorContext.selection
         ? ` righe ${editorContext.selection.fromLine}–${editorContext.selection.toLine}`
         : ''

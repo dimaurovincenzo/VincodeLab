@@ -9,7 +9,6 @@ const sourceRoots = ['src', 'electron']
 // renderer-to-preload dependencies cannot be introduced while each legacy
 // area is migrated independently.
 export const legacyDirectBridgeFiles = new Map([
-  ['src/App.tsx', 40],
   ['src/components/benchmark-view-fault-probe.tsx', 1],
   ['src/components/project-instructions.tsx', 7],
   ['src/components/project-skills.tsx', 7],

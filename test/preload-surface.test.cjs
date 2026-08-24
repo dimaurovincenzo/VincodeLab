@@ -146,7 +146,7 @@ test('il renderer ripristina il workspace attivo dopo un rimontaggio', () => {
   assert.match(preload, /getActive: \(\) => ipcRenderer\.invoke\('workspace:getActive'\)/)
   assert.match(main, /ipcMain\.handle\('workspace:getActive'/)
   assert.match(main, /return activeWorkspacePath \? \{ path: activeWorkspacePath, error: activeWorkspaceError, errorIncident: activeWorkspaceIncident \} : null/)
-  assert.match(app, /window\.vincodeLab\.workspace\.getActive\(\)\.then\(\(result\) =>/)
+  assert.match(app, /appBridge\.workspace\.getActive\(\)\.then\(\(result\) =>/)
   assert.match(app, /handleWorkspaceResult\(result, false\)/)
 })
 
