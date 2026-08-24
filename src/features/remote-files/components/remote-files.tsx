@@ -5,82 +5,19 @@ import defaultFileIcon from '@iconify-icons/vscode-icons/default-file'
 import defaultFolderIcon from '@iconify-icons/vscode-icons/default-folder'
 import { Button, createListCollection, Dialog, ErrorNotice, Field, IconButton, Listbox, SelectField, Spinner, Splitter, Tabs, toast, type SplitterPanelData } from '@/components/ui'
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
-import { remoteFilesBridge } from '@/features/remote-files/api/remote-files.bridge'
+import { remoteFilesBridge } from '../api/remote-files.bridge'
 import { createRemoteTransferRetryController } from '@/lib/remote-transfer-retry'
-import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
+import type { UserError } from '@/lib/user-error'
 import { remoteStyles } from '@/theme/styles/remote'
 import { terminalStyles } from '@/theme/styles/terminal'
-
-type Props = {
-  active: boolean
-  workspace: string
-  preferredConnectionId: string | null
-  onOpenRemoteFile: (fileId: string) => void
-  onCreateSshProfile: () => void
-  onConnectProfile: (commandId: string) => Promise<string | null>
-}
-
-type DirectoryLocation = { id: string | null; path: string }
-type RemoteFilesContextAction = {
-  command:
-    | 'remote.downloadOpen'
-    | 'remote.downloadAs'
-    | 'remote.openDirectory'
-    | 'remote.copyPath'
-    | 'remote.rename'
-    | 'remote.delete'
-    | 'remoteLocal.open'
-    | 'remoteLocal.reveal'
-    | 'remoteLocal.copyPath'
-    | 'remoteLocal.discard'
-    | 'remoteTransfer.cancel'
-    | 'remoteTransfer.retry'
-  contextId: string
-  contextKind: 'remote-file' | 'remote-directory' | 'remote-local-file' | 'remote-transfer'
-}
+import { formatRemoteFileSize as formatSize, remoteLocalStateLabel as localStateLabel } from '../model/remote-files-format'
+import type { RemoteDirectoryLocation as DirectoryLocation, RemoteFilesContextAction, RemoteFilesProps as Props } from '../model/remote-files.types'
+import { reportRemoteFailure, showRemoteFailure } from '../services/remote-files-error'
 
 const remoteFilePanels: SplitterPanelData[] = [
   { id: 'remote-connections', minSize: '210px', maxSize: '460px', resizeBehavior: 'preserve-pixel-size' },
   { id: 'remote-files', minSize: '440px' },
 ]
-
-function formatSize(bytes: number | null) {
-  if (bytes === null) return '—'
-  if (bytes < 1_024) return `${bytes} B`
-  if (bytes < 1_048_576) return `${(bytes / 1_024).toFixed(1)} KB`
-  return `${(bytes / 1_048_576).toFixed(1)} MB`
-}
-
-function localStateLabel(state: RemoteTrackedFile['localState']) {
-  return state === 'synced' ? 'Sincronizzato' : state === 'modified' ? 'Modificato' : state === 'conflict' ? 'Conflitto' : 'Offline'
-}
-
-function reportRemoteFailure(error: unknown, operation: string, title: string, description: string, category?: 'filesystem' | 'remote') {
-  return reportUserError(normalizeUserError(error, {
-    ...(category ? { category } : {}),
-    component: 'remote-files',
-    operation,
-    title,
-    fallbackDescription: description,
-  }))
-}
-
-function showRemoteFailure(
-  error: unknown,
-  operation: string,
-  title: string,
-  description: string,
-  category?: 'filesystem' | 'remote',
-  recoveryAction?: { label: string; onClick: () => void },
-) {
-  const incident = reportRemoteFailure(error, operation, title, description, category)
-  toast.error(incident.title, {
-    description: `${incident.description} Riferimento ${incident.correlationId}.`,
-    dedupeKey: operation,
-    recoveryAction,
-  })
-  return incident
-}
 
 export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRemoteFile, onCreateSshProfile, onConnectProfile }: Props) {
   const [connections, setConnections] = useState<ManagedSshConnection[]>([])
