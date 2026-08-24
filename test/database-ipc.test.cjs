@@ -6,6 +6,7 @@ const {
   createDatabaseHandlers,
   registerDatabaseIpc,
 } = require('../electron/ipc/domains/database.ipc.cjs')
+const { wrapIpcHandler } = require('../electron/infrastructure/ipc/ipc-error-boundary.cjs')
 
 function databaseFixture(overrides = {}) {
   const calls = []
@@ -59,7 +60,6 @@ function databaseFixture(overrides = {}) {
     deleteConnection: (workspacePath, id) => { calls.push(['delete-connection', workspacePath, id]) },
     deleteSavedQuery: (workspacePath, id) => { calls.push(['delete-query', workspacePath, id]) },
     executeQuery: async (workspacePath, id, sql, options) => { calls.push(['execute', workspacePath, id, sql, options]); return results.execute },
-    getApplicationErrorLogMetadata: (incident) => { calls.push(['error-metadata', incident]); return { correlationId: incident.correlationId } },
     inspectRoutine: (workspacePath, id, routineName, kind) => { calls.push(['inspect-routine', workspacePath, id, routineName, kind]); return results.routine },
     inspectSchema: (workspacePath, id, options) => { calls.push(['inspect-schema', workspacePath, id, options]); return results.schema },
     listConnections: (workspacePath) => { calls.push(['list-connections', workspacePath]); return results.connections },
@@ -75,10 +75,6 @@ function databaseFixture(overrides = {}) {
       return operation('/workspace/current')
     },
     saveQuery: (workspacePath, input) => { calls.push(['save-query', workspacePath, input]); return results.query },
-    toIpcApplicationError: (error, channel, context) => {
-      calls.push(['to-ipc-application-error', error, channel, context])
-      return Object.assign(new Error('Database non disponibile'), { correlationId: 'ERR-DB', severity: 'error' })
-    },
     updateConnection: (workspacePath, id, input) => { calls.push(['update-connection', workspacePath, id, input]); return results.connection },
     updateSavedQuery: (workspacePath, id, input) => { calls.push(['update-query', workspacePath, id, input]); return results.query },
     updateTableRows: (workspacePath, id, tableName, changes) => { calls.push(['update-table-rows', workspacePath, id, tableName, changes]); return results.updatedRows },
@@ -337,7 +333,7 @@ test('cancel confina la richiesta all’owner renderer e conserva il risultato d
   ])
 })
 
-test('tableRows registra il numero righe e normalizza soltanto il percorso di errore', async () => {
+test('tableRows registra il successo e lascia un solo log di errore alla boundary IPC', async () => {
   const fixture = databaseFixture()
   const event = { sender: { id: 31 } }
   const options = { limit: 50, offset: 100 }
@@ -351,23 +347,28 @@ test('tableRows registra il numero righe e normalizza soltanto il percorso di er
     ['log', 'info', 'database_table_rows_read', { rows: 2 }],
   ])
 
-  const failure = new Error('driver failed')
-  let incident
+  const failure = Object.assign(new Error('connect ETIMEDOUT postgres://admin:secret@private-db.local'), { code: 'ETIMEDOUT' })
   const failedFixture = databaseFixture({
     readTableRows: async () => { throw failure },
-    toIpcApplicationError: (error, channel, context) => {
-      failedFixture.calls.push(['to-ipc-application-error', error, channel, context])
-      incident = Object.assign(new Error('Tabella non leggibile'), { correlationId: 'ERR-TABLE', severity: 'warning' })
-      return incident
-    },
   })
-  const failedHandler = createDatabaseHandlers(failedFixture.dependencies).get('database:tableRows')
-  await assert.rejects(() => failedHandler(event, 'connection-1', 'users', options), (error) => error === incident)
+  const logs = []
+  const failedHandler = wrapIpcHandler(
+    'database:tableRows',
+    createDatabaseHandlers(failedFixture.dependencies).get('database:tableRows'),
+    { log: (...args) => logs.push(args) },
+  )
+  await assert.rejects(() => failedHandler(event, 'connection-1', 'users', options), (error) => {
+    assert.equal(error.category, 'timeout')
+    assert.equal(error.domain, 'database')
+    assert.equal(error.operation, 'tableRows')
+    assert.doesNotMatch(error.message, /postgres|admin|secret|private-db|ETIMEDOUT/u)
+    return true
+  })
   assert.deepEqual(failedFixture.calls, [
     ['guard', event],
     ['require-workspace'],
-    ['to-ipc-application-error', failure, 'database:tableRows', undefined],
-    ['error-metadata', incident],
-    ['log', 'warning', 'database_table_rows_failed', { correlationId: 'ERR-TABLE' }],
   ])
+  assert.equal(logs.length, 1)
+  assert.equal(logs[0][1], 'ipc_handler_failed')
+  assert.equal(logs[0][2].operation, 'tableRows')
 })

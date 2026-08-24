@@ -12,7 +12,6 @@ function createDatabaseHandlers({
   deleteConnection,
   deleteSavedQuery,
   executeQuery,
-  getApplicationErrorLogMetadata,
   inspectRoutine,
   inspectSchema,
   listConnections,
@@ -25,7 +24,6 @@ function createDatabaseHandlers({
   rollbackTransaction,
   runWorkspaceMutation,
   saveQuery,
-  toIpcApplicationError,
   updateConnection,
   updateSavedQuery,
   updateTableRows,
@@ -82,15 +80,9 @@ function createDatabaseHandlers({
     [IPC_CHANNELS.DATABASE_INSPECT_ROUTINE, (event, id, routineName, kind) => { assertTrustedSender(event); return inspectRoutine(requireActiveWorkspace(), id, routineName, kind) }],
     [IPC_CHANNELS.DATABASE_TABLE_ROWS, async (event, id, tableName, options) => {
       assertTrustedSender(event)
-      try {
-        const page = await readTableRows(requireActiveWorkspace(), id, tableName, options)
-        log('info', 'database_table_rows_read', { rows: page.rows.length })
-        return page
-      } catch (error) {
-        const incident = toIpcApplicationError(error, IPC_CHANNELS.DATABASE_TABLE_ROWS)
-        log(incident.severity, 'database_table_rows_failed', getApplicationErrorLogMetadata(incident))
-        throw incident
-      }
+      const page = await readTableRows(requireActiveWorkspace(), id, tableName, options)
+      log('info', 'database_table_rows_read', { rows: page.rows.length })
+      return page
     }],
     [IPC_CHANNELS.DATABASE_UPDATE_TABLE_ROWS, (event, id, tableName, changes) => runWorkspaceMutation(event, 'database:update-table-rows', (workspacePath) => updateTableRows(workspacePath, id, tableName, changes))],
     [IPC_CHANNELS.DATABASE_LIST_SAVED_QUERIES, (event, id) => { assertTrustedSender(event); return listSavedQueries(requireActiveWorkspace(), id) }],
