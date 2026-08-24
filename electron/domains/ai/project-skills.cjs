@@ -1,143 +1,95 @@
-const fs = require('node:fs')
-const path = require('node:path')
-const { assertRegularFile, writeFileAtomic } = require('../filesystem/file-utils.cjs')
+const { assertProjectSkillsStoragePort } = require('./project-skills-storage.port.cjs')
 const { NAME_PATTERN, validateSkill } = require('./skill-validation.cjs')
 
-// Pi carica le skill locali del progetto dalla propria radice nativa.
-const SKILLS_DIRECTORY = path.join('.pi', 'skills')
-const SKILL_FILE = 'SKILL.md'
+const MAX_CONTENT_LENGTH = 200_000
+const MAX_NAME_LENGTH = 64
+const MAX_SKILL_ID_LENGTH = 4_096
 
-function skillsRoot(workspacePath) {
-  return path.join(workspacePath, SKILLS_DIRECTORY)
-}
-
-function getSafeSkillsRoot(workspacePath, create = false) {
-  const piDirectory = path.join(workspacePath, '.pi')
-  for (const directory of [piDirectory, skillsRoot(workspacePath)]) {
-    if (fs.existsSync(directory)) {
-      const stats = fs.lstatSync(directory)
-      if (!stats.isDirectory() || stats.isSymbolicLink()) throw new Error('La directory skill del progetto non è sicura.')
-    } else if (create) {
-      fs.mkdirSync(directory, { mode: 0o700 })
-    } else {
-      return null
-    }
+function createSkillReference(skillId) {
+  if (typeof skillId !== 'string' || skillId.length === 0 || skillId.length > MAX_SKILL_ID_LENGTH) {
+    throw new Error('Percorso skill non valido.')
   }
-  return skillsRoot(workspacePath)
-}
-
-function collectSkillFiles(directory, files = [], depth = 0) {
-  if (depth > 8 || files.length >= 500) return files
-  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    if (entry.isSymbolicLink()) continue
-    const entryPath = path.join(directory, entry.name)
-    if (depth === 0 && entry.isFile() && entry.name.endsWith('.md')) {
-      files.push(entryPath)
-      continue
-    }
-    if (entry.isDirectory()) {
-      const skillFilePath = path.join(entryPath, SKILL_FILE)
-      if (fs.existsSync(skillFilePath)) {
-        const skillFileStats = fs.lstatSync(skillFilePath)
-        if (skillFileStats.isFile() && !skillFileStats.isSymbolicLink()) files.push(skillFilePath)
-      } else collectSkillFiles(entryPath, files, depth + 1)
-    }
+  const segments = skillId.split('/').filter(Boolean)
+  if (segments.length === 0 || segments.some((segment) => segment === '.' || segment === '..')) {
+    throw new Error('Percorso skill non valido.')
   }
-  return files
-}
-
-function getSkillPath(workspacePath, relativePath) {
-  const root = getSafeSkillsRoot(workspacePath)
-  if (!root) throw new Error('Skill non trovata.')
-  if (typeof relativePath !== 'string' || relativePath.length === 0 || relativePath.length > 4096) throw new Error('Percorso skill non valido.')
-  const segments = relativePath.split('/').filter(Boolean)
-  if (segments.length === 0 || segments.some((segment) => segment === '.' || segment === '..' || segment.includes(path.sep))) throw new Error('Percorso skill non valido.')
   if (segments.length === 1 && segments[0].endsWith('.md')) {
-    const candidate = path.join(root, segments[0])
-    assertRegularFile(candidate, 'Skill non trovata.')
-    return candidate
+    return Object.freeze({ id: segments[0], kind: 'root-markdown', segments: Object.freeze(segments) })
   }
   if (segments.some((segment) => segment.endsWith('.md'))) throw new Error('Percorso skill non valido.')
-  let directory = root
-  for (const segment of segments) {
-    directory = path.join(directory, segment)
-    let stats
-    try {
-      stats = fs.lstatSync(directory)
-    } catch (error) {
-      if (error && error.code === 'ENOENT') throw new Error('Skill non trovata.')
-      throw error
-    }
-    if (!stats.isDirectory() || stats.isSymbolicLink()) throw new Error('La directory skill richiesta non è sicura.')
-  }
-  const candidate = path.join(directory, SKILL_FILE)
-  assertRegularFile(candidate, 'Skill non trovata.')
-  return candidate
+  return Object.freeze({ id: segments.join('/'), kind: 'directory', segments: Object.freeze(segments) })
 }
 
-function toSkill(workspacePath, skillFilePath, includeContent = false) {
-  const content = fs.readFileSync(skillFilePath, 'utf8')
-  const root = skillsRoot(workspacePath)
-  const relativeFilePath = path.relative(root, skillFilePath)
-  const isRootMarkdown = path.dirname(relativeFilePath) === '.' && relativeFilePath.endsWith('.md')
-  const relativePath = isRootMarkdown ? relativeFilePath : path.dirname(relativeFilePath)
-  const fallbackName = isRootMarkdown ? path.basename(skillFilePath, '.md') : path.basename(path.dirname(skillFilePath))
-  const validation = validateSkill(content, fallbackName)
+function fallbackNameForId(skillId) {
+  const segments = skillId.split('/')
+  const name = segments.at(-1)
+  return segments.length === 1 && name.endsWith('.md') ? name.slice(0, -3) : name
+}
+
+function toProjectSkill(record, includeContent = false) {
+  const fallbackName = fallbackNameForId(record.id)
+  const validation = validateSkill(record.content, fallbackName)
   return {
-    id: relativePath,
+    id: record.id,
     name: validation.attributes?.name ?? fallbackName,
     description: validation.attributes?.description ?? '',
     valid: validation.valid,
     issues: validation.issues,
-    ...(includeContent ? { content } : {}),
+    ...(includeContent ? { content: record.content } : {}),
   }
 }
 
-function listProjectSkills(workspacePath) {
-  const root = getSafeSkillsRoot(workspacePath)
-  if (!root) return []
-  return collectSkillFiles(root).map((skillFilePath) => toSkill(workspacePath, skillFilePath))
-    .sort((left, right) => left.name.localeCompare(right.name))
-}
+function createProjectSkillsUseCases({ storage } = {}) {
+  const skillsStorage = assertProjectSkillsStoragePort(storage)
 
-function getProjectSkill(workspacePath, skillId) {
-  return toSkill(workspacePath, getSkillPath(workspacePath, skillId), true)
-}
-
-function createProjectSkill(workspacePath, name) {
-  if (typeof name !== 'string' || !NAME_PATTERN.test(name) || name.length > 64) {
-    throw new Error('Il nome skill deve usare lowercase, numeri e trattini (massimo 64 caratteri).')
+  function listProjectSkills(workspacePath) {
+    return skillsStorage.list(workspacePath)
+      .map((record) => toProjectSkill(record))
+      .sort((left, right) => left.name.localeCompare(right.name))
   }
 
-  const root = getSafeSkillsRoot(workspacePath, true)
-  const directory = path.join(root, name)
-  if (fs.existsSync(directory)) throw new Error('Esiste già una skill con questo nome.')
+  function getProjectSkill(workspacePath, skillId) {
+    const reference = createSkillReference(skillId)
+    return toProjectSkill(skillsStorage.read(workspacePath, reference), true)
+  }
 
-  fs.mkdirSync(directory, { recursive: true, mode: 0o700 })
-  const content = `---\nname: ${name}\ndescription: Descrivi in modo specifico cosa fa questa skill e quando Pi deve usarla.\n---\n\n# ${name}\n\n## Istruzioni\n\nDefinisci qui il workflow che Pi deve seguire.\n`
-  fs.writeFileSync(path.join(directory, SKILL_FILE), content, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
-  return getProjectSkill(workspacePath, name)
+  function createProjectSkill(workspacePath, name) {
+    if (typeof name !== 'string' || !NAME_PATTERN.test(name) || name.length > MAX_NAME_LENGTH) {
+      throw new Error('Il nome skill deve usare lowercase, numeri e trattini (massimo 64 caratteri).')
+    }
+
+    const content = `---\nname: ${name}\ndescription: Descrivi in modo specifico cosa fa questa skill e quando Pi deve usarla.\n---\n\n# ${name}\n\n## Istruzioni\n\nDefinisci qui il workflow che Pi deve seguire.\n`
+    skillsStorage.create(workspacePath, name, content)
+    return getProjectSkill(workspacePath, name)
+  }
+
+  function updateProjectSkill(workspacePath, skillId, content) {
+    if (typeof content !== 'string' || content.length > MAX_CONTENT_LENGTH) {
+      throw new Error('Contenuto skill non valido.')
+    }
+    const reference = createSkillReference(skillId)
+    const validationName = reference.kind === 'root-markdown'
+      ? 'skills'
+      : reference.segments.at(-1)
+    const validation = validateSkill(content, validationName)
+    if (!validation.valid) {
+      throw new Error(validation.issues.find((entry) => entry.level === 'error')?.message ?? 'Skill non valida.')
+    }
+    skillsStorage.write(workspacePath, reference, content)
+    return getProjectSkill(workspacePath, reference.id)
+  }
+
+  function deleteProjectSkill(workspacePath, skillId) {
+    skillsStorage.remove(workspacePath, createSkillReference(skillId))
+  }
+
+  return Object.freeze({
+    createProjectSkill,
+    deleteProjectSkill,
+    getProjectSkill,
+    listProjectSkills,
+    updateProjectSkill,
+  })
 }
 
-function updateProjectSkill(workspacePath, skillId, content) {
-  if (typeof content !== 'string' || content.length > 200_000) throw new Error('Contenuto skill non valido.')
-  const skillFilePath = getSkillPath(workspacePath, skillId)
-  const validation = validateSkill(content, path.basename(path.dirname(skillFilePath)))
-  if (!validation.valid) throw new Error(validation.issues.find((entry) => entry.level === 'error')?.message ?? 'Skill non valida.')
-  writeFileAtomic(skillFilePath, content)
-  return getProjectSkill(workspacePath, skillId)
-}
-
-function deleteProjectSkill(workspacePath, skillId) {
-  const skillFilePath = getSkillPath(workspacePath, skillId)
-  const target = path.dirname(skillFilePath) === skillsRoot(workspacePath) ? skillFilePath : path.dirname(skillFilePath)
-  fs.rmSync(target, { recursive: target !== skillFilePath, force: false, maxRetries: 2 })
-}
-
-module.exports = {
-  createProjectSkill,
-  deleteProjectSkill,
-  getProjectSkill,
-  listProjectSkills,
-  updateProjectSkill,
-}
+module.exports = { createProjectSkillsUseCases }

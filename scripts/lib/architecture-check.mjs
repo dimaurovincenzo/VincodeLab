@@ -31,7 +31,13 @@ const databaseVendorTransactionMethods = new Set([
 ])
 const shellOperationalSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'node-pty'])
 const aiProcessSpecifiers = new Set(['child_process', 'node:child_process'])
-const projectInstructionsHostSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'path', 'node:path'])
+const aiFilesystemHostSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'path', 'node:path'])
+const aiFilesystemIsolatedDomains = new Map([
+  ['electron/domains/ai/project-instructions-storage.port.cjs', 'Porta Istruzioni progetto'],
+  ['electron/domains/ai/project-instructions.cjs', 'Istruzioni progetto'],
+  ['electron/domains/ai/project-skills-storage.port.cjs', 'Porta Skill progetto'],
+  ['electron/domains/ai/project-skills.cjs', 'Skill progetto'],
+])
 const menuHostSpecifiers = new Set(['child_process', 'electron', 'node:child_process'])
 
 // These files predate src/bridge. Keep the list explicit so that new direct
@@ -349,9 +355,14 @@ function importBoundaryProblems(importer, imported) {
   const problems = []
   const ownerFeature = featureName(importer)
   const targetFeature = featureName(imported)
+  const aiFilesystemIsolatedDomain = aiFilesystemIsolatedDomains.get(importer)
 
   if (importer.startsWith('src/') && imported.startsWith('electron/')) {
     problems.push(`renderer dipende direttamente dal processo Electron (${imported})`)
+  }
+
+  if (aiFilesystemIsolatedDomain && imported.startsWith('electron/domains/filesystem/')) {
+    problems.push(`dominio ${aiFilesystemIsolatedDomain} dipende da un'implementazione filesystem concreta (${imported}); usa la porta storage`)
   }
 
   if (targetFeature && ownerFeature !== targetFeature && !isFeaturePublicEntry(imported, targetFeature)) {
@@ -498,8 +509,9 @@ export function inspectArchitecture({ root }) {
         problems.push(`${file}: dominio Shell dipende direttamente dall'host operativo "${specifier}"; usa i collaboratori iniettati`)
         continue
       }
-      if (file === 'electron/domains/ai/project-instructions.cjs' && projectInstructionsHostSpecifiers.has(specifier)) {
-        problems.push(`${file}: dominio Istruzioni progetto dipende direttamente dal filesystem host "${specifier}"; usa la porta storage iniettata`)
+      const aiFilesystemIsolatedDomain = aiFilesystemIsolatedDomains.get(file)
+      if (aiFilesystemIsolatedDomain && aiFilesystemHostSpecifiers.has(specifier)) {
+        problems.push(`${file}: dominio ${aiFilesystemIsolatedDomain} dipende direttamente dal filesystem host "${specifier}"; usa la porta storage iniettata`)
         continue
       }
       if (file.startsWith('electron/domains/ai/') && aiProcessSpecifiers.has(specifier)) {

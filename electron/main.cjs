@@ -28,7 +28,8 @@ const { createProjectInstructionsUseCases } = require('./domains/ai/project-inst
 const { createProjectInstructionsFilesystemAdapter } = require('./infrastructure/filesystem/project-instructions-filesystem.adapter.cjs')
 const { createProjectDirectory, createProjectFile, duplicateProjectEntry, listDirectoryEntries, listProjectFiles, openProjectFileWith, prepareProjectFileAttachment, readProjectFile, readProjectPreview, renameProjectEntry, resolveProjectDirectory, resolveProjectFile, saveProjectFile } = require('./domains/filesystem/project-files.cjs')
 const { createProjectFileIndex } = require('./domains/filesystem/project-file-index.cjs')
-const { createProjectSkill, deleteProjectSkill, getProjectSkill, listProjectSkills, updateProjectSkill } = require('./domains/ai/project-skills.cjs')
+const { createProjectSkillsUseCases } = require('./domains/ai/project-skills.cjs')
+const { createProjectSkillsFilesystemAdapter } = require('./infrastructure/filesystem/project-skills-filesystem.adapter.cjs')
 const { createCommandCategory, createWorkspaceCommand, deleteCommandCategory, deleteWorkspaceCommand, getWorkspaceCommand, listWorkspaceCommands, moveWorkspaceCommand, updateCommandCategory, updateWorkspaceCommand } = require('./infrastructure/persistence/workspace-commands.repository.cjs')
 const { clearHistory, configureDatabaseSecretStorage, createConnection, deleteConnection, deleteSavedQuery, getConnectionWithSecrets, listConnections, listHistory, listSavedQueries, migrateLegacyConnectionSecrets, recordHistory, saveQuery, updateConnection, updateSavedQuery } = require('./infrastructure/persistence/database.repository.cjs')
 const { beginTransaction, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, executeQuery, inspectRoutine, inspectSchema, openConnection, readTableRows, rollbackTransaction, updateTableRows } = require('./domains/database/database-service.cjs')
@@ -218,6 +219,15 @@ const {
   saveProjectInstructions,
 } = createProjectInstructionsUseCases({
   storage: createProjectInstructionsFilesystemAdapter(),
+})
+const {
+  createProjectSkill,
+  deleteProjectSkill,
+  getProjectSkill,
+  listProjectSkills,
+  updateProjectSkill,
+} = createProjectSkillsUseCases({
+  storage: createProjectSkillsFilesystemAdapter(),
 })
 const projectFileIndex = createProjectFileIndex()
 const databaseOperations = createDatabaseOperationRegistry()

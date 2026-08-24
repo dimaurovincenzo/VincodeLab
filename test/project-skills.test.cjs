@@ -4,8 +4,17 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { createProjectSkill, deleteProjectSkill, getProjectSkill, listProjectSkills } = require('../electron/domains/ai/project-skills.cjs')
+const { createProjectSkillsUseCases } = require('../electron/domains/ai/project-skills.cjs')
+const { createProjectSkillsFilesystemAdapter } = require('../electron/infrastructure/filesystem/project-skills-filesystem.adapter.cjs')
 const { validateSkill } = require('../electron/domains/ai/skill-validation.cjs')
+
+const {
+  createProjectSkill,
+  deleteProjectSkill,
+  getProjectSkill,
+  listProjectSkills,
+  updateProjectSkill,
+} = createProjectSkillsUseCases({ storage: createProjectSkillsFilesystemAdapter() })
 
 test('validateSkill segnala frontmatter mancante e accetta una skill valida', () => {
   assert.equal(validateSkill('contenuto', 'demo').valid, false)
@@ -51,6 +60,26 @@ test('elimina una skill Markdown diretta senza cancellare le altre skill Pi', ()
 
     assert.equal(fs.existsSync(path.join(skillsRoot, 'temporanea.md')), false)
     assert.equal(fs.existsSync(path.join(skillsRoot, 'persistente', 'SKILL.md')), true)
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true })
+  }
+})
+
+test('aggiorna atomicamente una skill e conserva il DTO pubblico', () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-pi-project-skill-update-'))
+  try {
+    createProjectSkill(workspace, 'revisione-codice')
+    const content = '---\nname: revisione-codice\ndescription: Regole aggiornate.\n---\n\n# Nuove regole\n'
+
+    assert.deepEqual(updateProjectSkill(workspace, 'revisione-codice', content), {
+      id: 'revisione-codice',
+      name: 'revisione-codice',
+      description: 'Regole aggiornate.',
+      valid: true,
+      issues: [],
+      content,
+    })
+    assert.deepEqual(fs.readdirSync(path.join(workspace, '.pi', 'skills', 'revisione-codice')), ['SKILL.md'])
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true })
   }
