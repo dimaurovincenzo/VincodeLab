@@ -13,10 +13,22 @@ const COMMAND_KILL_GRACE_MS = 250
 const MAX_DIFF_OUTPUT_BYTES = 1024 * 1024
 const DIFF_TRUNCATION_NOTICE = '\n\n[Diff troncato: sono disponibili altre modifiche oltre il limite di 1 MiB.]'
 
-function commandConfiguration(command) {
-  const executable = command === 'gh' ? resolveGitHubCliExecutable() : command
+function deterministicCommandEnvironment(environment) {
+  return { ...environment, LANG: 'C', LC_ALL: 'C' }
+}
+
+function commandConfiguration(command, {
+  environment = process.env,
+  resolveGitHubCliExecutableImpl = resolveGitHubCliExecutable,
+} = {}) {
+  const executable = command === 'gh' ? resolveGitHubCliExecutableImpl({ environment }) : command
   if (!executable) throw createPublicError('GITHUB_CLI_NOT_FOUND', 'GitHub CLI non è stato trovato.')
-  return { executable, env: command === 'gh' ? environmentForGitHubCli(executable) : process.env }
+  const commandEnvironment = command === 'gh'
+    ? environmentForGitHubCli(executable, environment)
+    : environment
+  // I classificatori lavorano su stderr strutturalmente stabile: Git e gh
+  // non devono cambiare i propri messaggi in base alla lingua dell'app.
+  return { executable, env: deterministicCommandEnvironment(commandEnvironment) }
 }
 
 function createCommandRunner({
@@ -262,4 +274,12 @@ async function runBoundedDiff(args, cwd, acceptedExitCodes = [0], { signal } = {
   return result.truncated ? `${result.output}${DIFF_TRUNCATION_NOTICE}` : result.output
 }
 
-module.exports = { COMMAND_OPTIONS, createCommandRunner, run, runBoundedDiff, runStreaming }
+module.exports = {
+  COMMAND_OPTIONS,
+  commandConfiguration,
+  createCommandRunner,
+  deterministicCommandEnvironment,
+  run,
+  runBoundedDiff,
+  runStreaming,
+}
