@@ -37,45 +37,13 @@ const REDIS_SESSION_CLEANUP_TIMEOUT_MS = 2_000
 const REDIS_METADATA_CONCURRENCY = 32
 const REDIS_SEARCH_CONCURRENCY = 12
 const REDIS_SEARCH_READ_BYTE_LIMIT = 32 * 1_024 * 1_024
-let redisPersistence = null
-let redisClientAdapter = null
-
-function configureRedisPersistence(persistence) {
-  if (!persistence || typeof persistence.getConnectionWithSecrets !== 'function') throw new TypeError('Persistenza Redis non valida.')
-  redisPersistence = Object.freeze({ getConnectionWithSecrets: persistence.getConnectionWithSecrets })
-}
-
-function configureRedisClientAdapter(adapter) {
-  if (!adapter || typeof adapter.createClient !== 'function' || typeof adapter.createSentinel !== 'function') {
-    throw new TypeError('Adapter client Redis non valido.')
-  }
-  redisClientAdapter = Object.freeze({
-    createClient: adapter.createClient,
-    createSentinel: adapter.createSentinel,
-  })
-}
-
-function storedConnectionWithSecrets(...args) {
-  if (!redisPersistence) throw new Error('Persistenza Redis non configurata.')
-  return redisPersistence.getConnectionWithSecrets(...args)
-}
-
-function configuredRedisClient(options) {
-  if (!redisClientAdapter) throw Object.assign(new Error('redis_client_unavailable'), { code: 'REDIS_CLIENT_UNAVAILABLE' })
-  return redisClientAdapter.createClient(options)
-}
-
-function configuredRedisSentinel(options) {
-  if (!redisClientAdapter) throw Object.assign(new Error('redis_client_unavailable'), { code: 'REDIS_CLIENT_UNAVAILABLE' })
-  return redisClientAdapter.createSentinel(options)
-}
 
 function createRedisService({
   createClient,
   createSentinel,
   cleanupTimeoutMs = REDIS_SESSION_CLEANUP_TIMEOUT_MS,
   connectionTimeoutMs = REDIS_COMMAND_TIMEOUT_MS,
-  getConnectionWithSecrets = storedConnectionWithSecrets,
+  getConnectionWithSecrets,
   sessionRegistry,
   resultByteLimit = REDIS_RESULT_BYTE_LIMIT,
   resultItemByteLimit = REDIS_RESULT_ITEM_BYTE_LIMIT,
@@ -84,8 +52,8 @@ function createRedisService({
   searchConcurrency = REDIS_SEARCH_CONCURRENCY,
   searchReadByteLimit = REDIS_SEARCH_READ_BYTE_LIMIT,
 } = {}) {
-  if (createClient !== undefined && typeof createClient !== 'function') throw new TypeError('createClient Redis non valido.')
-  if (createSentinel !== undefined && typeof createSentinel !== 'function') throw new TypeError('createSentinel Redis non valido.')
+  if (typeof createClient !== 'function') throw new TypeError('createClient Redis non valido.')
+  if (typeof createSentinel !== 'function') throw new TypeError('createSentinel Redis non valido.')
   if (!Number.isInteger(cleanupTimeoutMs) || cleanupTimeoutMs < 1 || cleanupTimeoutMs > 60_000) throw new TypeError('Timeout chiusura Redis non valido.')
   if (!Number.isInteger(connectionTimeoutMs) || connectionTimeoutMs < 1 || connectionTimeoutMs > 60_000) throw new TypeError('Timeout connessione Redis non valido.')
   if (!Number.isInteger(metadataConcurrency) || metadataConcurrency < 1 || metadataConcurrency > REDIS_METADATA_CONCURRENCY) throw new TypeError('Concorrenza metadati Redis non valida.')
@@ -96,8 +64,8 @@ function createRedisService({
   const sessionRuntime = createRedisSessionRuntime({
     cleanupTimeoutMs,
     connectionTimeoutMs,
-    createClient: createClient ?? configuredRedisClient,
-    createSentinel: createSentinel ?? configuredRedisSentinel,
+    createClient,
+    createSentinel,
     getConnectionWithSecrets,
     sessionRegistry,
   })
@@ -184,12 +152,7 @@ function createRedisService({
   })
 }
 
-const defaultService = createRedisService()
-
 module.exports = {
-  ...defaultService,
-  configureRedisClientAdapter,
-  configureRedisPersistence,
   createRedisService,
   encodedKey,
   keyBytes,

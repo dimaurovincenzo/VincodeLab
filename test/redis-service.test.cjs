@@ -2,13 +2,26 @@ const assert = require('node:assert/strict')
 const test = require('node:test')
 
 const {
-  createRedisService,
+  createRedisService: createRedisServiceFactory,
   encodedKey,
   keyBytes,
   normalizeRedisError,
   toRedisPublicError,
 } = require('../electron/domains/redis/redis-service.cjs')
 const { createRedisSessionRuntime } = require('../electron/domains/redis/redis-session-runtime.cjs')
+
+function unavailableClientFactory() {
+  throw Object.assign(new Error('Client Redis non previsto dal test.'), { code: 'REDIS_CLIENT_UNAVAILABLE' })
+}
+
+function createRedisService(options = {}) {
+  return createRedisServiceFactory({
+    createClient: unavailableClientFactory,
+    createSentinel: unavailableClientFactory,
+    getConnectionWithSecrets: () => null,
+    ...options,
+  })
+}
 
 function fakeRedisClient() {
   const values = new Map([

@@ -44,6 +44,7 @@ function performanceClient({ keyCount = 100, yieldCommands = false } = {}) {
 function serviceFor(client, options = {}) {
   return createRedisService({
     createClient: () => client,
+    createSentinel: () => { throw new Error('Sentinel non previsto dal benchmark.') },
     getConnectionWithSecrets: () => ({ host: '127.0.0.1', port: 6379, database: 0 }),
     ...options,
   })
@@ -382,6 +383,7 @@ test('un errore di rete nella ricerca invalida la sessione prima del retry', asy
   }
   const api = createRedisService({
     createClient,
+    createSentinel: () => { throw new Error('Sentinel non previsto dal benchmark.') },
     getConnectionWithSecrets: () => ({ host: '127.0.0.1', port: 6379, database: 0 }),
   })
 

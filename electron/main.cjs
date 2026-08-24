@@ -46,7 +46,7 @@ const { nodeDatabaseDriverAdapter } = require('./infrastructure/database/node-da
 const { SqliteWorkerSession, sqliteWorkerDiagnostics } = require('./infrastructure/database/sqlite-worker-session.adapter.cjs')
 const { configureRedisSecretStorage, createRedisConnection, deleteRedisConnection, getRedisConnectionWithSecrets, listRedisConnections, updateRedisConnection } = require('./infrastructure/persistence/redis.repository.cjs')
 const { mergeRedisTestConnectionSecrets } = require('./domains/redis/redis-connection-input.cjs')
-const { closeConnectionSession: closeRedisConnectionSession, closeWorkspaceSessions: closeRedisWorkspaceSessions, configureRedisClientAdapter, configureRedisPersistence, readKey: readRedisKey, scanKeys: scanRedisKeys, searchKeys: searchRedisKeys, testConnectionInput: testRedisConnectionInput } = require('./domains/redis/redis-service.cjs')
+const { createRedisService } = require('./domains/redis/redis-service.cjs')
 const { createRedisOperationRegistry } = require('./domains/redis/redis-operation-registry.cjs')
 const { redisInspectionForRenderer, redisSearchForRenderer, redisSummaryForRenderer } = require('./domains/redis/redis-renderer-serializer.cjs')
 const { nodeRedisClientAdapter } = require('./infrastructure/redis/node-redis-client.adapter.cjs')
@@ -151,8 +151,18 @@ configureDatabaseRuntime({
   driverPort: nodeDatabaseDriverAdapter,
   sqliteWorkerDiagnostics,
 })
-configureRedisClientAdapter(nodeRedisClientAdapter)
-configureRedisPersistence({ getConnectionWithSecrets: getRedisConnectionWithSecrets })
+const {
+  closeConnectionSession: closeRedisConnectionSession,
+  closeWorkspaceSessions: closeRedisWorkspaceSessions,
+  readKey: readRedisKey,
+  scanKeys: scanRedisKeys,
+  searchKeys: searchRedisKeys,
+  testConnectionInput: testRedisConnectionInput,
+} = createRedisService({
+  createClient: nodeRedisClientAdapter.createClient,
+  createSentinel: nodeRedisClientAdapter.createSentinel,
+  getConnectionWithSecrets: getRedisConnectionWithSecrets,
+})
 
 // Ogni invoke attraversa lo stesso confine: gli errori raw restano nel main,
 // mentre renderer e log condividono categoria, operazione e correlation ID.
