@@ -6,20 +6,20 @@ const test = require('node:test')
 
 const {
   collectDirectoryEntries,
-  createProjectDirectory,
   createProjectDirectoryListing,
-  createProjectFile,
+  createProjectEntryMutations,
   createProjectFileActions,
   createProjectFileReader,
   createProjectFileSaver,
-  duplicateProjectEntry,
   isEditorVisibleFile,
-  renameProjectEntry,
   resolveProjectDirectory,
 } = require('../electron/domains/filesystem/project-files.cjs')
 const {
   createProjectDirectoryListingFilesystemAdapter,
 } = require('../electron/infrastructure/filesystem/project-directory-listing-filesystem.adapter.cjs')
+const {
+  createProjectEntryMutationsFilesystemAdapter,
+} = require('../electron/infrastructure/filesystem/project-entry-mutations-filesystem.adapter.cjs')
 const {
   createProjectFileActionsFilesystemAdapter,
 } = require('../electron/infrastructure/filesystem/project-file-actions-filesystem.adapter.cjs')
@@ -31,6 +31,12 @@ const {
 } = require('../electron/infrastructure/filesystem/project-file-save-filesystem.adapter.cjs')
 
 const { listProjectFiles } = createProjectDirectoryListing(createProjectDirectoryListingFilesystemAdapter())
+const {
+  createProjectDirectory,
+  createProjectFile,
+  duplicateProjectEntry,
+  renameProjectEntry,
+} = createProjectEntryMutations(createProjectEntryMutationsFilesystemAdapter())
 const {
   openProjectFileWith,
   revealProjectDirectory,

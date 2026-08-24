@@ -21,13 +21,10 @@ test('filesystem Editor espone una facciata stabile sopra owner coesi', () => {
   assert.ok(lines('electron/domains/filesystem/project-files.cjs') < 100)
   for (const operation of [
     'collectDirectoryEntries',
-    'createProjectDirectory',
     'createProjectDirectoryListing',
-    'createProjectFile',
+    'createProjectEntryMutations',
     'createProjectFileActions',
     'createProjectFileReader',
     'createProjectFileSaver',
-    'duplicateProjectEntry',
-    'renameProjectEntry',
   ]) assert.equal(typeof projectFiles[operation], 'function', `${operation} deve restare nell'API pubblica`)
 })

@@ -45,6 +45,8 @@ const projectFilesystemIsolatedDomains = new Map([
   ['electron/domains/filesystem/project-access-policy.cjs', 'Policy accesso progetto'],
   ['electron/domains/filesystem/project-directory-listing-host.port.cjs', 'Porta host elenco directory progetto'],
   ['electron/domains/filesystem/project-directory-listing.cjs', 'Elenco directory progetto'],
+  ['electron/domains/filesystem/project-entry-mutations-host.port.cjs', 'Porta host mutazioni progetto'],
+  ['electron/domains/filesystem/project-entry-mutations.cjs', 'Mutazioni elementi progetto'],
   ['electron/domains/filesystem/project-file-actions-host.port.cjs', 'Porta host azioni file progetto'],
   ['electron/domains/filesystem/project-file-actions.cjs', 'Azioni file progetto'],
   ['electron/domains/filesystem/project-file-reader-host.port.cjs', 'Porta host lettura file progetto'],

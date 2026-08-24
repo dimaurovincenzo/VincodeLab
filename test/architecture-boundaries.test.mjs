@@ -405,6 +405,27 @@ test('mantiene filesystem e resolver concreto fuori dalle azioni file progetto e
   })
 })
 
+test('mantiene filesystem e resolver concreto fuori dalle mutazioni progetto e dalla loro porta', () => {
+  withFixture({
+    'electron/domains/filesystem/project-entry-mutations.cjs': [
+      "require('node:fs')",
+      "require('node:path')",
+      "require('./project-path-model.cjs')",
+    ].join('\n'),
+    'electron/domains/filesystem/project-entry-mutations-host.port.cjs': [
+      "require('fs/promises')",
+      "require('path')",
+    ].join('\n'),
+    'electron/domains/filesystem/project-path-model.cjs': 'module.exports = {}\n',
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('dominio Mutazioni elementi progetto dipende direttamente')).length, 2)
+    assert.equal(problems.filter((problem) => problem.includes('dominio Porta host mutazioni progetto')).length, 2)
+    assert.equal(problems.filter((problem) => problem.includes('dominio Mutazioni elementi progetto dipende dal resolver path concreto')).length, 1)
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "path"')))
+  })
+})
+
 test('mantiene filesystem e resolver concreto fuori da reader, porta e revisione file progetto', () => {
   withFixture({
     'electron/domains/filesystem/project-file-reader.cjs': [

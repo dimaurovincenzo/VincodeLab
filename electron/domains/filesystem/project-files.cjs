@@ -3,10 +3,7 @@ const {
   createProjectDirectoryListing,
 } = require('./project-directory-listing.cjs')
 const {
-  createProjectDirectory,
-  createProjectFile,
-  duplicateProjectEntry,
-  renameProjectEntry,
+  createProjectEntryMutations,
 } = require('./project-entry-mutations.cjs')
 const {
   createProjectFileActions,
@@ -24,16 +21,13 @@ const {
 
 module.exports = {
   collectDirectoryEntries,
-  createProjectDirectory,
   createProjectDirectoryListing,
-  createProjectFile,
+  createProjectEntryMutations,
   createProjectFileActions,
   createProjectFileIndex,
   createProjectFileReader,
   createProjectFileSaver,
-  duplicateProjectEntry,
   isEditorVisibleFile,
-  renameProjectEntry,
   resolveProjectDirectory,
   resolveProjectFile,
 }
