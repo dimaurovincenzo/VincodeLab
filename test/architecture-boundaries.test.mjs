@@ -359,6 +359,31 @@ test('mantiene filesystem e risoluzione path fuori dall Indice file progetto e d
   })
 })
 
+test('mantiene filesystem e risoluzione path fuori dal listing, dalla porta e dalla policy progetto', () => {
+  withFixture({
+    'electron/domains/filesystem/project-directory-listing.cjs': [
+      "require('node:fs')",
+      "require('node:path')",
+    ].join('\n'),
+    'electron/domains/filesystem/project-directory-listing-host.port.cjs': [
+      "require('fs/promises')",
+      "require('path')",
+    ].join('\n'),
+    'electron/domains/filesystem/project-access-policy.cjs': [
+      "require('node:fs/promises')",
+      "require('node:path')",
+    ].join('\n'),
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('dominio Elenco directory progetto')).length, 2)
+    assert.equal(problems.filter((problem) => problem.includes('dominio Porta host elenco directory progetto')).length, 2)
+    assert.equal(problems.filter((problem) => problem.includes('dominio Policy accesso progetto')).length, 2)
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "fs/promises"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs/promises"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "path"')))
+  })
+})
+
 test('mantiene processi host ed Electron fuori dal dominio Menu', () => {
   withFixture({
     'electron/domains/menu/runtime.cjs': [

@@ -40,7 +40,12 @@ const databaseVendorLifecycleProperties = new Set([
 const shellOperationalSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'node-pty'])
 const aiProcessSpecifiers = new Set(['child_process', 'node:child_process'])
 const aiFilesystemHostSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'path', 'node:path'])
-const projectFileIndexHostSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'path', 'node:path'])
+const filesystemHostSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'path', 'node:path'])
+const projectDirectoryListingIsolatedDomains = new Map([
+  ['electron/domains/filesystem/project-access-policy.cjs', 'Policy accesso progetto'],
+  ['electron/domains/filesystem/project-directory-listing-host.port.cjs', 'Porta host elenco directory progetto'],
+  ['electron/domains/filesystem/project-directory-listing.cjs', 'Elenco directory progetto'],
+])
 const projectFileIndexIsolatedDomains = new Map([
   ['electron/domains/filesystem/project-file-index-host.port.cjs', 'Porta host Indice file progetto'],
   ['electron/domains/filesystem/project-file-index.cjs', 'Indice file progetto'],
@@ -635,8 +640,13 @@ export function inspectArchitecture({ root }) {
         problems.push(`${file}: dominio ${aiFilesystemIsolatedDomain} dipende direttamente dal filesystem host "${specifier}"; usa la porta storage iniettata`)
         continue
       }
+      const projectDirectoryListingIsolatedDomain = projectDirectoryListingIsolatedDomains.get(file)
+      if (projectDirectoryListingIsolatedDomain && filesystemHostSpecifiers.has(specifier)) {
+        problems.push(`${file}: dominio ${projectDirectoryListingIsolatedDomain} dipende direttamente dal filesystem host "${specifier}"; usa la porta host iniettata`)
+        continue
+      }
       const projectFileIndexIsolatedDomain = projectFileIndexIsolatedDomains.get(file)
-      if (projectFileIndexIsolatedDomain && projectFileIndexHostSpecifiers.has(specifier)) {
+      if (projectFileIndexIsolatedDomain && filesystemHostSpecifiers.has(specifier)) {
         problems.push(`${file}: dominio ${projectFileIndexIsolatedDomain} dipende direttamente dal filesystem host "${specifier}"; usa la porta host iniettata`)
         continue
       }

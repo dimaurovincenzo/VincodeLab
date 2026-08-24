@@ -7,10 +7,10 @@ const test = require('node:test')
 const {
   collectDirectoryEntries,
   createProjectDirectory,
+  createProjectDirectoryListing,
   createProjectFile,
   duplicateProjectEntry,
   isEditorVisibleFile,
-  listProjectFiles,
   openProjectFileWith,
   readProjectFile,
   readProjectPreview,
@@ -20,12 +20,18 @@ const {
   revealProjectFile,
   saveProjectFile,
 } = require('../electron/domains/filesystem/project-files.cjs')
+const {
+  createProjectDirectoryListingFilesystemAdapter,
+} = require('../electron/infrastructure/filesystem/project-directory-listing-filesystem.adapter.cjs')
+
+const { listProjectFiles } = createProjectDirectoryListing(createProjectDirectoryListingFilesystemAdapter())
 
 test('il percorso IPC del file explorer usa soltanto scansione e letture asincrone', () => {
   const source = [
-    'project-directory-listing.cjs',
-    'project-file-content.cjs',
-  ].map((file) => fs.readFileSync(path.join(__dirname, '../electron/domains/filesystem', file), 'utf8')).join('\n')
+    '../electron/domains/filesystem/project-directory-listing.cjs',
+    '../electron/infrastructure/filesystem/project-directory-listing-filesystem.adapter.cjs',
+    '../electron/domains/filesystem/project-file-content.cjs',
+  ].map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8')).join('\n')
   assert.doesNotMatch(source, /readdirSync/)
   assert.doesNotMatch(source, /readFileSync/)
   assert.match(source, /fs\.promises\.opendir/)
@@ -469,10 +475,8 @@ test('limita una directory enorme senza accumularla e lascia avanzare il ciclo e
   async function* fakeDirectoryEntries() {
     for (let index = totalEntries - 1; index >= 0; index -= 1) {
       yield {
+        kind: 'file',
         name: `entry-${String(index).padStart(6, '0')}.txt`,
-        isDirectory: () => false,
-        isFile: () => true,
-        isSymbolicLink: () => false,
       }
     }
   }

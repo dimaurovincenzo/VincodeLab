@@ -1,7 +1,6 @@
 const {
   collectDirectoryEntries,
-  listDirectoryEntries,
-  listProjectFiles,
+  createProjectDirectoryListing,
 } = require('./project-directory-listing.cjs')
 const {
   createProjectDirectory,
@@ -30,12 +29,11 @@ const {
 module.exports = {
   collectDirectoryEntries,
   createProjectDirectory,
+  createProjectDirectoryListing,
   createProjectFile,
   createProjectFileIndex,
   duplicateProjectEntry,
   isEditorVisibleFile,
-  listDirectoryEntries,
-  listProjectFiles,
   openProjectFileWith,
   prepareProjectFileAttachment,
   readProjectFile,

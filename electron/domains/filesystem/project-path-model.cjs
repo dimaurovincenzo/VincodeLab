@@ -1,8 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { assertRegularFile } = require('./file-utils.cjs')
-
-const EXCLUDED_DIRECTORIES = new Set(['node_modules'])
+const { EXCLUDED_DIRECTORIES } = require('./project-access-policy.cjs')
 
 function isEditorVisibleFile(fileName) {
   return typeof fileName === 'string' && fileName.length > 0

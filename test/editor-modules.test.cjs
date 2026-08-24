@@ -22,9 +22,9 @@ test('filesystem Editor espone una facciata stabile sopra owner coesi', () => {
   for (const operation of [
     'collectDirectoryEntries',
     'createProjectDirectory',
+    'createProjectDirectoryListing',
     'createProjectFile',
     'duplicateProjectEntry',
-    'listDirectoryEntries',
     'openProjectFileWith',
     'readProjectFile',
     'readProjectPreview',
