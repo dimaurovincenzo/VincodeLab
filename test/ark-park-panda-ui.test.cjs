@@ -385,6 +385,7 @@ test('l’explorer Database delega al TreeView Ark espansione selezione e tastie
   const treeView = read('src/components/ui/tree-view.tsx')
   const index = read('src/components/ui/index.ts')
   const database = read('src/features/database/components/database-workspace.tsx')
+  const databaseSchemaTreeNode = read('src/features/database/components/database-schema-tree-node.tsx')
   const recipes = read('src/theme/recipes.ts')
 
   assert.match(treeView, /TreeView as ArkTreeView[^\n]*from '@ark-ui\/react\/tree-view'/)
@@ -396,7 +397,7 @@ test('l’explorer Database delega al TreeView Ark espansione selezione e tastie
   assert.match(recipes, /tree:\s*\{[^}]*alignContent:\s*'start'/)
   assert.match(database, /createTreeCollection<SchemaTreeNode>/)
   assert.match(database, /<TreeView\.Root collection=\{schemaTreeCollection\} expandedValue=\{schemaExpandedValue\} selectedValue=\{schemaSelectedValue\} selectionMode="single"/)
-  assert.match(database, /<TreeView\.BranchTrigger aria-label=\{`\$\{node\.label\}: espandi o comprimi`\}>/)
+  assert.match(databaseSchemaTreeNode, /<TreeView\.BranchTrigger aria-label=\{`\$\{node\.label\}: espandi o comprimi`\}>/)
   assert.match(database, /onExpandedChange=\{\(\{ expandedNodes \}\) => \{[\s\S]*?setExpandedSchemas\(new Set\(expandedNodes/)
   assert.match(database, /onSelectionChange=\{\(\{ selectedNodes \}\) => \{[\s\S]*?openTable\(node\.tableName\)[\s\S]*?openRoutine\(node\.routine\)/)
   assert.doesNotMatch(database, /role="(?:tree|treeitem)"|event\.key === ['"](?:ArrowUp|ArrowDown|ArrowLeft|ArrowRight)['"]/)

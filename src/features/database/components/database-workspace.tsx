@@ -4,7 +4,7 @@ import { EditorView, keymap, lineNumbers } from '@codemirror/view'
 import { defaultKeymap, history as editorHistory, historyKeymap } from '@codemirror/commands'
 import { sql as sqlLanguage, MSSQL, MySQL, PostgreSQL, SQLite } from '@codemirror/lang-sql'
 import { lintGutter, linter } from '@codemirror/lint'
-import { AlignLeft, ChevronRight, FilePenLine, Play, Plus, RefreshCw, RotateCcw, Save, Table2, Trash2, X } from 'lucide-react'
+import { AlignLeft, FilePenLine, Play, Plus, RefreshCw, RotateCcw, Save, Trash2, X } from 'lucide-react'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
 import { Button, Dialog, ErrorNotice, Field, IconButton, SelectField, Spinner, Splitter, Tabs, TreeView, createTreeCollection, toast, type SplitterPanelData } from '@/components/ui'
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
@@ -35,6 +35,7 @@ import {
   type QueryHistoryRefreshFailure,
 } from '../model/database.types'
 import { reportDatabaseFailure, showDatabaseErrorToast, showDatabaseWarningToast } from '../services/database-error'
+import { DatabaseSchemaTreeNodeView } from './database-schema-tree-node'
 import { DatabaseTableGrid, type DatabaseTableDraftGuard } from './database-table-grid'
 import { isMutativeSql, schemaTablePreviewSql } from '@/lib/database-query'
 import { effectivePreference, useAppPreferences } from '@/lib/app-preferences'
@@ -52,24 +53,6 @@ const databasePanels: SplitterPanelData[] = [
   { id: 'database-sidebar', minSize: '240px', maxSize: '720px', resizeBehavior: 'preserve-pixel-size' },
   { id: 'database-editor', minSize: '460px' },
 ]
-
-function SchemaTreeNodeView({ indexPath, node }: {
-  indexPath: number[]
-  node: SchemaTreeNode
-}) {
-  return <TreeView.NodeProvider indexPath={indexPath} node={node}>
-    {node.kind === 'group' ? <TreeView.Branch>
-      <TreeView.BranchControl title={node.label}>
-        <TreeView.BranchTrigger aria-label={`${node.label}: espandi o comprimi`}><TreeView.BranchIndicator><ChevronRight aria-hidden="true" size={14} /></TreeView.BranchIndicator></TreeView.BranchTrigger>
-        <TreeView.BranchText><strong>{node.label}</strong><small>{node.count ?? 0}</small></TreeView.BranchText>
-      </TreeView.BranchControl>
-      <TreeView.BranchContent>{node.children?.map((child, index) => <SchemaTreeNodeView indexPath={[...indexPath, index]} key={child.value} node={child} />)}</TreeView.BranchContent>
-    </TreeView.Branch> : <TreeView.Item title={node.tableName ?? node.label}>
-      {node.kind === 'table' ? <Table2 aria-hidden="true" size={14} /> : <FilePenLine aria-hidden="true" size={14} />}
-      <TreeView.ItemText>{node.label}</TreeView.ItemText>
-    </TreeView.Item>}
-  </TreeView.NodeProvider>
-}
 
 export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, onContextChange, onSessionChange, onWorkspaceGuardChange }: Props) {
   const { preferences } = useAppPreferences()
@@ -1118,7 +1101,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
             const node = selectedNodes.at(-1)
             if (node?.kind === 'table' && node.tableName) openTable(node.tableName)
             if (node?.kind === 'routine' && node.routine) openRoutine(node.routine)
-          }}><TreeView.Tree className={db.schemaTree}>{schemaTreeCollection.getNodeChildren(schemaTreeCollection.rootNode).map((node, index) => <SchemaTreeNodeView indexPath={[index]} key={node.value} node={node} />)}</TreeView.Tree></TreeView.Root>
+          }}><TreeView.Tree className={db.schemaTree}>{schemaTreeCollection.getNodeChildren(schemaTreeCollection.rootNode).map((node, index) => <DatabaseSchemaTreeNodeView indexPath={[index]} key={node.value} node={node} />)}</TreeView.Tree></TreeView.Root>
         </Tabs.Content>
         <Tabs.Content value="queries" className={db.explorerList}>{savedQueries.length ? savedQueries.map((query) => <div className={db.savedQuery} key={query.id}><Button className={db.queryButton} variant="plain" aria-current={activeSavedQueryId === query.id ? 'true' : undefined} onClick={() => openSql(query.sql, query.id)}>{query.name}</Button><IconButton size="icon-xs" tone="danger" tooltip={`Elimina ${query.name}`} onClick={() => deleteSavedQuery(query)}><Trash2 size={13} /></IconButton></div>) : <p className={db.listEmpty}>Nessuna query salvata.</p>}</Tabs.Content>
         <Tabs.Content value="history" className={db.historyPanel}><header className={db.historyToolbar}><span>Query eseguite</span><Button size="xs" tone="danger" variant="plain" aria-label="Pulisci cronologia query" disabled={!history.length} onClick={requestClearHistory} title="Pulisci cronologia"><Trash2 size={13} /> Pulisci</Button></header><div className={db.explorerList}>{history.length ? history.map((entry) => <Button className={db.queryButton} variant="plain" key={entry.id} onClick={() => openSql(entry.sql)} title={entry.sql}>{entry.sql.slice(0, 72)}</Button>) : <p className={db.listEmpty}>Nessuna query nella cronologia.</p>}</div></Tabs.Content>
