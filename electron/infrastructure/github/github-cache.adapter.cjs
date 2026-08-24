@@ -1,4 +1,4 @@
-const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
+const { GITHUB_DATA_CACHE_KEY } = require('../../domains/github/github-cache-identity.cjs')
 const { invalidateCache, readCache, writeCache } = require('../persistence/workspace-cache.repository.cjs')
 const { commandLifecycleError, isCommandInterruption, throwIfAborted } = require('../../domains/github/command-errors.cjs')
 
@@ -8,6 +8,7 @@ const CACHE_TTL = {
   githubData: 60_000,
   projectBoard: 60_000,
 }
+const LEGACY_GITHUB_DATA_CACHE_KEY = ['github', 'data'].join(':')
 const inFlightCacheLoads = new Map()
 const cacheGenerations = new Map()
 
@@ -15,8 +16,8 @@ function cacheLoadKey(workspacePath, resourceKey) {
   return `${workspacePath}\0${resourceKey}`
 }
 
-function invalidateTrackedCache(workspacePath, resourceKeys) {
-  invalidateCache(workspacePath, resourceKeys)
+function invalidateTrackedCache(workspacePath, resourceKeys, storageKeys = resourceKeys) {
+  invalidateCache(workspacePath, storageKeys)
   for (const resourceKey of resourceKeys) {
     const key = cacheLoadKey(workspacePath, resourceKey)
     cacheGenerations.set(key, (cacheGenerations.get(key) ?? 0) + 1)
@@ -32,7 +33,13 @@ function invalidateGitCache(workspacePath) {
 }
 
 function invalidateGitHubDataCache(workspacePath) {
-  invalidateTrackedCache(workspacePath, [IPC_CHANNELS.GITHUB_DATA])
+  // La generazione usa l'identità semantica; la persistenza resta sul formato
+  // storico e anche i chiamanti generici legacy vengono invalidati.
+  invalidateTrackedCache(
+    workspacePath,
+    [GITHUB_DATA_CACHE_KEY, LEGACY_GITHUB_DATA_CACHE_KEY],
+    [LEGACY_GITHUB_DATA_CACHE_KEY],
+  )
 }
 
 function invalidateProjectBoardCache(workspacePath, projectNumber) {
@@ -47,7 +54,8 @@ function invalidateProjectMutationCache(workspacePath, projectNumber) {
 async function getCachedResource(workspacePath, resourceKey, ttlMs, load, { force = false, now = Date.now(), signal } = {}) {
   const command = resourceKey.startsWith('git:') ? 'git' : 'gh'
   throwIfAborted(signal, command)
-  const cached = readCache(workspacePath, resourceKey, now)
+  const storageKey = resourceKey === GITHUB_DATA_CACHE_KEY ? LEGACY_GITHUB_DATA_CACHE_KEY : resourceKey
+  const cached = readCache(workspacePath, storageKey, now)
   if (cached && !cached.cache.stale && !force) return cached
 
   const inFlightKey = cacheLoadKey(workspacePath, resourceKey)
@@ -68,7 +76,7 @@ async function getCachedResource(workspacePath, resourceKey, ttlMs, load, { forc
       const data = await load(signal)
       throwIfAborted(signal, command)
       if ((cacheGenerations.get(inFlightKey) ?? 0) !== generation) return getCachedResource(workspacePath, resourceKey, ttlMs, load, { force: true, now, signal })
-      return writeCache(workspacePath, resourceKey, data, ttlMs, now)
+      return writeCache(workspacePath, storageKey, data, ttlMs, now)
     } catch (error) {
       if (isCommandInterruption(error) || signal?.aborted) throw (isCommandInterruption(error) ? error : commandLifecycleError(command, 'cancelled'))
       if ((cacheGenerations.get(inFlightKey) ?? 0) !== generation) return getCachedResource(workspacePath, resourceKey, ttlMs, load, { force: true, now, signal })

@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
 const test = require('node:test')
 const { createGithubUseCases } = require('../electron/domains/github/github-use-cases.cjs')
 
@@ -88,6 +89,35 @@ test('la factory GitHub conserva la superficie pubblica senza esporre i collabor
   assert.equal(Object.values(useCases).every((value) => typeof value === 'function'), true)
   assert.equal('getRepository' in useCases, false)
   assert.equal('runWithSignal' in useCases, false)
+})
+
+test('i dati GitHub usano un’identità cache stabile del dominio senza dipendere dal registro IPC', () => {
+  const dependencies = fixture()
+  const cacheCalls = []
+  const cachedResult = Object.freeze({ data: { issues: [] } })
+  dependencies.cache.CACHE_TTL.githubData = 60_000
+  dependencies.cache.getCachedResource = (workspacePath, resourceKey, ttlMs, load, options) => {
+    cacheCalls.push({ load, options, resourceKey, ttlMs, workspacePath })
+    return cachedResult
+  }
+  const useCases = createGithubUseCases(dependencies)
+  const firstOptions = Object.freeze({ force: true, now: 1_000 })
+  const secondOptions = Object.freeze({ now: 2_000 })
+
+  assert.equal(useCases.getCachedGitHubData('/workspace/a', firstOptions), cachedResult)
+  assert.equal(useCases.getCachedGitHubData('/workspace/b', secondOptions), cachedResult)
+  assert.deepEqual(cacheCalls.map(({ options, resourceKey, ttlMs, workspacePath }) => ({ options, resourceKey, ttlMs, workspacePath })), [
+    { options: firstOptions, resourceKey: 'github-data-snapshot', ttlMs: 60_000, workspacePath: '/workspace/a' },
+    { options: secondOptions, resourceKey: 'github-data-snapshot', ttlMs: 60_000, workspacePath: '/workspace/b' },
+  ])
+  assert.equal(cacheCalls.every(({ load }) => typeof load === 'function'), true)
+
+  const issueUseCasesPath = require.resolve('../electron/domains/github/github-issue-use-cases.cjs')
+  const issueUseCasesModule = require.cache[issueUseCasesPath]
+  assert.ok(issueUseCasesModule)
+  assert.equal(issueUseCasesModule.children.some(({ filename }) => filename.endsWith('/electron/ipc/channels.cjs')), false)
+  assert.doesNotMatch(fs.readFileSync(issueUseCasesPath, 'utf8'), /ipc\/channels|IPC_CHANNELS/u)
+  assert.deepEqual(Object.keys(issueUseCasesModule.exports), ['createGitHubIssueUseCases'])
 })
 
 test('la composizione mantiene operativi Git locale, diagnostica GitHub e mutazioni Project', async () => {

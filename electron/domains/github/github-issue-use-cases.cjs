@@ -1,4 +1,3 @@
-const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
 const { createPublicError } = require('../errors/public-error.cjs')
 const {
   GITHUB_AUTH_PATTERN,
@@ -14,6 +13,7 @@ const {
   assertGitHubRepositoryName,
   parseIssuesPage,
 } = require('./github-model.cjs')
+const { GITHUB_DATA_CACHE_KEY } = require('./github-cache-identity.cjs')
 
 function createGitHubIssueUseCases({ cache, git, projects, runner }) {
   const { CACHE_TTL, getCachedResource, invalidateGitCache, invalidateGitHubDataCache } = cache
@@ -191,7 +191,7 @@ function createGitHubIssueUseCases({ cache, git, projects, runner }) {
   }
 
   function getCachedGitHubData(workspacePath, options) {
-    return getCachedResource(workspacePath, IPC_CHANNELS.GITHUB_DATA, CACHE_TTL.githubData, (signal) => getGitHubData(workspacePath, { signal }), options)
+    return getCachedResource(workspacePath, GITHUB_DATA_CACHE_KEY, CACHE_TTL.githubData, (signal) => getGitHubData(workspacePath, { signal }), options)
   }
 
   function issueReference(issueNumber) {

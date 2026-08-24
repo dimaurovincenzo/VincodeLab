@@ -54,6 +54,25 @@ test('restituisce cache valida e il refresh forzato ricarica la risorsa', async 
   assert.equal(refreshed.cache.stale, false)
 })
 
+test('mappa l’identità semantica GitHub sul formato storage storico senza creare nuove entry', async (t) => {
+  withTemporaryCache(t)
+  writeCache('/tmp/workspace-legacy', 'github:data', { issues: [{ number: 7 }] }, 60_000, 1_000)
+  let loads = 0
+
+  const cached = await getCachedResource('/tmp/workspace-legacy', 'github-data-snapshot', 60_000, async () => {
+    loads += 1
+    return { issues: [{ number: 8 }] }
+  }, { force: true, now: 1_001 })
+
+  assert.equal(loads, 1)
+  assert.deepEqual(cached.data, { issues: [{ number: 8 }] })
+  assert.deepEqual(readCache('/tmp/workspace-legacy', 'github:data', 1_002).data, { issues: [{ number: 8 }] })
+  assert.equal(readCache('/tmp/workspace-legacy', 'github-data-snapshot', 1_002), null)
+  invalidateGitHubDataCache('/tmp/workspace-legacy')
+  assert.equal(readCache('/tmp/workspace-legacy', 'github:data', 1_002), null)
+  assert.equal(readCache('/tmp/workspace-legacy', 'github-data-snapshot', 1_002), null)
+})
+
 test('mantiene cache scaduta se il refresh remoto non è disponibile', async (t) => {
   withTemporaryCache(t)
   writeCache('/tmp/workspace', 'github:data', { issues: [{ number: 7 }] }, 60_000, 1_000)
@@ -95,7 +114,7 @@ test('una invalidazione durante il refresh non può ripubblicare cache obsoleta'
     return Promise.resolve({ issues: [{ number: 2 }] })
   }
 
-  const pending = getCachedResource('/tmp/workspace-generation', 'github:data', 60_000, load, { force: true, now: 1_000 })
+  const pending = getCachedResource('/tmp/workspace-generation', 'github-data-snapshot', 60_000, load, { force: true, now: 1_000 })
   await new Promise((resolve) => setImmediate(resolve))
   invalidateGitHubDataCache('/tmp/workspace-generation')
   resolveOld({ issues: [{ number: 1 }] })
@@ -104,6 +123,7 @@ test('una invalidazione durante il refresh non può ripubblicare cache obsoleta'
   assert.equal(loads, 2)
   assert.deepEqual(result.data, { issues: [{ number: 2 }] })
   assert.deepEqual(readCache('/tmp/workspace-generation', 'github:data', 1_001).data, { issues: [{ number: 2 }] })
+  assert.equal(readCache('/tmp/workspace-generation', 'github-data-snapshot', 1_001), null)
 })
 
 test('un refresh successivo all invalidazione non riusa il caricamento precedente', async (t) => {
@@ -115,10 +135,10 @@ test('un refresh successivo all invalidazione non riusa il caricamento precedent
     if (oldLoadCalls === 1) return new Promise((resolve) => { resolveOld = resolve })
     return Promise.resolve({ issues: [{ number: 3 }] })
   }
-  const first = getCachedResource('/tmp/workspace-generation-concurrent', 'github:data', 60_000, oldLoad, { force: true, now: 1_000 })
+  const first = getCachedResource('/tmp/workspace-generation-concurrent', 'github-data-snapshot', 60_000, oldLoad, { force: true, now: 1_000 })
   await new Promise((resolve) => setImmediate(resolve))
   invalidateGitHubDataCache('/tmp/workspace-generation-concurrent')
-  const second = getCachedResource('/tmp/workspace-generation-concurrent', 'github:data', 60_000, async () => ({ issues: [{ number: 3 }] }), { force: true, now: 1_001 })
+  const second = getCachedResource('/tmp/workspace-generation-concurrent', 'github-data-snapshot', 60_000, async () => ({ issues: [{ number: 3 }] }), { force: true, now: 1_001 })
 
   assert.deepEqual((await second).data, { issues: [{ number: 3 }] })
   resolveOld({ issues: [{ number: 1 }] })
@@ -156,6 +176,11 @@ test('invalida esclusivamente le cache dipendenti dalla mutazione eseguita', (t)
   assert.equal(readCache('/tmp/workspace', 'github:project-board:5', 1_001), null)
   assert.deepEqual(readCache('/tmp/workspace', 'github:project-board:6', 1_001).data, { items: [] })
   assert.deepEqual(readCache('/tmp/workspace', 'github:data', 1_001).data, { issues: [] })
+
+  invalidateGitHubDataCache('/tmp/workspace')
+  assert.equal(readCache('/tmp/workspace', 'github:data', 1_001), null)
+  assert.equal(readCache('/tmp/workspace', 'github-data-snapshot', 1_001), null)
+  assert.deepEqual(readCache('/tmp/workspace', 'github:project-board:6', 1_001).data, { items: [] })
 })
 
 test('conserva la board Project in cache quando il refresh forzato non raggiunge GitHub', async (t) => {
