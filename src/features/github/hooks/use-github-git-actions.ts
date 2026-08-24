@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import type { GitFileStatus, GitStatus } from '@/bridge'
 import { toast } from '@/components/ui'
 import { gitBridge } from '@/features/git'
 import { githubBridge } from '../api/github.bridge'

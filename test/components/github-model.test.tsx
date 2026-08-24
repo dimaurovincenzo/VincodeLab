@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { GitHubIssue, GitHubProjectBoard, GitHubProjectField, GitHubProjectItem } from '@/bridge'
 import { formatCacheState, formatDate } from '@/features/github/model/github-display'
 import { issueStateCounts, matchesIssueSearch, visibleGitHubIssues } from '@/features/github/model/github-issues'
 import {

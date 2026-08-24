@@ -1,3 +1,5 @@
+import type { CacheMetadata } from '@/bridge'
+
 export function formatDate(value: string) {
   return new Intl.DateTimeFormat('it-IT', { dateStyle: 'medium' }).format(new Date(value))
 }

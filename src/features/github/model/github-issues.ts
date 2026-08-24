@@ -1,3 +1,5 @@
+import type { GitHubIssue } from '@/bridge'
+
 export type GitHubIssueStateFilter = 'all' | GitHubIssue['state']
 
 export function matchesIssueSearch(issue: GitHubIssue, query: string) {

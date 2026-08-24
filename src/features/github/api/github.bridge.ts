@@ -1,6 +1,4 @@
-import { getVincodeLabBridge, type VincodeLabBridge } from '@/bridge'
-
-type GitHubApi = VincodeLabBridge['github']
+import { getVincodeLabBridge, type GitHubApi } from '@/bridge'
 
 export const githubBridge = {
   archiveProjectItem: (...args: Parameters<GitHubApi['archiveProjectItem']>) => getVincodeLabBridge().github.archiveProjectItem(...args),

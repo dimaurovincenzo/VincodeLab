@@ -743,7 +743,8 @@ test('GitHub comunica ogni limite bounded e riferisce le azioni di gruppo ai fil
   const feedback = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-feedback.tsx'), 'utf8')
   const projectsModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-projects.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
-  const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
+  const gitTypes = fs.readFileSync(path.join(__dirname, '../src/bridge/contracts/git.types.ts'), 'utf8')
+  const githubTypes = fs.readFileSync(path.join(__dirname, '../src/bridge/contracts/github.types.ts'), 'utf8')
   const boundedSources = `${github}\n${projectsModel}`
 
   for (const flag of [
@@ -757,8 +758,8 @@ test('GitHub comunica ogni limite bounded e riferisce le azioni di gruppo ai fil
   assert.match(github, /Le azioni di gruppo agiscono solo sui file mostrati/)
   assert.match(feedback, /function LimitNotice/)
   assert.match(styles, /limitNotice:\s*css\(\{[\s\S]*?bg:\s*'stateWarningSoft'[\s\S]*?borderColor:\s*'stateWarning'/)
-  assert.match(types, /interface GitBranchPage \{ branches: GitBranch\[\]; hasMore: boolean; truncated: boolean \}/)
-  assert.match(types, /branches: \(\) => Promise<GitBranchPage>/)
+  assert.match(gitTypes, /export interface GitBranchPage \{[\s\S]*?branches: GitBranch\[\][\s\S]*?hasMore: boolean[\s\S]*?truncated: boolean[\s\S]*?\}/)
+  assert.match(githubTypes, /branches: \(\) => Promise<GitBranchPage>/)
 })
 
 test('l’apertura di una board Project riusa la cache fino al refresh esplicito', () => {

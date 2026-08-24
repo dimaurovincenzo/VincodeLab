@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { GitFileStatus } from '@/bridge'
 import { toast } from '@/components/ui'
 import { editorBridge } from '../api/editor.bridge'
 import { gitStatusMap } from '../model/editor-git'

@@ -275,90 +275,6 @@ type PiRuntimeStatus =
   | { state: 'ready'; executable: string; version: string }
   | { state: 'missing'; code: 'PI_NOT_INSTALLED'; executable: null; version: null }
 
-interface GitFileStatus {
-  path: string
-  previousPath?: string
-  index: string
-  workingTree: string
-  sensitive?: boolean
-}
-
-interface GitCommit {
-  sha: string
-  subject: string
-  author: string
-  date: string
-}
-
-interface GitGraphCommit { sha: string; parents: string[]; refs: string[]; subject: string }
-interface GitBranch { name: string; current: boolean }
-interface GitBranchPage { branches: GitBranch[]; hasMore: boolean; truncated: boolean }
-
-interface GitStatus {
-  isRepository: boolean
-  branch?: string
-  remote?: string | null
-  upstream?: string | null
-  ahead?: number
-  behind?: number
-  files: GitFileStatus[]
-  commits: GitCommit[]
-  graph: GitGraphCommit[]
-  filesHasMore: boolean
-  filesTruncated: boolean
-  graphHasMore: boolean
-  graphTruncated: boolean
-  hasMore: boolean
-  truncated: boolean
-}
-
-interface CacheMetadata { fetchedAt: number; expiresAt: number; stale: boolean; refreshError?: boolean }
-interface CachedResult<T> { data: T; cache: CacheMetadata }
-type CacheReadOptions = { force?: boolean }
-
-interface GitHubIssue {
-  number: number
-  title: string
-  body: string
-  state: 'OPEN' | 'CLOSED'
-  author: { login: string } | null
-  createdAt: string
-  updatedAt: string
-  url: string
-  labels: { name: string }[]
-  bodyTruncated?: boolean
-  labelsHasMore?: boolean
-}
-
-interface GitHubProject {
-  id: string
-  number: number
-  title: string
-  shortDescription: string
-  closed: boolean
-  url: string
-}
-
-interface GitHubProjectBoard { project: GitHubProject; fields: GitHubProjectField[]; fieldsHasMore: boolean; fieldsTruncated: boolean; fieldOptionsTruncated: boolean; fieldsResultBytes: number; items: GitHubProjectItem[]; itemsHasMore: boolean; itemsTruncated: boolean; itemValuesTruncated: boolean; itemsResultBytes: number; hasMore: boolean; truncated: boolean }
-interface GitHubProjectField { id: string; name: string; dataType: string; options?: { id: string; name: string; color?: string }[]; optionsHasMore?: boolean }
-interface GitHubProjectItem { id: string; type: string; title?: string; content?: { title?: string; url?: string; number?: number; repository?: string }; parent?: { title: string; url: string; number: number; repository?: string }; assignees?: string[]; fieldValues?: Record<string, string>; status?: string; valuesTruncated?: boolean; [key: string]: unknown }
-type GitHubProjectItemUpdate = { type: 'singleSelect'; optionId: string } | { type: 'text'; value: string } | { type: 'number'; value: number } | { type: 'date'; value: string } | { type: 'clear' }
-
-interface GitHubData {
-  repository: { nameWithOwner: string; url: string; owner: string } | null
-  issues: GitHubIssue[]
-  issuesHasMore: boolean
-  issuesTruncated: boolean
-  issuesResultBytes?: number
-  projects: GitHubProject[]
-  projectsHasMore: boolean
-  projectsTruncated: boolean
-  hasMore: boolean
-  truncated: boolean
-  githubDiagnostic: string | null
-  projectsDiagnostic: string | null
-}
-
 type WorkspaceCommandKind = 'shell' | 'ssh'
 interface WorkspaceCommand { id: string; categoryId: string; title: string; kind: WorkspaceCommandKind; command: string; note: string; sshDestination: string; remoteRoot: string }
 interface WorkspaceCommandCategory { id: string; name: string; commands: WorkspaceCommand[] }
@@ -626,35 +542,7 @@ interface Window {
     runtime: import('./bridge').RuntimeCapabilitiesApi
     piSystem: { status: () => Promise<PiRuntimeStatus>; list: () => Promise<string[]>; listSkills: () => Promise<PiPackageSkill[]>; install: (source: string) => Promise<{ output: string }>; update: (source: string) => Promise<{ output: string }>; remove: (source: string) => Promise<{ output: string }> }
     piConfig: { start: () => Promise<{ started: boolean; reused: boolean }>; close: () => Promise<{ closed: true }>; write: (data: string) => void; resize: (dimensions: { cols: number; rows: number }) => void; onData: (listener: (data: string) => void) => () => void; onExit: (listener: (status: TerminalExitStatus) => void) => () => void; onError: (listener: (event: PiConfigErrorEvent) => void) => () => void }
-    github: {
-      gitStatus: (options?: CacheReadOptions) => Promise<CachedResult<GitStatus>>
-      initRepository: () => Promise<GitStatus>
-      addRemote: (remoteUrl: string) => Promise<GitStatus>
-      createRepository: (repositoryName: string, visibility: 'private' | 'public') => Promise<GitStatus>
-      stage: (filePaths: string[]) => Promise<GitStatus>
-      unstage: (filePaths: string[]) => Promise<GitStatus>
-      commit: (message: string) => Promise<GitStatus>
-      push: () => Promise<GitStatus>
-      fetch: () => Promise<GitStatus>
-      pullRebase: () => Promise<GitStatus>
-      branches: () => Promise<GitBranchPage>
-      switchBranch: (branchName: string) => Promise<GitStatus>
-      createBranch: (branchName: string) => Promise<GitStatus>
-      fileDiff: (filePath: string) => Promise<string>
-      revert: (sha: string) => Promise<GitStatus>
-      data: (options?: CacheReadOptions) => Promise<CachedResult<GitHubData>>
-      createIssue: (title: string, body: string) => Promise<GitHubData>
-      updateIssue: (issueNumber: number, title: string, body: string, state: 'OPEN' | 'CLOSED') => Promise<GitHubData>
-      projectBoard: (projectNumber: number, options?: CacheReadOptions) => Promise<CachedResult<GitHubProjectBoard>>
-      createProject: (title: string) => Promise<GitHubProject[]>
-      editProject: (projectNumber: number, title: string, description: string) => Promise<GitHubProject[]>
-      closeProject: (projectNumber: number, undo: boolean) => Promise<GitHubProject[]>
-      addIssueToProject: (projectNumber: number, issueUrl: string) => Promise<GitHubProjectBoard>
-      updateProjectItem: (projectNumber: number, itemId: string, fieldId: string, update: GitHubProjectItemUpdate) => Promise<GitHubProjectBoard>
-      projectItemFields: (projectNumber: number, itemId: string) => Promise<Record<string, string>>
-      createProjectDraft: (projectNumber: number, title: string, body: string) => Promise<GitHubProjectBoard>
-      archiveProjectItem: (projectNumber: number, itemId: string, undo: boolean) => Promise<GitHubProjectBoard>
-    }
+    github: import('./bridge').GitHubApi
     workspaceCommands: {
       list: () => Promise<{ categories: WorkspaceCommandCategory[] }>
       createCategory: (name: string) => Promise<{ id: string; name: string }>

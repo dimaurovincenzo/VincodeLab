@@ -1,3 +1,5 @@
+import type { GitHubProjectBoard, GitHubProjectField, GitHubProjectItem } from '@/bridge'
+
 export type HierarchicalGitHubProjectItem = {
   depth: number
   item: GitHubProjectItem

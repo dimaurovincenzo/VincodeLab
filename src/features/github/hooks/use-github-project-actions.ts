@@ -1,3 +1,9 @@
+import type {
+  GitHubProject,
+  GitHubProjectField,
+  GitHubProjectItem,
+  GitHubProjectItemUpdate,
+} from '@/bridge'
 import { toast } from '@/components/ui'
 import { githubBridge } from '../api/github.bridge'
 import { projectFieldDataType } from '../model/github-projects'

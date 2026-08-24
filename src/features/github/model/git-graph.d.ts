@@ -1,3 +1,5 @@
+import type { GitGraphCommit } from '@/bridge'
+
 export interface GitGraphLink { from: number; to: number }
 
 export interface GitGraphLayoutRow {

@@ -23,6 +23,27 @@ export type {
   DatabaseTableSchema,
 } from './contracts/database.types'
 export type {
+  GitBranch,
+  GitBranchPage,
+  GitCommit,
+  GitFileStatus,
+  GitGraphCommit,
+  GitStatus,
+} from './contracts/git.types'
+export type {
+  CachedResult,
+  CacheMetadata,
+  CacheReadOptions,
+  GitHubApi,
+  GitHubData,
+  GitHubIssue,
+  GitHubProject,
+  GitHubProjectBoard,
+  GitHubProjectField,
+  GitHubProjectItem,
+  GitHubProjectItemUpdate,
+} from './contracts/github.types'
+export type {
   AppPreferenceDefinition,
   AppPreferencesSnapshot,
   AppPreferenceValue,
