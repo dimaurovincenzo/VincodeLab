@@ -31,6 +31,7 @@ const databaseVendorTransactionMethods = new Set([
 ])
 const shellOperationalSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'node-pty'])
 const aiProcessSpecifiers = new Set(['child_process', 'node:child_process'])
+const projectInstructionsHostSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'path', 'node:path'])
 const menuHostSpecifiers = new Set(['child_process', 'electron', 'node:child_process'])
 
 // These files predate src/bridge. Keep the list explicit so that new direct
@@ -495,6 +496,10 @@ export function inspectArchitecture({ root }) {
       }
       if (file.startsWith('electron/domains/shell/') && shellOperationalSpecifiers.has(specifier)) {
         problems.push(`${file}: dominio Shell dipende direttamente dall'host operativo "${specifier}"; usa i collaboratori iniettati`)
+        continue
+      }
+      if (file === 'electron/domains/ai/project-instructions.cjs' && projectInstructionsHostSpecifiers.has(specifier)) {
+        problems.push(`${file}: dominio Istruzioni progetto dipende direttamente dal filesystem host "${specifier}"; usa la porta storage iniettata`)
         continue
       }
       if (file.startsWith('electron/domains/ai/') && aiProcessSpecifiers.has(specifier)) {

@@ -216,6 +216,19 @@ test('obbliga il dominio AI a usare adapter iniettati per i processi host', () =
   })
 })
 
+test('mantiene filesystem e risoluzione path fuori dal caso d’uso Istruzioni progetto', () => {
+  withFixture({
+    'electron/domains/ai/project-instructions.cjs': [
+      "require('node:fs')",
+      "require('node:path')",
+    ].join('\n'),
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('dominio Istruzioni progetto')).length, 2)
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "node:path"')))
+  })
+})
+
 test('mantiene processi host ed Electron fuori dal dominio Menu', () => {
   withFixture({
     'electron/domains/menu/runtime.cjs': [

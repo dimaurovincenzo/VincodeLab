@@ -24,7 +24,8 @@ const { MAX_PASTE_BYTES } = require('./domains/terminal/terminal-input.cjs')
 const { createTerminalDiagnosticsReport, sanitizeRendererMetrics } = require('./domains/terminal/terminal-diagnostics.cjs')
 const { createSystemSkill, deleteSystemSkill, getSystemSkill, listSystemSkills, updateSystemSkill } = require('./domains/ai/system-skills.cjs')
 const { PI_COMMAND_TIMEOUT_MS, createPiSystemUseCases } = require('./domains/ai/pi-system-service.cjs')
-const { clearProjectInstructions, getProjectInstructions, saveProjectInstructions } = require('./domains/ai/project-instructions.cjs')
+const { createProjectInstructionsUseCases } = require('./domains/ai/project-instructions.cjs')
+const { createProjectInstructionsFilesystemAdapter } = require('./infrastructure/filesystem/project-instructions-filesystem.adapter.cjs')
 const { createProjectDirectory, createProjectFile, duplicateProjectEntry, listDirectoryEntries, listProjectFiles, openProjectFileWith, prepareProjectFileAttachment, readProjectFile, readProjectPreview, renameProjectEntry, resolveProjectDirectory, resolveProjectFile, saveProjectFile } = require('./domains/filesystem/project-files.cjs')
 const { createProjectFileIndex } = require('./domains/filesystem/project-file-index.cjs')
 const { createProjectSkill, deleteProjectSkill, getProjectSkill, listProjectSkills, updateProjectSkill } = require('./domains/ai/project-skills.cjs')
@@ -211,6 +212,13 @@ const reconcileManagedPiPackages = (resolveExecutableForReconciliation, allowedR
   allowedRoot,
   { run: piCommandRunner.run },
 )
+const {
+  clearProjectInstructions,
+  getProjectInstructions,
+  saveProjectInstructions,
+} = createProjectInstructionsUseCases({
+  storage: createProjectInstructionsFilesystemAdapter(),
+})
 const projectFileIndex = createProjectFileIndex()
 const databaseOperations = createDatabaseOperationRegistry()
 const redisOperations = createRedisOperationRegistry()

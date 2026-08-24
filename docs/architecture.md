@@ -91,6 +91,8 @@ La risoluzione di Pi è isolata nell'adapter `electron/infrastructure/processes/
 
 La preparazione degli allegati locali è una capacità host nominata in `electron/infrastructure/filesystem/terminal-attachment.adapter.cjs`: verifica percorso assoluto, file regolare, assenza di symlink e leggibilità prima di restituire i soli metadati necessari. Il runtime AI riceve questa porta dalla composition root e non accede direttamente al filesystem.
 
+Le istruzioni Pi del progetto seguono lo stesso confine. `electron/domains/ai/project-instructions.cjs` conserva validazione, DTO e semantica di lettura, salvataggio e cancellazione attraverso la porta minima `project-instructions-storage.port.cjs`; non risolve percorsi e non accede al filesystem. La composition root inietta `electron/infrastructure/filesystem/project-instructions-filesystem.adapter.cjs`, unico proprietario del percorso `.pi/APPEND_SYSTEM.md`, della scrittura atomica e delle verifiche su directory, file regolari e link simbolici. I canali IPC e i messaggi pubblici restano invariati.
+
 Il controller PTY possiede sempre un solo processo client. In modalità Herdr quel processo è esclusivamente il client: il server persistente, i workspace e i pane restano di proprietà di Herdr e non vengono arrestati dal lifecycle di VincodeLab. Il fallback Pi è ammesso soltanto prima del primo byte prodotto da Herdr; dopo l'attivazione richiede una recovery utente esplicita. L'IPC blocca l'iniezione programmatica di contesto nel client condiviso, mentre tastiera e incolla manuale attraversano il normale canale PTY.
 
 ### Editor e filesystem
