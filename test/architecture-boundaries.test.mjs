@@ -247,6 +247,27 @@ test('il bootstrap protetto vieta import asincroni, module.require e alias del l
   }
 })
 
+test('il bootstrap protetto può avviare main soltanto come istruzione standalone', () => {
+  for (const source of [
+    [
+      "const { createDatabaseService: buildDatabase } = require('../main.cjs')",
+      'buildDatabase({})',
+    ].join('\n'),
+    "const main = require('../main.cjs')\n",
+    "require('../main.cjs').factory()\n",
+  ]) {
+    withFixture({
+      'electron/app/bootstrap.cjs': source,
+    }, (problems) => {
+      assert.ok(problems.some((problem) => problem.includes('usa il valore esportato da electron/main.cjs')), source)
+    })
+  }
+
+  withFixture({
+    'electron/app/bootstrap.cjs': "require('../main.cjs')\n",
+  }, (problems) => assert.deepEqual(problems, []))
+})
+
 test('i moduli interni non possono dipendere dal bootstrap protetto', () => {
   withFixture({
     'electron/app/bootstrap.cjs': "require('electron')\n",

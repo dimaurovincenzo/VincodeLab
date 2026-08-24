@@ -384,7 +384,7 @@ function protectedEntrypointCompositionReferences(sourceFile) {
   return [...references]
 }
 
-function protectedEntrypointLoaderProblems(sourceFile) {
+function protectedEntrypointLoaderProblems(root, importer, sourceFile) {
   const problems = new Set()
   const memberName = (node) => {
     if (ts.isPropertyAccessExpression(node)) return node.name.text
@@ -401,6 +401,11 @@ function protectedEntrypointLoaderProblems(sourceFile) {
         problems.add('bootstrap protetto usa import(); il caricamento deve restare sincrono tramite require(<letterale>) incluso nell\'allowlist fatal')
       } else if (directRequire && (node.arguments.length !== 1 || !ts.isStringLiteralLike(node.arguments[0]))) {
         problems.add('bootstrap protetto usa require con un argomento dinamico o non letterale; sono ammesse soltanto dipendenze statiche incluse nell\'allowlist fatal')
+      } else if (directRequire && extensionlessModule(root, importer, node.arguments[0].text) === extensionlessFile(electronCompositionRootFile)) {
+        const standaloneLoad = ts.isExpressionStatement(node.parent) && node.parent.expression === node
+        if (!standaloneLoad) {
+          problems.add('bootstrap protetto usa il valore esportato da electron/main.cjs; avvia la composition root soltanto con require(<main letterale>) come istruzione standalone')
+        }
       } else if ((ts.isPropertyAccessExpression(node.expression) || ts.isElementAccessExpression(node.expression)) && memberName(node.expression) === 'require') {
         problems.add('bootstrap protetto usa require in forma indiretta o aliasata; invoca direttamente require(<letterale>)')
       }
@@ -552,7 +557,7 @@ export function inspectArchitecture({ root }) {
       for (const factory of protectedEntrypointCompositionReferences(sourceFile)) {
         problems.push(`${file}: bootstrap protetto compone la factory "${factory}"; la composizione applicativa appartiene a electron/main.cjs`)
       }
-      for (const problem of protectedEntrypointLoaderProblems(sourceFile)) problems.push(`${file}: ${problem}`)
+      for (const problem of protectedEntrypointLoaderProblems(absoluteRoot, absoluteFile, sourceFile)) problems.push(`${file}: ${problem}`)
     }
 
     for (const problem of ipcChannelLiteralProblems(file, sourceFile)) problems.push(`${file}: ${problem}`)
