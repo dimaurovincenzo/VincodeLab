@@ -1,9 +1,9 @@
 import { Database, Plug } from 'lucide-react'
+import type { RedisConnection } from '@/bridge'
 import { Button, ErrorNotice, Spinner } from '@/components/ui'
 import { EmptyState } from '@/components/empty-state'
 import type { UserError } from '@/lib/user-error'
 import { redisStyles as rs } from '@/theme/styles/redis'
-import type { RedisConnection } from '../model/redis-types'
 
 type Props = {
   connection: RedisConnection

@@ -1,9 +1,5 @@
-import type {
-  RedisInspection,
-  RedisScanPage,
-  RedisWorkbenchContext,
-  RedisWorkspaceSession,
-} from './redis-types'
+import type { RedisInspection, RedisScanPage } from '@/bridge'
+import type { RedisWorkbenchContext, RedisWorkspaceSession } from './redis-types'
 
 export type RedisWorkspaceProps = {
   workspace: string

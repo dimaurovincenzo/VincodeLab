@@ -164,6 +164,9 @@ function moduleSpecifiers(sourceFile) {
   }
   const visit = (node) => {
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) addLiteral(node.moduleSpecifier)
+    if (ts.isImportTypeNode(node)) {
+      addLiteral(ts.isLiteralTypeNode(node.argument) ? node.argument.literal : node.argument)
+    }
     if (ts.isCallExpression(node) && node.arguments.length === 1) {
       const dynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword
       const commonJsRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require'

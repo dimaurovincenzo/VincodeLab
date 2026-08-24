@@ -1,8 +1,9 @@
 import { ChevronLeft, ChevronRight, Database, Filter, RefreshCw } from 'lucide-react'
 import { memo, useState } from 'react'
+import type { RedisKeySummary } from '@/bridge'
 import { Button, Field, IconButton, SelectField, Spinner } from '@/components/ui'
 import { ErrorNotice } from '@/components/ui'
-import { redisKeyTypes, redisTypeLabel, type RedisKeySummary, type RedisKeyTypeFilter } from '../model/redis-types'
+import { redisKeyTypes, redisTypeLabel, type RedisKeyTypeFilter } from '../model/redis-types'
 import type { UserError } from '@/lib/user-error'
 import { redisStyles as rs, redisTypeBadge } from '@/theme/styles/redis'
 

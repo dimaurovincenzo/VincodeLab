@@ -699,7 +699,7 @@ type ContextMenuAction = {
   contextKind: Exclude<ContextMenuKind, 'default' | 'terminal'>
 }
 
-type VincodeRedisApi = import('./features/redis/model/redis-types').RedisApi
+type VincodeRedisApi = import('./bridge').RedisApi
 
 interface Window {
   vincodeLab: {

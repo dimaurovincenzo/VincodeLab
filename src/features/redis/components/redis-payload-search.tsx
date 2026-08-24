@@ -1,10 +1,11 @@
 import { Search, Square, TextSearch } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { RedisPayloadMatch, RedisPayloadSearchProgress } from '@/bridge'
 import { Button, ErrorNotice, Field, Progress, SelectField, Spinner } from '@/components/ui'
 import { EmptyState } from '@/components/empty-state'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
 import { redisApi } from '../api/redis.bridge'
-import { redisKeyTypes, redisTypeLabel, type RedisKeyTypeFilter, type RedisPayloadMatch, type RedisPayloadSearchProgress } from '../model/redis-types'
+import { redisKeyTypes, redisTypeLabel, type RedisKeyTypeFilter } from '../model/redis-types'
 import { redisStyles as rs, redisTypeBadge } from '@/theme/styles/redis'
 
 type Props = {

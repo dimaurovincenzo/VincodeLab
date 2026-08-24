@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
+import type { RedisConnection, RedisInspection, RedisPayloadMatch } from '@/bridge'
 import type { ConfirmationRequest } from '@/components/confirmation-dialog'
 import type { UserError } from '@/lib/user-error'
 import {
@@ -8,10 +9,7 @@ import {
   type RedisSessionRecovery,
 } from '../model/redis-workspace'
 import type {
-  RedisConnection,
-  RedisInspection,
   RedisKeyTypeFilter,
-  RedisPayloadMatch,
   RedisWorkspaceSession,
 } from '../model/redis-types'
 

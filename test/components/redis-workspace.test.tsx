@@ -2,9 +2,9 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { StrictMode } from 'react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { RedisApi, RedisPayloadSearchProgress, RedisPayloadSearchResult } from '@/bridge'
 import { RedisWorkspace } from '@/features/redis'
 import { toast } from '@/components/ui'
-import type { RedisApi, RedisPayloadSearchProgress, RedisPayloadSearchResult } from '@/features/redis'
 
 const connection = { id: 'redis-local', name: 'Redis locale', mode: 'standalone' as const, host: '127.0.0.1', port: 6379, database: 0, hasPassword: false }
 const keyRef = (key: string) => btoa(key)

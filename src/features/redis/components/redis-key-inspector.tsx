@@ -1,8 +1,9 @@
 import { Braces, Database, RefreshCw } from 'lucide-react'
 import { memo } from 'react'
+import type { RedisInspection } from '@/bridge'
 import { Button, ErrorNotice, Spinner, Tabs } from '@/components/ui'
 import { EmptyState } from '@/components/empty-state'
-import { redisTypeLabel, type RedisInspection } from '../model/redis-types'
+import { redisTypeLabel } from '../model/redis-types'
 import type { UserError } from '@/lib/user-error'
 import { redisStyles as rs, redisTypeBadge } from '@/theme/styles/redis'
 

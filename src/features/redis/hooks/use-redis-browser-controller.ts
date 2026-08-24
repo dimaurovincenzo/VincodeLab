@@ -1,11 +1,7 @@
 import { useCallback } from 'react'
+import type { RedisApi, RedisKeySummary, RedisPayloadMatch } from '@/bridge'
 import { MAX_REDIS_SCAN_HISTORY_PAGES, mergeRedisInspection } from '../model/redis-workspace'
-import type {
-  RedisApi,
-  RedisKeySummary,
-  RedisKeyTypeFilter,
-  RedisPayloadMatch,
-} from '../model/redis-types'
+import type { RedisKeyTypeFilter } from '../model/redis-types'
 import { reportRedisFailure } from '../services/redis-error'
 import type { RedisWorkspaceState } from './use-redis-workspace-state'
 

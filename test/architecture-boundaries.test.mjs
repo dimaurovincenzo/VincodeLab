@@ -35,6 +35,18 @@ test('blocca import profondi tra feature', () => {
   }, (problems) => assert.ok(problems.some((problem) => problem.includes('import profondo'))))
 })
 
+test('analizza anche le dipendenze espresse con ImportTypeNode TypeScript', () => {
+  withFixture({
+    'src/app/query.types.ts': "export type Query = import('../features/database/model/query').Query\n",
+    'src/features/database/model/query.ts': 'export type Query = { sql: string }\n',
+    'src/bridge/contracts/redis-leak.types.ts': "export type RedisApi = import('../../features/redis/model/redis-types').RedisApi\n",
+    'src/features/redis/model/redis-types.ts': 'export type RedisApi = { scan(): void }\n',
+  }, (problems) => {
+    assert.ok(problems.some((problem) => problem.includes('src/app/query.types.ts: import profondo da modulo')))
+    assert.ok(problems.some((problem) => problem.includes('src/bridge/contracts/redis-leak.types.ts: bridge dipende da UI o feature')))
+  })
+})
+
 test('obbliga ogni consumer esterno a usare gli ingressi pubblici di feature, UI e bridge', () => {
   withFixture({
     'src/app/shell.ts': [

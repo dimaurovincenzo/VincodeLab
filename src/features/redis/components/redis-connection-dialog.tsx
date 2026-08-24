@@ -1,8 +1,8 @@
 import { CheckCircle2, PlugZap, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Button, Checkbox, Dialog, ErrorNotice, Field, IconButton, SelectField, Spinner } from '@/components/ui'
+import type { RedisConnection, RedisConnectionInput, RedisConnectionTestResult } from '@/bridge'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
-import type { RedisConnection, RedisConnectionInput, RedisConnectionTestResult } from '../model/redis-types'
 import { redisStyles as rs } from '@/theme/styles/redis'
 
 type Props = {

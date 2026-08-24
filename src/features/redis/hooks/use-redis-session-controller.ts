@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react'
-import type { RedisApi, RedisConnection, RedisConnectionInput, RedisWorkspaceSession } from '../model/redis-types'
+import type { RedisApi, RedisConnection, RedisConnectionInput } from '@/bridge'
+import type { RedisWorkspaceSession } from '../model/redis-types'
 import { reportRedisFailure } from '../services/redis-error'
 import type { RedisBrowserController } from './use-redis-browser-controller'
 import type { RedisWorkspaceState } from './use-redis-workspace-state'

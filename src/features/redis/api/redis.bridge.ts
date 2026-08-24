@@ -1,5 +1,4 @@
-import { bridgeNamespace, getVincodeLabBridge } from '@/bridge'
-import type { RedisApi } from '../model/redis-types'
+import { bridgeNamespace, getVincodeLabBridge, type RedisApi } from '@/bridge'
 
 export const redisBridge = {
   get contextMenu() { return getVincodeLabBridge().contextMenu },
