@@ -12,10 +12,9 @@ const {
   createProjectFileActions,
 } = require('./project-file-actions.cjs')
 const {
-  readProjectFile,
-  readProjectPreview,
   saveProjectFile,
 } = require('./project-file-content.cjs')
+const { createProjectFileReader } = require('./project-file-reader.cjs')
 const { createProjectFileIndex } = require('./project-file-index.cjs')
 const {
   isEditorVisibleFile,
@@ -30,10 +29,9 @@ module.exports = {
   createProjectFile,
   createProjectFileActions,
   createProjectFileIndex,
+  createProjectFileReader,
   duplicateProjectEntry,
   isEditorVisibleFile,
-  readProjectFile,
-  readProjectPreview,
   renameProjectEntry,
   resolveProjectDirectory,
   resolveProjectFile,

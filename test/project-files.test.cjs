@@ -10,10 +10,9 @@ const {
   createProjectDirectoryListing,
   createProjectFile,
   createProjectFileActions,
+  createProjectFileReader,
   duplicateProjectEntry,
   isEditorVisibleFile,
-  readProjectFile,
-  readProjectPreview,
   renameProjectEntry,
   resolveProjectDirectory,
   saveProjectFile,
@@ -24,6 +23,9 @@ const {
 const {
   createProjectFileActionsFilesystemAdapter,
 } = require('../electron/infrastructure/filesystem/project-file-actions-filesystem.adapter.cjs')
+const {
+  createProjectFileReaderFilesystemAdapter,
+} = require('../electron/infrastructure/filesystem/project-file-reader-filesystem.adapter.cjs')
 
 const { listProjectFiles } = createProjectDirectoryListing(createProjectDirectoryListingFilesystemAdapter())
 const {
@@ -31,16 +33,22 @@ const {
   revealProjectDirectory,
   revealProjectFile,
 } = createProjectFileActions(createProjectFileActionsFilesystemAdapter())
+const {
+  readProjectFile,
+  readProjectPreview,
+} = createProjectFileReader(createProjectFileReaderFilesystemAdapter())
 
 test('il percorso IPC del file explorer usa soltanto scansione e letture asincrone', () => {
   const source = [
     '../electron/domains/filesystem/project-directory-listing.cjs',
     '../electron/infrastructure/filesystem/project-directory-listing-filesystem.adapter.cjs',
-    '../electron/domains/filesystem/project-file-content.cjs',
+    '../electron/domains/filesystem/project-file-reader.cjs',
+    '../electron/infrastructure/filesystem/project-file-reader-filesystem.adapter.cjs',
   ].map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8')).join('\n')
   assert.doesNotMatch(source, /readdirSync/)
   assert.doesNotMatch(source, /readFileSync/)
   assert.match(source, /fs\.promises\.opendir/)
+  assert.match(source, /fs\.promises\.open/)
   assert.match(source, /async function readProjectFile/)
   assert.match(source, /async function readProjectPreview/)
 })

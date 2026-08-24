@@ -47,6 +47,9 @@ const projectFilesystemIsolatedDomains = new Map([
   ['electron/domains/filesystem/project-directory-listing.cjs', 'Elenco directory progetto'],
   ['electron/domains/filesystem/project-file-actions-host.port.cjs', 'Porta host azioni file progetto'],
   ['electron/domains/filesystem/project-file-actions.cjs', 'Azioni file progetto'],
+  ['electron/domains/filesystem/project-file-reader-host.port.cjs', 'Porta host lettura file progetto'],
+  ['electron/domains/filesystem/project-file-reader.cjs', 'Lettura file progetto'],
+  ['electron/domains/filesystem/project-file-revision.cjs', 'Revisione file progetto'],
 ])
 const projectFileIndexIsolatedDomains = new Map([
   ['electron/domains/filesystem/project-file-index-host.port.cjs', 'Porta host Indice file progetto'],

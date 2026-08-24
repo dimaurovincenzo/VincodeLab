@@ -1,8 +1,8 @@
 const fs = require('node:fs')
 const path = require('node:path')
-const { createHash } = require('node:crypto')
 const { createPublicError } = require('../errors/public-error.cjs')
 const { writeFileAtomic } = require('./file-utils.cjs')
+const { createFileRevision } = require('./project-file-revision.cjs')
 const {
   assertEditorAccessibleFile,
   assertEditorAccessiblePath,
@@ -11,23 +11,7 @@ const {
 } = require('./project-path-model.cjs')
 
 const MAX_FILE_SIZE = 1_000_000
-const MAX_PREVIEW_FILE_SIZE = 8 * 1024 * 1024
 const FILE_REVISION_PATTERN = /^v1-[A-Za-z0-9_-]{43}$/u
-const PREVIEW_MIME_TYPES = new Map([
-  ['png', 'image/png'], ['jpg', 'image/jpeg'], ['jpeg', 'image/jpeg'], ['gif', 'image/gif'], ['webp', 'image/webp'], ['pdf', 'application/pdf'],
-])
-
-function createFileRevision(buffer, stats) {
-  const digest = createHash('sha256')
-    .update('vincodelab-project-file-v1\0')
-    .update(buffer)
-    .update('\0')
-    .update(String(stats.size))
-    .update('\0')
-    .update(String(Math.round(stats.mtimeMs * 1_000)))
-    .digest('base64url')
-  return `v1-${digest}`
-}
 
 function externalFileConflict() {
   return createPublicError(
@@ -40,10 +24,6 @@ function isExternalFileStateError(error) {
   if (!error || typeof error !== 'object') return false
   if (error.code === 'ENOENT' || error.code === 'ELOOP') return true
   return /File non trovato|link simbolici|non è un file regolare|cambiato durante la lettura/u.test(error.message ?? '')
-}
-
-function isTextBuffer(buffer) {
-  return !buffer.includes(0)
 }
 
 async function readBoundedFile(filePath, maxSize, tooLargeMessage) {
@@ -75,23 +55,6 @@ async function readBoundedFile(filePath, maxSize, tooLargeMessage) {
   } finally {
     await handle.close()
   }
-}
-
-async function readProjectFile(workspacePath, fileId) {
-  const filePath = resolveProjectFile(workspacePath, fileId)
-  const { buffer, revision, size } = await readBoundedFile(filePath, MAX_FILE_SIZE, 'Il file supera 1 MiB e non può essere aperto nell’editor.')
-  if (!isTextBuffer(buffer)) throw new Error('Il file sembra binario e non può essere aperto nell’editor.')
-  return { id: fileId, name: path.basename(filePath), content: buffer.toString('utf8'), revision, size }
-}
-
-async function readProjectPreview(workspacePath, fileId) {
-  const filePath = resolveProjectFile(workspacePath, fileId)
-  const extension = path.extname(filePath).slice(1).toLowerCase()
-  const mimeType = PREVIEW_MIME_TYPES.get(extension)
-  if (!mimeType) throw new Error('Questo formato non supporta l’anteprima.')
-  const { buffer, size } = await readBoundedFile(filePath, MAX_PREVIEW_FILE_SIZE, 'Il file supera 8 MiB e non può essere visualizzato in anteprima.')
-  const content = buffer.toString('base64')
-  return { id: fileId, name: path.basename(filePath), kind: mimeType === 'application/pdf' ? 'pdf' : 'image', content: `data:${mimeType};base64,${content}`, size }
 }
 
 function resolveProjectFileForForcedSave(workspacePath, fileId) {
@@ -161,4 +124,4 @@ async function saveProjectFile(workspacePath, fileId, content, options) {
   return { id: fileId, revision: saved.revision, size: saved.size }
 }
 
-module.exports = { createFileRevision, readProjectFile, readProjectPreview, saveProjectFile }
+module.exports = { createFileRevision, saveProjectFile }

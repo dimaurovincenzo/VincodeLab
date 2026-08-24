@@ -405,6 +405,32 @@ test('mantiene filesystem e resolver concreto fuori dalle azioni file progetto e
   })
 })
 
+test('mantiene filesystem e resolver concreto fuori da reader, porta e revisione file progetto', () => {
+  withFixture({
+    'electron/domains/filesystem/project-file-reader.cjs': [
+      "require('node:fs')",
+      "require('node:path')",
+      "require('./project-path-model.cjs')",
+    ].join('\n'),
+    'electron/domains/filesystem/project-file-reader-host.port.cjs': [
+      "require('fs/promises')",
+      "require('path')",
+    ].join('\n'),
+    'electron/domains/filesystem/project-file-revision.cjs': [
+      "require('node:fs/promises')",
+      "require('node:path')",
+    ].join('\n'),
+    'electron/domains/filesystem/project-path-model.cjs': 'module.exports = {}\n',
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('dominio Lettura file progetto dipende direttamente')).length, 2)
+    assert.equal(problems.filter((problem) => problem.includes('dominio Porta host lettura file progetto')).length, 2)
+    assert.equal(problems.filter((problem) => problem.includes('dominio Revisione file progetto')).length, 2)
+    assert.equal(problems.filter((problem) => problem.includes('dominio Lettura file progetto dipende dal resolver path concreto')).length, 1)
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "path"')))
+  })
+})
+
 test('mantiene processi host ed Electron fuori dal dominio Menu', () => {
   withFixture({
     'electron/domains/menu/runtime.cjs': [
