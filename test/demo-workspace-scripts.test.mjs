@@ -144,6 +144,9 @@ test('espone opzioni bounded e un manifesto stabile per gli screenshot reali', (
   }
   const terminalPreparation = screenshotPreparationExpression('terminal')
   assert.ok(terminalPreparation.indexOf("includes('vincodelab-demo')") < terminalPreparation.indexOf("'npm run check\\r'"))
+  const databasePreparation = screenshotPreparationExpression('database')
+  assert.ok(databasePreparation.indexOf("=== 'Connetti'") < databasePreparation.indexOf("=== 'Disconnetti'"))
+  assert.match(databasePreparation, /connessione SQLite pronta/u)
   const captureSource = fs.readFileSync(path.join(process.cwd(), 'scripts', 'capture-app-screenshots.mjs'), 'utf8')
   const fixtureSource = fs.readFileSync(path.join(process.cwd(), 'scripts', 'lib', 'app-screenshots', 'runtime-fixture.mjs'), 'utf8')
   assert.match(fixtureSource, /1 test passed/)

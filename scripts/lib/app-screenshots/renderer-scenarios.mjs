@@ -130,7 +130,14 @@ export function screenshotPreparationExpression(id) {
   `)
   if (id === 'database') return navigationExpression('Database', `
     const workspace = await waitFor(() => document.querySelector('[aria-label="Database workspace"]'), 'workspace Database')
-    await waitFor(() => workspace.getAttribute('aria-busy') === 'false' && workspace.querySelector('[aria-label="Editor SQL"] .cm-content'), 'connessione SQLite')
+    await waitFor(() => workspace.getAttribute('aria-busy') === 'false' && workspace.querySelector('[aria-label="Editor SQL"] .cm-content'), 'editor SQLite')
+    const connect = await waitFor(() => [...workspace.querySelectorAll('button')]
+      .find((element) => element.textContent?.trim() === 'Connetti' && !element.disabled), 'comando Connetti Database')
+    connect.click()
+    await waitFor(() => [...workspace.querySelectorAll('button')]
+      .some((element) => element.textContent?.trim() === 'Disconnetti' && !element.disabled)
+      && [...workspace.querySelectorAll('button')]
+        .some((element) => element.textContent?.trim().includes('Esegui') && !element.disabled), 'connessione SQLite pronta')
     workspace.querySelector('[aria-label="Editor SQL"] .cm-content').focus()
   `)
   if (id === 'settings') return navigationExpression('Impostazioni', `
