@@ -24,6 +24,7 @@ function fixture() {
     stop: async () => ({ stopped: true }),
   }
   const runtime = createPiRuntime({
+    attachmentPreparer: (filePath) => ({ absolutePath: filePath, name: 'allegato' }),
     createPublicError: (code, message) => Object.assign(new Error(message), { code }),
     createSessionController: () => controller,
     environmentForExecutable: () => ({}),

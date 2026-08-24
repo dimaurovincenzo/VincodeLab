@@ -19,7 +19,7 @@ const { createFatalErrorExperience } = require('./app/fatal-error-experience.cjs
 const { installNavigationGuards } = require('./infrastructure/security/ipc-security.adapter.cjs')
 const { createPublicError, toPublicErrorMessage } = require('./domains/errors/public-error.cjs')
 const { environmentForPi, resolvePiExecutable: findPiExecutable } = require('./infrastructure/processes/pi-executable.adapter.cjs')
-const { prepareTerminalAttachment } = require('./domains/ai/terminal-attachments.cjs')
+const { prepareTerminalAttachment } = require('./infrastructure/filesystem/terminal-attachment.adapter.cjs')
 const { MAX_PASTE_BYTES } = require('./domains/terminal/terminal-input.cjs')
 const { createTerminalDiagnosticsReport, sanitizeRendererMetrics } = require('./domains/terminal/terminal-diagnostics.cjs')
 const { createSystemSkill, deleteSystemSkill, getSystemSkill, listSystemSkills, updateSystemSkill } = require('./domains/ai/system-skills.cjs')
@@ -330,6 +330,7 @@ const contextCommandRuntime = createContextCommandRuntime({
 const dispatchContextMenuCommand = contextCommandRuntime.dispatch
 
 const piRuntime = createPiRuntime({
+  attachmentPreparer: prepareTerminalAttachment,
   createPublicError,
   environmentForExecutable: environmentForPiExecutable,
   getHomePath: () => applicationHomePath,

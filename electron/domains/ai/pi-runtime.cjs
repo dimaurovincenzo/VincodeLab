@@ -1,12 +1,11 @@
 const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
 const { createPiSessionController } = require('./pi-session-controller.cjs')
 const { safeKillPty } = require('../terminal/pty-lifecycle.cjs')
-const { prepareTerminalAttachment } = require('./terminal-attachments.cjs')
 const { createTerminalInputController } = require('../terminal/terminal-input.cjs')
 const { createTerminalStreamController } = require('../terminal/terminal-stream-controller.cjs')
 
 function createPiRuntime({
-  attachmentPreparer = prepareTerminalAttachment,
+  attachmentPreparer,
   createPublicError,
   createInputController = createTerminalInputController,
   createSessionController = createPiSessionController,
@@ -29,6 +28,7 @@ function createPiRuntime({
   if (typeof isProcessAlive !== 'function') throw new Error('Verifica processo runtime Pi non valida.')
   if (typeof resolveExecutable !== 'function') throw new Error('Resolver eseguibile runtime Pi non valido.')
   if (typeof resolveLaunchCandidates !== 'function') throw new Error('Resolver lancio Terminale AI non valido.')
+  if (typeof attachmentPreparer !== 'function') throw new Error('Porta allegati Terminale AI non valida.')
   let configProcess
   let configExit
 

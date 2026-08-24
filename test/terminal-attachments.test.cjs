@@ -4,7 +4,7 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { prepareTerminalAttachment } = require('../electron/domains/ai/terminal-attachments.cjs')
+const { prepareTerminalAttachment } = require('../electron/infrastructure/filesystem/terminal-attachment.adapter.cjs')
 
 test('prepara solo file reali leggibili e restituisce metadata minimi', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'vincode-terminal-'))
