@@ -1,24 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import {
-  clearCachedEditorStateForFile,
   editorDocumentForTab,
   editorDraftIdentity,
   editorStateKey,
-  editorTabCloseTargets,
-  editorWorkbenchCycleDirection,
-  filterEditorTree,
-  findProjectTreeEntry,
-  gitStatusMap,
-  mergeRefreshedProjectEntries,
   parseCsvPreview,
   previewKindForFile,
+  sessionFileRef,
+} from '@/features/editor/model/editor-document'
+import { editorTabCloseTargets, editorWorkbenchCycleDirection } from '@/features/editor/model/editor.commands'
+import { gitStatusMap } from '@/features/editor/model/editor-git'
+import { clearCachedEditorStateForFile } from '@/features/editor/model/editor-state'
+import {
+  filterEditorTree,
+  findProjectTreeEntry,
+  mergeRefreshedProjectEntries,
   projectEntriesOverlap,
   removeProjectTreeEntry,
   renameProjectTreeEntry,
-  sessionFileRef,
   toEditorTreeNodes,
-  type EditorTab,
-} from '@/features/editor'
+} from '@/features/editor/model/editor-tree'
+import type { EditorTab } from '@/features/editor/model/editor.types'
 
 const tree: ProjectFileTreeNode[] = [
   {

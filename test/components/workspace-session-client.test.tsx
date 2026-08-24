@@ -5,7 +5,7 @@ import {
   createWorkspaceSessionClient,
   normalizeWorkspaceSessionState,
   type WorkspaceSessionStorage,
-} from '@/features/workspace'
+} from '@/features/workspace/model/workspace-session'
 
 function storedSnapshot(state = createDefaultWorkspaceSessionState(), updatedAt: number | null = 1): WorkspaceSessionSnapshot {
   return { version: 2, state, updatedAt }

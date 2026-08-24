@@ -9,7 +9,7 @@ import {
   preferenceEnumLabels,
   preferenceSectionLabels,
   systemSkillDraftIdentity,
-} from '@/features/settings'
+} from '@/features/settings/model/settings-model'
 
 describe('settings model', () => {
   it('normalizza le sorgenti dei pacchetti senza alterare Git e percorsi locali', () => {

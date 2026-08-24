@@ -4,7 +4,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { NumberPreferenceInput, Settings } from '@/features/settings'
+import { Settings } from '@/features/settings'
+import { NumberPreferenceInput } from '@/features/settings/components/number-preference-input'
 import { publishAppPreferences, setAppPreferencesWorkspace } from '@/lib/app-preferences'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 

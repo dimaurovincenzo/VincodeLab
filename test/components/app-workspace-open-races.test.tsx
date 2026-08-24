@@ -6,7 +6,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createDefaultWorkspaceSessionState } from '@/features/workspace'
+import { createDefaultWorkspaceSessionState } from '@/features/workspace/model/workspace-session'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 
 const editorGuardHarness = vi.hoisted(() => ({

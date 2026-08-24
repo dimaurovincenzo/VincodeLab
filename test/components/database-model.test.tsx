@@ -3,7 +3,6 @@ import {
   connectionDraftFor,
   connectionDraftIdentity,
   connectionInput,
-  databaseBridge,
   databaseDriverLabel,
   defaultConnectionDraft,
   defaultDatabasePort,
@@ -14,7 +13,8 @@ import {
   sqlDraftIdentity,
   tableLabel,
   tableSchemaName,
-} from '@/features/database'
+} from '@/features/database/model/database-connections'
+import { databaseBridge } from '@/features/database/api/database.bridge'
 
 describe('database connection model', () => {
   it('costruisce draft e input SQLite con un nome utile', () => {
