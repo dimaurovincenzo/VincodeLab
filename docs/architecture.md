@@ -86,7 +86,7 @@ Il controller della vista, il modello puro, i tipi di dominio, l'input numerico 
 
 `electron/github-service.cjs` separa operazioni Git locali da richieste effettuate con GitHub CLI. L'area GitHub usa esclusivamente il repository associato al workspace attivo. Registri dedicati gestiscono annullamento e appartenenza delle operazioni lunghe.
 
-Nel renderer `src/features/git/` espone soltanto le operazioni sul repository locale, mentre `src/features/github/` possiede il controller canonico di repository remoti, issue e Projects. I feedback presentazionali riusabili sono separati dal controller; il vecchio path della vista è una facciata. I due adapter risolvono il bridge Electron al momento di ogni invocazione e impediscono alla UI di dipendere direttamente da `window.vincodeLab`; questa separazione resta valida anche finché il preload mantiene entrambe le capacità nello stesso namespace storico `github`.
+Nel renderer `src/features/git/` espone soltanto le operazioni sul repository locale, mentre `src/features/github/` possiede il controller canonico di repository remoti, issue e Projects. Ricerca, conteggi, gerarchia e copy dei limiti sono funzioni pure nel model; i feedback presentazionali riusabili sono separati dal controller e il vecchio path della vista è una facciata. I due adapter risolvono il bridge Electron al momento di ogni invocazione e impediscono alla UI di dipendere direttamente da `window.vincodeLab`; questa separazione resta valida anche finché il preload mantiene entrambe le capacità nello stesso namespace storico `github`.
 
 ### Database
 

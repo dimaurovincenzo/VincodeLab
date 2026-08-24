@@ -501,9 +501,10 @@ test('GitHub separa il grafo e presenta i Projects del workspace in una tabella 
 
 test('la board Project rende le sub-issue nella gerarchia del rispettivo padre', () => {
   const component = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const projectsModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-projects.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
-  assert.match(component, /function orderProjectItemsByHierarchy\(items: GitHubProjectItem\[\]\)/)
+  assert.match(projectsModel, /function orderProjectItemsByHierarchy\(items: GitHubProjectItem\[\]\)/)
   assert.match(component, /orderProjectItemsByHierarchy\(items\)\.map\(\(\{ item, depth \}\)/)
   assert.match(component, /gh\.projectTitle\(\{ subissue: depth > 0 \}\)/)
   assert.match(component, /Sub-issue di #\{item\.parent\.number\}/)
@@ -512,10 +513,11 @@ test('la board Project rende le sub-issue nella gerarchia del rispettivo padre',
 
 test('Project GitHub comunica il caricamento e cerca le attività per numero issue', () => {
   const component = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const projectsModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-projects.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
-  assert.match(component, /function matchesProjectItemSearch\(item: GitHubProjectItem, query: string\)/)
-  assert.match(component, /item\.content\?\.number === Number\(numeric\)/)
+  assert.match(projectsModel, /function matchesProjectItemSearch\(item: GitHubProjectItem, query: string\)/)
+  assert.match(projectsModel, /item\.content\?\.number === Number\(numeric\)/)
   assert.match(component, /const \[loadingBoard, setLoadingBoard\] = useState\(false\)/)
   assert.match(component, /aria-busy=\{loadingBoard\}/)
   assert.match(component, /Caricamento Project…/)
@@ -661,21 +663,22 @@ test('le superfici laterali condividono resize accessibile e persistente', () =>
 })
 
 test('la board GitHub tollera campi restituiti senza metadati testuali', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const projectsModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-projects.ts'), 'utf8')
 
-  assert.match(github, /function projectFieldDataType\(field: GitHubProjectField\)/)
-  assert.match(github, /typeof field\.dataType === 'string' \? field\.dataType\.toLowerCase\(\) : ''/)
-  assert.match(github, /function projectFieldName\(field: GitHubProjectField\)/)
-  assert.match(github, /typeof field\.name === 'string' \? field\.name\.toLocaleLowerCase\('it-IT'\) : ''/)
+  assert.match(projectsModel, /function projectFieldDataType\(field: GitHubProjectField\)/)
+  assert.match(projectsModel, /typeof field\.dataType === 'string' \? field\.dataType\.toLowerCase\(\) : ''/)
+  assert.match(projectsModel, /function projectFieldName\(field: GitHubProjectField\)/)
+  assert.match(projectsModel, /typeof field\.name === 'string' \? field\.name\.toLocaleLowerCase\('it-IT'\) : ''/)
 })
 
 test('GitHub espone la freschezza cache e aggiorna senza bloccare dati disponibili', () => {
   const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const displayModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-display.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
   assert.match(github, /gitBridge\.gitStatus\(\{ force \}\)/)
   assert.match(github, /githubBridge\.data\(\{ force \}\)/)
-  assert.match(github, /if \(cache\.stale\) return 'Dati non aggiornati'/)
+  assert.match(displayModel, /if \(cache\.stale\) return 'Dati non aggiornati'/)
   assert.match(github, /void refreshGitRef\.current\(true\)/)
   assert.match(styles, /cacheState:\s*cva\([\s\S]*?color:\s*'textSecondary'/)
   assert.match(styles, /stale:\s*\{\s*true:\s*\{\s*color:\s*'accentText'/)
@@ -684,15 +687,17 @@ test('GitHub espone la freschezza cache e aggiorna senza bloccare dati disponibi
 test('GitHub comunica ogni limite bounded e riferisce le azioni di gruppo ai file visibili', () => {
   const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const feedback = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-feedback.tsx'), 'utf8')
+  const projectsModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-projects.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
   const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
+  const boundedSources = `${github}\n${projectsModel}`
 
   for (const flag of [
     'filesHasMore', 'filesTruncated', 'graphHasMore', 'graphTruncated',
     'issuesHasMore', 'issuesTruncated', 'bodyTruncated', 'labelsHasMore',
     'projectsHasMore', 'projectsTruncated', 'fieldsHasMore', 'fieldsTruncated',
     'fieldOptionsTruncated', 'itemsHasMore', 'itemsTruncated', 'itemValuesTruncated',
-  ]) assert.match(github, new RegExp(flag))
+  ]) assert.match(boundedSources, new RegExp(flag))
   assert.match(github, /Aggiungi i \{stageable\.length\} file visibili consentiti/)
   assert.match(github, /Rimuovi i \{staged\.length\} file visibili/)
   assert.match(github, /Le azioni di gruppo agiscono solo sui file mostrati/)
@@ -1170,11 +1175,12 @@ test('Modifiche GitHub usa un workbench master detail senza cronologia duplicata
 
 test('Issue GitHub usa ricerca numerica e compositore modale', () => {
   const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const issuesModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-issues.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
-  assert.match(github, /function matchesIssueSearch\(issue: GitHubIssue, query: string\)/)
-  assert.match(github, /normalized\.match\(\/\^#\?\(\\d\+\)\$\/\)/)
-  assert.match(github, /issue\.number === Number\(numeric\)/)
+  assert.match(issuesModel, /function matchesIssueSearch\(issue: GitHubIssue, query: string\)/)
+  assert.match(issuesModel, /normalized\.match\(\/\^#\?\(\\d\+\)\$\/\)/)
+  assert.match(issuesModel, /issue\.number === Number\(numeric\)/)
   assert.match(github, /const \[issueComposerOpen, setIssueComposerOpen\] = useState\(false\)/)
   assert.match(github, /className=\{cx\(gh\.modalContent, gh\.issueModal\)\}/)
   assert.match(github, />Nuova issue<\/Button>/)

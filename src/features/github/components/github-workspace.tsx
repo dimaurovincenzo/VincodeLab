@@ -6,6 +6,17 @@ import { EmptyState } from '@/components/empty-state'
 import { MarkdownPreview } from '@/components/markdown-preview'
 import { gitBridge } from '@/features/git'
 import { githubBridge } from '../api/github.bridge'
+import { formatCacheState, formatDate } from '../model/github-display'
+import { issueStateCounts, visibleGitHubIssues } from '../model/github-issues'
+import {
+  groupProjectItems,
+  matchesProjectItemSearch,
+  orderProjectItemsByHierarchy,
+  projectBoardLimitMessages,
+  projectFieldDataType,
+  projectFieldName,
+  projectStatusCounts,
+} from '../model/github-projects'
 import { GitHubErrorNotice, LimitNotice } from './github-feedback'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
 import { layoutGitGraph } from '@/lib/git-graph'
@@ -104,75 +115,8 @@ function sameUserError(left: UserError | undefined, right: UserError) {
     && left.title === right.title)
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('it-IT', { dateStyle: 'medium' }).format(new Date(value))
-}
-
-function formatCacheState(cache: CacheMetadata | null) {
-  if (!cache) return null
-  if (cache.stale) return 'Dati non aggiornati'
-  const minutes = Math.max(0, Math.floor((Date.now() - cache.fetchedAt) / 60_000))
-  return minutes === 0 ? 'Aggiornato ora' : `Aggiornato ${minutes} min fa`
-}
-
-function matchesIssueSearch(issue: GitHubIssue, query: string) {
-  const normalized = query.trim().toLocaleLowerCase('it-IT')
-  const numeric = normalized.match(/^#?(\d+)$/)?.[1]
-  if (numeric) return issue.number === Number(numeric)
-  return !normalized || [issue.title, issue.body ?? '', ...issue.labels.map((label) => label.name)]
-    .some((value) => value.toLocaleLowerCase('it-IT').includes(normalized))
-}
-
-function matchesProjectItemSearch(item: GitHubProjectItem, query: string) {
-  const normalized = query.trim().toLocaleLowerCase('it-IT')
-  const numeric = normalized.match(/^#?(\d+)$/)?.[1]
-  if (numeric) return item.content?.number === Number(numeric)
-  const searchableValues = [
-    item.content?.title ?? item.title ?? '',
-    item.status ?? '',
-    ...(item.assignees ?? []),
-    ...Object.values(item.fieldValues ?? {}),
-  ]
-  return !normalized || searchableValues.some((value) => String(value).toLocaleLowerCase('it-IT').includes(normalized))
-}
-
-function projectFieldDataType(field: GitHubProjectField) {
-  return typeof field.dataType === 'string' ? field.dataType.toLowerCase() : ''
-}
-
-function projectFieldName(field: GitHubProjectField) {
-  return typeof field.name === 'string' ? field.name.toLocaleLowerCase('it-IT') : ''
-}
-
 function projectStatusClass(status: unknown) {
   return githubProjectStatus({ tone: githubProjectStatusTone(status) })
-}
-
-function projectIssueKey(item: GitHubProjectItem) {
-  const number = item.content?.number
-  return Number.isInteger(number) ? `${item.content?.repository ?? ''}#${number}` : ''
-}
-
-function orderProjectItemsByHierarchy(items: GitHubProjectItem[]) {
-  const itemKeys = new Set(items.map(projectIssueKey).filter(Boolean))
-  const childrenByParent = new Map<string, GitHubProjectItem[]>()
-  const roots: GitHubProjectItem[] = []
-  for (const item of items) {
-    const parentKey = item.parent ? `${item.parent.repository ?? item.content?.repository ?? ''}#${item.parent.number}` : ''
-    if (parentKey && itemKeys.has(parentKey)) childrenByParent.set(parentKey, [...(childrenByParent.get(parentKey) ?? []), item])
-    else roots.push(item)
-  }
-  const ordered: Array<{ item: GitHubProjectItem; depth: number }> = []
-  const visited = new Set<string>()
-  const visit = (item: GitHubProjectItem, depth: number) => {
-    if (visited.has(item.id)) return
-    visited.add(item.id)
-    ordered.push({ item, depth })
-    for (const child of childrenByParent.get(projectIssueKey(item)) ?? []) visit(child, depth + 1)
-  }
-  for (const item of roots) visit(item, 0)
-  for (const item of items) visit(item, 0)
-  return ordered
 }
 
 export function GitHubWorkspace({ active, workspace, initialState, workbenchRequest = null, onContextChange, onOpenFile, onSessionChange }: Props) {
@@ -1012,23 +956,12 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
     return matchesProjectItemSearch(item, boardSearch)
       && (!boardStatusFilter || item.status === boardStatusFilter)
   }) ?? []
-  const boardGroups = new Map<string, GitHubProjectItem[]>()
-  for (const item of boardItems) {
-    const groupName = activeBoardGroupFieldId ? item.fieldValues?.[activeBoardGroupFieldId] ?? (activeBoardGroupFieldId === boardStatusField?.id ? item.status : '') : ''
-    const label = String(groupName || (activeBoardGroupField ? 'Senza gruppo' : 'Tutte le attività'))
-    boardGroups.set(label, [...(boardGroups.get(label) ?? []), item])
-  }
-  const boardStatusCounts = new Map<string, number>()
-  for (const item of board?.items ?? []) {
-    const statusName = String(item.status || 'Senza stato')
-    boardStatusCounts.set(statusName, (boardStatusCounts.get(statusName) ?? 0) + 1)
-  }
+  const boardGroups = groupProjectItems(boardItems, activeBoardGroupFieldId, activeBoardGroupField, boardStatusField)
+  const boardStatusCounts = projectStatusCounts(board?.items ?? [])
   const boardHasFilters = Boolean(boardSearch.trim() || boardStatusFilter)
   const graphRows = layoutGitGraph((status?.graph ?? []).slice(0, historyLimit))
-  const issueCounts = (data?.issues ?? []).reduce((counts, issue) => ({ ...counts, [issue.state]: (counts[issue.state] ?? 0) + 1 }), {} as Record<string, number>)
-  const visibleIssues = (data?.issues ?? []).filter((issue) => {
-    return matchesIssueSearch(issue, issueSearch) && (issueStateFilter === 'all' || issue.state === issueStateFilter)
-  })
+  const issueCounts = issueStateCounts(data?.issues ?? [])
+  const visibleIssues = visibleGitHubIssues(data?.issues ?? [], issueSearch, issueStateFilter)
   const branches = branchPage.branches
   const branchesLimited = branchPage.hasMore || branchPage.truncated
   const filesLimited = status?.filesHasMore === true || status?.filesTruncated === true
@@ -1038,14 +971,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
   const projectsLimited = data?.projectsHasMore === true || data?.projectsTruncated === true
   const githubResultLimited = data?.hasMore === true || data?.truncated === true
   const boardResultLimited = board?.hasMore === true || board?.truncated === true
-  const boardLimitMessages: string[] = []
-  if (board?.fieldsHasMore) boardLimitMessages.push('Sono mostrati solo i primi campi disponibili.')
-  if (board?.fieldOptionsTruncated) boardLimitMessages.push('Alcune opzioni dei campi sono state abbreviate.')
-  if (board?.fieldsTruncated && !board.fieldsHasMore && !board.fieldOptionsTruncated) boardLimitMessages.push('I campi della board sono parziali.')
-  if (board?.itemsHasMore) boardLimitMessages.push('Sono mostrate solo le prime attività disponibili.')
-  if (board?.itemValuesTruncated) boardLimitMessages.push('Alcuni valori delle attività sono stati abbreviati.')
-  if (board?.itemsTruncated && !board.itemsHasMore && !board.itemValuesTruncated) boardLimitMessages.push('Le attività della board sono parziali.')
-  if (boardResultLimited && boardLimitMessages.length === 0) boardLimitMessages.push('La board contiene altri dati non inclusi in questa vista.')
+  const boardLimitMessages = projectBoardLimitMessages(board)
   const activeResultLimited = tab === 'changes'
     ? (filesLimited || branchesLimited || gitResultLimited)
     : tab === 'graph'
