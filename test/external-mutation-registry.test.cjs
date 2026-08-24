@@ -4,6 +4,7 @@ const path = require('node:path')
 const test = require('node:test')
 
 const { createExternalMutationRegistry } = require('../electron/domains/workspace/external-mutation-registry.cjs')
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
 
 function deferred() {
   let resolve
@@ -70,7 +71,7 @@ test('il main attende le mutazioni ai lifecycle boundary e registra GitHub Pi up
   const domainsDirectory = path.join(__dirname, '../electron/ipc/domains')
   const ipcDomains = fs.readdirSync(domainsDirectory)
     .filter((fileName) => fileName.endsWith('.ipc.cjs'))
-    .map((fileName) => fs.readFileSync(path.join(domainsDirectory, fileName), 'utf8'))
+    .map((fileName) => expandIpcChannelConstants(fs.readFileSync(path.join(domainsDirectory, fileName), 'utf8')))
     .join('\n')
   const workspaceCleanup = fs.readFileSync(
     path.join(__dirname, '../electron/domains/workspace/workspace-runtime-cleanup.cjs'),

@@ -119,6 +119,33 @@ test('isola application, infrastructure, IPC e preload nel backend', () => {
   })
 })
 
+test('consente al preload di leggere il registro IPC ma vieta stringhe canale locali', () => {
+  withFixture({
+    'electron/ipc/channels.cjs': "module.exports = { IPC_CHANNELS: { FILES_READ: 'files:read' } }\n",
+    'electron/preload/bridge.cjs': "const { IPC_CHANNELS } = require('../ipc/channels.cjs')\nmodule.exports = IPC_CHANNELS.FILES_READ\n",
+  }, (problems) => assert.deepEqual(problems, []))
+
+  withFixture({
+    'electron/ipc/domains/filesystem.ipc.cjs': "const handlers = new Map([['files:read', () => null]])\nmodule.exports = handlers\n",
+    'electron/preload/bridge.cjs': "module.exports = (ipcRenderer) => ipcRenderer.invoke('files:read')\n",
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('stringa canale IPC')).length, 2)
+  })
+})
+
+test('tratta il registro IPC come contratto puro e vieta duplicati in ogni layer Electron', () => {
+  withFixture({
+    'electron/ipc/channels.cjs': "module.exports = { IPC_CHANNELS: { TERMINAL_OUTPUT: 'terminal:output' } }\n",
+    'electron/app/runtime.cjs': "const { IPC_CHANNELS } = require('../ipc/channels.cjs')\nmodule.exports = IPC_CHANNELS.TERMINAL_OUTPUT\n",
+    'electron/domains/terminal/runtime.cjs': "const { IPC_CHANNELS } = require('../../ipc/channels.cjs')\nmodule.exports = IPC_CHANNELS.TERMINAL_OUTPUT\n",
+    'electron/infrastructure/ipc/sender.cjs': "const { IPC_CHANNELS } = require('../../ipc/channels.cjs')\nmodule.exports = IPC_CHANNELS.TERMINAL_OUTPUT\n",
+  }, (problems) => assert.deepEqual(problems, []))
+
+  withFixture({
+    'electron/domains/errors/map.cjs': "module.exports = { 'terminal:output': 'duplicate' }\n",
+  }, (problems) => assert.ok(problems.some((problem) => problem.includes('stringa canale IPC'))))
+})
+
 test('impedisce import e ricreazione dei path legacy rimossi', () => {
   withFixture({
     'src/main.tsx': "import App from './App'\nexport { App }\n",

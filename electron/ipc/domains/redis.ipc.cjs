@@ -1,15 +1,4 @@
-const REDIS_INVOKE_CHANNELS = Object.freeze([
-  'redis:listConnections',
-  'redis:createConnection',
-  'redis:updateConnection',
-  'redis:deleteConnection',
-  'redis:testConnection',
-  'redis:scanKeys',
-  'redis:readKey',
-  'redis:reconnect',
-  'redis:searchPayloads',
-  'redis:cancel',
-])
+const { IPC_CHANNELS, REDIS_INVOKE_CHANNELS } = require('../channels.cjs')
 
 function createRedisHandlers({
   assertTrustedSender,
@@ -36,23 +25,23 @@ function createRedisHandlers({
   withCleanupDeadline,
 }) {
   return new Map([
-    ['redis:listConnections', (event) => {
+    [IPC_CHANNELS.REDIS_LIST_CONNECTIONS, (event) => {
       assertTrustedSender(event)
       return listRedisConnections(requireActiveWorkspace())
     }],
-    ['redis:createConnection', (event, input) => runWorkspaceMutation(event, 'redis:create-connection', (workspacePath) => createRedisConnection(workspacePath, input))],
-    ['redis:updateConnection', (event, id, input) => runWorkspaceMutation(event, 'redis:update-connection', async (workspacePath) => {
+    [IPC_CHANNELS.REDIS_CREATE_CONNECTION, (event, input) => runWorkspaceMutation(event, 'redis:create-connection', (workspacePath) => createRedisConnection(workspacePath, input))],
+    [IPC_CHANNELS.REDIS_UPDATE_CONNECTION, (event, id, input) => runWorkspaceMutation(event, 'redis:update-connection', async (workspacePath) => {
       const drain = redisOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === id)
       await withCleanupDeadline(Promise.all([drain, closeRedisConnectionSession(workspacePath, id)]), 6_000, 'redis-connection-runtime')
       return updateRedisConnection(workspacePath, id, input)
     })],
-    ['redis:deleteConnection', (event, id) => runWorkspaceMutation(event, 'redis:delete-connection', async (workspacePath) => {
+    [IPC_CHANNELS.REDIS_DELETE_CONNECTION, (event, id) => runWorkspaceMutation(event, 'redis:delete-connection', async (workspacePath) => {
       const drain = redisOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === id)
       await withCleanupDeadline(Promise.all([drain, closeRedisConnectionSession(workspacePath, id)]), 6_000, 'redis-connection-runtime')
       deleteRedisConnection(workspacePath, id)
       return { deleted: true }
     })],
-    ['redis:testConnection', async (event, input, connectionId) => {
+    [IPC_CHANNELS.REDIS_TEST_CONNECTION, async (event, input, connectionId) => {
       assertTrustedSender(event)
       const workspacePath = requireActiveWorkspace()
       let testInput = input
@@ -68,7 +57,7 @@ function createRedisHandlers({
         operation.finish()
       }
     }],
-    ['redis:scanKeys', async (event, connectionId, input) => {
+    [IPC_CHANNELS.REDIS_SCAN_KEYS, async (event, connectionId, input) => {
       assertTrustedSender(event)
       const workspacePath = requireActiveWorkspace()
       const operation = redisOperations.start({ operationId: randomUUID(), senderId: event.sender.id, workspacePath, connectionId })
@@ -90,7 +79,7 @@ function createRedisHandlers({
         operation.finish()
       }
     }],
-    ['redis:readKey', async (event, connectionId, encodedKey, input) => {
+    [IPC_CHANNELS.REDIS_READ_KEY, async (event, connectionId, encodedKey, input) => {
       assertTrustedSender(event)
       const workspacePath = requireActiveWorkspace()
       const operation = redisOperations.start({ operationId: randomUUID(), senderId: event.sender.id, workspacePath, connectionId })
@@ -106,14 +95,14 @@ function createRedisHandlers({
         operation.finish()
       }
     }],
-    ['redis:reconnect', async (event, connectionId) => {
+    [IPC_CHANNELS.REDIS_RECONNECT, async (event, connectionId) => {
       assertTrustedSender(event)
       const workspacePath = requireActiveWorkspace()
       await redisOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === connectionId)
       await closeRedisConnectionSession(workspacePath, connectionId)
       return { reconnected: true }
     }],
-    ['redis:searchPayloads', async (event, connectionId, input) => {
+    [IPC_CHANNELS.REDIS_SEARCH_PAYLOADS, async (event, connectionId, input) => {
       assertTrustedSender(event)
       const workspacePath = requireActiveWorkspace()
       const operation = redisOperations.start({
@@ -134,13 +123,13 @@ function createRedisHandlers({
           maxScanned: input?.maxScanned,
           signal: operation.signal,
         }, (progress) => {
-          sendToRenderer('redis:searchProgress', redisSearchForRenderer(progress))
+          sendToRenderer(IPC_CHANNELS.REDIS_SEARCH_PROGRESS, redisSearchForRenderer(progress))
         }))
       } finally {
         operation.finish()
       }
     }],
-    ['redis:cancel', (event, operationId) => {
+    [IPC_CHANNELS.REDIS_CANCEL, (event, operationId) => {
       assertTrustedSender(event)
       const result = redisOperations.cancel(operationId, event.sender.id)
       return { cancelled: result.cancelled }

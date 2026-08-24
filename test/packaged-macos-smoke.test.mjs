@@ -3,6 +3,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import ipcSource from './helpers/ipc-source.cjs'
+
+const { expandIpcChannelConstants } = ipcSource
 import {
   OFFLINE_CHROMIUM_FLAGS,
   PACKAGED_DOMAIN_FAULTS,
@@ -176,8 +179,8 @@ test('il fault recovery usa Page.crash, riconnette CDP e verifica la bozza nel r
 
   const mainSource = fs.readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8')
   const windowLifecycleSource = fs.readFileSync(new URL('../electron/app/window-lifecycle-runtime.cjs', import.meta.url), 'utf8')
-  const preloadSource = fs.readFileSync(new URL('../electron/preload.cjs', import.meta.url), 'utf8')
-  const lifecycleBenchmarkIpc = fs.readFileSync(new URL('../electron/ipc/domains/lifecycle-benchmark.ipc.cjs', import.meta.url), 'utf8')
+  const preloadSource = expandIpcChannelConstants(fs.readFileSync(new URL('../electron/preload.cjs', import.meta.url), 'utf8'))
+  const lifecycleBenchmarkIpc = expandIpcChannelConstants(fs.readFileSync(new URL('../electron/ipc/domains/lifecycle-benchmark.ipc.cjs', import.meta.url), 'utf8'))
   assert.match(mainSource, /RELIABILITY_FAULT_INJECTION_MODE\s*=\s*RELIABILITY_BENCHMARK_MODE\s*&&\s*process\.argv\.includes\('--reliability-fault-injection'\)/)
   assert.match(windowLifecycleSource, /faultInjectionMode\) return 'reload'/)
   assert.match(mainSource, /registerLifecycleBenchmarkIpc\(\{[\s\S]{0,900}reliabilityFaultInjectionMode: RELIABILITY_FAULT_INJECTION_MODE/)

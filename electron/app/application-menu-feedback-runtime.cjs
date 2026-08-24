@@ -1,3 +1,4 @@
+const { IPC_CHANNELS } = require('../ipc/channels.cjs')
 function createApplicationMenuFeedbackRuntime({
   Menu,
   Notification,
@@ -31,7 +32,7 @@ function createApplicationMenuFeedbackRuntime({
       log('warn', 'application_menu_command_rejected')
       return
     }
-    sendToRenderer('appMenu:command', command)
+    sendToRenderer(IPC_CHANNELS.APP_MENU_COMMAND, command)
   }
 
   function notifyWhenBackground(title, body) {

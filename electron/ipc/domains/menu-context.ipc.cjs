@@ -1,7 +1,6 @@
-const path = require('node:path')
+const { IPC_CHANNELS, MENU_CONTEXT_INVOKE_CHANNELS, MENU_CONTEXT_SEND_CHANNELS } = require('../channels.cjs')
 
-const MENU_CONTEXT_INVOKE_CHANNELS = Object.freeze(['contextMenu:open'])
-const MENU_CONTEXT_SEND_CHANNELS = Object.freeze(['appMenu:setContext'])
+const path = require('node:path')
 
 const REMOTE_CONTEXT_KINDS = new Set([
   'remote-file',
@@ -35,7 +34,7 @@ function createMenuContextHandlers({
   resolveProjectFile,
 }) {
   return new Map([
-    ['contextMenu:open', (event, request) => {
+    [IPC_CHANNELS.CONTEXT_MENU_OPEN, (event, request) => {
       assertTrustedSender(event)
       const remoteContextKind = REMOTE_CONTEXT_KINDS.has(request?.kind) ? request.kind : null
       const workspaceFileContext = WORKSPACE_FILE_CONTEXT_KINDS.has(request?.kind)
@@ -148,7 +147,7 @@ function createMenuContextListeners({
   setActiveAppSection,
 }) {
   return new Map([
-    ['appMenu:setContext', (event, section) => {
+    [IPC_CHANNELS.APP_MENU_SET_CONTEXT, (event, section) => {
       assertTrustedSender(event)
       if (!appSections.has(section)) {
         log('warn', 'application_menu_context_rejected')

@@ -1,3 +1,4 @@
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -7,8 +8,8 @@ const { readTerminalSource } = require('./helpers/terminal-source.cjs')
 
 test('il terminale ripristina l’output Pi già prodotto dopo il rimontaggio della vista', () => {
   const piRuntime = fs.readFileSync(path.join(__dirname, '../electron/domains/ai/pi-runtime.cjs'), 'utf8')
-  const aiTerminalIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8')
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const aiTerminalIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8'))
+  const preload = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8'))
   const app = readAppSource()
   const aiTerminalRuntime = fs.readFileSync(path.join(__dirname, '../src/features/ai/hooks/use-ai-terminal-runtime.ts'), 'utf8')
 
@@ -46,7 +47,7 @@ test('il listener della console Electron usa la firma corrente senza registrare 
 test('il riavvio usa soltanto la sessione selezionata senza un secondo bridge IPC', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const shellRuntime = fs.readFileSync(path.join(__dirname, '../electron/domains/shell/shell-session-runtime.cjs'), 'utf8')
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preload = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8'))
   const component = readTerminalSource()
 
   assert.match(shellRuntime, /createShellSessionManager/)

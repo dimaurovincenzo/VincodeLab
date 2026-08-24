@@ -1,67 +1,69 @@
+const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
+
 function createTerminalBridge(ipcRenderer, webUtils) {
   return {
     shellSessions: {
-      list: () => ipcRenderer.invoke('shellSessions:list'),
-      resume: (sessionId) => ipcRenderer.invoke('shellSessions:resume', sessionId),
-      ready: (sessionId, message) => ipcRenderer.send('shellSessions:ready', sessionId, message),
-      ack: (sessionId, message) => ipcRenderer.send('shellSessions:ack', sessionId, message),
-      disconnect: (sessionId, message) => ipcRenderer.send('shellSessions:disconnect', sessionId, message),
-      create: () => ipcRenderer.invoke('shellSessions:create'),
-      focus: (sessionId) => ipcRenderer.invoke('shellSessions:focus', sessionId),
-      write: (sessionId, data) => ipcRenderer.send('shellSessions:write', sessionId, data),
-      resize: (sessionId, dimensions) => ipcRenderer.send('shellSessions:resize', sessionId, dimensions),
-      restart: (sessionId) => ipcRenderer.invoke('shellSessions:restart', sessionId),
-      close: (sessionId) => ipcRenderer.invoke('shellSessions:close', sessionId),
+      list: () => ipcRenderer.invoke(IPC_CHANNELS.SHELL_SESSIONS_LIST),
+      resume: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_SESSIONS_RESUME, sessionId),
+      ready: (sessionId, message) => ipcRenderer.send(IPC_CHANNELS.SHELL_SESSIONS_READY, sessionId, message),
+      ack: (sessionId, message) => ipcRenderer.send(IPC_CHANNELS.SHELL_SESSIONS_ACK, sessionId, message),
+      disconnect: (sessionId, message) => ipcRenderer.send(IPC_CHANNELS.SHELL_SESSIONS_DISCONNECT, sessionId, message),
+      create: () => ipcRenderer.invoke(IPC_CHANNELS.SHELL_SESSIONS_CREATE),
+      focus: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_SESSIONS_FOCUS, sessionId),
+      write: (sessionId, data) => ipcRenderer.send(IPC_CHANNELS.SHELL_SESSIONS_WRITE, sessionId, data),
+      resize: (sessionId, dimensions) => ipcRenderer.send(IPC_CHANNELS.SHELL_SESSIONS_RESIZE, sessionId, dimensions),
+      restart: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_SESSIONS_RESTART, sessionId),
+      close: (sessionId) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_SESSIONS_CLOSE, sessionId),
       onData: (listener) => {
         const handler = (_event, payload) => listener(payload)
-        ipcRenderer.on('shellSessions:data', handler)
-        return () => ipcRenderer.removeListener('shellSessions:data', handler)
+        ipcRenderer.on(IPC_CHANNELS.SHELL_SESSIONS_DATA, handler)
+        return () => ipcRenderer.removeListener(IPC_CHANNELS.SHELL_SESSIONS_DATA, handler)
       },
       onExit: (listener) => {
         const handler = (_event, payload) => listener(payload)
-        ipcRenderer.on('shellSessions:exit', handler)
-        return () => ipcRenderer.removeListener('shellSessions:exit', handler)
+        ipcRenderer.on(IPC_CHANNELS.SHELL_SESSIONS_EXIT, handler)
+        return () => ipcRenderer.removeListener(IPC_CHANNELS.SHELL_SESSIONS_EXIT, handler)
       },
       onError: (listener) => {
         const handler = (_event, payload) => listener(payload)
-        ipcRenderer.on('shellSessions:error', handler)
-        return () => ipcRenderer.removeListener('shellSessions:error', handler)
+        ipcRenderer.on(IPC_CHANNELS.SHELL_SESSIONS_ERROR, handler)
+        return () => ipcRenderer.removeListener(IPC_CHANNELS.SHELL_SESSIONS_ERROR, handler)
       },
     },
     terminal: {
-      resume: (request) => ipcRenderer.invoke('terminal:resume', request),
-      ready: (message) => ipcRenderer.send('terminal:ready', message),
-      ack: (message) => ipcRenderer.send('terminal:ack', message),
-      chooseAttachments: () => ipcRenderer.invoke('terminal:chooseAttachments'),
-      prepareDroppedAttachments: (files) => ipcRenderer.invoke('terminal:prepareDroppedAttachments', files.map((file) => webUtils.getPathForFile(file))),
-      writeKey: (data) => ipcRenderer.send('terminal:key', data),
-      writeInput: (data) => ipcRenderer.invoke('terminal:writeInput', data),
-      startPaste: (input) => ipcRenderer.invoke('terminal:pasteStart', input),
-      writePasteChunk: (input) => ipcRenderer.invoke('terminal:pasteChunk', input),
-      cancelPaste: (transferId) => ipcRenderer.invoke('terminal:pasteCancel', transferId),
-      reportRendererMetrics: (metrics) => ipcRenderer.send('terminal:rendererMetrics', metrics),
-      diagnostics: () => ipcRenderer.invoke('terminal:diagnostics'),
-      exportDiagnostics: () => ipcRenderer.invoke('terminal:exportDiagnostics'),
-      resize: (dimensions) => ipcRenderer.send('terminal:resize', dimensions),
+      resume: (request) => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_RESUME, request),
+      ready: (message) => ipcRenderer.send(IPC_CHANNELS.TERMINAL_READY, message),
+      ack: (message) => ipcRenderer.send(IPC_CHANNELS.TERMINAL_ACK, message),
+      chooseAttachments: () => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_CHOOSE_ATTACHMENTS),
+      prepareDroppedAttachments: (files) => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_PREPARE_DROPPED_ATTACHMENTS, files.map((file) => webUtils.getPathForFile(file))),
+      writeKey: (data) => ipcRenderer.send(IPC_CHANNELS.TERMINAL_KEY, data),
+      writeInput: (data) => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_WRITE_INPUT, data),
+      startPaste: (input) => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_PASTE_START, input),
+      writePasteChunk: (input) => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_PASTE_CHUNK, input),
+      cancelPaste: (transferId) => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_PASTE_CANCEL, transferId),
+      reportRendererMetrics: (metrics) => ipcRenderer.send(IPC_CHANNELS.TERMINAL_RENDERER_METRICS, metrics),
+      diagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_DIAGNOSTICS),
+      exportDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.TERMINAL_EXPORT_DIAGNOSTICS),
+      resize: (dimensions) => ipcRenderer.send(IPC_CHANNELS.TERMINAL_RESIZE, dimensions),
       onOutput: (listener) => {
         const handler = (_event, block) => listener(block)
-        ipcRenderer.on('terminal:output', handler)
-        return () => ipcRenderer.removeListener('terminal:output', handler)
+        ipcRenderer.on(IPC_CHANNELS.TERMINAL_OUTPUT, handler)
+        return () => ipcRenderer.removeListener(IPC_CHANNELS.TERMINAL_OUTPUT, handler)
       },
       onStreamState: (listener) => {
         const handler = (_event, state) => listener(state)
-        ipcRenderer.on('terminal:streamState', handler)
-        return () => ipcRenderer.removeListener('terminal:streamState', handler)
+        ipcRenderer.on(IPC_CHANNELS.TERMINAL_STREAM_STATE, handler)
+        return () => ipcRenderer.removeListener(IPC_CHANNELS.TERMINAL_STREAM_STATE, handler)
       },
       onExit: (listener) => {
         const handler = (_event, status) => listener(status)
-        ipcRenderer.on('terminal:exit', handler)
-        return () => ipcRenderer.removeListener('terminal:exit', handler)
+        ipcRenderer.on(IPC_CHANNELS.TERMINAL_EXIT, handler)
+        return () => ipcRenderer.removeListener(IPC_CHANNELS.TERMINAL_EXIT, handler)
       },
       onError: (listener) => {
         const handler = (_event, payload) => listener(payload)
-        ipcRenderer.on('terminal:error', handler)
-        return () => ipcRenderer.removeListener('terminal:error', handler)
+        ipcRenderer.on(IPC_CHANNELS.TERMINAL_ERROR, handler)
+        return () => ipcRenderer.removeListener(IPC_CHANNELS.TERMINAL_ERROR, handler)
       },
     },
   }

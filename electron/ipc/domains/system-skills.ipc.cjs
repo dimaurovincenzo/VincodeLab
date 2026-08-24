@@ -1,10 +1,4 @@
-const SYSTEM_SKILLS_INVOKE_CHANNELS = Object.freeze([
-  'systemSkills:list',
-  'systemSkills:get',
-  'systemSkills:create',
-  'systemSkills:update',
-  'systemSkills:delete',
-])
+const { IPC_CHANNELS, SYSTEM_SKILLS_INVOKE_CHANNELS } = require('../channels.cjs')
 
 function createSystemSkillsHandlers({
   assertTrustedSender,
@@ -16,11 +10,11 @@ function createSystemSkillsHandlers({
   updateSystemSkill,
 }) {
   return new Map([
-    ['systemSkills:list', (event) => { assertTrustedSender(event); return listSystemSkills(systemSkillsRoot) }],
-    ['systemSkills:get', (event, id) => { assertTrustedSender(event); return getSystemSkill(systemSkillsRoot, id) }],
-    ['systemSkills:create', (event, name) => { assertTrustedSender(event); return createSystemSkill(systemSkillsRoot, name) }],
-    ['systemSkills:update', (event, id, content) => { assertTrustedSender(event); return updateSystemSkill(systemSkillsRoot, id, content) }],
-    ['systemSkills:delete', (event, id) => {
+    [IPC_CHANNELS.SYSTEM_SKILLS_LIST, (event) => { assertTrustedSender(event); return listSystemSkills(systemSkillsRoot) }],
+    [IPC_CHANNELS.SYSTEM_SKILLS_GET, (event, id) => { assertTrustedSender(event); return getSystemSkill(systemSkillsRoot, id) }],
+    [IPC_CHANNELS.SYSTEM_SKILLS_CREATE, (event, name) => { assertTrustedSender(event); return createSystemSkill(systemSkillsRoot, name) }],
+    [IPC_CHANNELS.SYSTEM_SKILLS_UPDATE, (event, id, content) => { assertTrustedSender(event); return updateSystemSkill(systemSkillsRoot, id, content) }],
+    [IPC_CHANNELS.SYSTEM_SKILLS_DELETE, (event, id) => {
       assertTrustedSender(event)
       deleteSystemSkill(systemSkillsRoot, id)
       return { deleted: true }

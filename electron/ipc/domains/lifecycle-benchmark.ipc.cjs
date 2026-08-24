@@ -1,14 +1,4 @@
-const LIFECYCLE_BENCHMARK_INVOKE_CHANNELS = Object.freeze([
-  'benchmark:dispatchCommand',
-  'benchmark:shutdown',
-  'benchmark:captureWindowBounds',
-  'benchmark:injectFault',
-  'benchmark:probe',
-])
-
-const LIFECYCLE_BENCHMARK_SEND_CHANNELS = Object.freeze([
-  'lifecycle:closeResponse',
-])
+const { IPC_CHANNELS, LIFECYCLE_BENCHMARK_INVOKE_CHANNELS, LIFECYCLE_BENCHMARK_SEND_CHANNELS } = require('../channels.cjs')
 
 function createLifecycleBenchmarkInvokeHandlers({
   assertTrustedSender,
@@ -31,13 +21,13 @@ function createLifecycleBenchmarkInvokeHandlers({
   const handlers = new Map()
   if (!reliabilityBenchmarkMode) return handlers
 
-  handlers.set('benchmark:dispatchCommand', (event, command) => {
+  handlers.set(IPC_CHANNELS.BENCHMARK_DISPATCH_COMMAND, (event, command) => {
     assertTrustedSender(event)
     if (!reliabilityBenchmarkCommands.has(command)) throw new Error('Comando benchmark non valido.')
     dispatchApplicationMenuCommand(command)
     return { dispatched: true }
   })
-  handlers.set('benchmark:shutdown', async (event) => {
+  handlers.set(IPC_CHANNELS.BENCHMARK_SHUTDOWN, async (event) => {
     assertTrustedSender(event)
     if (!getQuitCleanupPromise() && !getQuitCleanupComplete()) {
       const cleanupPromise = shutdownApplication().then(() => {
@@ -53,7 +43,7 @@ function createLifecycleBenchmarkInvokeHandlers({
   })
 
   if (screenshotCaptureMode) {
-    handlers.set('benchmark:captureWindowBounds', (event) => {
+    handlers.set(IPC_CHANNELS.BENCHMARK_CAPTURE_WINDOW_BOUNDS, (event) => {
       assertTrustedSender(event)
       const window = getMainWindow()
       if (!window || window.isDestroyed()) throw new Error('Finestra di cattura non disponibile.')
@@ -67,11 +57,11 @@ function createLifecycleBenchmarkInvokeHandlers({
   }
 
   if (reliabilityFaultInjectionMode) {
-    handlers.set('benchmark:injectFault', (event, fault) => {
+    handlers.set(IPC_CHANNELS.BENCHMARK_INJECT_FAULT, (event, fault) => {
       assertTrustedSender(event)
       return reliabilityFaultInjection.inject(fault)
     })
-    handlers.set('benchmark:probe', (event) => {
+    handlers.set(IPC_CHANNELS.BENCHMARK_PROBE, (event) => {
       assertTrustedSender(event)
       return reliabilityFaultInjection.probe()
     })
@@ -86,8 +76,8 @@ function createLifecycleBenchmarkSendListeners({
   log,
 }) {
   return new Map([
-    ['lifecycle:closeResponse', confineIpcOneWay(
-      'lifecycle:closeResponse',
+    [IPC_CHANNELS.LIFECYCLE_CLOSE_RESPONSE, confineIpcOneWay(
+      IPC_CHANNELS.LIFECYCLE_CLOSE_RESPONSE,
       (event, response) => {
         try {
           assertTrustedSender(event)

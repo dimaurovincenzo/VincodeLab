@@ -1,3 +1,4 @@
+const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
 const { createPiSessionController } = require('./pi-session-controller.cjs')
 const { environmentForPi, resolvePiExecutable } = require('./pi-executable.cjs')
 const { safeKillPty } = require('../terminal/pty-lifecycle.cjs')
@@ -37,7 +38,7 @@ function createPiRuntime({
     // Stop, restart, cambio workspace e shutdown sono già osservabili dalla
     // rispettiva operazione; soltanto gli exit inattesi cambiano lo stato UI.
     if (expected) return
-    sendToRenderer('terminal:exit', { exitCode, signal })
+    sendToRenderer(IPC_CHANNELS.TERMINAL_EXIT, { exitCode, signal })
     if (exitCode !== 0 || signal) {
       notifyWhenBackground(
         'VincodeLab · Pi',
@@ -53,8 +54,8 @@ function createPiRuntime({
     createStream: ({ pty: ptyProcess, sessionId }) => createStreamController({
       pty: ptyProcess,
       sessionId,
-      sendBlock: (block) => sendToRenderer('terminal:output', block),
-      sendState: (state) => sendToRenderer('terminal:streamState', state),
+      sendBlock: (block) => sendToRenderer(IPC_CHANNELS.TERMINAL_OUTPUT, block),
+      sendState: (state) => sendToRenderer(IPC_CHANNELS.TERMINAL_STREAM_STATE, state),
     }),
     createInput: ({ stream, getPty }) => createInputController({
       getPty,
@@ -113,13 +114,13 @@ function createPiRuntime({
     const exitPromise = new Promise((resolve) => { resolveExit = resolve })
     configProcess = ptyProcess
     configExit = { process: ptyProcess, promise: exitPromise }
-    ptyProcess.onData((data) => sendToRenderer('piConfig:data', data))
+    ptyProcess.onData((data) => sendToRenderer(IPC_CHANNELS.PI_CONFIG_DATA, data))
     ptyProcess.onExit(({ exitCode, signal }) => {
       resolveExit()
       if (configProcess !== ptyProcess) return
       configProcess = undefined
       configExit = undefined
-      sendToRenderer('piConfig:exit', { exitCode, signal })
+      sendToRenderer(IPC_CHANNELS.PI_CONFIG_EXIT, { exitCode, signal })
     })
     return { started: true, reused: false }
   }

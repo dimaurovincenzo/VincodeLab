@@ -1,11 +1,4 @@
-const PI_SYSTEM_INVOKE_CHANNELS = Object.freeze([
-  'piSystem:status',
-  'piSystem:list',
-  'piSystem:listSkills',
-  'piSystem:install',
-  'piSystem:update',
-  'piSystem:remove',
-])
+const { IPC_CHANNELS, PI_SYSTEM_INVOKE_CHANNELS } = require('../channels.cjs')
 
 function createPiSystemHandlers({
   assertTrustedSender,
@@ -21,19 +14,19 @@ function createPiSystemHandlers({
   updatePiPackage,
 }) {
   return new Map([
-    ['piSystem:status', (event) => {
+    [IPC_CHANNELS.PI_SYSTEM_STATUS, (event) => {
       assertTrustedSender(event)
       return getPiSystemStatus(resolvePiExecutable)
     }],
-    ['piSystem:list', (event) => {
+    [IPC_CHANNELS.PI_SYSTEM_LIST, (event) => {
       assertTrustedSender(event)
       return listPiPackages(resolvePiExecutable)
     }],
-    ['piSystem:listSkills', (event) => {
+    [IPC_CHANNELS.PI_SYSTEM_LIST_SKILLS, (event) => {
       assertTrustedSender(event)
       return listPiPackageSkills(resolvePiExecutable)
     }],
-    ['piSystem:install', (event, source) => runExternalMutation(
+    [IPC_CHANNELS.PI_SYSTEM_INSTALL, (event, source) => runExternalMutation(
       event,
       'pi-system:install',
       null,
@@ -43,7 +36,7 @@ function createPiSystemHandlers({
         return result
       },
     )],
-    ['piSystem:update', (event, source) => runExternalMutation(
+    [IPC_CHANNELS.PI_SYSTEM_UPDATE, (event, source) => runExternalMutation(
       event,
       'pi-system:update',
       null,
@@ -53,7 +46,7 @@ function createPiSystemHandlers({
         return result
       },
     )],
-    ['piSystem:remove', (event, source) => runExternalMutation(
+    [IPC_CHANNELS.PI_SYSTEM_REMOVE, (event, source) => runExternalMutation(
       event,
       'pi-system:remove',
       null,

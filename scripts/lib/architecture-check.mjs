@@ -1,9 +1,16 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import ts from 'typescript'
 
+const require = createRequire(import.meta.url)
+const { IPC_PUBLIC_CHANNELS } = require('../../electron/ipc/channels.cjs')
+
 const sourceExtensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']
 const sourceRoots = ['src', 'electron']
+const ipcChannelRegistryFile = 'electron/ipc/channels.cjs'
+const ipcPublicChannelSet = new Set(IPC_PUBLIC_CHANNELS)
+const ipcChannelPattern = /^[a-z][A-Za-z0-9]*:[A-Za-z][A-Za-z0-9]*$/u
 
 // These files predate src/bridge. Keep the list explicit so that new direct
 // renderer-to-preload dependencies cannot be introduced while each legacy
@@ -179,6 +186,40 @@ function directBridgeAccessCount(sourceFile) {
   return count
 }
 
+function isRequireSpecifier(node) {
+  return ts.isCallExpression(node.parent)
+    && ts.isIdentifier(node.parent.expression)
+    && node.parent.expression.text === 'require'
+    && node.parent.arguments[0] === node
+}
+
+function isIpcTransportLiteral(file, node) {
+  if (!ipcChannelPattern.test(node.text) || isRequireSpecifier(node)) return false
+  if (file.startsWith('electron/preload/')) return true
+  const call = node.parent
+  if (ts.isCallExpression(call) && call.arguments[0] === node) {
+    if (ts.isIdentifier(call.expression) && call.expression.text === 'sendToRenderer') return true
+    if (ts.isPropertyAccessExpression(call.expression) && ['handle', 'invoke', 'on', 'send'].includes(call.expression.name.text)) return true
+  }
+  if (!file.startsWith('electron/ipc/')) return false
+  const tuple = node.parent
+  return ts.isArrayLiteralExpression(tuple) && tuple.elements[0] === node
+}
+
+function ipcChannelLiteralProblems(file, sourceFile) {
+  if (file === ipcChannelRegistryFile || file === 'electron/preload.cjs' || !file.startsWith('electron/')) return []
+  const problems = []
+  const visit = (node) => {
+    if (ts.isStringLiteralLike(node) && (ipcPublicChannelSet.has(node.text) || isIpcTransportLiteral(file, node))) {
+      const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile))
+      problems.push(`riga ${line + 1}: stringa canale IPC "${node.text}" fuori dal registro centrale`)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return problems
+}
+
 function resolveModule(root, importer, specifier) {
   const unresolved = unresolvedModule(root, importer, specifier)
   if (!unresolved) return null
@@ -272,15 +313,15 @@ function importBoundaryProblems(importer, imported) {
     problems.push(`bridge dipende da UI o feature (${imported})`)
   }
 
-  if (importer.startsWith('electron/app/') && !isElectronCompositionRoot(importer) && /^(?:electron\/(?:infrastructure|ipc|preload)\/)/u.test(imported)) {
+  if (importer.startsWith('electron/app/') && !isElectronCompositionRoot(importer) && /^(?:electron\/(?:infrastructure|ipc|preload)\/)/u.test(imported) && imported !== ipcChannelRegistryFile) {
     problems.push(`application layer Electron dipende da un adapter esterno (${imported})`)
   }
 
-  if (importer.startsWith('electron/domains/') && /^(?:electron\/(?:app|infrastructure|ipc|preload)\/)/u.test(imported)) {
+  if (importer.startsWith('electron/domains/') && /^(?:electron\/(?:app|infrastructure|ipc|preload)\/)/u.test(imported) && imported !== ipcChannelRegistryFile) {
     problems.push(`dominio Electron dipende da un adapter esterno (${imported})`)
   }
 
-  if (importer.startsWith('electron/infrastructure/') && /^(?:electron\/(?:app|ipc|preload)\/)/u.test(imported)) {
+  if (importer.startsWith('electron/infrastructure/') && /^(?:electron\/(?:app|ipc|preload)\/)/u.test(imported) && imported !== ipcChannelRegistryFile) {
     problems.push(`infrastruttura Electron dipende da application, IPC o preload (${imported})`)
   }
 
@@ -288,7 +329,7 @@ function importBoundaryProblems(importer, imported) {
     problems.push(`IPC dipende da un adapter esterno (${imported})`)
   }
 
-  if (importer.startsWith('electron/preload/') && imported.startsWith('electron/') && !imported.startsWith('electron/preload/')) {
+  if (importer.startsWith('electron/preload/') && imported.startsWith('electron/') && !imported.startsWith('electron/preload/') && imported !== ipcChannelRegistryFile) {
     problems.push(`preload esce dal proprio confine isolato (${imported})`)
   }
 
@@ -345,6 +386,8 @@ export function inspectArchitecture({ root }) {
     const source = readFileSync(absoluteFile, 'utf8')
     const sourceFile = sourceFileFor(file, source)
     const dependencies = []
+
+    for (const problem of ipcChannelLiteralProblems(file, sourceFile)) problems.push(`${file}: ${problem}`)
 
     if (file.startsWith('src/') && !file.startsWith('src/bridge/')) {
       const directAccesses = directBridgeAccessCount(sourceFile)

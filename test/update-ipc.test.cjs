@@ -1,3 +1,4 @@
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -6,7 +7,7 @@ const { createWorkspaceOperationBoundary } = require('../electron/domains/worksp
 
 const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
 const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
-const updatesIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/updates.ipc.cjs'), 'utf8')
+const updatesIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/updates.ipc.cjs'), 'utf8'))
 
 function ipcHandlerSource(channel) {
   const start = updatesIpc.indexOf(`['${channel}'`)

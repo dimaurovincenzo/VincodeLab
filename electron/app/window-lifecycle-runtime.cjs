@@ -1,3 +1,4 @@
+const { IPC_CHANNELS } = require('../ipc/channels.cjs')
 function createWindowLifecycleRuntime({
   BrowserWindow,
   benchmarkMode,
@@ -118,7 +119,7 @@ function createWindowLifecycleRuntime({
   }
 
   const lifecycleCloseGuard = createLifecycleCloseController({
-    sendRequest: (request) => sendToRenderer('lifecycle:closeRequested', request),
+    sendRequest: (request) => sendToRenderer(IPC_CHANNELS.LIFECYCLE_CLOSE_REQUESTED, request),
     onProceed: handleLifecycleCloseProceed,
     onCancel: (reason) => log('info', 'lifecycle_close_cancelled', { reason }),
     onTimeout: handleLifecycleCloseTimeout,
@@ -213,7 +214,7 @@ function createWindowLifecycleRuntime({
     window.webContents.on('did-finish-load', () => {
       recoveryController.handleLoadFinished()
       const pending = lifecycleCloseGuard.getPending()
-      if (pending?.phase === 'waiting') sendToRenderer('lifecycle:closeRequested', { requestId: pending.requestId, reason: pending.reason })
+      if (pending?.phase === 'waiting') sendToRenderer(IPC_CHANNELS.LIFECYCLE_CLOSE_REQUESTED, { requestId: pending.requestId, reason: pending.reason })
     })
     window.webContents.on('preload-error', (_event, _preloadPath, error) => {
       reportPreloadFailure(error, {

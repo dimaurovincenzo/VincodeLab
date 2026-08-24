@@ -1,3 +1,4 @@
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -101,9 +102,9 @@ test('main e preload confinano la handshake e non aprono il workspace direttamen
   const shutdownRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-shutdown-runtime.cjs'), 'utf8')
   const menuFeedbackRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-menu-feedback-runtime.cjs'), 'utf8')
   const windowLifecycle = fs.readFileSync(path.join(__dirname, '../electron/app/window-lifecycle-runtime.cjs'), 'utf8')
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preload = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8'))
   const menu = fs.readFileSync(path.join(__dirname, '../electron/domains/menu/application-menu.cjs'), 'utf8')
-  const lifecycleBenchmarkIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/lifecycle-benchmark.ipc.cjs'), 'utf8')
+  const lifecycleBenchmarkIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/lifecycle-benchmark.ipc.cjs'), 'utf8'))
 
   assert.match(windowLifecycle, /window\.on\('close'[\s\S]*event\.preventDefault\(\)[\s\S]*windowCloseCoordinator\.isPending\(\)[\s\S]*lifecycleCloseGuard\.request\('window'\)/)
   assert.match(shutdownRuntime, /app\.on\('before-quit'[\s\S]*event\.preventDefault\(\)[\s\S]*lifecycleCloseGuard\.request\('quit'\)/)

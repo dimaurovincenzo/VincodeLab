@@ -1,8 +1,4 @@
-const MANAGED_SSH_INVOKE_CHANNELS = Object.freeze([
-  'managedSsh:list',
-  'managedSsh:check',
-  'managedSsh:disconnect',
-])
+const { IPC_CHANNELS, MANAGED_SSH_INVOKE_CHANNELS } = require('../channels.cjs')
 
 function createManagedSshHandlers({
   assertTrustedSender,
@@ -12,16 +8,16 @@ function createManagedSshHandlers({
   requireManagedConnectionForWorkspace,
 }) {
   return new Map([
-    ['managedSsh:list', (event) => {
+    [IPC_CHANNELS.MANAGED_SSH_LIST, (event) => {
       assertTrustedSender(event)
       return getManagedSsh().list(requireActiveWorkspace())
     }],
-    ['managedSsh:check', (event, connectionId) => {
+    [IPC_CHANNELS.MANAGED_SSH_CHECK, (event, connectionId) => {
       assertTrustedSender(event)
       requireManagedConnectionForWorkspace(connectionId)
       return getManagedSsh().check(connectionId)
     }],
-    ['managedSsh:disconnect', async (event, connectionId) => {
+    [IPC_CHANNELS.MANAGED_SSH_DISCONNECT, async (event, connectionId) => {
       assertTrustedSender(event)
       requireManagedConnectionForWorkspace(connectionId)
       const sftpService = getSftpService()

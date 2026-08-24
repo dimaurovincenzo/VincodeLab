@@ -1,3 +1,4 @@
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -6,8 +7,8 @@ const test = require('node:test')
 const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
 const startupRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-startup-runtime.cjs'), 'utf8')
 const shutdownRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-shutdown-runtime.cjs'), 'utf8')
-const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
-const workspaceIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace.ipc.cjs'), 'utf8')
+const preload = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8'))
+const workspaceIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace.ipc.cjs'), 'utf8'))
 
 test('il preload espone solo stato e avvio confinato della nuova istanza', () => {
   assert.match(preload, /instanceStatus: \(workspacePath\) => ipcRenderer\.invoke\('workspace:instanceStatus', workspacePath\)/)

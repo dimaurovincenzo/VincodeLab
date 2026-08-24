@@ -1,3 +1,4 @@
+const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
 const { createShellSessionManager } = require('./shell-session-manager.cjs')
 const { reportShellSessionOneWayFailure } = require('./shell-session-error-event.cjs')
 
@@ -25,7 +26,7 @@ function createShellSessionRuntime({
   function handleData(event) {
     const state = activeState()
     if (!state || state.workspacePath !== event.workspacePath) return
-    sendToRenderer('shellSessions:data', {
+    sendToRenderer(IPC_CHANNELS.SHELL_SESSIONS_DATA, {
       sessionId: event.sessionId,
       attachmentId: event.attachmentId,
       generation: event.generation,
@@ -37,7 +38,7 @@ function createShellSessionRuntime({
   function handleExit(event) {
     const state = activeState()
     if (!state || state.workspacePath !== event.workspacePath) return
-    sendToRenderer('shellSessions:exit', {
+    sendToRenderer(IPC_CHANNELS.SHELL_SESSIONS_EXIT, {
       sessionId: event.sessionId,
       exitCode: event.exitCode,
       signal: event.signal,

@@ -1,3 +1,4 @@
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
 const assert = require('node:assert/strict')
 const { EventEmitter } = require('node:events')
 const { PassThrough } = require('node:stream')
@@ -465,7 +466,7 @@ test('il main chiude SFTP prima del disconnect e durante lo shutdown', () => {
   const fs = require('node:fs')
   const path = require('node:path')
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const managedSshIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/managed-ssh.ipc.cjs'), 'utf8')
+  const managedSshIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/managed-ssh.ipc.cjs'), 'utf8'))
   const runtime = fs.readFileSync(path.join(__dirname, '../electron/domains/remote/remote-runtime.cjs'), 'utf8')
   assert.match(managedSshIpc, /sftpService\.closeConnection\(connectionId\)/)
   assert.match(main, /registerManagedSshIpc\(\{/)

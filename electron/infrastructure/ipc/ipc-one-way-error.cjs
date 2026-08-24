@@ -1,50 +1,51 @@
+const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
 const { getApplicationErrorLogMetadata, toApplicationError } = require('../../domains/errors/application-error.cjs')
 
 const ONE_WAY_ERROR_CONFIGURATION = Object.freeze({
-  'terminal:ready': Object.freeze({
+  [IPC_CHANNELS.TERMINAL_READY]: Object.freeze({
     code: 'TERMINAL_READY_FAILED',
     domain: 'terminal',
-    eventChannel: 'terminal:error',
+    eventChannel: IPC_CHANNELS.TERMINAL_ERROR,
     message: 'Impossibile collegare l’output del Terminale AI. Recupera lo storico e riprova.',
     operation: 'ready',
     recovery: 'resume',
   }),
-  'terminal:ack': Object.freeze({
+  [IPC_CHANNELS.TERMINAL_ACK]: Object.freeze({
     code: 'TERMINAL_ACK_FAILED',
     domain: 'terminal',
-    eventChannel: 'terminal:error',
+    eventChannel: IPC_CHANNELS.TERMINAL_ERROR,
     message: 'L’output del Terminale AI non è stato confermato. Recupera lo storico per riallinearlo.',
     operation: 'ack',
     recovery: 'resume',
   }),
-  'terminal:key': Object.freeze({
+  [IPC_CHANNELS.TERMINAL_KEY]: Object.freeze({
     code: 'TERMINAL_INPUT_FAILED',
     domain: 'terminal',
-    eventChannel: 'terminal:error',
+    eventChannel: IPC_CHANNELS.TERMINAL_ERROR,
     message: 'Il testo non è stato inviato al Terminale AI. La sessione è rimasta disponibile.',
     operation: 'key',
     recovery: 'restart',
   }),
-  'terminal:resize': Object.freeze({
+  [IPC_CHANNELS.TERMINAL_RESIZE]: Object.freeze({
     code: 'TERMINAL_RESIZE_FAILED',
     domain: 'terminal',
-    eventChannel: 'terminal:error',
+    eventChannel: IPC_CHANNELS.TERMINAL_ERROR,
     message: 'Il Terminale AI non è stato ridimensionato. La sessione è rimasta attiva.',
     operation: 'resize',
     recovery: 'resize',
   }),
-  'piConfig:input': Object.freeze({
+  [IPC_CHANNELS.PI_CONFIG_INPUT]: Object.freeze({
     code: 'PI_CONFIG_INPUT_FAILED',
     domain: 'configuration',
-    eventChannel: 'piConfig:error',
+    eventChannel: IPC_CHANNELS.PI_CONFIG_ERROR,
     message: 'Il testo non è stato inviato alla configurazione di Pi. Riapri la configurazione e riprova.',
     operation: 'input',
     recovery: 'restart',
   }),
-  'piConfig:resize': Object.freeze({
+  [IPC_CHANNELS.PI_CONFIG_RESIZE]: Object.freeze({
     code: 'PI_CONFIG_RESIZE_FAILED',
     domain: 'configuration',
-    eventChannel: 'piConfig:error',
+    eventChannel: IPC_CHANNELS.PI_CONFIG_ERROR,
     message: 'Il terminale di configurazione non è stato ridimensionato. Puoi continuare a usarlo.',
     operation: 'resize',
     recovery: 'resize',

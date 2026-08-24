@@ -1,3 +1,4 @@
+const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
 const { execFile } = require('node:child_process')
 const path = require('node:path')
 
@@ -117,7 +118,7 @@ function createContextCommandDispatcher({
       }
       return
     }
-    sendToRenderer('contextMenu:action', { command, contextId, contextKind })
+    sendToRenderer(IPC_CHANNELS.CONTEXT_MENU_ACTION, { command, contextId, contextKind })
   }
 
   return Object.freeze({ dispatch })

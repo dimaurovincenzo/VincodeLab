@@ -1,14 +1,6 @@
-const path = require('node:path')
+const { IPC_CHANNELS, WORKSPACE_INVOKE_CHANNELS } = require('../channels.cjs')
 
-const WORKSPACE_INVOKE_CHANNELS = Object.freeze([
-  'workspace:open',
-  'workspace:getActive',
-  'workspace:instanceStatus',
-  'workspace:openInNewInstance',
-  'workspace:listRecent',
-  'workspace:reveal',
-  'workspace:openRecent',
-])
+const path = require('node:path')
 
 function createWorkspaceHandlers({
   applicationExecutable,
@@ -35,23 +27,23 @@ function createWorkspaceHandlers({
   toPublicErrorMessage,
 }) {
   return new Map([
-    ['workspace:open', (event) => {
+    [IPC_CHANNELS.WORKSPACE_OPEN, (event) => {
       assertTrustedSender(event)
       return chooseAndOpenWorkspace()
     }],
-    ['workspace:getActive', (event) => {
+    [IPC_CHANNELS.WORKSPACE_GET_ACTIVE, (event) => {
       assertTrustedSender(event)
       const workspacePath = getActiveWorkspacePath()
       return workspacePath ? { path: workspacePath, error: getActiveWorkspaceError(), errorIncident: getActiveWorkspaceIncident() } : null
     }],
-    ['workspace:instanceStatus', (event, workspacePath) => {
+    [IPC_CHANNELS.WORKSPACE_INSTANCE_STATUS, (event, workspacePath) => {
       assertTrustedSender(event)
       if (workspacePath !== undefined && (typeof workspacePath !== 'string' || workspacePath.length > 4_096 || !path.isAbsolute(workspacePath))) {
         return { ...instanceRegistry.status(), canOpenNew: false, workspaceOpenElsewhere: false, reason: 'invalid-path' }
       }
       return instanceRegistry.status(workspacePath)
     }],
-    ['workspace:openInNewInstance', async (event, workspacePath) => {
+    [IPC_CHANNELS.WORKSPACE_OPEN_IN_NEW_INSTANCE, async (event, workspacePath) => {
       assertTrustedSender(event)
       if (isLaunchInProgress()) return { launched: false, reason: 'limit', message: 'Apertura di una nuova finestra già in corso.' }
       if (typeof workspacePath !== 'string' || workspacePath.length > 4_096 || !path.isAbsolute(workspacePath) || !isDirectory(workspacePath)) {
@@ -96,15 +88,15 @@ function createWorkspaceHandlers({
         releaseLaunch.unref()
       }
     }],
-    ['workspace:listRecent', (event) => {
+    [IPC_CHANNELS.WORKSPACE_LIST_RECENT, (event) => {
       assertTrustedSender(event)
       return listRecentWorkspaces()
     }],
-    ['workspace:reveal', (event) => {
+    [IPC_CHANNELS.WORKSPACE_REVEAL, (event) => {
       assertTrustedSender(event)
       return revealWorkspace(requireActiveWorkspace(), { openPath: (workspacePath) => openPath(workspacePath) })
     }],
-    ['workspace:openRecent', (event, workspacePath) => {
+    [IPC_CHANNELS.WORKSPACE_OPEN_RECENT, (event, workspacePath) => {
       assertTrustedSender(event)
       return openWorkspace(workspacePath)
     }],

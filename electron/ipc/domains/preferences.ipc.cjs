@@ -1,10 +1,4 @@
-const PREFERENCES_INVOKE_CHANNELS = Object.freeze([
-  'preferences:get',
-  'preferences:setGlobal',
-  'preferences:setWorkspace',
-  'preferences:clearWorkspace',
-  'preferences:clearAllWorkspace',
-])
+const { IPC_CHANNELS, PREFERENCES_INVOKE_CHANNELS } = require('../channels.cjs')
 
 function createPreferencesHandlers({
   assertTrustedSender,
@@ -22,24 +16,24 @@ function createPreferencesHandlers({
   )
 
   return new Map([
-    ['preferences:get', (event) => {
+    [IPC_CHANNELS.PREFERENCES_GET, (event) => {
       assertTrustedSender(event)
       return readCurrentPreferences()
     }],
-    ['preferences:setGlobal', (event, key, value) => {
+    [IPC_CHANNELS.PREFERENCES_SET_GLOBAL, (event, key, value) => {
       assertTrustedSender(event)
       setGlobalPreference(key, value)
       return readCurrentPreferences()
     }],
-    ['preferences:setWorkspace', (event, key, value) => {
+    [IPC_CHANNELS.PREFERENCES_SET_WORKSPACE, (event, key, value) => {
       assertTrustedSender(event)
       return reportPreferenceRecovery(setWorkspacePreference(requireActiveWorkspace(), key, value))
     }],
-    ['preferences:clearWorkspace', (event, key) => {
+    [IPC_CHANNELS.PREFERENCES_CLEAR_WORKSPACE, (event, key) => {
       assertTrustedSender(event)
       return reportPreferenceRecovery(clearWorkspacePreference(requireActiveWorkspace(), key))
     }],
-    ['preferences:clearAllWorkspace', (event) => {
+    [IPC_CHANNELS.PREFERENCES_CLEAR_ALL_WORKSPACE, (event) => {
       assertTrustedSender(event)
       const workspacePath = requireActiveWorkspace()
       clearAllWorkspacePreferences(workspacePath)

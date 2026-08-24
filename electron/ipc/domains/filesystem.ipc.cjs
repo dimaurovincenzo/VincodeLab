@@ -1,18 +1,4 @@
-const FILESYSTEM_INVOKE_CHANNELS = Object.freeze([
-  'files:list',
-  'files:listDirectory',
-  'files:index',
-  'files:indexStatus',
-  'files:read',
-  'files:preview',
-  'files:prepareAttachment',
-  'files:create',
-  'files:createDirectory',
-  'files:rename',
-  'files:duplicate',
-  'files:trash',
-  'files:save',
-])
+const { FILESYSTEM_INVOKE_CHANNELS, IPC_CHANNELS } = require('../channels.cjs')
 
 function createFilesystemHandlers({
   assertTrustedSender,
@@ -34,15 +20,15 @@ function createFilesystemHandlers({
   trashItem,
 }) {
   return new Map([
-    ['files:list', (event) => {
+    [IPC_CHANNELS.FILES_LIST, (event) => {
       assertTrustedSender(event)
       return listProjectFiles(requireActiveWorkspace())
     }],
-    ['files:listDirectory', (event, directoryId) => {
+    [IPC_CHANNELS.FILES_LIST_DIRECTORY, (event, directoryId) => {
       assertTrustedSender(event)
       return listDirectoryEntries(requireActiveWorkspace(), directoryId)
     }],
-    ['files:index', (event, options) => {
+    [IPC_CHANNELS.FILES_INDEX, (event, options) => {
       assertTrustedSender(event)
       const force = options?.force === true
       if (options !== undefined && (!options || typeof options !== 'object' || Array.isArray(options) || Object.keys(options).some((key) => key !== 'force') || (options.force !== undefined && typeof options.force !== 'boolean'))) {
@@ -50,30 +36,30 @@ function createFilesystemHandlers({
       }
       return projectFileIndex.build(requireActiveWorkspace(), { force })
     }],
-    ['files:indexStatus', (event) => {
+    [IPC_CHANNELS.FILES_INDEX_STATUS, (event) => {
       assertTrustedSender(event)
       return projectFileIndex.getStatus(requireActiveWorkspace())
     }],
-    ['files:read', (event, fileId) => {
+    [IPC_CHANNELS.FILES_READ, (event, fileId) => {
       assertTrustedSender(event)
       return readProjectFile(requireActiveWorkspace(), fileId)
     }],
-    ['files:preview', (event, fileId) => {
+    [IPC_CHANNELS.FILES_PREVIEW, (event, fileId) => {
       assertTrustedSender(event)
       return readProjectPreview(requireActiveWorkspace(), fileId)
     }],
-    ['files:prepareAttachment', (event, fileId) => {
+    [IPC_CHANNELS.FILES_PREPARE_ATTACHMENT, (event, fileId) => {
       assertTrustedSender(event)
       return prepareProjectFileAttachment(requireActiveWorkspace(), fileId)
     }],
-    ['files:create', (event, directoryId, fileName) => {
+    [IPC_CHANNELS.FILES_CREATE, (event, directoryId, fileName) => {
       assertTrustedSender(event)
       const result = createProjectFile(requireActiveWorkspace(), directoryId, fileName)
       log('info', 'project_file_created')
       projectFileIndex.invalidate(requireActiveWorkspace())
       return result
     }],
-    ['files:createDirectory', (event, parentId, directoryName) => {
+    [IPC_CHANNELS.FILES_CREATE_DIRECTORY, (event, parentId, directoryName) => {
       assertTrustedSender(event)
       const workspacePath = requireActiveWorkspace()
       const result = createProjectDirectory(workspacePath, parentId, directoryName)
@@ -81,7 +67,7 @@ function createFilesystemHandlers({
       projectFileIndex.invalidate(workspacePath)
       return result
     }],
-    ['files:rename', (event, entryId, entryName, expectedKind) => {
+    [IPC_CHANNELS.FILES_RENAME, (event, entryId, entryName, expectedKind) => {
       assertTrustedSender(event)
       const workspacePath = requireActiveWorkspace()
       const result = renameProjectEntry(workspacePath, entryId, entryName, expectedKind)
@@ -91,7 +77,7 @@ function createFilesystemHandlers({
       }
       return result
     }],
-    ['files:duplicate', async (event, entryId, expectedKind) => {
+    [IPC_CHANNELS.FILES_DUPLICATE, async (event, entryId, expectedKind) => {
       assertTrustedSender(event)
       const workspacePath = requireActiveWorkspace()
       const result = await duplicateProjectEntry(workspacePath, entryId, expectedKind)
@@ -99,7 +85,7 @@ function createFilesystemHandlers({
       projectFileIndex.invalidate(workspacePath)
       return result
     }],
-    ['files:trash', async (event, entryId, expectedKind) => {
+    [IPC_CHANNELS.FILES_TRASH, async (event, entryId, expectedKind) => {
       assertTrustedSender(event)
       const workspacePath = requireActiveWorkspace()
       if (!entryId || (expectedKind !== 'file' && expectedKind !== 'directory')) throw new Error('Elemento del workspace non valido.')
@@ -111,7 +97,7 @@ function createFilesystemHandlers({
       projectFileIndex.invalidate(workspacePath)
       return { id: entryId, kind: expectedKind, trashed: true }
     }],
-    ['files:save', (event, fileId, content, options) => {
+    [IPC_CHANNELS.FILES_SAVE, (event, fileId, content, options) => {
       assertTrustedSender(event)
       if (!options || typeof options !== 'object' || Array.isArray(options) || Object.keys(options).some((key) => key !== 'force' && key !== 'revision')) {
         throw new Error('Opzioni salvataggio file non valide.')

@@ -1,12 +1,12 @@
-const APPEARANCE_INVOKE_CHANNELS = Object.freeze(['appearance:get', 'appearance:set'])
+const { APPEARANCE_INVOKE_CHANNELS, IPC_CHANNELS } = require('../channels.cjs')
 
 function createAppearanceHandlers({ assertTrustedSender, applyAppearance, getAppearance, setAppearance }) {
   return new Map([
-    ['appearance:get', (event) => {
+    [IPC_CHANNELS.APPEARANCE_GET, (event) => {
       assertTrustedSender(event)
       return getAppearance()
     }],
-    ['appearance:set', (event, appearance) => {
+    [IPC_CHANNELS.APPEARANCE_SET, (event, appearance) => {
       assertTrustedSender(event)
       const value = setAppearance(appearance)
       applyAppearance(value)

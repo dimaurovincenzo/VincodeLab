@@ -1,3 +1,4 @@
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
@@ -106,7 +107,7 @@ test('il main attende il drain database nei lifecycle boundary e prima di update
   const main = fs.readFileSync(path.join(__dirname, '..', 'electron', 'main.cjs'), 'utf8')
   const shutdownRuntime = fs.readFileSync(path.join(__dirname, '..', 'electron', 'app', 'application-shutdown-runtime.cjs'), 'utf8')
   const windowLifecycle = fs.readFileSync(path.join(__dirname, '..', 'electron', 'app', 'window-lifecycle-runtime.cjs'), 'utf8')
-  const databaseIpc = fs.readFileSync(path.join(__dirname, '..', 'electron', 'ipc', 'domains', 'database.ipc.cjs'), 'utf8')
+  const databaseIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '..', 'electron', 'ipc', 'domains', 'database.ipc.cjs'), 'utf8'))
   const cleanup = fs.readFileSync(path.join(__dirname, '..', 'electron', 'domains', 'workspace', 'workspace-runtime-cleanup.cjs'), 'utf8')
 
   assert.match(main, /createWorkspaceRuntimeCleanup\(\{/)

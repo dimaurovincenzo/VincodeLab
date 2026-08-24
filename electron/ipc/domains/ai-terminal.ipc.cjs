@@ -1,28 +1,4 @@
-const AI_TERMINAL_INVOKE_CHANNELS = Object.freeze([
-  'pi:reload',
-  'pi:restart',
-  'terminal:resume',
-  'terminal:writeInput',
-  'terminal:pasteStart',
-  'terminal:pasteChunk',
-  'terminal:pasteCancel',
-  'terminal:diagnostics',
-  'terminal:exportDiagnostics',
-  'terminal:chooseAttachments',
-  'terminal:prepareDroppedAttachments',
-  'piConfig:start',
-  'piConfig:close',
-])
-
-const AI_TERMINAL_SEND_CHANNELS = Object.freeze([
-  'terminal:ready',
-  'terminal:ack',
-  'terminal:key',
-  'terminal:rendererMetrics',
-  'piConfig:input',
-  'piConfig:resize',
-  'terminal:resize',
-])
+const { AI_TERMINAL_INVOKE_CHANNELS, AI_TERMINAL_SEND_CHANNELS, IPC_CHANNELS } = require('../channels.cjs')
 
 function terminalDiagnostics(piSessionController, createTerminalDiagnosticsReport) {
   return createTerminalDiagnosticsReport({
@@ -48,27 +24,27 @@ function createAiTerminalInvokeHandlers({
   writeFile,
 }) {
   return new Map([
-    ['pi:reload', (event) => {
+    [IPC_CHANNELS.PI_RELOAD, (event) => {
       assertTrustedSender(event)
       return reloadPi()
     }],
-    ['pi:restart', (event) => {
+    [IPC_CHANNELS.PI_RESTART, (event) => {
       assertTrustedSender(event)
       return restartPi()
     }],
-    ['terminal:resume', (event) => {
+    [IPC_CHANNELS.TERMINAL_RESUME, (event) => {
       assertTrustedSender(event)
       const stream = piSessionController.getStream()
       if (!stream) throw new Error('La sessione Pi non è attiva.')
       return stream.createResumeSnapshot()
     }],
-    ['terminal:writeInput', (event, data) => {
+    [IPC_CHANNELS.TERMINAL_WRITE_INPUT, (event, data) => {
       assertTrustedSender(event)
       const bytes = typeof data === 'string' ? Buffer.byteLength(data, 'utf8') : 0
       if (typeof data !== 'string' || bytes === 0 || bytes > 65_536) {
         throw toApplicationError(new Error('Input programmatico non valido.'), {
           category: 'validation',
-          channel: 'terminal:writeInput',
+          channel: IPC_CHANNELS.TERMINAL_WRITE_INPUT,
           code: 'TERMINAL_WRITE_INPUT_INVALID',
           domain: 'terminal',
           message: 'Il testo da inviare al Terminale AI non è valido.',
@@ -79,7 +55,7 @@ function createAiTerminalInvokeHandlers({
       }
       if (!piSessionController.write(data)) {
         throw toApplicationError(new Error('Il processo Pi non ha accettato l’input programmatico.'), {
-          channel: 'terminal:writeInput',
+          channel: IPC_CHANNELS.TERMINAL_WRITE_INPUT,
           code: 'TERMINAL_WRITE_INPUT_FAILED',
           domain: 'terminal',
           message: 'Il testo non è stato inviato al Terminale AI. La sessione è rimasta disponibile.',
@@ -89,7 +65,7 @@ function createAiTerminalInvokeHandlers({
       }
       return { accepted: true, bytes }
     }],
-    ['terminal:pasteStart', (event, input) => {
+    [IPC_CHANNELS.TERMINAL_PASTE_START, (event, input) => {
       assertTrustedSender(event)
       const inputController = piSessionController.getInput()
       if (!inputController) {
@@ -102,22 +78,22 @@ function createAiTerminalInvokeHandlers({
       }
       return inputController.start(input)
     }],
-    ['terminal:pasteChunk', (event, input) => {
+    [IPC_CHANNELS.TERMINAL_PASTE_CHUNK, (event, input) => {
       assertTrustedSender(event)
       const inputController = piSessionController.getInput()
       if (!inputController) return { accepted: false, reason: 'not-running', sentBytes: 0, totalBytes: 0 }
       return inputController.chunk(input)
     }],
-    ['terminal:pasteCancel', (event, transferId) => {
+    [IPC_CHANNELS.TERMINAL_PASTE_CANCEL, (event, transferId) => {
       assertTrustedSender(event)
       return piSessionController.getInput()?.cancel(transferId)
         ?? { cancelled: false, sentBytes: 0, totalBytes: 0 }
     }],
-    ['terminal:diagnostics', (event) => {
+    [IPC_CHANNELS.TERMINAL_DIAGNOSTICS, (event) => {
       assertTrustedSender(event)
       return terminalDiagnostics(piSessionController, createTerminalDiagnosticsReport)
     }],
-    ['terminal:exportDiagnostics', async (event) => {
+    [IPC_CHANNELS.TERMINAL_EXPORT_DIAGNOSTICS, async (event) => {
       assertTrustedSender(event)
       const report = terminalDiagnostics(piSessionController, createTerminalDiagnosticsReport)
       const result = await dialog.showSaveDialog(getMainWindow(), {
@@ -133,20 +109,20 @@ function createAiTerminalInvokeHandlers({
       })
       return { exported: true, filePath: result.filePath }
     }],
-    ['terminal:chooseAttachments', (event) => {
+    [IPC_CHANNELS.TERMINAL_CHOOSE_ATTACHMENTS, (event) => {
       assertTrustedSender(event)
       return chooseTerminalAttachments()
     }],
-    ['terminal:prepareDroppedAttachments', (event, filePaths) => {
+    [IPC_CHANNELS.TERMINAL_PREPARE_DROPPED_ATTACHMENTS, (event, filePaths) => {
       assertTrustedSender(event)
       if (!Array.isArray(filePaths) || filePaths.length > 20) throw new Error('Allegati non validi.')
       return filePaths.map(prepareTerminalAttachment)
     }],
-    ['piConfig:start', (event) => {
+    [IPC_CHANNELS.PI_CONFIG_START, (event) => {
       assertTrustedSender(event)
       return startPiConfig()
     }],
-    ['piConfig:close', async (event) => {
+    [IPC_CHANNELS.PI_CONFIG_CLOSE, async (event) => {
       assertTrustedSender(event)
       await stopPiConfig()
       return { closed: true }
@@ -163,32 +139,32 @@ function createAiTerminalSendListeners({
   sanitizeRendererMetrics,
 }) {
   const listeners = new Map([
-    ['terminal:ready', (event, message) => {
+    [IPC_CHANNELS.TERMINAL_READY, (event, message) => {
       assertTrustedSender(event)
       const stream = piSessionController.getStream()
       if (!stream || !stream.rendererReady(message)) {
         rejectOneWay('TERMINAL_READY_REJECTED', 'Il collegamento renderer non è stato accettato.')
       }
     }],
-    ['terminal:ack', (event, message) => {
+    [IPC_CHANNELS.TERMINAL_ACK, (event, message) => {
       assertTrustedSender(event)
       const stream = piSessionController.getStream()
       if (!stream || !stream.ack(message)) {
         rejectOneWay('TERMINAL_ACK_REJECTED', 'La conferma renderer non è stata accettata.')
       }
     }],
-    ['terminal:key', (event, data) => {
+    [IPC_CHANNELS.TERMINAL_KEY, (event, data) => {
       assertTrustedSender(event)
       if (!piSessionController.write(data)) {
         rejectOneWay('TERMINAL_INPUT_REJECTED', 'Il processo Pi non ha accettato l’input.')
       }
     }],
-    ['terminal:rendererMetrics', (event, metrics) => {
+    [IPC_CHANNELS.TERMINAL_RENDERER_METRICS, (event, metrics) => {
       assertTrustedSender(event)
       const stream = piSessionController.getStream()
       if (stream) stream.updateRendererMetrics(sanitizeRendererMetrics(metrics))
     }],
-    ['piConfig:input', (event, data) => {
+    [IPC_CHANNELS.PI_CONFIG_INPUT, (event, data) => {
       assertTrustedSender(event)
       if (typeof data !== 'string' || data.length === 0 || Buffer.byteLength(data, 'utf8') > 65_536) {
         rejectOneWay('PI_CONFIG_INPUT_INVALID', 'Input configurazione non valido.')
@@ -197,7 +173,7 @@ function createAiTerminalSendListeners({
       if (!piConfigProcess) rejectOneWay('PI_CONFIG_NOT_RUNNING', 'La configurazione di Pi non è attiva.')
       piConfigProcess.write(data)
     }],
-    ['piConfig:resize', (event, dimensions) => {
+    [IPC_CHANNELS.PI_CONFIG_RESIZE, (event, dimensions) => {
       assertTrustedSender(event)
       const cols = Number(dimensions?.cols)
       const rows = Number(dimensions?.rows)
@@ -208,7 +184,7 @@ function createAiTerminalSendListeners({
       if (!piConfigProcess) rejectOneWay('PI_CONFIG_NOT_RUNNING', 'La configurazione di Pi non è attiva.')
       piConfigProcess.resize(cols, rows)
     }],
-    ['terminal:resize', (event, dimensions) => {
+    [IPC_CHANNELS.TERMINAL_RESIZE, (event, dimensions) => {
       assertTrustedSender(event)
       const cols = Number(dimensions?.cols)
       const rows = Number(dimensions?.rows)

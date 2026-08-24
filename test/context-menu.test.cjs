@@ -1,3 +1,4 @@
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
@@ -174,7 +175,7 @@ test('file Git e tab terminale operano sull’elemento cliccato con gating espli
 
 test('la finestra Electron valida kind, ID, comandi abilitati e flags prima del menu', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const menuContextIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/menu-context.ipc.cjs'), 'utf8')
+  const menuContextIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/menu-context.ipc.cjs'), 'utf8'))
 
   assert.equal((menuContextIpc.match(/\['contextMenu:open', \(event, request\)/g) ?? []).length, 1)
   assert.match(main, /registerMenuContextIpc\(\{/)
@@ -204,8 +205,8 @@ test('tutti i comandi inviati come stato del menu sono accettati dal bridge nati
 
 test('main e preload espongono mutazioni filesystem confinate e Cestino macOS', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const filesystemIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/filesystem.ipc.cjs'), 'utf8')
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const filesystemIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/filesystem.ipc.cjs'), 'utf8'))
+  const preload = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8'))
 
   assert.match(filesystemIpc, /\['files:createDirectory'/)
   assert.match(filesystemIpc, /\['files:rename'/)

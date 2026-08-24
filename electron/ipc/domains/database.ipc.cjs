@@ -1,25 +1,4 @@
-const DATABASE_INVOKE_CHANNELS = Object.freeze([
-  'database:listConnections',
-  'database:createConnection',
-  'database:updateConnection',
-  'database:deleteConnection',
-  'database:connect',
-  'database:execute',
-  'database:cancel',
-  'database:begin',
-  'database:commit',
-  'database:rollback',
-  'database:inspectSchema',
-  'database:inspectRoutine',
-  'database:tableRows',
-  'database:updateTableRows',
-  'database:listSavedQueries',
-  'database:saveQuery',
-  'database:updateSavedQuery',
-  'database:deleteSavedQuery',
-  'database:listHistory',
-  'database:clearHistory',
-])
+const { DATABASE_INVOKE_CHANNELS, IPC_CHANNELS } = require('../channels.cjs')
 
 function createDatabaseHandlers({
   assertTrustedSender,
@@ -53,21 +32,28 @@ function createDatabaseHandlers({
   withCleanupDeadline,
 }) {
   return new Map([
-    ['database:listConnections', (event) => { assertTrustedSender(event); return listConnections(requireActiveWorkspace()) }],
-    ['database:createConnection', (event, input) => { assertTrustedSender(event); return createConnection(requireActiveWorkspace(), input) }],
-    ['database:updateConnection', (event, id, input) => runWorkspaceMutation(event, 'database:update-connection', async (workspacePath) => {
+    [IPC_CHANNELS.DATABASE_LIST_CONNECTIONS, (event) => { assertTrustedSender(event); return listConnections(requireActiveWorkspace()) }],
+    [IPC_CHANNELS.DATABASE_CREATE_CONNECTION, (event, input) => { assertTrustedSender(event); return createConnection(requireActiveWorkspace(), input) }],
+    [IPC_CHANNELS.DATABASE_UPDATE_CONNECTION, (event, id, input) => runWorkspaceMutation(event, 'database:update-connection', async (workspacePath) => {
       const drain = databaseOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === id)
       await withCleanupDeadline(Promise.all([drain, closeConnectionSession(workspacePath, id)]), 6_000, 'database-connection-runtime')
       return updateConnection(workspacePath, id, input)
     })],
-    ['database:deleteConnection', (event, id) => runWorkspaceMutation(event, 'database:delete-connection', async (workspacePath) => {
+    [IPC_CHANNELS.DATABASE_DELETE_CONNECTION, (event, id) => runWorkspaceMutation(event, 'database:delete-connection', async (workspacePath) => {
       const drain = databaseOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === id)
       await withCleanupDeadline(Promise.all([drain, closeConnectionSession(workspacePath, id)]), 6_000, 'database-connection-runtime')
       deleteConnection(workspacePath, id)
       return { deleted: true }
     })],
-    ['database:connect', (event, id) => { assertTrustedSender(event); return openConnection(requireActiveWorkspace(), id) }],
-    ['database:execute', async (event, id, sql, options) => {
+    [IPC_CHANNELS.DATABASE_CONNECT, (event, id) => { assertTrustedSender(event); return openConnection(requireActiveWorkspace(), id) }],
+    [IPC_CHANNELS.DATABASE_DISCONNECT, async (event, id) => {
+      assertTrustedSender(event)
+      const workspacePath = requireActiveWorkspace()
+      const drain = databaseOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === id)
+      await withCleanupDeadline(Promise.all([drain, closeConnectionSession(workspacePath, id)]), 6_000, 'database-connection-runtime')
+      return { disconnected: true }
+    }],
+    [IPC_CHANNELS.DATABASE_EXECUTE, async (event, id, sql, options) => {
       assertTrustedSender(event)
       const workspacePath = requireActiveWorkspace()
       const operationId = options?.operationId
@@ -85,34 +71,34 @@ function createDatabaseHandlers({
         operation.finish()
       }
     }],
-    ['database:cancel', (event, operationId) => {
+    [IPC_CHANNELS.DATABASE_CANCEL, (event, operationId) => {
       assertTrustedSender(event)
       return databaseOperations.cancel(operationId, event.sender.id)
     }],
-    ['database:begin', (event, id) => runWorkspaceMutation(event, 'database:begin', (workspacePath) => beginTransaction(workspacePath, id))],
-    ['database:commit', (event, id) => runWorkspaceMutation(event, 'database:commit', (workspacePath) => commitTransaction(workspacePath, id))],
-    ['database:rollback', (event, id) => runWorkspaceMutation(event, 'database:rollback', (workspacePath) => rollbackTransaction(workspacePath, id))],
-    ['database:inspectSchema', (event, id, options) => { assertTrustedSender(event); return inspectSchema(requireActiveWorkspace(), id, options) }],
-    ['database:inspectRoutine', (event, id, routineName, kind) => { assertTrustedSender(event); return inspectRoutine(requireActiveWorkspace(), id, routineName, kind) }],
-    ['database:tableRows', async (event, id, tableName, options) => {
+    [IPC_CHANNELS.DATABASE_BEGIN, (event, id) => runWorkspaceMutation(event, IPC_CHANNELS.DATABASE_BEGIN, (workspacePath) => beginTransaction(workspacePath, id))],
+    [IPC_CHANNELS.DATABASE_COMMIT, (event, id) => runWorkspaceMutation(event, IPC_CHANNELS.DATABASE_COMMIT, (workspacePath) => commitTransaction(workspacePath, id))],
+    [IPC_CHANNELS.DATABASE_ROLLBACK, (event, id) => runWorkspaceMutation(event, IPC_CHANNELS.DATABASE_ROLLBACK, (workspacePath) => rollbackTransaction(workspacePath, id))],
+    [IPC_CHANNELS.DATABASE_INSPECT_SCHEMA, (event, id, options) => { assertTrustedSender(event); return inspectSchema(requireActiveWorkspace(), id, options) }],
+    [IPC_CHANNELS.DATABASE_INSPECT_ROUTINE, (event, id, routineName, kind) => { assertTrustedSender(event); return inspectRoutine(requireActiveWorkspace(), id, routineName, kind) }],
+    [IPC_CHANNELS.DATABASE_TABLE_ROWS, async (event, id, tableName, options) => {
       assertTrustedSender(event)
       try {
         const page = await readTableRows(requireActiveWorkspace(), id, tableName, options)
         log('info', 'database_table_rows_read', { rows: page.rows.length })
         return page
       } catch (error) {
-        const incident = toApplicationError(error, { channel: 'database:tableRows' })
+        const incident = toApplicationError(error, { channel: IPC_CHANNELS.DATABASE_TABLE_ROWS })
         log(incident.severity, 'database_table_rows_failed', getApplicationErrorLogMetadata(incident))
         throw incident
       }
     }],
-    ['database:updateTableRows', (event, id, tableName, changes) => runWorkspaceMutation(event, 'database:update-table-rows', (workspacePath) => updateTableRows(workspacePath, id, tableName, changes))],
-    ['database:listSavedQueries', (event, id) => { assertTrustedSender(event); return listSavedQueries(requireActiveWorkspace(), id) }],
-    ['database:saveQuery', (event, input) => { assertTrustedSender(event); return saveQuery(requireActiveWorkspace(), input) }],
-    ['database:updateSavedQuery', (event, id, input) => { assertTrustedSender(event); return updateSavedQuery(requireActiveWorkspace(), id, input) }],
-    ['database:deleteSavedQuery', (event, id) => { assertTrustedSender(event); deleteSavedQuery(requireActiveWorkspace(), id); return { deleted: true } }],
-    ['database:listHistory', (event, id, limit) => { assertTrustedSender(event); return listHistory(requireActiveWorkspace(), id, limit) }],
-    ['database:clearHistory', (event, id) => { assertTrustedSender(event); return clearHistory(requireActiveWorkspace(), id) }],
+    [IPC_CHANNELS.DATABASE_UPDATE_TABLE_ROWS, (event, id, tableName, changes) => runWorkspaceMutation(event, 'database:update-table-rows', (workspacePath) => updateTableRows(workspacePath, id, tableName, changes))],
+    [IPC_CHANNELS.DATABASE_LIST_SAVED_QUERIES, (event, id) => { assertTrustedSender(event); return listSavedQueries(requireActiveWorkspace(), id) }],
+    [IPC_CHANNELS.DATABASE_SAVE_QUERY, (event, input) => { assertTrustedSender(event); return saveQuery(requireActiveWorkspace(), input) }],
+    [IPC_CHANNELS.DATABASE_UPDATE_SAVED_QUERY, (event, id, input) => { assertTrustedSender(event); return updateSavedQuery(requireActiveWorkspace(), id, input) }],
+    [IPC_CHANNELS.DATABASE_DELETE_SAVED_QUERY, (event, id) => { assertTrustedSender(event); deleteSavedQuery(requireActiveWorkspace(), id); return { deleted: true } }],
+    [IPC_CHANNELS.DATABASE_LIST_HISTORY, (event, id, limit) => { assertTrustedSender(event); return listHistory(requireActiveWorkspace(), id, limit) }],
+    [IPC_CHANNELS.DATABASE_CLEAR_HISTORY, (event, id) => { assertTrustedSender(event); return clearHistory(requireActiveWorkspace(), id) }],
   ])
 }
 

@@ -1,12 +1,4 @@
-const UPDATES_INVOKE_CHANNELS = Object.freeze([
-  'updates:list',
-  'updates:check',
-  'updates:download',
-  'updates:downloadAll',
-  'updates:setPolicy',
-  'updates:rollback',
-  'updates:activatePending',
-])
+const { IPC_CHANNELS, UPDATES_INVOKE_CHANNELS } = require('../channels.cjs')
 
 function createUpdatesHandlers({
   activatePendingUpdates,
@@ -20,37 +12,37 @@ function createUpdatesHandlers({
   stageManagedUpdate,
 }) {
   return new Map([
-    ['updates:list', (event) => {
+    [IPC_CHANNELS.UPDATES_LIST, (event) => {
       assertTrustedSender(event)
       return listManagedUpdates()
     }],
-    ['updates:check', (event, id) => {
+    [IPC_CHANNELS.UPDATES_CHECK, (event, id) => {
       assertTrustedSender(event)
       return checkUpdates(id ?? null, { force: true })
     }],
-    ['updates:download', (event, id) => runExternalMutation(
+    [IPC_CHANNELS.UPDATES_DOWNLOAD, (event, id) => runExternalMutation(
       event,
-      'updates:download',
+      IPC_CHANNELS.UPDATES_DOWNLOAD,
       null,
       () => stageManagedUpdate(id),
     )],
-    ['updates:downloadAll', (event) => runExternalMutation(
+    [IPC_CHANNELS.UPDATES_DOWNLOAD_ALL, (event) => runExternalMutation(
       event,
       'updates:download-all',
       null,
       () => downloadAllUpdates(),
     )],
-    ['updates:setPolicy', (event, id, policy) => {
+    [IPC_CHANNELS.UPDATES_SET_POLICY, (event, id, policy) => {
       assertTrustedSender(event)
       return setManagedUpdatePolicy(id, policy)
     }],
-    ['updates:rollback', (event, id) => runExternalMutation(
+    [IPC_CHANNELS.UPDATES_ROLLBACK, (event, id) => runExternalMutation(
       event,
-      'updates:rollback',
+      IPC_CHANNELS.UPDATES_ROLLBACK,
       null,
       () => rollbackManagedUpdate(id),
     )],
-    ['updates:activatePending', (event) => runExternalMutation(
+    [IPC_CHANNELS.UPDATES_ACTIVATE_PENDING, (event) => runExternalMutation(
       event,
       'updates:activate',
       null,

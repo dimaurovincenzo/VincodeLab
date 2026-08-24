@@ -1,3 +1,4 @@
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -78,8 +79,8 @@ test('il main applica latest wins soltanto alle letture e le cancella nei lifecy
   const cleanup = fs.readFileSync(path.join(__dirname, '../electron/domains/workspace/workspace-runtime-cleanup.cjs'), 'utf8')
   const opener = fs.readFileSync(path.join(__dirname, '../electron/domains/workspace/workspace-opener.cjs'), 'utf8')
   const windowLifecycle = fs.readFileSync(path.join(__dirname, '../electron/app/window-lifecycle-runtime.cjs'), 'utf8')
-  const gitIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/git.ipc.cjs'), 'utf8')
-  const githubIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/github.ipc.cjs'), 'utf8')
+  const gitIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/git.ipc.cjs'), 'utf8'))
+  const githubIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/github.ipc.cjs'), 'utf8'))
   const domainSource = `${gitIpc}\n${githubIpc}`
   const handlerSource = (channel) => {
     const start = domainSource.indexOf(`['${channel}'`)

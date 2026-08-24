@@ -1,14 +1,4 @@
-const WORKSPACE_COMMANDS_INVOKE_CHANNELS = Object.freeze([
-  'workspaceCommands:list',
-  'workspaceCommands:createCategory',
-  'workspaceCommands:updateCategory',
-  'workspaceCommands:deleteCategory',
-  'workspaceCommands:create',
-  'workspaceCommands:update',
-  'workspaceCommands:move',
-  'workspaceCommands:delete',
-  'workspaceCommands:run',
-])
+const { IPC_CHANNELS, WORKSPACE_COMMANDS_INVOKE_CHANNELS } = require('../channels.cjs')
 
 function createWorkspaceCommandsHandlers({
   assertTrustedSender,
@@ -27,42 +17,42 @@ function createWorkspaceCommandsHandlers({
   updateWorkspaceCommand,
 }) {
   return new Map([
-    ['workspaceCommands:list', (event) => {
+    [IPC_CHANNELS.WORKSPACE_COMMANDS_LIST, (event) => {
       assertTrustedSender(event)
       return listWorkspaceCommands(requireActiveWorkspace())
     }],
-    ['workspaceCommands:createCategory', (event, name) => {
+    [IPC_CHANNELS.WORKSPACE_COMMANDS_CREATE_CATEGORY, (event, name) => {
       assertTrustedSender(event)
       return createCommandCategory(requireActiveWorkspace(), name)
     }],
-    ['workspaceCommands:updateCategory', (event, categoryId, name) => {
+    [IPC_CHANNELS.WORKSPACE_COMMANDS_UPDATE_CATEGORY, (event, categoryId, name) => {
       assertTrustedSender(event)
       return updateCommandCategory(requireActiveWorkspace(), categoryId, name)
     }],
-    ['workspaceCommands:deleteCategory', (event, categoryId) => {
+    [IPC_CHANNELS.WORKSPACE_COMMANDS_DELETE_CATEGORY, (event, categoryId) => {
       assertTrustedSender(event)
       deleteCommandCategory(requireActiveWorkspace(), categoryId)
       return { deleted: true }
     }],
-    ['workspaceCommands:create', (event, input) => {
+    [IPC_CHANNELS.WORKSPACE_COMMANDS_CREATE, (event, input) => {
       assertTrustedSender(event)
       return createWorkspaceCommand(requireActiveWorkspace(), input)
     }],
-    ['workspaceCommands:update', (event, commandId, input) => {
+    [IPC_CHANNELS.WORKSPACE_COMMANDS_UPDATE, (event, commandId, input) => {
       assertTrustedSender(event)
       return updateWorkspaceCommand(requireActiveWorkspace(), commandId, input)
     }],
-    ['workspaceCommands:move', (event, commandId, categoryId) => {
+    [IPC_CHANNELS.WORKSPACE_COMMANDS_MOVE, (event, commandId, categoryId) => {
       assertTrustedSender(event)
       moveWorkspaceCommand(requireActiveWorkspace(), commandId, categoryId)
       return { moved: true }
     }],
-    ['workspaceCommands:delete', (event, commandId) => {
+    [IPC_CHANNELS.WORKSPACE_COMMANDS_DELETE, (event, commandId) => {
       assertTrustedSender(event)
       deleteWorkspaceCommand(requireActiveWorkspace(), commandId)
       return { deleted: true }
     }],
-    ['workspaceCommands:run', (event, commandId) => {
+    [IPC_CHANNELS.WORKSPACE_COMMANDS_RUN, (event, commandId) => {
       assertTrustedSender(event)
       const workspacePath = requireActiveWorkspace()
       const activeSession = requireRunningShellSession(workspacePath)

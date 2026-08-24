@@ -1,4 +1,4 @@
-const RUNTIME_INVOKE_CHANNELS = Object.freeze(['runtime:capabilities'])
+const { IPC_CHANNELS, RUNTIME_INVOKE_CHANNELS } = require('../channels.cjs')
 
 function createRuntimeHandlers({
   assertTrustedSender,
@@ -8,7 +8,7 @@ function createRuntimeHandlers({
   resolvePiExecutable,
 }) {
   return new Map([
-    ['runtime:capabilities', (event) => {
+    [IPC_CHANNELS.RUNTIME_CAPABILITIES, (event) => {
       assertTrustedSender(event)
       return getRuntimeCapabilities({
         piExecutable: resolvePiExecutable(),

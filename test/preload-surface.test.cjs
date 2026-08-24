@@ -1,3 +1,4 @@
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -11,7 +12,7 @@ function ipcRegistrationModules() {
   const walk = (directory) => fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const target = path.join(directory, entry.name)
     if (entry.isDirectory()) return walk(target)
-    return entry.name.endsWith('.cjs') ? [target] : []
+    return entry.name.endsWith('.cjs') && entry.name !== 'channels.cjs' ? [target] : []
   })
   return fs.existsSync(root) ? walk(root) : []
 }
@@ -34,7 +35,7 @@ test('il bridge benchmark esiste soltanto con flag e accetta due comandi allowli
   const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const windowLifecycle = fs.readFileSync(path.join(__dirname, '../electron/app/window-lifecycle-runtime.cjs'), 'utf8')
-  const lifecycleBenchmarkIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/lifecycle-benchmark.ipc.cjs'), 'utf8')
+  const lifecycleBenchmarkIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/lifecycle-benchmark.ipc.cjs'), 'utf8'))
 
   assert.match(preload, /benchmarkMode\s*=\s*process\.argv\.includes\('--vincodelab-reliability-benchmark'\)[\s\S]*benchmark: \{[\s\S]{0,160}dispatchCommand: \(command\) => ipcRenderer\.invoke\('benchmark:dispatchCommand', command\)/)
   assert.match(preload, /benchmarkFaultInjectionMode\s*=\s*benchmarkMode\s*&&\s*process\.argv\.includes\('--vincodelab-reliability-fault-injection'\)/)
@@ -55,7 +56,7 @@ test('il bridge benchmark esiste soltanto con flag e accetta due comandi allowli
 test('il Terminale AI separa tasti interattivi, input programmatici con ack e paste controllati', () => {
   const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const aiTerminalIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8')
+  const aiTerminalIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8'))
 
   assert.match(preload, /writeKey: \(data\) => ipcRenderer\.send\('terminal:key', data\)/)
   assert.match(preload, /writeInput: \(data\) => ipcRenderer\.invoke\('terminal:writeInput', data\)/)
@@ -71,7 +72,7 @@ test('il Terminale AI separa tasti interattivi, input programmatici con ack e pa
 
 test('il Terminale AI e piConfig espongono failure one-way classificati', () => {
   const preload = readCanonicalPreloadSource()
-  const aiTerminalIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8')
+  const aiTerminalIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8'))
   const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
 
   assert.match(preload, /ipcRenderer\.on\('terminal:error'/)
@@ -87,7 +88,7 @@ test('il Terminale AI e piConfig espongono failure one-way classificati', () => 
 
 test('il Terminale AI espone diagnostica numerica senza percorso di esportazione dal renderer', () => {
   const preload = readCanonicalPreloadSource()
-  const aiTerminalIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8')
+  const aiTerminalIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8'))
 
   assert.match(preload, /reportRendererMetrics: \(metrics\) => ipcRenderer\.send\('terminal:rendererMetrics', metrics\)/)
   assert.match(preload, /diagnostics: \(\) => ipcRenderer\.invoke\('terminal:diagnostics'\)/)
@@ -101,7 +102,7 @@ test('il Terminale AI espone diagnostica numerica senza percorso di esportazione
 test('preload espone il menu contestuale senza accettare template o callback dal renderer', () => {
   const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const menuContextIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/menu-context.ipc.cjs'), 'utf8')
+  const menuContextIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/menu-context.ipc.cjs'), 'utf8'))
 
   assert.match(preload, /contextMenu: \{[\s\S]*open: \(request\) => ipcRenderer\.invoke\('contextMenu:open', request\)/)
   assert.doesNotMatch(preload, /buildFromTemplate|Menu\.popup/)
@@ -112,7 +113,7 @@ test('preload espone il menu contestuale senza accettare template o callback dal
 test('preload espone preferenze tipizzate senza accettare percorsi workspace', () => {
   const source = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const preferencesIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/preferences.ipc.cjs'), 'utf8')
+  const preferencesIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/preferences.ipc.cjs'), 'utf8'))
   const start = source.indexOf('preferences: {')
   const end = source.indexOf('\n  piSystem: {', start)
   const preload = start >= 0 ? source.slice(start, end >= 0 ? end : undefined) : ''
@@ -132,7 +133,7 @@ test('preload espone preferenze tipizzate senza accettare percorsi workspace', (
 test('le bozze volatili usano invoke con ack per rendere osservabili write e discard', () => {
   const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const workspaceStateIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace-state.ipc.cjs'), 'utf8')
+  const workspaceStateIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace-state.ipc.cjs'), 'utf8'))
   const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
 
   assert.match(preload, /write: \(draft\) => ipcRenderer\.invoke\('volatileDrafts:write', draft\)/)
@@ -154,7 +155,7 @@ test('preload espone il catalogo read-only delle skill dai pacchetti Pi', () => 
 test('il renderer ripristina il workspace attivo dopo un rimontaggio', () => {
   const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const workspaceIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace.ipc.cjs'), 'utf8')
+  const workspaceIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace.ipc.cjs'), 'utf8'))
   const app = readAppSource()
 
   assert.match(preload, /getActive: \(\) => ipcRenderer\.invoke\('workspace:getActive'\)/)
@@ -167,8 +168,8 @@ test('il renderer ripristina il workspace attivo dopo un rimontaggio', () => {
 test('Mostra nel Finder attraversa invoke e il menu delega ownership e recovery al renderer', () => {
   const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const menuFeedbackRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-menu-feedback-runtime.cjs'), 'utf8')
-  const workspaceIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace.ipc.cjs'), 'utf8')
+  const menuFeedbackRuntime = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/app/application-menu-feedback-runtime.cjs'), 'utf8'))
+  const workspaceIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace.ipc.cjs'), 'utf8'))
   const app = readAppSource()
   const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
   const dispatch = menuFeedbackRuntime.slice(menuFeedbackRuntime.indexOf('function dispatchApplicationMenuCommand'), menuFeedbackRuntime.indexOf('function notifyWhenBackground'))
@@ -189,7 +190,7 @@ test('la sessione workspace usa soltanto il workspace attivo e un sender trusted
   const preloadSource = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
-  const workspaceStateIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace-state.ipc.cjs'), 'utf8')
+  const workspaceStateIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace-state.ipc.cjs'), 'utf8'))
   const start = preloadSource.indexOf('workspaceSession: {')
   const end = preloadSource.indexOf('\n  appearance:', start)
   const workspaceSession = start >= 0 ? preloadSource.slice(start, end >= 0 ? end : undefined) : ''
@@ -215,7 +216,7 @@ test('preload espone refresh cache-aware senza API Node nel renderer', () => {
 test('preload espone il workspace Database senza accesso Node dal renderer', () => {
   const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const databaseIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/database.ipc.cjs'), 'utf8')
+  const databaseIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/database.ipc.cjs'), 'utf8'))
   const database = preload.slice(preload.indexOf('database:'), preload.indexOf('\n  shell:'))
 
   assert.match(database, /database: \{[\s\S]*execute: \(connectionId, sql, options\) => ipcRenderer\.invoke\('database:execute', connectionId, sql, options\)/)
@@ -251,7 +252,7 @@ test('ogni API invoke esposta dal preload ha un handler nel main process', () =>
 test('preload espone i comandi workspace senza scrivere direttamente nella shell', () => {
   const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const workspaceCommandsIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace-commands.ipc.cjs'), 'utf8')
+  const workspaceCommandsIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace-commands.ipc.cjs'), 'utf8'))
   const workspaceCommands = preload.slice(preload.indexOf('workspaceCommands:'), preload.indexOf('\n  shell:'))
 
   assert.match(preload, /workspaceCommands: \{[\s\S]*run: \(commandId\) => ipcRenderer\.invoke\('workspaceCommands:run', commandId\)/)
@@ -266,7 +267,7 @@ test('preload espone i comandi workspace senza scrivere direttamente nella shell
 test('preload espone allegati Pi senza accesso filesystem nel renderer', () => {
   const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const aiTerminalIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8')
+  const aiTerminalIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8'))
 
   assert.match(preload, /webUtils\.getPathForFile/)
   assert.match(preload, /chooseAttachments: \(\) => ipcRenderer\.invoke\('terminal:chooseAttachments'\)/)
@@ -281,8 +282,8 @@ test('preload espone allegati Pi senza accesso filesystem nel renderer', () => {
 test('preload espone file remoti con ID opachi e handler confinati', () => {
   const preloadSource = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const managedSshIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/managed-ssh.ipc.cjs'), 'utf8')
-  const remoteFilesIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/remote-files.ipc.cjs'), 'utf8')
+  const managedSshIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/managed-ssh.ipc.cjs'), 'utf8'))
+  const remoteFilesIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/remote-files.ipc.cjs'), 'utf8'))
   const remoteRuntime = fs.readFileSync(path.join(__dirname, '../electron/domains/remote/remote-runtime.cjs'), 'utf8')
   const remoteIpc = `${managedSshIpc}\n${remoteFilesIpc}`
   const start = preloadSource.indexOf('managedSsh:')

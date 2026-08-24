@@ -1,19 +1,4 @@
-const GIT_INVOKE_CHANNELS = Object.freeze([
-  'github:gitStatus',
-  'github:initRepository',
-  'github:addRemote',
-  'github:stage',
-  'github:unstage',
-  'github:commit',
-  'github:push',
-  'github:fetch',
-  'github:pullRebase',
-  'github:branches',
-  'github:switchBranch',
-  'github:createBranch',
-  'github:fileDiff',
-  'github:revert',
-])
+const { GIT_INVOKE_CHANNELS, IPC_CHANNELS } = require('../channels.cjs')
 
 function createGitHandlers({
   addGitHubRemote,
@@ -36,7 +21,7 @@ function createGitHandlers({
   unstageFiles,
 }) {
   return new Map([
-    ['github:gitStatus', (event, options) => {
+    [IPC_CHANNELS.GITHUB_GIT_STATUS, (event, options) => {
       assertTrustedSender(event)
       const readOptions = assertCacheReadOptions(options)
       return runLatestGithubRead(
@@ -45,35 +30,35 @@ function createGitHandlers({
         (workspacePath, signal) => getCachedGitStatus(workspacePath, { ...readOptions, signal }),
       )
     }],
-    ['github:initRepository', (event) => runWorkspaceMutation(
+    [IPC_CHANNELS.GITHUB_INIT_REPOSITORY, (event) => runWorkspaceMutation(
       event,
       'github:init-repository',
       initializeGitRepository,
     )],
-    ['github:addRemote', (event, remoteUrl) => runWorkspaceMutation(
+    [IPC_CHANNELS.GITHUB_ADD_REMOTE, (event, remoteUrl) => runWorkspaceMutation(
       event,
       'github:add-remote',
       (workspacePath) => addGitHubRemote(workspacePath, remoteUrl),
     )],
-    ['github:stage', (event, filePaths) => runWorkspaceMutation(
+    [IPC_CHANNELS.GITHUB_STAGE, (event, filePaths) => runWorkspaceMutation(
       event,
-      'github:stage',
+      IPC_CHANNELS.GITHUB_STAGE,
       (workspacePath) => stageFiles(workspacePath, filePaths),
     )],
-    ['github:unstage', (event, filePaths) => runWorkspaceMutation(
+    [IPC_CHANNELS.GITHUB_UNSTAGE, (event, filePaths) => runWorkspaceMutation(
       event,
-      'github:unstage',
+      IPC_CHANNELS.GITHUB_UNSTAGE,
       (workspacePath) => unstageFiles(workspacePath, filePaths),
     )],
-    ['github:commit', (event, message) => runWorkspaceMutation(
+    [IPC_CHANNELS.GITHUB_COMMIT, (event, message) => runWorkspaceMutation(
       event,
-      'github:commit',
+      IPC_CHANNELS.GITHUB_COMMIT,
       (workspacePath) => commit(workspacePath, message),
     )],
-    ['github:push', (event) => runWorkspaceMutation(event, 'github:push', push)],
-    ['github:fetch', (event) => runWorkspaceMutation(event, 'github:fetch', fetchRemote)],
-    ['github:pullRebase', (event) => runWorkspaceMutation(event, 'github:pull-rebase', pullRebase)],
-    ['github:branches', (event) => {
+    [IPC_CHANNELS.GITHUB_PUSH, (event) => runWorkspaceMutation(event, IPC_CHANNELS.GITHUB_PUSH, push)],
+    [IPC_CHANNELS.GITHUB_FETCH, (event) => runWorkspaceMutation(event, IPC_CHANNELS.GITHUB_FETCH, fetchRemote)],
+    [IPC_CHANNELS.GITHUB_PULL_REBASE, (event) => runWorkspaceMutation(event, 'github:pull-rebase', pullRebase)],
+    [IPC_CHANNELS.GITHUB_BRANCHES, (event) => {
       assertTrustedSender(event)
       return runLatestGithubRead(
         event,
@@ -81,17 +66,17 @@ function createGitHandlers({
         (workspacePath, signal) => listBranches(workspacePath, { signal }),
       )
     }],
-    ['github:switchBranch', (event, branchName) => runWorkspaceMutation(
+    [IPC_CHANNELS.GITHUB_SWITCH_BRANCH, (event, branchName) => runWorkspaceMutation(
       event,
       'github:switch-branch',
       (workspacePath) => switchBranch(workspacePath, branchName),
     )],
-    ['github:createBranch', (event, branchName) => runWorkspaceMutation(
+    [IPC_CHANNELS.GITHUB_CREATE_BRANCH, (event, branchName) => runWorkspaceMutation(
       event,
       'github:create-branch',
       (workspacePath) => createBranch(workspacePath, branchName),
     )],
-    ['github:fileDiff', (event, filePath) => {
+    [IPC_CHANNELS.GITHUB_FILE_DIFF, (event, filePath) => {
       assertTrustedSender(event)
       return runLatestGithubRead(
         event,
@@ -99,9 +84,9 @@ function createGitHandlers({
         (workspacePath, signal) => getFileDiff(workspacePath, filePath, { signal }),
       )
     }],
-    ['github:revert', (event, sha) => runWorkspaceMutation(
+    [IPC_CHANNELS.GITHUB_REVERT, (event, sha) => runWorkspaceMutation(
       event,
-      'github:revert',
+      IPC_CHANNELS.GITHUB_REVERT,
       (workspacePath) => revertCommit(workspacePath, sha),
     )],
   ])

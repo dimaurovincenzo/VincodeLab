@@ -1,22 +1,4 @@
-const REMOTE_FILES_INVOKE_CHANNELS = Object.freeze([
-  'remoteFiles:browse',
-  'remoteFiles:downloadAndTrack',
-  'remoteFiles:downloadAs',
-  'remoteFiles:read',
-  'remoteFiles:preview',
-  'remoteFiles:saveLocal',
-  'remoteFiles:compare',
-  'remoteFiles:upload',
-  'remoteFiles:chooseAndUpload',
-  'remoteFiles:cancelTransfer',
-  'remoteFiles:createDirectory',
-  'remoteFiles:rename',
-  'remoteFiles:remove',
-  'remoteFiles:discard',
-  'remoteFiles:listTracked',
-  'remoteFiles:revealLocal',
-  'remoteFiles:cleanup',
-])
+const { IPC_CHANNELS, REMOTE_FILES_INVOKE_CHANNELS } = require('../channels.cjs')
 
 function createRemoteFilesHandlers({
   assertTrustedSender,
@@ -24,71 +6,71 @@ function createRemoteFilesHandlers({
   requireActiveWorkspace,
 }) {
   return new Map([
-    ['remoteFiles:browse', (event, connectionId, directoryId) => {
+    [IPC_CHANNELS.REMOTE_FILES_BROWSE, (event, connectionId, directoryId) => {
       assertTrustedSender(event)
       return getRemoteFileService().browse(requireActiveWorkspace(), connectionId, directoryId)
     }],
-    ['remoteFiles:downloadAndTrack', (event, entryId) => {
+    [IPC_CHANNELS.REMOTE_FILES_DOWNLOAD_AND_TRACK, (event, entryId) => {
       assertTrustedSender(event)
       return getRemoteFileService().downloadAndTrack(requireActiveWorkspace(), entryId)
     }],
-    ['remoteFiles:downloadAs', (event, entryId) => {
+    [IPC_CHANNELS.REMOTE_FILES_DOWNLOAD_AS, (event, entryId) => {
       assertTrustedSender(event)
       return getRemoteFileService().downloadAs(requireActiveWorkspace(), entryId)
     }],
-    ['remoteFiles:read', (event, fileId) => {
+    [IPC_CHANNELS.REMOTE_FILES_READ, (event, fileId) => {
       assertTrustedSender(event)
       return getRemoteFileService().readLocal(requireActiveWorkspace(), fileId)
     }],
-    ['remoteFiles:preview', (event, fileId) => {
+    [IPC_CHANNELS.REMOTE_FILES_PREVIEW, (event, fileId) => {
       assertTrustedSender(event)
       return getRemoteFileService().readPreview(requireActiveWorkspace(), fileId)
     }],
-    ['remoteFiles:saveLocal', (event, fileId, content) => {
+    [IPC_CHANNELS.REMOTE_FILES_SAVE_LOCAL, (event, fileId, content) => {
       assertTrustedSender(event)
       return getRemoteFileService().saveLocal(requireActiveWorkspace(), fileId, content)
     }],
-    ['remoteFiles:compare', (event, fileId) => {
+    [IPC_CHANNELS.REMOTE_FILES_COMPARE, (event, fileId) => {
       assertTrustedSender(event)
       return getRemoteFileService().compare(requireActiveWorkspace(), fileId)
     }],
-    ['remoteFiles:upload', (event, fileId, options) => {
+    [IPC_CHANNELS.REMOTE_FILES_UPLOAD, (event, fileId, options) => {
       assertTrustedSender(event)
       return getRemoteFileService().upload(requireActiveWorkspace(), fileId, options)
     }],
-    ['remoteFiles:chooseAndUpload', (event, connectionId, directoryId) => {
+    [IPC_CHANNELS.REMOTE_FILES_CHOOSE_AND_UPLOAD, (event, connectionId, directoryId) => {
       assertTrustedSender(event)
       return getRemoteFileService().chooseAndUpload(requireActiveWorkspace(), connectionId, directoryId)
     }],
-    ['remoteFiles:cancelTransfer', (event, transferId) => {
+    [IPC_CHANNELS.REMOTE_FILES_CANCEL_TRANSFER, (event, transferId) => {
       assertTrustedSender(event)
       return { cancelled: getRemoteFileService().cancelTransfer(requireActiveWorkspace(), transferId) }
     }],
-    ['remoteFiles:createDirectory', (event, connectionId, parentId, name) => {
+    [IPC_CHANNELS.REMOTE_FILES_CREATE_DIRECTORY, (event, connectionId, parentId, name) => {
       assertTrustedSender(event)
       return getRemoteFileService().createDirectory(requireActiveWorkspace(), connectionId, parentId, name)
     }],
-    ['remoteFiles:rename', (event, entryId, name) => {
+    [IPC_CHANNELS.REMOTE_FILES_RENAME, (event, entryId, name) => {
       assertTrustedSender(event)
       return getRemoteFileService().rename(requireActiveWorkspace(), entryId, name)
     }],
-    ['remoteFiles:remove', (event, entryId) => {
+    [IPC_CHANNELS.REMOTE_FILES_REMOVE, (event, entryId) => {
       assertTrustedSender(event)
       return getRemoteFileService().remove(requireActiveWorkspace(), entryId)
     }],
-    ['remoteFiles:discard', (event, fileId, options) => {
+    [IPC_CHANNELS.REMOTE_FILES_DISCARD, (event, fileId, options) => {
       assertTrustedSender(event)
       return getRemoteFileService().discard(requireActiveWorkspace(), fileId, options)
     }],
-    ['remoteFiles:listTracked', (event) => {
+    [IPC_CHANNELS.REMOTE_FILES_LIST_TRACKED, (event) => {
       assertTrustedSender(event)
       return getRemoteFileService().listTracked(requireActiveWorkspace())
     }],
-    ['remoteFiles:revealLocal', (event, fileId) => {
+    [IPC_CHANNELS.REMOTE_FILES_REVEAL_LOCAL, (event, fileId) => {
       assertTrustedSender(event)
       return getRemoteFileService().revealLocal(requireActiveWorkspace(), fileId)
     }],
-    ['remoteFiles:cleanup', (event, options) => {
+    [IPC_CHANNELS.REMOTE_FILES_CLEANUP, (event, options) => {
       assertTrustedSender(event)
       return getRemoteFileService().cleanup(requireActiveWorkspace(), options)
     }],

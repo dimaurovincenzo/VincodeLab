@@ -1,3 +1,4 @@
+const { IPC_CHANNELS } = require('./ipc/channels.cjs')
 const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, Notification, safeStorage, shell } = require('electron')
 const { randomUUID } = require('node:crypto')
 const { writeFile } = require('node:fs/promises')
@@ -243,8 +244,8 @@ const remoteRuntime = createRemoteRuntime({
   getDatabase,
   getTempRoot: () => app.getPath('temp'),
   log,
-  notifyTransfer: (transfer) => sendToRenderer('remoteFiles:transfer', transfer),
-  sendManagedSshStatus: (status) => sendToRenderer('managedSsh:status', status),
+  notifyTransfer: (transfer) => sendToRenderer(IPC_CHANNELS.REMOTE_FILES_TRANSFER, transfer),
+  sendManagedSshStatus: (status) => sendToRenderer(IPC_CHANNELS.MANAGED_SSH_STATUS, status),
   showItemInFolder: (localPath) => shell.showItemInFolder(localPath),
 })
 const getManagedSsh = remoteRuntime.getManagedSsh

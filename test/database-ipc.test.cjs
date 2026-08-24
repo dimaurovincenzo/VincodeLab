@@ -97,7 +97,7 @@ function databaseFixture(overrides = {}) {
   return { calls, dependencies, ipcMain, operationSignal, predicates, registrations, results }
 }
 
-test('registra una sola volta il manifesto completo dei 20 canali IPC Database', () => {
+test('registra una sola volta il manifesto completo dei 21 canali IPC Database', () => {
   const fixture = databaseFixture()
   const registration = registerDatabaseIpc({ ipcMain: fixture.ipcMain, ...fixture.dependencies })
 
@@ -107,6 +107,7 @@ test('registra una sola volta il manifesto completo dei 20 canali IPC Database',
     'database:updateConnection',
     'database:deleteConnection',
     'database:connect',
+    'database:disconnect',
     'database:execute',
     'database:cancel',
     'database:begin',
@@ -129,11 +130,12 @@ test('registra una sola volta il manifesto completo dei 20 canali IPC Database',
 
 test('gli handler diretti verificano il sender prima di workspace e servizi', async () => {
   const rejection = new Error('sender non attendibile')
-  const asyncChannels = new Set(['database:execute', 'database:tableRows'])
+  const asyncChannels = new Set(['database:disconnect', 'database:execute', 'database:tableRows'])
   const argumentsByChannel = new Map([
     ['database:listConnections', []],
     ['database:createConnection', [{}]],
     ['database:connect', ['connection-1']],
+    ['database:disconnect', ['connection-1']],
     ['database:execute', ['connection-1', 'SELECT 1', { operationId: 'operation-1' }]],
     ['database:cancel', ['operation-1']],
     ['database:inspectSchema', ['connection-1', {}]],
@@ -254,6 +256,26 @@ test('deleteConnection completa il cleanup, elimina e restituisce il contratto p
     ['cleanup-deadline', 6_000, 'database-connection-runtime'],
     ['delete-connection', '/workspace/current', 'connection-1'],
   ])
+})
+
+test('disconnect drena le operazioni, chiude la sessione entro deadline e preserva la connessione', async () => {
+  const fixture = databaseFixture()
+  const event = { sender: { id: 16 } }
+  const handler = createDatabaseHandlers(fixture.dependencies).get('database:disconnect')
+
+  assert.deepEqual(await handler(event, 'connection-1'), { disconnected: true })
+  assert.deepEqual(fixture.calls, [
+    ['guard', event],
+    ['require-workspace'],
+    ['abort-and-wait'],
+    ['close-session', '/workspace/current', 'connection-1'],
+    ['cleanup-deadline', 6_000, 'database-connection-runtime'],
+  ])
+  assert.equal(fixture.predicates.length, 1)
+  assert.equal(fixture.predicates[0]({ workspacePath: '/workspace/current', connectionId: 'connection-1' }), true)
+  assert.equal(fixture.predicates[0]({ workspacePath: '/workspace/other', connectionId: 'connection-1' }), false)
+  assert.equal(fixture.predicates[0]({ workspacePath: '/workspace/current', connectionId: 'connection-2' }), false)
+  assert.equal(fixture.calls.some(([kind]) => kind === 'delete-connection'), false)
 })
 
 test('begin, commit, rollback e updateTableRows conservano registry type e callback', () => {

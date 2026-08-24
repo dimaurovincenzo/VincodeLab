@@ -3,6 +3,8 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
+
 const {
   SHELL_SESSIONS_INVOKE_CHANNELS,
   SHELL_SESSIONS_SEND_CHANNELS,
@@ -13,7 +15,7 @@ const {
 
 const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
 const applicationShutdownRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-shutdown-runtime.cjs'), 'utf8')
-const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+const preload = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8'))
 const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
 
 function createHarness(overrides = {}) {
@@ -158,7 +160,7 @@ test('il preload espone sessioni tipizzate senza accettare un workspace path', (
 })
 
 test('main registra il dominio sessioni una volta e conserva il confine one-way', () => {
-  const runtime = fs.readFileSync(path.join(__dirname, '../electron/domains/shell/shell-session-runtime.cjs'), 'utf8')
+  const runtime = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/domains/shell/shell-session-runtime.cjs'), 'utf8'))
   assert.match(main, /registerShellSessionsIpc\(\{/)
   assert.doesNotMatch(main, /ipcMain\.(?:handle|on)\('shellSessions:/)
   assert.match(main, /const handleShellSessionOneWay = shellSessionRuntime\.handleOneWay/)
@@ -168,7 +170,7 @@ test('main registra il dominio sessioni una volta e conserva il confine one-way'
 })
 
 test('ogni chunk terminale attraversa un solo canale IPC tipizzato', () => {
-  const runtime = fs.readFileSync(path.join(__dirname, '../electron/domains/shell/shell-session-runtime.cjs'), 'utf8')
+  const runtime = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/domains/shell/shell-session-runtime.cjs'), 'utf8'))
   assert.match(runtime, /sendToRenderer\('shellSessions:data', \{[\s\S]*sessionId: event\.sessionId,[\s\S]*attachmentId: event\.attachmentId,[\s\S]*generation: event\.generation,[\s\S]*sequence: event\.sequence,[\s\S]*data: event\.data/)
   assert.match(runtime, /sendToRenderer\('shellSessions:exit', \{/)
   assert.doesNotMatch(main, /let shellProcess|let shellWorkspacePath/)

@@ -1,19 +1,4 @@
-const SHELL_SESSIONS_INVOKE_CHANNELS = Object.freeze([
-  'shellSessions:list',
-  'shellSessions:resume',
-  'shellSessions:create',
-  'shellSessions:focus',
-  'shellSessions:restart',
-  'shellSessions:close',
-])
-
-const SHELL_SESSIONS_SEND_CHANNELS = Object.freeze([
-  'shellSessions:ready',
-  'shellSessions:ack',
-  'shellSessions:disconnect',
-  'shellSessions:write',
-  'shellSessions:resize',
-])
+const { IPC_CHANNELS, SHELL_SESSIONS_INVOKE_CHANNELS, SHELL_SESSIONS_SEND_CHANNELS } = require('../channels.cjs')
 
 function createShellSessionsHandlers({
   assertTrustedSender,
@@ -21,28 +6,28 @@ function createShellSessionsHandlers({
   shellSessionManager,
 }) {
   return new Map([
-    ['shellSessions:list', (event) => {
+    [IPC_CHANNELS.SHELL_SESSIONS_LIST, (event) => {
       assertTrustedSender(event)
       const { activeSessionId, sessions } = shellSessionManager.list(requireActiveWorkspace())
       return { activeSessionId, sessions }
     }],
-    ['shellSessions:resume', (event, sessionId) => {
+    [IPC_CHANNELS.SHELL_SESSIONS_RESUME, (event, sessionId) => {
       assertTrustedSender(event)
       return shellSessionManager.resume(requireActiveWorkspace(), sessionId)
     }],
-    ['shellSessions:create', (event) => {
+    [IPC_CHANNELS.SHELL_SESSIONS_CREATE, (event) => {
       assertTrustedSender(event)
       return shellSessionManager.create(requireActiveWorkspace())
     }],
-    ['shellSessions:focus', (event, sessionId) => {
+    [IPC_CHANNELS.SHELL_SESSIONS_FOCUS, (event, sessionId) => {
       assertTrustedSender(event)
       return shellSessionManager.focus(requireActiveWorkspace(), sessionId)
     }],
-    ['shellSessions:restart', (event, sessionId) => {
+    [IPC_CHANNELS.SHELL_SESSIONS_RESTART, (event, sessionId) => {
       assertTrustedSender(event)
       return shellSessionManager.restart(requireActiveWorkspace(), sessionId)
     }],
-    ['shellSessions:close', (event, sessionId) => {
+    [IPC_CHANNELS.SHELL_SESSIONS_CLOSE, (event, sessionId) => {
       assertTrustedSender(event)
       return shellSessionManager.close(requireActiveWorkspace(), sessionId)
     }],
@@ -61,31 +46,31 @@ function createShellSessionsListeners({
   }
 
   return new Map([
-    ['shellSessions:ready', (event, sessionId, message) => invokeOneWay(
+    [IPC_CHANNELS.SHELL_SESSIONS_READY, (event, sessionId, message) => invokeOneWay(
       event,
       sessionId,
       'ready',
       () => shellSessionManager.rendererReady(requireActiveWorkspace(), sessionId, message),
     )],
-    ['shellSessions:ack', (event, sessionId, message) => invokeOneWay(
+    [IPC_CHANNELS.SHELL_SESSIONS_ACK, (event, sessionId, message) => invokeOneWay(
       event,
       sessionId,
       'ack',
       () => shellSessionManager.ack(requireActiveWorkspace(), sessionId, message),
     )],
-    ['shellSessions:disconnect', (event, sessionId, message) => invokeOneWay(
+    [IPC_CHANNELS.SHELL_SESSIONS_DISCONNECT, (event, sessionId, message) => invokeOneWay(
       event,
       sessionId,
       'disconnect',
       () => shellSessionManager.disconnect(requireActiveWorkspace(), sessionId, message),
     )],
-    ['shellSessions:write', (event, sessionId, data) => invokeOneWay(
+    [IPC_CHANNELS.SHELL_SESSIONS_WRITE, (event, sessionId, data) => invokeOneWay(
       event,
       sessionId,
       'write',
       () => shellSessionManager.write(requireActiveWorkspace(), sessionId, data),
     )],
-    ['shellSessions:resize', (event, sessionId, dimensions) => invokeOneWay(
+    [IPC_CHANNELS.SHELL_SESSIONS_RESIZE, (event, sessionId, dimensions) => invokeOneWay(
       event,
       sessionId,
       'resize',

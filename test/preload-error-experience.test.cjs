@@ -1,3 +1,4 @@
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -60,7 +61,7 @@ test('il main non passa path, messaggi, tabella o connessione grezzi ai log inte
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const startupRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-startup-runtime.cjs'), 'utf8')
   const windowLifecycle = fs.readFileSync(path.join(__dirname, '../electron/app/window-lifecycle-runtime.cjs'), 'utf8')
-  const databaseIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/database.ipc.cjs'), 'utf8')
+  const databaseIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/database.ipc.cjs'), 'utf8'))
   const preloadHandler = windowLifecycle.match(/webContents\.on\('preload-error',[\s\S]*?\n    \}\)/u)?.[0] ?? ''
   const migrationHandler = startupRuntime.match(/function migrateLegacyDatabaseSecretsInBatches\(\) \{[\s\S]*?\n  \}/u)?.[0] ?? ''
   const tableRowsHandler = databaseIpc.match(/\['database:tableRows',[\s\S]*?\n    \}\],/u)?.[0] ?? ''

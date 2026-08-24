@@ -1,10 +1,4 @@
-const WORKSPACE_STATE_INVOKE_CHANNELS = Object.freeze([
-  'workspaceSession:get',
-  'workspaceSession:save',
-  'volatileDrafts:list',
-  'volatileDrafts:write',
-  'volatileDrafts:discard',
-])
+const { IPC_CHANNELS, WORKSPACE_STATE_INVOKE_CHANNELS } = require('../channels.cjs')
 
 function createWorkspaceStateHandlers({
   assertTrustedSender,
@@ -16,26 +10,26 @@ function createWorkspaceStateHandlers({
   volatileDrafts,
 }) {
   return new Map([
-    ['workspaceSession:get', (event) => {
+    [IPC_CHANNELS.WORKSPACE_SESSION_GET, (event) => {
       assertTrustedSender(event)
       beforeWorkspaceSessionRead?.()
       const snapshot = getWorkspaceSession(requireActiveWorkspace())
       if (snapshot.recovery) logWorkspaceSessionRecovery(snapshot.recovery)
       return snapshot
     }],
-    ['workspaceSession:save', (event, snapshot) => {
+    [IPC_CHANNELS.WORKSPACE_SESSION_SAVE, (event, snapshot) => {
       assertTrustedSender(event)
       return saveWorkspaceSession(requireActiveWorkspace(), snapshot)
     }],
-    ['volatileDrafts:list', (event) => {
+    [IPC_CHANNELS.VOLATILE_DRAFTS_LIST, (event) => {
       assertTrustedSender(event)
       return volatileDrafts.list()
     }],
-    ['volatileDrafts:write', (event, draft) => {
+    [IPC_CHANNELS.VOLATILE_DRAFTS_WRITE, (event, draft) => {
       assertTrustedSender(event)
       return volatileDrafts.write(draft)
     }],
-    ['volatileDrafts:discard', (event, identity) => {
+    [IPC_CHANNELS.VOLATILE_DRAFTS_DISCARD, (event, identity) => {
       assertTrustedSender(event)
       return volatileDrafts.discard(identity)
     }],

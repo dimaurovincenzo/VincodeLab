@@ -1,14 +1,4 @@
-const PROJECT_RESOURCES_INVOKE_CHANNELS = Object.freeze([
-  'instructions:get',
-  'instructions:save',
-  'instructions:clear',
-  'skills:list',
-  'skills:get',
-  'skills:create',
-  'skills:update',
-  'skills:delete',
-  'skills:reload',
-])
+const { IPC_CHANNELS, PROJECT_RESOURCES_INVOKE_CHANNELS } = require('../channels.cjs')
 
 function createProjectResourcesHandlers({
   assertTrustedSender,
@@ -25,44 +15,44 @@ function createProjectResourcesHandlers({
   updateProjectSkill,
 }) {
   return new Map([
-    ['instructions:get', (event) => {
+    [IPC_CHANNELS.INSTRUCTIONS_GET, (event) => {
       assertTrustedSender(event)
       return getProjectInstructions(requireActiveWorkspace())
     }],
-    ['instructions:save', (event, content) => {
+    [IPC_CHANNELS.INSTRUCTIONS_SAVE, (event, content) => {
       assertTrustedSender(event)
       const result = saveProjectInstructions(requireActiveWorkspace(), content)
       log('info', 'project_instructions_saved')
       return result
     }],
-    ['instructions:clear', (event) => {
+    [IPC_CHANNELS.INSTRUCTIONS_CLEAR, (event) => {
       assertTrustedSender(event)
       const result = clearProjectInstructions(requireActiveWorkspace())
       log('info', 'project_instructions_cleared')
       return result
     }],
-    ['skills:list', (event) => {
+    [IPC_CHANNELS.SKILLS_LIST, (event) => {
       assertTrustedSender(event)
       return listProjectSkills(requireActiveWorkspace())
     }],
-    ['skills:get', (event, skillId) => {
+    [IPC_CHANNELS.SKILLS_GET, (event, skillId) => {
       assertTrustedSender(event)
       return getProjectSkill(requireActiveWorkspace(), skillId)
     }],
-    ['skills:create', (event, name) => {
+    [IPC_CHANNELS.SKILLS_CREATE, (event, name) => {
       assertTrustedSender(event)
       return createProjectSkill(requireActiveWorkspace(), name)
     }],
-    ['skills:update', (event, skillId, content) => {
+    [IPC_CHANNELS.SKILLS_UPDATE, (event, skillId, content) => {
       assertTrustedSender(event)
       return updateProjectSkill(requireActiveWorkspace(), skillId, content)
     }],
-    ['skills:delete', (event, skillId) => {
+    [IPC_CHANNELS.SKILLS_DELETE, (event, skillId) => {
       assertTrustedSender(event)
       deleteProjectSkill(requireActiveWorkspace(), skillId)
       return { deleted: true }
     }],
-    ['skills:reload', (event) => {
+    [IPC_CHANNELS.SKILLS_RELOAD, (event) => {
       assertTrustedSender(event)
       return reloadPi()
     }],

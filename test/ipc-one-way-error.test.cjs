@@ -4,6 +4,7 @@ const path = require('node:path')
 const test = require('node:test')
 
 const { createIpcOneWayFailure, wrapIpcListener } = require('../electron/infrastructure/ipc/ipc-one-way-error.cjs')
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
 
 test('converte un failure Terminale AI one-way in evento pubblico classificato', () => {
   const error = Object.assign(new Error('EPIPE token=private /Users/alice/project'), { code: 'EPIPE' })
@@ -79,7 +80,7 @@ test('tutti i listener ipcMain one-way sono registrati attraverso la boundary', 
 
   for (const modulePath of modulePaths) {
     const moduleExports = require(modulePath)
-    const source = fs.readFileSync(modulePath, 'utf8')
+    const source = expandIpcChannelConstants(fs.readFileSync(modulePath, 'utf8'))
     for (const [name, channels] of Object.entries(moduleExports)) {
       if (!name.endsWith('_SEND_CHANNELS') || !Array.isArray(channels)) continue
       assert.match(source, /confineIpcOneWay/)

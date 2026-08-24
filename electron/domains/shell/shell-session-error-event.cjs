@@ -1,7 +1,8 @@
+const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
 const { getApplicationErrorLogMetadata, toApplicationError } = require('../errors/application-error.cjs')
 const { SESSION_ID_PATTERN } = require('./shell-session-manager.cjs')
 
-const SHELL_SESSION_ERROR_CHANNEL = 'shellSessions:error'
+const SHELL_SESSION_ERROR_CHANNEL = IPC_CHANNELS.SHELL_SESSIONS_ERROR
 const OPERATION_CONFIGURATION = Object.freeze({
   ready: Object.freeze({
     code: 'SHELL_SESSION_READY_FAILED',

@@ -1,3 +1,4 @@
+const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
 const { toApplicationError } = require('../../domains/errors/application-error.cjs')
 const { wrapIpcListener } = require('./ipc-one-way-error.cjs')
 const { isTrustedIpcEvent } = require('../security/ipc-security.adapter.cjs')
@@ -24,7 +25,7 @@ function createApplicationIpcBoundary({ getWindow, log, sendToRenderer }) {
   }
 
   function workspaceFailure(error, options) {
-    const errorIncident = publicApplicationErrorPayload(error, { channel: 'workspace:open', ...options })
+    const errorIncident = publicApplicationErrorPayload(error, { channel: IPC_CHANNELS.WORKSPACE_OPEN, ...options })
     return Object.freeze({ error: errorIncident.message, errorIncident })
   }
 

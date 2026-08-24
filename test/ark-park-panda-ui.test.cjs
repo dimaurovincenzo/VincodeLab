@@ -8,6 +8,7 @@ const { readGitHubSource } = require('./helpers/github-source.cjs')
 const { readRemoteFilesSource } = require('./helpers/remote-files-source.cjs')
 const { readSettingsSource, settingsSourceFiles } = require('./helpers/settings-source.cjs')
 const { readTerminalSource } = require('./helpers/terminal-source.cjs')
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
 
 const projectRoot = path.join(__dirname, '..')
 const read = (file) => file === 'src/features/github/components/github-workspace.tsx'
@@ -16,7 +17,9 @@ const read = (file) => file === 'src/features/github/components/github-workspace
     ? readRemoteFilesSource()
   : file === 'src/features/terminal/components/free-terminal.tsx'
     ? readTerminalSource()
-  : fs.readFileSync(path.join(projectRoot, file), 'utf8')
+  : file.startsWith('electron/ipc/domains/')
+    ? expandIpcChannelConstants(fs.readFileSync(path.join(projectRoot, file), 'utf8'))
+    : fs.readFileSync(path.join(projectRoot, file), 'utf8')
 
 function filesUnder(directory, predicate) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {

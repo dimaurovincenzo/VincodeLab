@@ -1,3 +1,4 @@
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
 const assert = require('node:assert/strict')
 const { EventEmitter } = require('node:events')
 const fs = require('node:fs')
@@ -41,7 +42,7 @@ test('un kill PTY già terminato non interrompe il coordinatore di cleanup', () 
 
 test('i DTO workspace redigono gli errori interni prima di raggiungere il renderer', () => {
   const source = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const workspaceIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace.ipc.cjs'), 'utf8')
+  const workspaceIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace.ipc.cjs'), 'utf8'))
   const openWorkspace = fs.readFileSync(path.join(__dirname, '../electron/domains/workspace/workspace-opener.cjs'), 'utf8')
 
   assert.match(source, /require\('\.\/domains\/errors\/public-error\.cjs'\)/)

@@ -1,3 +1,4 @@
+const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
 const { invalidateCache, readCache, writeCache } = require('../persistence/workspace-cache.repository.cjs')
 const { commandLifecycleError, isCommandInterruption, throwIfAborted } = require('../../domains/github/command-errors.cjs')
 
@@ -31,7 +32,7 @@ function invalidateGitCache(workspacePath) {
 }
 
 function invalidateGitHubDataCache(workspacePath) {
-  invalidateTrackedCache(workspacePath, ['github:data'])
+  invalidateTrackedCache(workspacePath, [IPC_CHANNELS.GITHUB_DATA])
 }
 
 function invalidateProjectBoardCache(workspacePath, projectNumber) {

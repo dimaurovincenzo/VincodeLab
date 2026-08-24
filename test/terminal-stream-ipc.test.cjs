@@ -3,7 +3,14 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 
-const read = (relativePath) => fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8')
+const { expandIpcChannelConstants } = require('./helpers/ipc-source.cjs')
+
+const read = (relativePath) => {
+  const source = fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8')
+  return relativePath.startsWith('electron/')
+    ? expandIpcChannelConstants(source)
+    : source
+}
 
 test('main e preload espongono un flusso sequenziale con resume e ACK', () => {
   const piRuntime = read('electron/domains/ai/pi-runtime.cjs')
