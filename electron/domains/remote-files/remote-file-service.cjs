@@ -3,6 +3,7 @@ const path = require('node:path')
 const { toPublicError } = require('../errors/public-error.cjs')
 const { createRemoteEntryRegistry } = require('./remote-entry-registry.cjs')
 const { toPublicTrackedFile } = require('./remote-file-model.cjs')
+const { createRemoteOperationLifecycle } = require('./remote-operation-lifecycle.cjs')
 const { createRemoteTransferRegistry } = require('./remote-transfer-registry.cjs')
 
 const MAX_EDITABLE_BYTES = 20 * 1024 * 1024
@@ -48,64 +49,29 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
   const toPublicFile = (item) => toPublicTrackedFile(item, { stat: io.stat })
   const entryRegistry = createRemoteEntryRegistry()
   const transferRegistry = createRemoteTransferRegistry({ notify })
-  const activeOperations = new Set()
-  const closedWorkspaces = new Set()
-  const cleanedWorkspaces = new Set()
-  const workspaceClosePromises = new Map()
-  const reopenWorkspaces = new Set()
-  let closeAllPromise
-  let closingAll = false
+  const operationLifecycle = createRemoteOperationLifecycle({
+    lifecycleTimeoutMs,
+    abortAllTransfers: () => transferRegistry.abortAllRunning(),
+    abortWorkspaceTransfers: (workspacePath) => transferRegistry.abortRunningForWorkspace(workspacePath),
+    clearAllRegistries: () => {
+      transferRegistry.clear()
+      entryRegistry.clear()
+    },
+    clearWorkspaceRegistries: (workspacePath) => {
+      transferRegistry.clearWorkspace(workspacePath)
+      entryRegistry.clearWorkspace(workspacePath)
+    },
+    openWorkspaceDependency: (workspacePath) => sftp.openWorkspace?.(workspacePath),
+    resolveCloseAllDependency: () => typeof sftp.closeAll === 'function' ? () => sftp.closeAll() : undefined,
+    resolveCloseWorkspaceDependency: () => typeof sftp.closeWorkspace === 'function' ? (workspacePath) => sftp.closeWorkspace(workspacePath) : undefined,
+  })
   function requireWorkspace(workspacePath) {
     if (typeof workspacePath !== 'string' || !path.isAbsolute(workspacePath)) throw new Error('Workspace non valido.')
     return workspacePath
   }
 
-  function cancellationError() {
-    const error = new Error('Operazione remota annullata.')
-    error.name = 'AbortError'
-    return error
-  }
-
-  function withRemoteOperation(workspacePath, operation) {
-    workspacePath = requireWorkspace(workspacePath)
-    if (closingAll || closedWorkspaces.has(workspacePath)) return Promise.reject(cancellationError())
-    const controller = new AbortController()
-    const active = { workspacePath, controller, settled: undefined }
-    const pending = Promise.resolve().then(async () => {
-      const result = await operation(controller.signal)
-      if (controller.signal.aborted) throw cancellationError()
-      return result
-    })
-    active.settled = pending.then(() => undefined, () => undefined)
-    activeOperations.add(active)
-    return pending.finally(() => activeOperations.delete(active))
-  }
-
   function exposeRemote(operation, options) {
-    return exposeAsync((workspacePath, ...args) => withRemoteOperation(workspacePath, (signal) => operation(workspacePath, signal, ...args)), options)
-  }
-
-  function waitForLifecycle(promises) {
-    if (promises.length === 0) return Promise.resolve()
-    return new Promise((resolve, reject) => {
-      let settled = false
-      const finish = (callback, value) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timer)
-        callback(value)
-      }
-      const timer = setTimeout(() => {
-        const error = new Error('Il cleanup dei file remoti non è terminato entro il tempo previsto.')
-        error.code = 'REMOTE_LIFECYCLE_TIMEOUT'
-        finish(reject, error)
-      }, lifecycleTimeoutMs)
-      Promise.allSettled(promises).then((results) => {
-        const failure = results.find((result) => result.status === 'rejected')
-        if (failure) finish(reject, failure.reason)
-        else finish(resolve)
-      }, (error) => finish(reject, error))
-    })
+    return exposeAsync((workspacePath, ...args) => operationLifecycle.withOperation(requireWorkspace(workspacePath), (signal) => operation(workspacePath, signal, ...args)), options)
   }
 
   function requireConnection(workspacePath, connectionId) {
@@ -433,76 +399,20 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
     return await store.cleanup(requireWorkspace(workspacePath), options)
   }
 
-  function clearWorkspaceResources(workspacePath) {
-    for (const operation of activeOperations) {
-      if (operation.workspacePath === workspacePath) activeOperations.delete(operation)
-    }
-    transferRegistry.clearWorkspace(workspacePath)
-    entryRegistry.clearWorkspace(workspacePath)
-  }
-
   function closeWorkspace(workspacePath) {
-    workspacePath = requireWorkspace(workspacePath)
-    reopenWorkspaces.delete(workspacePath)
-    const existing = workspaceClosePromises.get(workspacePath)
-    if (existing) return existing
-    if (cleanedWorkspaces.has(workspacePath)) return Promise.resolve()
-    closedWorkspaces.add(workspacePath)
-    const matchingOperations = [...activeOperations].filter((operation) => operation.workspacePath === workspacePath)
-    for (const operation of matchingOperations) operation.controller.abort()
-    transferRegistry.abortRunningForWorkspace(workspacePath)
-    const targets = matchingOperations.map((operation) => operation.settled)
-    if (typeof sftp.closeWorkspace === 'function') targets.push(Promise.resolve().then(() => sftp.closeWorkspace(workspacePath)))
-    const closing = waitForLifecycle(targets).then(() => {
-      clearWorkspaceResources(workspacePath)
-      cleanedWorkspaces.add(workspacePath)
-    })
-    workspaceClosePromises.set(workspacePath, closing)
-    const release = () => {
-      if (workspaceClosePromises.get(workspacePath) === closing) workspaceClosePromises.delete(workspacePath)
-    }
-    void closing.then(release, release)
-    return closing
+    return operationLifecycle.closeWorkspace(requireWorkspace(workspacePath))
   }
 
   function closeAll() {
-    if (closeAllPromise) return closeAllPromise
-    closingAll = true
-    reopenWorkspaces.clear()
-    for (const operation of activeOperations) operation.controller.abort()
-    transferRegistry.abortAllRunning()
-    const targets = [...activeOperations].map((operation) => operation.settled)
-    if (typeof sftp.closeAll === 'function') targets.push(Promise.resolve().then(() => sftp.closeAll()))
-    const closing = waitForLifecycle(targets).then(() => {
-      activeOperations.clear()
-      transferRegistry.clear()
-      entryRegistry.clear()
-    })
-    closeAllPromise = closing
-    void closing.catch(() => {
-      if (closeAllPromise === closing) closeAllPromise = undefined
-    })
-    return closing
+    return operationLifecycle.closeAll()
   }
 
   function openWorkspace(workspacePath) {
-    workspacePath = requireWorkspace(workspacePath)
-    if (closingAll) return false
-    reopenWorkspaces.add(workspacePath)
-    const activate = () => {
-      if (closingAll || !reopenWorkspaces.delete(workspacePath)) return
-      closedWorkspaces.delete(workspacePath)
-      cleanedWorkspaces.delete(workspacePath)
-      sftp.openWorkspace?.(workspacePath)
-    }
-    const closing = workspaceClosePromises.get(workspacePath)
-    if (closing) void closing.then(activate, () => undefined)
-    else activate()
-    return true
+    return operationLifecycle.openWorkspace(requireWorkspace(workspacePath))
   }
 
   function getResourceCounts() {
-    return { entries: entryRegistry.getSize(), transfers: transferRegistry.getSize(), operations: activeOperations.size }
+    return { entries: entryRegistry.getSize(), transfers: transferRegistry.getSize(), operations: operationLifecycle.getOperationCount() }
   }
 
   return {
