@@ -53,20 +53,22 @@ test('le tab AI adottano il medesimo indicatore di selezione delle tab GitHub', 
 
 test('Generali gestisce valori globali e personalizzazioni del workspace', () => {
   const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
+  const model = fs.readFileSync(path.join(__dirname, '../src/features/settings/model/settings-model.ts'), 'utf8')
+  const numberInput = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/number-preference-input.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/settings.ts'), 'utf8')
 
   assert.match(settings, /useAppPreferences\(\)/)
   assert.match(settings, /Valori globali/)
   assert.match(settings, /Workspace aperto/)
-  for (const [key, section] of [['editor', 'Editor'], ['terminal', 'Terminale'], ['git', 'Git'], ['database', 'Database']]) assert.match(settings, new RegExp(`${key}: '${section}'`))
+  for (const [key, section] of [['editor', 'Editor'], ['terminal', 'Terminale'], ['git', 'Git'], ['database', 'Database']]) assert.match(model, new RegExp(`${key}: '${section}'`))
   assert.match(settings, /Personalizzato/)
   assert.match(settings, /Usa globale/)
   assert.match(settings, /Rimuovi tutte le personalizzazioni/)
   assert.match(settings, /<SegmentGroup\.Root aria-label="Ambito impostazioni" className=\{settingsStyles\.scopeSwitch\}/)
   assert.match(settings, /<Checkbox aria-label=\{definition\.label\}/)
   assert.match(settings, /<SelectField aria-label=\{definition\.label\}/)
-  assert.match(settings, /<Field\.Input[\s\S]*?aria-label=\{definition\.label\}[\s\S]*?onBlur=\{\(\) => \{ void commit\(\) \}\}/)
-  assert.match(settings, /onKeyDown=\{\(event\) => \{[\s\S]*?event\.key === 'Enter'/)
+  assert.match(numberInput, /<Field\.Input[\s\S]*?aria-label=\{definition\.label\}[\s\S]*?onBlur=\{\(\) => \{ void commit\(\) \}\}/)
+  assert.match(numberInput, /onKeyDown=\{\(event\) => \{[\s\S]*?event\.key === 'Enter'/)
   assert.match(styles, /export const preferenceOriginStyle = cva\(/)
   assert.match(styles, /preferenceGrid:\s*css\(\{[\s\S]*?gridTemplateColumns:\s*'minmax\(0, 1fr\)'[\s\S]*?rowGap:\s*'0'/)
   assert.match(styles, /preferenceSection:\s*css\(\{[\s\S]*?bg:\s*'transparent'[\s\S]*?borderTopColor:\s*'borderDefault'[\s\S]*?_last:\s*\{ borderBottomColor:\s*'borderDefault', borderBottomWidth:\s*'1px' \}/)
@@ -87,14 +89,15 @@ test('Generali espone diagnostica Terminale AI privacy-safe e solo su richiesta'
 
 test('Impostazioni presenta aggiornamenti con filtri stato pronto e rollback confermato', () => {
   const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
+  const types = fs.readFileSync(path.join(__dirname, '../src/features/settings/model/settings.types.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/settings.ts'), 'utf8')
 
-  assert.match(settings, /type SettingsTab = .*'updates'/)
+  assert.match(types, /type SettingsTab = .*'updates'/)
   assert.match(settings, /> Aggiornamenti/)
   for (const label of ['Skill', 'Estensioni Pi', 'Runtime Pi']) assert.match(settings, new RegExp(label))
   assert.match(settings, /Aggiornamenti pronti.*riavvia per attivarli/)
   assert.match(settings, /title: 'Ripristina versione precedente'/)
-  assert.match(settings, /window\.vincodeLab\.updates\.downloadAll/)
+  assert.match(settings, /settingsBridge\.updates\.downloadAll/)
   assert.match(settings, /<SegmentGroup\.Root aria-label="Filtra aggiornamenti" className=\{settingsStyles\.updateFilters\}/)
   assert.match(settings, /<Checkbox checked=\{update\.policy === 'automatic'\}/)
   assert.match(styles, /updateList:\s*css\(\{ display:\s*'grid', gap:\s*'0' \}\)/)

@@ -989,7 +989,7 @@ test('Impostazioni e Home usano una navigazione orizzontale senza sidebar locale
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
   assert.match(settings, /aria-label="Sezioni Impostazioni"/)
   for (const tab of ['Generali', 'Runtime Pi', 'Pacchetti Pi', 'Skill Pi']) assert.match(settings, new RegExp(`>${tab}<`))
-  assert.match(settings, /window\.vincodeLab\.piSystem\.listSkills\(\)/)
+  assert.match(settings, /settingsBridge\.piSystem\.listSkills\(\)/)
   assert.match(settings, />Manuali</)
   assert.match(settings, />Da pacchetti Pi</)
   assert.match(settings, /aria-label="Sorgente pacchetto Pi"/)
@@ -1223,7 +1223,7 @@ test('la configurazione Pi viene chiusa quando si lascia la relativa tab', () =>
   const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
 
   assert.match(settings, /const closeConfig = useCallback\(async \(\) =>/)
-  assert.match(settings, /await window\.vincodeLab\.piConfig\.close\(\)/)
+  assert.match(settings, /await settingsBridge\.piConfig\.close\(\)/)
   assert.match(settings, /if \(next !== 'runtime'\) void closeConfig\(\)/)
 })
 

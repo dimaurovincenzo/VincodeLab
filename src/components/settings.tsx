@@ -3,181 +3,42 @@ import { Bot, Boxes, Check, CircleAlert, CircleCheck, Cpu, Download, FilePlus2, 
 import { Button, Checkbox, createListCollection, ErrorNotice, Field, IconButton, Listbox, SegmentGroup, SelectField, Spinner, Tabs, toast } from '@/components/ui'
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
 import { TerminalDiagnostics } from '@/components/terminal-diagnostics'
+import {
+  NumberPreferenceInput,
+  defaultPiConfigDimensions,
+  isPackageSource,
+  newSystemSkillDraftIdentity,
+  normalizePackageSource,
+  packageSourceCopy,
+  packageSourceDraftIdentity,
+  preferenceEnumLabels,
+  preferenceSectionLabels,
+  settingsBridge,
+  settingsUserError,
+  systemSkillDraftIdentity,
+  type Appearance,
+  type PackageSource,
+  type PreferenceFailure,
+  type PreferenceScope,
+  type SettingsProps,
+  type SettingsSectionFailure,
+  type SettingsTab,
+} from '@/features/settings'
 import { useApplicationMenuCommand } from '@/lib/app-menu-command'
 import { useAppPreferences } from '@/lib/app-preferences'
 import { SKILL_NAME_HELP, SKILL_NAME_MAX_LENGTH, skillNameIssue } from '@/lib/skill-name'
-import { normalizeUserError, reportUserError, type UserError, type UserErrorCategory } from '@/lib/user-error'
+import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
-import { commitVolatileDraft, discardVolatileDraft, latestVolatileDraft, restoreVolatileDraft, writeVolatileDraft, type VolatileDraftIdentity } from '@/lib/volatile-draft-store'
+import { commitVolatileDraft, discardVolatileDraft, latestVolatileDraft, restoreVolatileDraft, writeVolatileDraft } from '@/lib/volatile-draft-store'
 import { preferenceOriginStyle, settingsStyles } from '@/theme/styles/settings'
 
-type SettingsTab = 'general' | 'compatibility' | 'updates' | 'runtime' | 'packages' | 'skills'
-type PackageSource = 'npm' | 'git' | 'local'
-type Appearance = 'system' | 'light' | 'dark'
-type PreferenceScope = 'global' | 'workspace'
-type SettingsRecovery = { label: string; run: () => void | Promise<void>; pendingLabel?: string }
-type SettingsSectionFailure = { error: UserError; recovery?: SettingsRecovery; secondaryRecovery?: SettingsRecovery }
-type PreferenceFailure = {
-  definition: AppPreferenceDefinition
-  error: UserError
-  kind: 'reset' | 'save'
-  scope: PreferenceScope
-  value?: AppPreferenceValue
-}
-
-const defaultPiConfigDimensions = Object.freeze({ cols: 120, rows: 34 })
-
-function settingsUserError(cause: unknown, {
-  category,
-  code,
-  correlationId,
-  description,
-  fallbackDescription,
-  operation,
-  severity,
-  title,
-}: {
-  category?: UserErrorCategory
-  code?: string
-  correlationId?: string
-  description?: string
-  fallbackDescription?: string
-  operation: string
-  severity?: UserError['severity']
-  title: string
-}) {
-  return reportUserError(normalizeUserError(cause, {
-    category,
-    code,
-    component: 'settings',
-    correlationId,
-    description,
-    fallbackDescription,
-    operation,
-    severity,
-    title,
-  }))
-}
-
-const preferenceSectionLabels: Record<AppPreferenceDefinition['section'], string> = { editor: 'Editor', terminal: 'Terminale', git: 'Git', database: 'Database' }
-const preferenceEnumLabels: Record<string, string> = { 'system-mono': 'Monospace di sistema', menlo: 'Menlo', monaco: 'Monaco', bar: 'Barra', block: 'Blocco', underline: 'Sottolineato' }
-
-const packageSourceCopy: Record<PackageSource, { placeholder: string; help: string }> = {
-  npm: { placeholder: '@autore/pacchetto oppure pacchetto', help: 'Installazione dal catalogo npm di Pi.' },
-  git: { placeholder: 'git:github.com/autore/repository oppure URL Git', help: 'Repository Git, con ref opzionale.' },
-  local: { placeholder: '/percorso/al/pacchetto', help: 'Pacchetto gia presente sul computer.' },
-}
-
-function normalizePackageSource(kind: PackageSource, value: string) {
-  const source = value.trim()
-  return kind === 'npm' && !source.startsWith('npm:') ? `npm:${source}` : source
-}
-
-function systemSkillDraftIdentity(skillId: string): VolatileDraftIdentity {
-  return { scope: 'settings-system-skill', workspace: 'global', resource: skillId }
-}
-
-function packageSourceDraftIdentity(source: PackageSource): VolatileDraftIdentity {
-  return { scope: 'settings-package-source', workspace: 'global', resource: source }
-}
-
-const newSystemSkillDraftIdentity: VolatileDraftIdentity = {
-  scope: 'settings-new-skill',
-  workspace: 'global',
-  resource: 'name',
-}
-
-function isPackageSource(value: string | undefined): value is PackageSource {
-  return value === 'npm' || value === 'git' || value === 'local'
-}
+export { NumberPreferenceInput } from '@/features/settings'
 
 function discardPackageSourceDrafts() {
   for (const source of ['npm', 'git', 'local'] as const) discardVolatileDraft(packageSourceDraftIdentity(source))
 }
 
-export function NumberPreferenceInput({
-  definition,
-  disabled,
-  initialDraft,
-  value,
-  onCommit,
-  onDraftChange,
-}: {
-  definition: AppPreferenceDefinition
-  disabled: boolean
-  initialDraft?: string
-  value: number
-  onCommit: (value: number) => Promise<boolean>
-  onDraftChange?: (draft: string | null) => void
-}) {
-  const [draft, setDraft] = useState(initialDraft ?? String(value))
-  const [committing, setCommitting] = useState(false)
-  const commitGeneration = useRef(0)
-  const inputMounted = useRef(true)
-  useEffect(() => () => {
-    inputMounted.current = false
-    commitGeneration.current += 1
-  }, [])
-  const parsed = Number(draft)
-  const valid = draft.trim() !== ''
-    && Number.isFinite(parsed)
-    && (definition.min === undefined || parsed >= definition.min)
-    && (definition.max === undefined || parsed <= definition.max)
-
-  const commit = async () => {
-    if (!valid) {
-      setDraft(String(value))
-      onDraftChange?.(null)
-      return
-    }
-    if (Object.is(parsed, value)) {
-      setDraft(String(value))
-      onDraftChange?.(null)
-      return
-    }
-    const generation = ++commitGeneration.current
-    setCommitting(true)
-    const saved = await onCommit(parsed).catch(() => false)
-    if (!inputMounted.current || generation !== commitGeneration.current) return
-    setCommitting(false)
-    if (saved) onDraftChange?.(null)
-  }
-
-  return <Field.Root invalid={!valid}>
-    <Field.Input
-      aria-label={definition.label}
-      disabled={disabled || committing}
-      max={definition.max}
-      min={definition.min}
-      step={definition.step}
-      type="number"
-      value={draft}
-      onBlur={() => { void commit() }}
-      onChange={(event) => {
-        setDraft(event.target.value)
-        onDraftChange?.(event.target.value === String(value) ? null : event.target.value)
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault()
-          event.currentTarget.blur()
-        } else if (event.key === 'Escape') {
-          event.preventDefault()
-          commitGeneration.current += 1
-          setCommitting(false)
-          setDraft(String(value))
-          onDraftChange?.(null)
-          event.currentTarget.blur()
-        }
-      }}
-    />
-    <Field.ErrorText>
-      Inserisci un numero{definition.min === undefined ? '' : ` da ${definition.min}`}{definition.max === undefined ? '' : ` a ${definition.max}`}.
-    </Field.ErrorText>
-  </Field.Root>
-}
-
-export function Settings({ active = true, appearance, openRuntimeRequest = 0, onAppearanceChange, onWorkspaceGuardChange }: { active?: boolean; appearance: Appearance; openRuntimeRequest?: number; onAppearanceChange: (appearance: Appearance) => void; onWorkspaceGuardChange?: (guard: WorkspaceChangeGuard | null) => void }) {
+export function Settings({ active = true, appearance, openRuntimeRequest = 0, onAppearanceChange, onWorkspaceGuardChange }: SettingsProps) {
   const restoredPackageDraft = useMemo(() => latestVolatileDraft('settings-package-source', 'global'), [])
   const [tab, setTab] = useState<SettingsTab>('general')
   const [status, setStatus] = useState<PiRuntimeStatus | null>(null)
@@ -297,16 +158,16 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
     setRefreshing(true)
     try {
       const [statusResult, skillsResult, updatesResult, capabilitiesResult] = await Promise.allSettled([
-        Promise.resolve().then(() => window.vincodeLab.piSystem.status()),
-        Promise.resolve().then(() => window.vincodeLab.systemSkills.list()),
-        Promise.resolve().then(() => window.vincodeLab.updates.list()),
-        Promise.resolve().then(() => window.vincodeLab.runtime?.capabilities?.() ?? { checkedAt: new Date().toISOString(), items: [] }),
+        Promise.resolve().then(() => settingsBridge.piSystem.status()),
+        Promise.resolve().then(() => settingsBridge.systemSkills.list()),
+        Promise.resolve().then(() => settingsBridge.updates.list()),
+        Promise.resolve().then(() => settingsBridge.runtime?.capabilities?.() ?? { checkedAt: new Date().toISOString(), items: [] }),
       ])
       const piReady = statusResult.status === 'fulfilled' && statusResult.value.state !== 'missing'
       const [packagesResult, packageSkillsResult] = await Promise.allSettled(piReady
         ? [
-            Promise.resolve().then(() => window.vincodeLab.piSystem.list()),
-            Promise.resolve().then(() => window.vincodeLab.piSystem.listSkills()),
+            Promise.resolve().then(() => settingsBridge.piSystem.list()),
+            Promise.resolve().then(() => settingsBridge.piSystem.listSkills()),
           ]
         : [Promise.resolve<string[]>([]), Promise.resolve<PiPackageSkill[]>([])])
       if (!mounted.current || requestId !== refreshRequestId.current) return
@@ -392,7 +253,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
     }
     configOpenRef.current = false
     try {
-      await window.vincodeLab.piConfig.close()
+      await settingsBridge.piConfig.close()
       clearSectionFailure('runtime')
     } catch (cause) {
       if (mounted.current) {
@@ -406,7 +267,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
           recovery: {
             label: 'Riprova chiusura',
             run: async () => {
-              await window.vincodeLab.piConfig.close()
+              await settingsBridge.piConfig.close()
               clearSectionFailure('runtime')
             },
           },
@@ -426,9 +287,9 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
     const generation = ++configStartGeneration.current
     setConfigBusy(true)
     try {
-      await window.vincodeLab.piConfig.start()
+      await settingsBridge.piConfig.start()
       if (!mounted.current || !activeRef.current || generation !== configStartGeneration.current) {
-        await window.vincodeLab.piConfig.close()
+        await settingsBridge.piConfig.close()
         return
       }
       configOpenRef.current = true
@@ -453,7 +314,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
 
   const writeConfigInput = (value: string): void => {
     try {
-      window.vincodeLab.piConfig.write(value)
+      settingsBridge.piConfig.write(value)
     } catch (cause) {
       markSectionOperation('runtime')
       setSectionFailures((current) => ({ ...current, runtime: {
@@ -475,17 +336,17 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
   }
 
   const retryConfigResize = useCallback(() => {
-    window.vincodeLab.piConfig.resize(defaultPiConfigDimensions)
+    settingsBridge.piConfig.resize(defaultPiConfigDimensions)
     clearSectionFailure('runtime')
   }, [clearSectionFailure])
 
   useEffect(() => {
     mounted.current = true
     queueMicrotask(() => void refresh())
-    const offData = window.vincodeLab.piConfig.onData((data) => queueMicrotask(() => {
+    const offData = settingsBridge.piConfig.onData((data) => queueMicrotask(() => {
       if (mounted.current) setConfigOutput((value) => (value + data).slice(-200000))
     }))
-    const offExit = window.vincodeLab.piConfig.onExit((exitStatus) => queueMicrotask(() => {
+    const offExit = settingsBridge.piConfig.onExit((exitStatus) => queueMicrotask(() => {
       if (!mounted.current) return
       const endedUnexpectedly = configOpenRef.current && (exitStatus.exitCode !== 0 || exitStatus.signal !== 0)
       configOpenRef.current = false
@@ -504,7 +365,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
         } }))
       }
     }))
-    const offError = window.vincodeLab.piConfig.onError?.((event) => queueMicrotask(() => {
+    const offError = settingsBridge.piConfig.onError?.((event) => queueMicrotask(() => {
       if (!mounted.current) return
       const inputFailure = event.operation === 'input'
       markSectionOperation('runtime')
@@ -541,7 +402,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
       offError()
       if (configOpenRef.current) {
         configOpenRef.current = false
-        void window.vincodeLab.piConfig.close().catch((cause) => {
+        void settingsBridge.piConfig.close().catch((cause) => {
           // La pagina è già stata smontata: registriamo il cleanup qui per evitare
           // una rejection globale con una recovery non più contestuale.
           settingsUserError(cause, {
@@ -582,7 +443,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
           setPackageBusy(`${action}:${value}`)
           clearSectionFailure('packages')
           try {
-            await window.vincodeLab.piSystem[action](value)
+            await settingsBridge.piSystem[action](value)
             if (!mounted.current) return
             toast.success('Operazione Pi completata.')
             if (
@@ -627,7 +488,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
     clearSectionFailure('updates')
     try {
       await action()
-      const nextUpdates = await window.vincodeLab.updates.list()
+      const nextUpdates = await settingsBridge.updates.list()
       if (!mounted.current) return
       setUpdates(nextUpdates)
       clearSectionFailure('updates')
@@ -655,8 +516,8 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
     setPreferenceBusy(definition.key)
     try {
       const next = scope === 'workspace'
-        ? await window.vincodeLab.preferences.setWorkspace(definition.key, value)
-        : await window.vincodeLab.preferences.setGlobal(definition.key, value)
+        ? await settingsBridge.preferences.setWorkspace(definition.key, value)
+        : await settingsBridge.preferences.setGlobal(definition.key, value)
       if (preferenceMutationGeneration.current.get(mutationKey) !== generation) return false
       publishPreferences(next)
       setPreferenceFailures((current) => {
@@ -692,7 +553,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
     const mutationKey = `workspace:${definition.key}`
     setPreferenceBusy(definition.key)
     try {
-      publishPreferences(await window.vincodeLab.preferences.clearWorkspace(definition.key))
+      publishPreferences(await settingsBridge.preferences.clearWorkspace(definition.key))
       setPreferenceFailures((current) => {
         if (!current[mutationKey]) return current
         const nextFailures = { ...current }
@@ -721,7 +582,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
     setPreferenceBusy('*')
     clearSectionFailure('general')
     try {
-      publishPreferences(await window.vincodeLab.preferences.clearAllWorkspace())
+      publishPreferences(await settingsBridge.preferences.clearAllWorkspace())
       setPreferenceFailures({})
       toast.success('Personalizzazioni rimosse.')
     } catch (cause) {
@@ -779,7 +640,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
     setSystemSkillBusy(`load:${skillId}`)
     clearSectionFailure('skills')
     try {
-      const skill = await window.vincodeLab.systemSkills.get(skillId)
+      const skill = await settingsBridge.systemSkills.get(skillId)
       if (!mounted.current || requestId !== systemSkillSelectionRequestId.current) return
       if (skill.id !== skillId) throw new Error('La skill caricata non corrisponde alla selezione richiesta.')
       if ((selectedSystemSkillRef.current?.id ?? null) !== previousSkillId || (selectedSystemSkillRef.current?.content ?? '') !== previousContent) {
@@ -834,7 +695,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
     setSystemSkillSaving(true)
     setSkillEditorFailure(null)
     try {
-      const savedSkill = await window.vincodeLab.systemSkills.update(current.id, content)
+      const savedSkill = await settingsBridge.systemSkills.update(current.id, content)
       if (!mounted.current || requestId !== systemSkillSaveRequestId.current) return false
       if (systemSkillSelectionGeneration.current === selectionVersion && selectedSystemSkillRef.current?.id === current.id) {
         commitVolatileDraft(systemSkillDraftIdentity(current.id), content)
@@ -870,7 +731,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
     setSystemSkillBusy('create')
     setSkillNameFailure(null)
     try {
-      const skill = await window.vincodeLab.systemSkills.create(name)
+      const skill = await settingsBridge.systemSkills.create(name)
       if (!mounted.current) return
       if (skillNameRef.current === draft) {
         discardVolatileDraft(newSystemSkillDraftIdentity)
@@ -909,7 +770,7 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
           setSystemSkillBusy(`delete:${skill.id}`)
           clearSectionFailure('skills')
           try {
-            await window.vincodeLab.systemSkills.delete(skill.id)
+            await settingsBridge.systemSkills.delete(skill.id)
             if (!mounted.current) return
             if (selectedSystemSkillRef.current?.id === skill.id) {
               discardVolatileDraft(systemSkillDraftIdentity(skill.id))
@@ -1242,8 +1103,8 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
                 </SegmentGroup.Item>)}
               </SegmentGroup.Root>
               <span className={settingsStyles.updateToolbarActions}>
-                <Button size="sm" variant="outline" disabled={Boolean(updateBusy)} onClick={() => void runUpdateAction('check-all', () => window.vincodeLab.updates.check(), 'Controllo completato.')}><RefreshCw aria-hidden="true" size={14} /> Verifica ora</Button>
-                <Button size="sm" disabled={Boolean(updateBusy) || !updates.some((update) => update.availableVersion && !update.restartRequired)} onClick={() => void runUpdateAction('download-all', () => window.vincodeLab.updates.downloadAll(), 'Aggiornamenti scaricati.')}><Download aria-hidden="true" size={14} /> Scarica tutti</Button>
+                <Button size="sm" variant="outline" disabled={Boolean(updateBusy)} onClick={() => void runUpdateAction('check-all', () => settingsBridge.updates.check(), 'Controllo completato.')}><RefreshCw aria-hidden="true" size={14} /> Verifica ora</Button>
+                <Button size="sm" disabled={Boolean(updateBusy) || !updates.some((update) => update.availableVersion && !update.restartRequired)} onClick={() => void runUpdateAction('download-all', () => settingsBridge.updates.downloadAll(), 'Aggiornamenti scaricati.')}><Download aria-hidden="true" size={14} /> Scarica tutti</Button>
               </span>
             </div>
             {visibleUpdates.length ? <div className={settingsStyles.updateList}>
@@ -1256,17 +1117,17 @@ export function Settings({ active = true, appearance, openRuntimeRequest = 0, on
                   {!sectionFailures.updates && managedUpdateFailures.get(update.id) && <ErrorNotice
                     action={{
                       label: 'Verifica di nuovo',
-                      onClick: () => runUpdateAction(update.id, () => window.vincodeLab.updates.check(update.id), 'Controllo completato.'),
+                      onClick: () => runUpdateAction(update.id, () => settingsBridge.updates.check(update.id), 'Controllo completato.'),
                       pendingLabel: 'Verifica in corso…',
                     }}
                     error={managedUpdateFailures.get(update.id)!}
                   />}
                 </div>
                 <div className={settingsStyles.updateActions}>
-                  <Checkbox checked={update.policy === 'automatic'} disabled={updateBusy === update.id} label="Automatico" onCheckedChange={(checked) => void runUpdateAction(update.id, () => window.vincodeLab.updates.setPolicy(update.id, checked ? 'automatic' : 'manual'), 'Policy aggiornata.')} />
-                  <Button size="sm" variant="outline" disabled={Boolean(updateBusy)} onClick={() => void runUpdateAction(update.id, () => window.vincodeLab.updates.check(update.id), 'Controllo completato.')}><RefreshCw aria-hidden="true" size={14} /> Verifica</Button>
-                  <Button size="sm" disabled={Boolean(updateBusy) || !update.availableVersion || update.restartRequired} title={!update.availableVersion ? 'Nessuna versione disponibile' : update.restartRequired ? 'Aggiornamento già pronto' : 'Scarica in staging'} onClick={() => void runUpdateAction(update.id, () => window.vincodeLab.updates.download(update.id), 'Aggiornamento pronto.')}><Download aria-hidden="true" size={14} /> Scarica</Button>
-                  <Button size="sm" variant="outline" disabled={Boolean(updateBusy) || !update.rollbackVersion} onClick={() => setConfirmation({ title: 'Ripristina versione precedente', detail: `Verrà ripristinata ${update.rollbackVersion} per ${update.name}.`, confirmLabel: 'Ripristina', destructive: true, onConfirm: () => { void runUpdateAction(update.id, () => window.vincodeLab.updates.rollback(update.id), 'Versione precedente ripristinata.') } })}><RotateCcw aria-hidden="true" size={14} /> Ripristina</Button>
+                  <Checkbox checked={update.policy === 'automatic'} disabled={updateBusy === update.id} label="Automatico" onCheckedChange={(checked) => void runUpdateAction(update.id, () => settingsBridge.updates.setPolicy(update.id, checked ? 'automatic' : 'manual'), 'Policy aggiornata.')} />
+                  <Button size="sm" variant="outline" disabled={Boolean(updateBusy)} onClick={() => void runUpdateAction(update.id, () => settingsBridge.updates.check(update.id), 'Controllo completato.')}><RefreshCw aria-hidden="true" size={14} /> Verifica</Button>
+                  <Button size="sm" disabled={Boolean(updateBusy) || !update.availableVersion || update.restartRequired} title={!update.availableVersion ? 'Nessuna versione disponibile' : update.restartRequired ? 'Aggiornamento già pronto' : 'Scarica in staging'} onClick={() => void runUpdateAction(update.id, () => settingsBridge.updates.download(update.id), 'Aggiornamento pronto.')}><Download aria-hidden="true" size={14} /> Scarica</Button>
+                  <Button size="sm" variant="outline" disabled={Boolean(updateBusy) || !update.rollbackVersion} onClick={() => setConfirmation({ title: 'Ripristina versione precedente', detail: `Verrà ripristinata ${update.rollbackVersion} per ${update.name}.`, confirmLabel: 'Ripristina', destructive: true, onConfirm: () => { void runUpdateAction(update.id, () => settingsBridge.updates.rollback(update.id), 'Versione precedente ripristinata.') } })}><RotateCcw aria-hidden="true" size={14} /> Ripristina</Button>
                 </div>
               </article>)}
             </div> : <p className={settingsStyles.empty}>Nessuna risorsa con aggiornamenti gestiti per questo filtro.</p>}

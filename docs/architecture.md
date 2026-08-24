@@ -74,6 +74,10 @@ La risoluzione di Pi è isolata in `electron/pi-executable.cjs`. Se l'eseguibile
 
 `src/components/project-editor.tsx` è la facciata transitoria che coordina lifecycle React e CodeMirror. Tipi, trasformazioni pure, routing dei comandi e accesso al preload risiedono in `src/features/editor/`. Le operazioni reali sui file passano da `electron/project-files.cjs`, che risolve gli identificatori rispetto al workspace. Anteprime binarie e allegati applicano limiti di dimensione prima di raggiungere il renderer o Pi.
 
+### Impostazioni
+
+`src/components/settings.tsx` resta temporaneamente il controller compatibile della vista. Il modello puro, i tipi di dominio, l'input numerico riusabile, la normalizzazione degli errori e tutti gli accessi al preload appartengono a `src/features/settings/`. In questo modo la migrazione dei lifecycle Pi, delle preferenze e delle Skill può proseguire per slice senza cambiare il contratto pubblico del componente o i recovery path già coperti dai test.
+
 ### Git e GitHub
 
 `electron/github-service.cjs` separa operazioni Git locali da richieste effettuate con GitHub CLI. L'area GitHub usa esclusivamente il repository associato al workspace attivo. Registri dedicati gestiscono annullamento e appartenenza delle operazioni lunghe.
