@@ -12,7 +12,6 @@ export const legacyDirectBridgeFiles = new Map([
   ['src/App.tsx', 40],
   ['src/components/benchmark-view-fault-probe.tsx', 1],
   ['src/components/free-terminal.tsx', 27],
-  ['src/components/github-workspace.tsx', 30],
   ['src/components/project-instructions.tsx', 7],
   ['src/components/project-skills.tsx', 7],
   ['src/components/redis-workspace.tsx', 1],

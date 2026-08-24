@@ -673,8 +673,8 @@ test('GitHub espone la freschezza cache e aggiorna senza bloccare dati disponibi
   const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
-  assert.match(github, /window\.vincodeLab\.github\.gitStatus\(\{ force \}\)/)
-  assert.match(github, /window\.vincodeLab\.github\.data\(\{ force \}\)/)
+  assert.match(github, /gitBridge\.gitStatus\(\{ force \}\)/)
+  assert.match(github, /githubBridge\.data\(\{ force \}\)/)
   assert.match(github, /if \(cache\.stale\) return 'Dati non aggiornati'/)
   assert.match(github, /void refreshGitRef\.current\(true\)/)
   assert.match(styles, /cacheState:\s*cva\([\s\S]*?color:\s*'textSecondary'/)
@@ -705,7 +705,7 @@ test('l’apertura di una board Project riusa la cache fino al refresh esplicito
   const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
   const loadBoard = github.slice(github.indexOf('  const loadBoard ='), github.indexOf('  const createProject ='))
 
-  assert.match(loadBoard, /github\.projectBoard\(projectNumber\)/)
+  assert.match(loadBoard, /githubBridge\.projectBoard\(projectNumber\)/)
   assert.doesNotMatch(loadBoard, /force:\s*true/)
   assert.match(github, /refreshGitHub\(true\)/)
 })

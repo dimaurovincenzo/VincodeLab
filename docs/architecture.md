@@ -84,6 +84,8 @@ Il controller della vista, il modello puro, i tipi di dominio, l'input numerico 
 
 `electron/github-service.cjs` separa operazioni Git locali da richieste effettuate con GitHub CLI. L'area GitHub usa esclusivamente il repository associato al workspace attivo. Registri dedicati gestiscono annullamento e appartenenza delle operazioni lunghe.
 
+Nel renderer `src/features/git/` espone soltanto le operazioni sul repository locale, mentre `src/features/github/` espone repository remoti, issue e Projects. I due adapter risolvono il bridge Electron al momento di ogni invocazione e impediscono alla vista legacy di dipendere direttamente da `window.vincodeLab`; questa separazione resta valida anche finché il preload mantiene entrambe le capacità nello stesso namespace storico `github`.
+
 ### Database
 
 `src/features/database/` possiede controller e griglia React, tipi, normalizzazione delle connessioni e delle bozze, identità persistenti, copy degli errori e accesso al preload. I vecchi path in `src/components/` sono facciate di compatibilità. Request revision, istanza CodeMirror, transazioni e guardia workspace restano ancora coese nel controller finché i relativi invarianti non sono coperti da test comportamentali dedicati.

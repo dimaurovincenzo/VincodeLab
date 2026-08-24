@@ -4,6 +4,8 @@ import { Button, Collapsible, createListCollection, Dialog, ErrorNotice, Field, 
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
 import { EmptyState } from '@/components/empty-state'
 import { MarkdownPreview } from '@/components/markdown-preview'
+import { gitBridge } from '@/features/git'
+import { githubBridge } from '@/features/github'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
 import { layoutGitGraph } from '@/lib/git-graph'
 import { effectivePreference, useAppPreferences } from '@/lib/app-preferences'
@@ -300,12 +302,12 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
   const refreshGit = useCallback(async (force = false) => {
     const requestId = ++gitRequest.current
     if (!force) setLoading(true)
-    const branchesRefresh = window.vincodeLab.github.branches().then(
+    const branchesRefresh = gitBridge.branches().then(
       (value) => ({ ok: true as const, value }),
       (error: unknown) => ({ error, ok: false as const }),
     )
     try {
-      const nextStatus = await window.vincodeLab.github.gitStatus({ force })
+      const nextStatus = await gitBridge.gitStatus({ force })
       if (requestId !== gitRequest.current) return
       setStatus(nextStatus.data)
       setGitCache(nextStatus.cache)
@@ -339,7 +341,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
     const requestId = ++gitRequest.current
     clearGitStatusError()
     try {
-      const nextStatus = await window.vincodeLab.github.gitStatus({ force: true })
+      const nextStatus = await gitBridge.gitStatus({ force: true })
       if (requestId !== gitRequest.current) return
       setStatus(nextStatus.data)
       setGitCache(nextStatus.cache)
@@ -357,7 +359,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
     if (!force) beginBusy()
     if (projectNumber) setLoadingBoard(true)
     try {
-      const dataRefresh = window.vincodeLab.github.data({ force }).then<RefreshOutcome, RefreshOutcome>((nextData) => {
+      const dataRefresh = githubBridge.data({ force }).then<RefreshOutcome, RefreshOutcome>((nextData) => {
         if (dataRequestId !== githubDataRequest.current) return { accepted: false, stale: false }
         setData(nextData.data)
         setGitHubCache(nextData.cache)
@@ -381,7 +383,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
         ? { accepted: true, stale: false, error }
         : { accepted: false, stale: false })
       const boardRefresh = projectNumber
-        ? window.vincodeLab.github.projectBoard(projectNumber, { force }).then<RefreshOutcome, RefreshOutcome>((nextBoard) => {
+        ? githubBridge.projectBoard(projectNumber, { force }).then<RefreshOutcome, RefreshOutcome>((nextBoard) => {
           if (boardRequestId !== boardRequest.current || selectedProjectRef.current !== projectNumber) return { accepted: false, stale: false }
           setBoard(nextBoard.data)
           setBoardCache(nextBoard.cache)
@@ -467,14 +469,14 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
   const initializeRepositoryConfirmed = async () => {
     beginBusy()
     try {
-      const nextStatus = await window.vincodeLab.github.initRepository()
+      const nextStatus = await gitBridge.initRepository()
       gitRequest.current += 1
       setStatus(nextStatus)
       setLoading(false)
       clearSurfaceError('git-changes')
       toast.success('Repository Git inizializzato')
       try {
-        const nextBranches = await window.vincodeLab.github.branches()
+        const nextBranches = await gitBridge.branches()
         setBranchPage(nextBranches)
         clearSurfaceError('branches')
       } catch (branchError) {
@@ -503,16 +505,16 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
 
   // Stage e unstage sono locali, immediatamente reversibili e già protetti dal
   // servizio Git per i file sensibili: una conferma qui interrompe solo il flusso.
-  const stage = useCallback((file: GitFileStatus) => void mutateGit(() => window.vincodeLab.github.stage([file.path]), 'File aggiunto allo staging', 'git-changes', {
+  const stage = useCallback((file: GitFileStatus) => void mutateGit(() => gitBridge.stage([file.path]), 'File aggiunto allo staging', 'git-changes', {
     action: `La preparazione di “${file.path}”`, operation: 'stage-git-file', recovery: 'Aggiorna lo stato Git prima di riprovare', title: 'File non aggiunto allo staging',
   }), [mutateGit])
-  const unstage = useCallback((file: GitFileStatus) => void mutateGit(() => window.vincodeLab.github.unstage([file.path]), 'File rimosso dallo staging', 'git-changes', {
+  const unstage = useCallback((file: GitFileStatus) => void mutateGit(() => gitBridge.unstage([file.path]), 'File rimosso dallo staging', 'git-changes', {
     action: `La rimozione di “${file.path}” dallo staging`, operation: 'unstage-git-file', recovery: 'Aggiorna lo stato Git prima di riprovare', title: 'Staging non aggiornato',
   }), [mutateGit])
-  const stageAll = (files: GitFileStatus[]) => void mutateGit(() => window.vincodeLab.github.stage(files.map((file) => file.path)), 'Modifiche aggiunte allo staging', 'git-changes', {
+  const stageAll = (files: GitFileStatus[]) => void mutateGit(() => gitBridge.stage(files.map((file) => file.path)), 'Modifiche aggiunte allo staging', 'git-changes', {
     action: 'La preparazione dei file visibili', operation: 'stage-git-files', recovery: 'Aggiorna lo stato Git prima di riprovare', title: 'File non aggiunti allo staging',
   })
-  const unstageAll = (files: GitFileStatus[]) => void mutateGit(() => window.vincodeLab.github.unstage(files.map((file) => file.path)), 'File rimossi dallo staging', 'git-changes', {
+  const unstageAll = (files: GitFileStatus[]) => void mutateGit(() => gitBridge.unstage(files.map((file) => file.path)), 'File rimossi dallo staging', 'git-changes', {
     action: 'La rimozione dei file visibili dallo staging', operation: 'unstage-git-files', recovery: 'Aggiorna lo stato Git prima di riprovare', title: 'Staging non aggiornato',
   })
 
@@ -520,7 +522,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
     const requestId = ++diffRequest.current
     beginBusy()
     try {
-      const content = await window.vincodeLab.github.fileDiff(file.path)
+      const content = await gitBridge.fileDiff(file.path)
       if (requestId !== diffRequest.current) return
       setSelectedDiff({ path: file.path, content })
       failedDiffFile.current = null
@@ -625,7 +627,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
   const switchBranch = (nextBranch: string) => {
     if (!status || nextBranch === status.branch) return
     const dirty = status.files.length > 0 ? '\n\nIl working tree contiene modifiche: Git potrebbe rifiutare il cambio.' : ''
-    confirmGit(`Passare al branch “${nextBranch}”?${dirty}`, () => window.vincodeLab.github.switchBranch(nextBranch), `Branch attivo: ${nextBranch}`, 'git-changes', {
+    confirmGit(`Passare al branch “${nextBranch}”?${dirty}`, () => gitBridge.switchBranch(nextBranch), `Branch attivo: ${nextBranch}`, 'git-changes', {
       action: `Il passaggio al branch “${nextBranch}”`, notFoundTitle: 'Branch Git non disponibile', operation: 'switch-git-branch', recovery: 'Aggiorna branch e stato Git prima di riprovare', title: 'Branch Git non cambiato',
     })
   }
@@ -634,7 +636,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
     const nextBranch = branchName.trim()
     if (!nextBranch) return
     confirmGit(`Creare e attivare il branch “${nextBranch}”?`, async () => {
-      const next = await window.vincodeLab.github.createBranch(nextBranch)
+      const next = await gitBridge.createBranch(nextBranch)
       setBranchName('')
       return next
     }, `Branch creato: ${nextBranch}`, 'git-changes', {
@@ -644,21 +646,21 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
 
   const fetchRemote = () => {
     if (!status?.remote) return
-    confirmGit(`Controllare gli aggiornamenti remoti da ${status.remote}?`, () => window.vincodeLab.github.fetch(), 'Aggiornamenti remoti controllati', 'git-remote', {
+    confirmGit(`Controllare gli aggiornamenti remoti da ${status.remote}?`, () => gitBridge.fetch(), 'Aggiornamenti remoti controllati', 'git-remote', {
       action: 'La verifica degli aggiornamenti remoti', notFoundTitle: 'Repository remoto non disponibile', operation: 'fetch-git-remote', recovery: 'Aggiorna lo stato Git prima di riprovare', title: 'Aggiornamenti remoti non verificati',
     })
   }
 
   const pullRemote = () => {
     if (!status?.upstream) return
-    confirmGit(`Scaricare e integrare gli aggiornamenti da ${status.upstream}?`, () => window.vincodeLab.github.pullRebase(), 'Aggiornamenti integrati', 'git-remote', {
+    confirmGit(`Scaricare e integrare gli aggiornamenti da ${status.upstream}?`, () => gitBridge.pullRebase(), 'Aggiornamenti integrati', 'git-remote', {
       action: 'L’integrazione degli aggiornamenti remoti', notFoundTitle: 'Branch remoto non disponibile', operation: 'pull-rebase-git-remote', recovery: 'Aggiorna lo stato Git prima di decidere se riprovare', title: 'Aggiornamenti remoti non integrati',
     })
   }
 
   const pushRemote = () => {
     if (!status?.remote) return
-    confirmGit(status.upstream ? `Pubblicare ${status.ahead ?? 0} commit sul remote ${status.upstream}?` : `Pubblicare ${status.ahead ?? 0} commit su ${status.remote} e associare il branch?`, () => window.vincodeLab.github.push(), status.upstream ? 'Commit pubblicati' : 'Branch pubblicato e associato al remote', 'git-remote', {
+    confirmGit(status.upstream ? `Pubblicare ${status.ahead ?? 0} commit sul remote ${status.upstream}?` : `Pubblicare ${status.ahead ?? 0} commit su ${status.remote} e associare il branch?`, () => gitBridge.push(), status.upstream ? 'Commit pubblicati' : 'Branch pubblicato e associato al remote', 'git-remote', {
       action: 'La pubblicazione dei commit', notFoundTitle: 'Repository o branch remoto non disponibile', operation: 'push-git-remote', recovery: 'Aggiorna lo stato Git prima di decidere se riprovare', title: 'Commit non pubblicati',
     })
   }
@@ -666,7 +668,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
   const addRemoteConfirmed = async () => {
     beginBusy()
     try {
-      const nextStatus = await window.vincodeLab.github.addRemote(remoteUrl)
+      const nextStatus = await gitBridge.addRemote(remoteUrl)
       gitRequest.current += 1
       setStatus(nextStatus)
       setLoading(false)
@@ -695,7 +697,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
   const createGitHubRepositoryConfirmed = async () => {
     beginBusy()
     try {
-      const nextStatus = await window.vincodeLab.github.createRepository(githubRepositoryName, githubRepositoryVisibility)
+      const nextStatus = await githubBridge.createRepository(githubRepositoryName, githubRepositoryVisibility)
       gitRequest.current += 1
       setStatus(nextStatus)
       setLoading(false)
@@ -725,7 +727,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
     if (!issueTitle.trim()) return
     beginBusy()
     try {
-      const nextData = await window.vincodeLab.github.createIssue(issueTitle, issueBody)
+      const nextData = await githubBridge.createIssue(issueTitle, issueBody)
       githubDataRequest.current += 1
       setData(nextData)
       setIssueTitle('')
@@ -758,7 +760,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
     setProjectPickerCollapsed(true)
     if (board?.project.number !== projectNumber) setBoard(null)
     try {
-      const nextBoard = await window.vincodeLab.github.projectBoard(projectNumber)
+      const nextBoard = await githubBridge.projectBoard(projectNumber)
       if (requestId !== boardRequest.current) return
       if (selectedProjectRef.current !== projectNumber) return
       setBoard(nextBoard.data)
@@ -783,7 +785,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
     if (!projectTitle.trim()) return
     beginBusy()
     try {
-      const projects = await window.vincodeLab.github.createProject(projectTitle)
+      const projects = await githubBridge.createProject(projectTitle)
       githubDataRequest.current += 1
       setData((current) => current ? { ...current, projects } : current)
       setProjectTitle('')
@@ -809,7 +811,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
   const editProjectConfirmed = async (project: GitHubProject) => {
     beginBusy()
     try {
-      const projects = await window.vincodeLab.github.editProject(project.number, projectEditTitle, projectEditDescription)
+      const projects = await githubBridge.editProject(project.number, projectEditTitle, projectEditDescription)
       githubDataRequest.current += 1
       setData((current) => current ? { ...current, projects } : current)
       setEditingProject(null)
@@ -835,7 +837,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
   const closeProjectConfirmed = async (project: GitHubProject) => {
     beginBusy()
     try {
-      const projects = await window.vincodeLab.github.closeProject(project.number, !project.closed)
+      const projects = await githubBridge.closeProject(project.number, !project.closed)
       githubDataRequest.current += 1
       setData((current) => current ? { ...current, projects } : current)
       clearSurfaceError('projects')
@@ -859,7 +861,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
   const updateBoardStatusConfirmed = async (item: GitHubProjectItem, optionId: string, statusField: GitHubProjectField, projectNumber: number) => {
     beginBusy()
     try {
-      const nextBoard = await window.vincodeLab.github.updateProjectItem(projectNumber, item.id, statusField.id, { type: 'singleSelect', optionId })
+      const nextBoard = await githubBridge.updateProjectItem(projectNumber, item.id, statusField.id, { type: 'singleSelect', optionId })
       boardRequest.current += 1
       projectFieldRequest.current += 1
       setLoadingBoard(false)
@@ -887,7 +889,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
   const updateBoardFieldConfirmed = async (item: GitHubProjectItem, field: GitHubProjectField, update: GitHubProjectItemUpdate, projectNumber: number) => {
     beginBusy()
     try {
-      const nextBoard = await window.vincodeLab.github.updateProjectItem(projectNumber, item.id, field.id, update)
+      const nextBoard = await githubBridge.updateProjectItem(projectNumber, item.id, field.id, update)
       boardRequest.current += 1
       projectFieldRequest.current += 1
       setLoadingBoard(false)
@@ -931,7 +933,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
     const request = ++projectFieldRequest.current
     setLoadingProjectFields(true)
     try {
-      const fieldValues = await window.vincodeLab.github.projectItemFields(projectNumber, item.id)
+      const fieldValues = await githubBridge.projectItemFields(projectNumber, item.id)
       if (projectFieldRequest.current !== request) return
       setProjectFieldValues(fieldValues)
       setProjectFieldDrafts(fieldValues)
@@ -968,7 +970,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
   const archiveBoardItemConfirmed = async (item: GitHubProjectItem, projectNumber: number) => {
     beginBusy()
     try {
-      const nextBoard = await window.vincodeLab.github.archiveProjectItem(projectNumber, item.id, false)
+      const nextBoard = await githubBridge.archiveProjectItem(projectNumber, item.id, false)
       boardRequest.current += 1
       projectFieldRequest.current += 1
       setLoadingBoard(false)
@@ -994,7 +996,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
 
   const requestCommit = () => {
     if (!commitMessage.trim()) return
-    setConfirmation({ title: 'Crea commit', detail: `${staged.length} file in staging. Messaggio: ${commitMessage.trim()}`, confirmLabel: 'Crea commit', onConfirm: () => void mutateGit(async () => { const next = await window.vincodeLab.github.commit(commitMessage); setCommitMessage(''); return next }, 'Commit creato', 'git-commit', {
+    setConfirmation({ title: 'Crea commit', detail: `${staged.length} file in staging. Messaggio: ${commitMessage.trim()}`, confirmLabel: 'Crea commit', onConfirm: () => void mutateGit(async () => { const next = await gitBridge.commit(commitMessage); setCommitMessage(''); return next }, 'Commit creato', 'git-commit', {
       action: 'La creazione del commit', operation: 'create-git-commit', preserved: 'Il messaggio e i file in staging sono stati mantenuti.', recovery: 'Aggiorna lo stato Git prima di decidere se riprovare', title: 'Commit non creato',
     }) })
   }
@@ -1068,7 +1070,7 @@ export function GitHubWorkspace({ active, workspace, initialState, workbenchRequ
     fetchRemote()
   })
 
-  useEffect(() => window.vincodeLab.contextMenu?.onAction?.((action) => {
+  useEffect(() => gitBridge.contextMenu?.onAction?.((action) => {
     if ((action.contextKind !== 'git-unstaged-file' && action.contextKind !== 'git-staged-file') || !action.contextId) return
     const file = status?.files.find((candidate) => candidate.path === action.contextId)
     if (!file) return
