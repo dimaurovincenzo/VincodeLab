@@ -18,6 +18,7 @@ export const databaseStyles = {
       '--splitter-panel-min-size': '0px',
       gridTemplateColumns: 'minmax(0, 1fr)',
       gridTemplateRows: 'minmax(210px, 42vh) minmax(0, 1fr)',
+      '&[data-fixed-panel-collapsed="true"]': { gridTemplateRows: '0 minmax(0, 1fr)' },
       '& > [data-scope="splitter"][data-part="resize-trigger"]': { display: 'none' },
     },
   }),
@@ -246,6 +247,7 @@ export const databaseStyles = {
     px: '3',
     [compactLayout]: { alignItems: 'flex-start', flexDirection: 'column' },
   }),
+  toolbarHeading: css({ alignItems: 'center', display: 'flex', gap: '2', minW: '0' }),
   toolbarTitle: css({
     fontSize: 'graphiteSection',
     fontWeight: 'graphiteSemibold',

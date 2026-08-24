@@ -15,6 +15,7 @@ export const remoteStyles = {
       '--splitter-panel-min-size': '0px',
       gridTemplateColumns: 'minmax(0, 1fr)',
       gridTemplateRows: 'minmax(120px, 32%) minmax(0, 1fr)',
+      '&[data-fixed-panel-collapsed="true"]': { gridTemplateRows: '0 minmax(0, 1fr)' },
     },
   }),
   connections: css({
@@ -110,16 +111,25 @@ export const remoteStyles = {
     overflow: 'hidden',
     w: 'full',
   }),
-  viewTabs: css({
-    alignItems: 'flex-end',
+  viewHeader: css({
+    alignItems: 'center',
     bg: 'surfacePanel',
     borderBottomColor: 'borderDefault',
     borderBottomWidth: '1px',
-    borderRadius: '0',
+    display: 'flex',
     flex: '0 0 40px',
+    minH: '10',
+    minW: '0',
+    ps: '2',
+  }),
+  viewTabs: css({
+    alignItems: 'flex-end',
+    bg: 'surfacePanel',
+    borderRadius: '0',
+    flex: '1',
     gap: '0.5',
     minH: '10',
-    px: '2',
+    px: '1',
   }),
   viewCount: css({
     bg: 'surfaceHover',

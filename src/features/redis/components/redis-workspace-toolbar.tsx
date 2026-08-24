@@ -1,13 +1,15 @@
 import { Database, FilePenLine, Plug, Plus, RefreshCw, Trash2, Unplug } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Button, IconButton, SelectField, Spinner } from '@/components/ui'
 import { redisStyles as rs } from '@/theme/styles/redis'
 import type { RedisWorkspaceController } from '../hooks/use-redis-workspace-controller'
 
 type Props = {
   controller: RedisWorkspaceController
+  sidebarToggle?: ReactNode
 }
 
-export function RedisWorkspaceToolbar({ controller }: Props) {
+export function RedisWorkspaceToolbar({ controller, sidebarToggle }: Props) {
   const {
     connectionOptions,
     connections,
@@ -21,6 +23,7 @@ export function RedisWorkspaceToolbar({ controller }: Props) {
 
   return <header className={rs.toolbar}>
     <div className={rs.connectionBlock}>
+      {sidebarToggle}
       {selected
         ? <>
             <Database aria-hidden="true" size={16} />
@@ -51,9 +54,9 @@ export function RedisWorkspaceToolbar({ controller }: Props) {
                   : <span className={rs.meta} role="status"><Spinner size={14} /> {sessionPhase === 'reconnecting' ? 'Riconnessione…' : 'Connessione…'}</span>}
               <Button size="sm" variant="outline" onClick={() => void controller.disconnect()}><Unplug aria-hidden="true" size={14} /> Disconnetti</Button>
             </>
-          : <Button size="sm" onClick={() => void controller.connectSelected()}>
-              <Plug aria-hidden="true" size={14} />
-              Connetti
+          : <Button disabled={sessionBusy} size="sm" onClick={() => void controller.connectSelected()}>
+              {sessionBusy ? <Spinner size={14} /> : <Plug aria-hidden="true" size={14} />}
+              {sessionBusy ? 'Connessione…' : 'Connetti'}
             </Button>}
         <IconButton disabled={sessionBusy} tooltip={`Modifica ${selected.name}`} onClick={() => controller.editConnection(selected)}><FilePenLine aria-hidden="true" size={14} /></IconButton>
         <IconButton disabled={sessionBusy} tone="danger" tooltip={`Elimina ${selected.name}`} onClick={() => controller.deleteConnection(selected)}><Trash2 aria-hidden="true" size={14} /></IconButton>

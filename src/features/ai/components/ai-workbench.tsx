@@ -19,7 +19,7 @@ import { terminalPasteRecoveryLabel } from '../services/ai-error'
 import '@xterm/xterm/css/xterm.css'
 
 const aiSessionPanels: SplitterPanelData[] = [
-  { id: 'ai-sessions', minSize: '176px', maxSize: '420px', resizeBehavior: 'preserve-pixel-size' },
+  { id: 'ai-sessions', minSize: '176px', maxSize: '420px', collapsible: true, collapsedSize: '0px', resizeBehavior: 'preserve-pixel-size' },
   { id: 'ai-terminal', minSize: '420px' },
 ]
 
@@ -96,6 +96,7 @@ export function AiWorkbench({
                 <Splitter.ResizeTrigger aria-label="Ridimensiona agenti Pi" id="ai-sessions:ai-terminal" title="Trascina per ridimensionare gli agenti. Doppio clic per ripristinare."><Splitter.ResizeTriggerIndicator /></Splitter.ResizeTrigger>
                 <Splitter.Panel asChild id="ai-terminal"><div className={terminalStyles.workspace} aria-label={`Terminale AI: ${workspace}`}>
                 <div className={terminalStyles.meta}>
+                  <Splitter.CollapseTrigger collapseLabel="Nascondi sessioni AI" expandLabel="Mostra sessioni AI" panelId="ai-sessions" size="icon-xs" />
                   <span className={`${terminalStyles.statusDot} ${status === 'launching' ? terminalStyles.statusLaunching : status === 'error' ? terminalStyles.statusError : status !== 'running' ? terminalStyles.statusInactive : ''}`} aria-hidden="true" />
                   <span>{workspace}</span>
                   <span className={terminalStyles.runtimeStatus} role="status">Pi Coding Agent</span>

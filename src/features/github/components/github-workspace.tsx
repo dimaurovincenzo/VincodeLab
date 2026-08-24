@@ -29,7 +29,7 @@ export function GitHubWorkspace(props: GitHubWorkspaceProps) {
       <Tabs.Indicator />
     </Tabs.List>
     {errors.gitStatusError && <ErrorNotice action={{ label: 'Riprova', pendingLabel: 'Verifica stato Git…', onClick: controller.dataController.retryGitStatus }} error={errors.gitStatusError} />}
-    <GitHubChangesPanel controller={controller} />
+    <GitHubChangesPanel controller={controller} workspace={props.workspace} />
     <GitHubGraphPanel controller={controller} />
     <GitHubIssuesPanel controller={controller} />
     <GitHubProjectsPanel controller={controller} workspace={props.workspace} />

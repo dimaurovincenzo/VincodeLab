@@ -28,7 +28,7 @@ import type { DatabaseTableDraftGuard } from './database-table-grid'
 export type { DatabaseWorkbenchContext } from '../model/database.types'
 
 const databasePanels: SplitterPanelData[] = [
-  { id: 'database-sidebar', minSize: '240px', maxSize: '720px', resizeBehavior: 'preserve-pixel-size' },
+  { id: 'database-sidebar', minSize: '240px', maxSize: '720px', collapsible: true, collapsedSize: '0px', resizeBehavior: 'preserve-pixel-size' },
   { id: 'database-editor', minSize: '460px' },
 ]
 
@@ -430,7 +430,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
               cancelling={query.cancelling} connectionPrepared={resources.connectionPrepared} connectionReady={resources.connectionReady} disconnectAvailable={resources.disconnectAvailable} disconnecting={resources.disconnecting} executing={query.executing} loadingResources={resources.loadingResources}
               onBegin={() => { void transactions.begin() }} onCancel={() => { void query.cancelActiveQuery() }} onFinishTransaction={(action) => { void transactions.finishTransaction(action) }}
               onConnect={() => { void resources.connect() }} onDisconnect={() => { void resources.disconnect() }} onFormat={() => { void formatSql() }} onRefreshSchema={() => { void refreshSchema() }} onRun={query.requestRun} onSaveQuery={() => { void saveCurrentQuery() }}
-              selected={connections.selected} toolbarAction={transactions.toolbarAction} transactionActive={transactions.transactionActive}
+              selected={connections.selected} sidebarToggle={<Splitter.CollapseTrigger collapseLabel="Nascondi Explorer Database" expandLabel="Mostra Explorer Database" panelId="database-sidebar" />} toolbarAction={transactions.toolbarAction} transactionActive={transactions.transactionActive}
             />
             {guard.guardFailure && <ErrorNotice action={{ label: guard.guardFailure.recovery === 'save' ? 'Salva e riprova' : 'Ripristina di nuovo', onClick: () => (guard.guardFailure?.recovery === 'save' ? guard.saveAll() : guard.discardAll()).catch(() => undefined) }} error={guard.guardFailure.error} />}
             {connections.connectionDraftRecoveryError && <ErrorNotice action={{ label: 'Rimuovi bozza', onClick: () => { discardVolatileDraft(connections.connectionDraftRecoveryError!.identity); connections.setConnectionDraftRecoveryError(null) } }} error={connections.connectionDraftRecoveryError.error} />}

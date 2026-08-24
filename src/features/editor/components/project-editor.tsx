@@ -28,7 +28,7 @@ import { defaultFolderIcon, defaultFolderOpenedIcon, fileIconFor, folderIconFor,
 import { StartTreeNodeRename } from './start-tree-node-rename'
 
 const editorPanels: SplitterPanelData[] = [
-  { id: 'editor-explorer', minSize: '220px', maxSize: '720px', resizeBehavior: 'preserve-pixel-size' },
+  { id: 'editor-explorer', minSize: '220px', maxSize: '720px', collapsible: true, collapsedSize: '0px', resizeBehavior: 'preserve-pixel-size' },
   { id: 'editor-document', minSize: '420px' },
 ]
 
@@ -370,10 +370,13 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
     </aside></Splitter.Panel>
     <Splitter.ResizeTrigger aria-label="Ridimensiona Explorer" id="editor-explorer:editor-document" title="Trascina per ridimensionare l’Explorer. Doppio clic per ripristinare."><Splitter.ResizeTriggerIndicator /></Splitter.ResizeTrigger>
     <Splitter.Panel id="editor-document"><Tabs.Root className={editorStyles.document} value={activeId ?? ''} onValueChange={({ value }) => activateTab(value || null)}>
-      <Tabs.List className={editorStyles.tabs} aria-label="File aperti">{tabs.map((tab) => {
+      <div className={editorStyles.tabsHeader}>
+        <Splitter.CollapseTrigger collapseLabel="Nascondi Explorer" expandLabel="Mostra Explorer" panelId="editor-explorer" />
+        <Tabs.List className={editorStyles.tabs} aria-label="File aperti">{tabs.map((tab) => {
         const contextId = tab.source === 'remote' && tab.remote ? tab.remote.file.id : tab.id
         return <div className={activeId === tab.id ? editorStyles.tabSelected : editorStyles.tab} data-context-dirty={tab.content !== tab.savedContent ? 'true' : undefined} data-context-has-other-tabs={tabs.length > 1 ? 'true' : undefined} data-context-has-right-tabs={tabs.indexOf(tab) < tabs.length - 1 ? 'true' : undefined} data-workspace-context-id={contextId} data-workspace-context-kind={tab.source === 'remote' ? 'editor-remote-tab' : 'editor-workspace-tab'} key={tab.id}><Tabs.Trigger className={editorStyles.tabTrigger} value={tab.id}>{fileIconFor(tab.name) ? <Icon icon={fileIconFor(tab.name)!} aria-hidden="true" className={editorStyles.fileIcon} /> : <FileText aria-hidden="true" size={13} />}{tab.name}{tab.content !== tab.savedContent && <i className={editorStyles.tabModified} aria-label="Modificato" />}</Tabs.Trigger><IconButton tooltip={`Chiudi ${tab.name}`} size="icon-xs" className={editorStyles.tabClose} aria-label={`Chiudi ${tab.name}`} disabled={savingFileIds.has(tab.id)} onClick={() => closeTab(tab.id)}><X aria-hidden="true" size={13} /></IconButton></div>
       })}<Tabs.Indicator /></Tabs.List>
+      </div>
       <Tabs.Content className={editorStyles.filePanel} value={activeId ?? ''}>
         {documentFailure && <ErrorNotice action={recoveryActionFor(documentFailure)} className={editorStyles.failure} error={documentFailure.error} />}
         {activeTab ? <>

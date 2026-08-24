@@ -66,6 +66,7 @@ export const aiStyles = {
       '--splitter-panel-min-size': '0px',
       gridTemplateColumns: 'minmax(0, 1fr)',
       gridTemplateRows: 'minmax(150px, 42%) minmax(0, 1fr)',
+      '&[data-fixed-panel-collapsed="true"]': { gridTemplateRows: '0 minmax(0, 1fr)' },
     },
   }),
   skillsSidebar: css({

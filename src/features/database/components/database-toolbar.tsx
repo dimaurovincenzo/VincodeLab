@@ -1,4 +1,5 @@
 import { AlignLeft, PlugZap, Play, RefreshCw, RotateCcw, Save, Unplug, X } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { DatabaseConnection } from '@/bridge'
 import { Button, Spinner } from '@/components/ui'
 import type { DatabaseToolbarAction } from '../model/database.types'
@@ -22,6 +23,7 @@ type DatabaseToolbarProps = {
   onRun: () => void
   onSaveQuery: () => void
   selected: DatabaseConnection | null
+  sidebarToggle?: ReactNode
   toolbarAction: DatabaseToolbarAction
   transactionActive: boolean
 }
@@ -44,6 +46,7 @@ export function DatabaseToolbar({
   onRun,
   onSaveQuery,
   selected,
+  sidebarToggle,
   toolbarAction,
   transactionActive,
 }: DatabaseToolbarProps) {
@@ -72,7 +75,7 @@ export function DatabaseToolbar({
                     : ''
 
   return <header className={db.toolbar}>
-    <strong className={db.toolbarTitle}>{selected?.name ?? 'Seleziona una connessione'}</strong>
+    <div className={db.toolbarHeading}>{sidebarToggle}<strong className={db.toolbarTitle}>{selected?.name ?? 'Seleziona una connessione'}</strong></div>
     <div className={db.toolbarActions}>
       <span aria-live="polite" className={db.toolbarStatus}>{status}</span>
       {selected && !disconnectAvailable && <Button size="sm" disabled={!connectionPrepared || loadingResources || toolbarAction !== null} onClick={onConnect}>

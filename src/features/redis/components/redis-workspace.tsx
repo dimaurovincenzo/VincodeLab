@@ -9,7 +9,7 @@ import { RedisWorkspaceContent } from './redis-workspace-content'
 import { RedisWorkspaceToolbar } from './redis-workspace-toolbar'
 
 const panels: SplitterPanelData[] = [
-  { id: 'redis-browser', minSize: '260px', maxSize: '720px', resizeBehavior: 'preserve-pixel-size' },
+  { id: 'redis-browser', minSize: '260px', maxSize: '720px', collapsible: true, collapsedSize: '0px', resizeBehavior: 'preserve-pixel-size' },
   { id: 'redis-content', minSize: '460px' },
 ]
 
@@ -32,7 +32,6 @@ export function RedisWorkspace(props: RedisWorkspaceProps) {
           loading={state.scanLoading}
           selectedKey={state.selectedKeyRef}
           typeFilter={state.typeFilter}
-          onConnect={() => { void controller.connectSelected() }}
           onFilter={controller.applyFilters}
           onNext={controller.showNextPage}
           onPrevious={controller.showPreviousPage}
@@ -44,7 +43,7 @@ export function RedisWorkspace(props: RedisWorkspaceProps) {
       <Splitter.Panel id="redis-content">
         <Tabs.Root asChild value={state.mode} onValueChange={({ value }) => state.setMode(value as 'keys' | 'search')}>
           <main className={rs.main}>
-            <RedisWorkspaceToolbar controller={controller} />
+            <RedisWorkspaceToolbar controller={controller} sidebarToggle={<Splitter.CollapseTrigger collapseLabel="Nascondi browser Redis" expandLabel="Mostra browser Redis" panelId="redis-browser" />} />
             <RedisWorkspaceContent controller={controller} />
           </main>
         </Tabs.Root>

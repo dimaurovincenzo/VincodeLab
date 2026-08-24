@@ -19,7 +19,6 @@ type Props = {
   loading: boolean
   selectedKey: string | null
   typeFilter: RedisKeyTypeFilter
-  onConnect: () => void
   onFilter: (filter: string, type: RedisKeyTypeFilter) => void
   onNext: () => void
   onPrevious: () => void
@@ -39,7 +38,7 @@ function ttlLabel(ttlMs: number | null, ttlState?: RedisKeySummary['ttlState']) 
   return `${Math.ceil(ttlMs / 3_600_000)} h`
 }
 
-export const RedisKeyBrowser = memo(function RedisKeyBrowser({ connectionInactive, connectionName, cursorDepth, disabled = false, error, filter, hasMore, keys, loading, selectedKey, typeFilter, onConnect, onFilter, onNext, onPrevious, onRefresh, onSelect }: Props) {
+export const RedisKeyBrowser = memo(function RedisKeyBrowser({ connectionInactive, connectionName, cursorDepth, disabled = false, error, filter, hasMore, keys, loading, selectedKey, typeFilter, onFilter, onNext, onPrevious, onRefresh, onSelect }: Props) {
   const [draftFilter, setDraftFilter] = useState(filter)
   const [draftType, setDraftType] = useState<RedisKeyTypeFilter>(typeFilter)
 
@@ -56,11 +55,10 @@ export const RedisKeyBrowser = memo(function RedisKeyBrowser({ connectionInactiv
     {connectionInactive && !keys.length ? connectionName ? <div className={rs.browserDisconnected} role="status">
       <span className={rs.browserDisconnectedIcon}><Unplug aria-hidden="true" size={18} /></span>
       <div className={rs.browserDisconnectedCopy}>
-        <strong>Connessione non attiva</strong>
-        <p>“{connectionName}” è selezionata ma non connessa.</p>
-        <small>Connettiti per caricare le chiavi Redis.</small>
+        <strong>In attesa di connessione</strong>
+        <p>“{connectionName}” è selezionata.</p>
+        <small>Usa il comando Connetti nel pannello principale.</small>
       </div>
-      <Button aria-label={`Connetti ${connectionName} dal browser chiavi`} onClick={onConnect}>Connetti</Button>
     </div> : <div className={rs.browserStatus}><Database aria-hidden="true" size={22} /><p>Seleziona o crea una connessione Redis.</p></div> : error && !disabled ? <ErrorNotice action={{ label: 'Riprova SCAN', onClick: onRefresh }} className={rs.notice} error={error} /> : loading ? <div className={rs.browserStatus} role="status"><Spinner size={18} /> Caricamento chiavi…</div> : keys.length ? <ul aria-label="Chiavi Redis" className={rs.keyList}>{keys.map((item) => <li className={rs.keyItem} data-context-menu-id={item.keyRef} data-context-menu-kind="redis-key" key={item.keyRef}>
       <Button aria-current={selectedKey === item.keyRef ? 'true' : undefined} className={rs.keyButton} disabled={disabled} title={item.key} variant="plain" onClick={() => onSelect(item)}>
         <span className={redisTypeBadge({ type: item.type })}>{redisTypeLabel(item.type)}</span>

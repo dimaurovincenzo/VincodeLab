@@ -12,6 +12,11 @@ const normalizedPanels: SplitterPanelData[] = [
   { id: 'workbench', minSize: 25, maxSize: 80 },
 ]
 
+const collapsiblePanels: SplitterPanelData[] = [
+  { id: 'navigator', minSize: '100px', maxSize: '600px', collapsible: true, collapsedSize: '0px', resizeBehavior: 'preserve-pixel-size' },
+  { id: 'workbench', minSize: '100px' },
+]
+
 class MemoryStorage implements Storage {
   readonly #values = new Map<string, string>()
 
@@ -62,7 +67,7 @@ function SplitterHarness({
       <Splitter.ResizeTrigger aria-label={`Ridimensiona ${orientation}`} id="navigator:workbench">
         <Splitter.ResizeTriggerIndicator />
       </Splitter.ResizeTrigger>
-      <Splitter.Panel id="workbench"><div>Workbench</div></Splitter.Panel>
+      <Splitter.Panel id="workbench"><div>{panelDefinitions[0]?.collapsible && <Splitter.CollapseTrigger collapseLabel="Nascondi navigatore" expandLabel="Mostra navigatore" panelId="navigator" />}Workbench</div></Splitter.Panel>
     </Splitter.Root>
   )
 }
@@ -177,6 +182,27 @@ describe('Splitter Ark/Park', () => {
 
     await waitFor(() => expect(window.sessionStorage.getItem(storageKey)).toBe('333'))
     expect(window.localStorage.getItem(storageKey)).toBeNull()
+  })
+
+  it('collassa, espande e ripristina lo stato persistito tramite il controllo accessibile', async () => {
+    const storageKey = 'test.splitter.collapse'
+    const firstRender = render(<SplitterHarness orientation="horizontal" panelDefinitions={collapsiblePanels} storageKey={storageKey} />)
+
+    const collapse = screen.getByRole('button', { name: 'Nascondi navigatore' })
+    expect(collapse).toHaveAttribute('aria-controls', 'navigator')
+    expect(collapse).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(collapse)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Mostra navigatore' })).toHaveAttribute('aria-expanded', 'false'))
+    expect(window.localStorage.getItem(`${storageKey}:collapsed`)).toBe('true')
+
+    firstRender.unmount()
+    render(<SplitterHarness orientation="horizontal" panelDefinitions={collapsiblePanels} storageKey={storageKey} />)
+    const expand = screen.getByRole('button', { name: 'Mostra navigatore' })
+    fireEvent.click(expand)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Nascondi navigatore' })).toHaveAttribute('aria-expanded', 'true'))
+    expect(window.localStorage.getItem(`${storageKey}:collapsed`)).toBe('false')
   })
 
   it.each([

@@ -604,7 +604,7 @@ test('la tabella Project riusa i colori del design system dell’app', () => {
 
   assert.match(styles, /projectTable:\s*css\(\{[^}]*bg:\s*'surfaceRaised'/)
   assert.match(styles, /projectTableHead:\s*css\(\{[\s\S]*?bg:\s*'surfaceSubtle'/)
-  assert.match(styles, /projectGroupHeadingCell:\s*css\(\{[^}]*bg:\s*'accentSubtle'/)
+  assert.match(styles, /projectGroupHeadingCell:\s*css\(\{[^}]*bg:\s*'surfacePanel'[^}]*borderLeftColor:\s*'accentSolid'/)
   assert.match(styles, /projectTableRow:\s*cva\([\s\S]*?_hover:\s*\{\s*bg:\s*'surfaceHover'/)
   assert.match(styles, /projectTitleText:\s*css\(\{[^}]*color:\s*'textPrimary'/)
   assert.match(styles, /projectContent:\s*css\(\{[\s\S]*?alignItems:\s*'stretch'/)
@@ -698,6 +698,19 @@ test('il selettore Project si richiude e gli assegnatari restano compatti nella 
   assert.match(github, /className=\{gh\.projectAssignee\}/)
   assert.match(styles, /projectPickerContent:\s*cva\(\{[\s\S]*?variants:\s*\{\s*hidden:\s*\{\s*true:\s*\{\s*display:\s*'none'/)
   assert.match(styles, /projectAssignees:\s*css\(\{[^}]*overflow:\s*'hidden'/)
+})
+
+test('Project GitHub separa selezione, utilità, riepilogo, filtri e dati', () => {
+  const picker = readGitHubModule('components/github-project-picker.tsx')
+  const board = readGitHubModule('components/github-project-board.tsx')
+  const styles = readGitHubStylesSource()
+
+  assert.match(picker, /<Collapsible\.Trigger className=\{gh\.projectUtilityTrigger\}>[\s\S]*?Nuovo Project/)
+  assert.match(picker, /<Collapsible\.Trigger className=\{gh\.projectManagementTitle\}>[\s\S]*?Gestisci Project/)
+  assert.match(styles, /projectItem:\s*css\([\s\S]*?_selected:\s*\{[^}]*bg:\s*'surfaceSelected'/)
+  assert.match(board, /<header className=\{gh\.boardHeader\}>/)
+  assert.match(board, /aria-label="Filtri della board"[^>]*role="group"/)
+  assert.match(styles, /projectStatusCell:\s*css\(\{[\s\S]*?bg:\s*'transparent'/)
 })
 
 test('le superfici laterali condividono resize accessibile e persistente', () => {

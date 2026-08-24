@@ -18,7 +18,7 @@ import { SKILL_NAME_HELP, SKILL_NAME_MAX_LENGTH } from '@/lib/skill-name'
 import { aiStyles } from '@/theme/styles/ai'
 
 const skillPanels: SplitterPanelData[] = [
-  { id: 'skills-sidebar', minSize: '230px', maxSize: '520px', resizeBehavior: 'preserve-pixel-size' },
+  { id: 'skills-sidebar', minSize: '230px', maxSize: '520px', collapsible: true, collapsedSize: '0px', resizeBehavior: 'preserve-pixel-size' },
   { id: 'skills-editor', minSize: '420px' },
 ]
 
@@ -102,6 +102,7 @@ export function ProjectSkills({ workspace, onWorkspaceGuardChange }: Props) {
             <p>{selected ? `${selected.id}/SKILL.md${hasUnsavedChanges ? ' · modificata, non salvata' : ''}` : 'Crea o seleziona una skill per modificarla.'}</p>
           </div>
           <div className={aiStyles.editorActions}>
+            <Splitter.CollapseTrigger collapseLabel="Nascondi elenco Skill" expandLabel="Mostra elenco Skill" panelId="skills-sidebar" />
             <Button variant="outline" size="sm" onClick={() => void reloadPi()}><RefreshCw aria-hidden="true" /> Ricarica risorse Pi</Button>
             {selected && <>
               {hasUnsavedChanges && <Button variant="outline" size="sm" onClick={discardChanges} disabled={saving}>Annulla modifiche</Button>}

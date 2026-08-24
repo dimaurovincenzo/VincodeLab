@@ -387,7 +387,9 @@ test('Splitter centralizza persistenza, reset e dimensioni controllate senza sep
   assert.match(splitter, /writeStorageSize\(window\.localStorage, storageKey, size\)/)
   assert.match(splitter, /readStorageSize\(window\.sessionStorage, storageKey\)/)
   assert.match(splitter, /size=\{size\}/)
-  assert.match(splitter, /setSize\(fixedPanelLayout\(panels\.length, fixedPanel, nextSize\)\)/)
+  assert.match(splitter, /initialPanelLayout\(panels, fixedPanel, storageKey, defaultFixedSize\)/)
+  assert.match(splitter, /writeStoredCollapsed\(storageKey, (?:true|false)\)/)
+  assert.match(splitter, /CollapseTrigger: SplitterCollapseTrigger/)
   assert.match(splitter, /onDoubleClick=\{handleDoubleClick\}/)
   assert.match(splitter, /persistence\.resetToDefault\(\)/)
   assert.doesNotMatch(splitter, /splitterApi\.setSizes\(persistence\.defaultSize\)/)
@@ -403,8 +405,7 @@ test('Splitter centralizza persistenza, reset e dimensioni controllate senza sep
 
   const github = read('src/features/github/components/github-workspace.tsx')
   assert.match(github, /collapsible:\s*true,\s*collapsedSize:\s*'240px'/)
-  assert.match(github, /<Splitter\.Context>\{\(\{ collapsePanel, expandPanel \}\)/)
-  assert.match(github, /expandPanel\('github-project-picker'\) : collapsePanel\('github-project-picker'\)/)
+  assert.match(github, /<Splitter\.CollapseTrigger[^>]*panelId="github-project-picker"/)
 })
 
 test('l’explorer Database delega al TreeView Ark espansione selezione e tastiera', () => {

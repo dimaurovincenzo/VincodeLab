@@ -274,15 +274,24 @@ export const editorStyles = {
     overflow: 'hidden',
     w: 'full',
   }),
-  tabs: css({
+  tabsHeader: css({
+    alignItems: 'center',
     bg: 'surfacePanel',
     borderBottomWidth: '1px',
     display: 'flex',
     flex: '0 0 36px',
     minH: '9',
+    minW: '0',
+    ps: '1',
+  }),
+  tabs: css({
+    bg: 'surfacePanel',
+    display: 'flex',
+    flex: '1',
+    minH: '9',
+    minW: '0',
     overflowX: 'auto',
     overflowY: 'hidden',
-    ps: '1',
   }),
   tab: css(tab),
   tabSelected: css(tab, {
