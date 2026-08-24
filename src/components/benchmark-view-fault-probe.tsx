@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { optionalVincodeLabBridge } from '@/bridge'
 
 export const BENCHMARK_VIEW_FAULT_EVENT = 'vincodelab:benchmark-view-fault'
 
@@ -10,7 +11,7 @@ type BenchmarkViewFaultDetail = Readonly<{ viewName: string }>
  * Boundary React senza esporre controlli o API nel normale uso dell'app.
  */
 export function BenchmarkViewFaultProbe({ viewName }: { viewName: string }) {
-  const enabled = Boolean(window.vincodeLab?.benchmark?.injectFault)
+  const enabled = Boolean(optionalVincodeLabBridge()?.benchmark?.injectFault)
   const [faulted, setFaulted] = useState(false)
 
   useEffect(() => {

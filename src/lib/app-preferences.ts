@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { bridgeNamespace } from '@/bridge'
 
 type AppPreferencesWorkspaceKey = string | null
 type AppPreferencesContext = {
@@ -321,7 +322,7 @@ export function createAppPreferencesStore(fetchPreferences: () => Promise<AppPre
   }
 }
 
-const appPreferencesStore = createAppPreferencesStore(() => window.vincodeLab.preferences.get())
+const appPreferencesStore = createAppPreferencesStore(() => bridgeNamespace('preferences').get())
 
 export function setAppPreferencesWorkspace(workspaceKey: AppPreferencesWorkspaceKey) {
   appPreferencesStore.setWorkspace(workspaceKey)

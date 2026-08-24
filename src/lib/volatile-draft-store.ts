@@ -1,3 +1,5 @@
+import { optionalVincodeLabBridge } from '@/bridge'
+
 export type VolatileDraftIdentity = Readonly<{
   scope:
     | 'project-editor'
@@ -56,8 +58,7 @@ function draftKey(identity: VolatileDraftIdentity) {
 }
 
 function draftBridge() {
-  if (typeof window === 'undefined') return null
-  return window.vincodeLab?.volatileDrafts ?? null
+  return optionalVincodeLabBridge()?.volatileDrafts ?? null
 }
 
 function persistenceState(): VolatileDraftPersistenceState {

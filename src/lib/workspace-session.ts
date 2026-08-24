@@ -1,3 +1,5 @@
+import { optionalVincodeLabBridge } from '@/bridge'
+
 export const WORKSPACE_SESSION_VERSION = 2 as const
 export const WORKSPACE_SESSION_DEBOUNCE_MS = 400
 export const MAX_WORKSPACE_SESSION_BYTES = 256 * 1024
@@ -540,10 +542,11 @@ function normalizeSnapshot(value: unknown, recoverStoredSections = false): Works
 }
 
 function defaultStorage(): WorkspaceSessionStorage {
-  if (typeof window === 'undefined' || !window.vincodeLab?.workspaceSession) {
+  const storage = optionalVincodeLabBridge()?.workspaceSession
+  if (!storage) {
     throw new Error('Il bridge della sessione workspace non è disponibile.')
   }
-  return window.vincodeLab.workspaceSession
+  return storage
 }
 
 function debounceDelay(value: number | undefined) {

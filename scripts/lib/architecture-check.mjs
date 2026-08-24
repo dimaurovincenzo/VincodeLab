@@ -9,14 +9,10 @@ const sourceRoots = ['src', 'electron']
 // renderer-to-preload dependencies cannot be introduced while each legacy
 // area is migrated independently.
 export const legacyDirectBridgeFiles = new Map([
-  ['src/components/benchmark-view-fault-probe.tsx', 1],
   ['src/components/project-instructions.tsx', 7],
   ['src/components/project-skills.tsx', 7],
   ['src/components/redis-workspace.tsx', 1],
   ['src/components/workspace-switcher.tsx', 1],
-  ['src/lib/app-preferences.ts', 1],
-  ['src/lib/volatile-draft-store.ts', 1],
-  ['src/lib/workspace-session.ts', 2],
 ])
 
 function normalize(filePath) {
