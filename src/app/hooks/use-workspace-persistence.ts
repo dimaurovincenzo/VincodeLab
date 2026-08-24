@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { WorkspaceSessionFocusTarget, WorkspaceSessionState } from '@/bridge'
-import { createWorkspaceSessionClient, workspaceBridge } from '@/features/workspace'
+import { getVincodeLabBridge, type WorkspaceSessionFocusTarget, type WorkspaceSessionState } from '@/bridge'
+import { createWorkspaceSessionClient } from '@/features/workspace'
 import { reportRendererFailure } from '@/lib/renderer-error'
 import type { AppSection, WorkspaceSessionFailure } from '../model/app-controller.types'
 
@@ -25,7 +25,7 @@ export function useWorkspacePersistence({ aiTab, appSection, workspace }: UseWor
   const [workspaceSessionState, setWorkspaceSessionState] = useState<WorkspaceSessionState | null>(null)
   const [workspaceSessionRecovery, setWorkspaceSessionRecovery] = useState<WorkspaceSessionFailure | null>(null)
   const [workspaceSession] = useState(() => createWorkspaceSessionClient({
-    storage: workspaceBridge.workspaceSession,
+    storage: getVincodeLabBridge().workspaceSession,
     onError: (nextError) => {
       setWorkspaceSessionRecovery({
         error: reportRendererFailure(nextError, {
