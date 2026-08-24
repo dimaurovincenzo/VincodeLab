@@ -24,6 +24,7 @@ test('filesystem Editor espone una facciata stabile sopra owner coesi', () => {
     'createProjectDirectoryListing',
     'createProjectEntryMutations',
     'createProjectFileActions',
+    'createProjectFileContentSearch',
     'createProjectFileReader',
     'createProjectFileSaver',
   ]) assert.equal(typeof projectFiles[operation], 'function', `${operation} deve restare nell'API pubblica`)

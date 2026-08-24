@@ -147,6 +147,10 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
   const {
     createFile,
     creatingFile,
+    contentMatches,
+    contentSearchError,
+    contentSearchLoading,
+    contentSearchTruncated,
     duplicateProjectEntryFromMenu,
     expanded,
     explorerFailure,
@@ -165,6 +169,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
     projectEntryDialogOpener,
     refreshExplorer,
     refreshingExplorer,
+    retryContentSearch,
     requestCloseEditorTabs,
     requestTrashProjectEntry,
     selectedDirectoryId,
@@ -331,7 +336,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
   return <Splitter.Root asChild defaultFixedSize={explorerWidth} panels={editorPanels} storageKey={`vincodelab.editor.explorer-width:${workspace}`}><section className={editorStyles.workbench} aria-label="Editor progetto">
     <Splitter.Panel asChild id="editor-explorer"><aside className={editorStyles.explorer}>
       <div className={editorStyles.explorerTitle}><span className={editorStyles.explorerTitleLabel}><FolderTree aria-hidden="true" size={14} /> Explorer</span><div className={editorStyles.explorerActions}><span className={editorStyles.explorerActionCount} aria-label={`${tree.length} elementi alla radice`}>{tree.length}</span><IconButton ref={newFileTrigger} tooltip="Nuovo file" className={editorStyles.explorerActionButton} aria-label="Nuovo file" disabled={newFileName !== null} onClick={() => { setExplorerQuery(''); setNewFileName('') }}><FilePlus2 aria-hidden="true" size={14} /></IconButton><IconButton tooltip="Comprimi cartelle" className={editorStyles.explorerActionButton} aria-label="Comprimi cartelle" disabled={expanded.size === 0} onClick={() => { setExpanded(new Set()); setSelectedDirectoryId(null) }}><ChevronsUpDown aria-hidden="true" size={14} /></IconButton><IconButton tooltip="Aggiorna explorer" className={editorStyles.explorerActionButton} aria-label="Aggiorna explorer" disabled={refreshingExplorer} onClick={() => void refreshExplorer()}>{refreshingExplorer ? <Spinner size={14} /> : <RefreshCw aria-hidden="true" size={14} />}</IconButton></div></div>
-      <Field.Root className={editorStyles.explorerSearch}><Search aria-hidden="true" size={14} /><Field.Input className={editorStyles.explorerSearchInput} aria-label="Filtra file nell’explorer" value={explorerQuery} onChange={(event) => setExplorerQuery(event.target.value)} placeholder="Filtra file…" type="search" /></Field.Root>
+      <Field.Root className={editorStyles.explorerSearch}><Search aria-hidden="true" size={14} /><Field.Input className={editorStyles.explorerSearchInput} aria-label="Cerca file e contenuti nell’explorer" value={explorerQuery} onChange={(event) => setExplorerQuery(event.target.value)} placeholder="Cerca file e contenuti…" type="search" />{contentSearchLoading && <Spinner aria-label="Ricerca nei contenuti" size={13} />}</Field.Root>
       {explorerFailure && <ErrorNotice action={recoveryActionFor(explorerFailure)} className={editorStyles.failure} error={explorerFailure.error} />}
       <TreeView.Root canRename={(node) => node.kind === 'new-file' && !creatingFile} collection={editorTreeCollection} data-workspace-context-id="" data-workspace-context-kind="workspace-root" expandedValue={editorExpandedValue} selectedValue={editorSelectedValue} selectionMode="single" translations={{ renameInputLabel: 'Nome del nuovo file', treeLabel: 'File del progetto' }} typeahead onExpandedChange={({ expandedNodes, expandedValue }) => {
         const nextExpanded = new Set(expandedValue)
@@ -348,7 +353,18 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
         if (node?.kind === 'file' && loadingFile === null) { setSelectedDirectoryId(null); void openFile(node.id) }
       }} className={editorStyles.tree}>
         <TreeView.Tree ref={explorerTree}>{editorTreeCollection.getNodeChildren(editorTreeCollection.rootNode).map((node, index) => renderEditorTreeNode(node, [index]))}</TreeView.Tree>
-        {filteredTree.length === 0 && newFileName === null && <p className={editorStyles.treeMessage}>{explorerQuery ? 'Nessun file corrispondente.' : 'Nessun file modificabile.'}</p>}
+        {filteredTree.length === 0 && newFileName === null && <p className={editorStyles.treeMessage}>{explorerQuery ? 'Nessun nome o percorso corrispondente.' : 'Nessun file modificabile.'}</p>}
+        {explorerQuery.trim().length > 0 && <section aria-label="Corrispondenze nei contenuti" className={editorStyles.contentSearchResults}>
+          <header className={editorStyles.contentSearchHeader}><strong>Nel contenuto</strong><span>{contentSearchLoading ? 'Ricerca…' : `${contentMatches.length} file`}</span></header>
+          {explorerQuery.trim().length < 2 ? <p className={editorStyles.contentSearchMessage}>Inserisci almeno 2 caratteri.</p> : contentSearchError ? <ErrorNotice action={{ label: 'Riprova', onClick: retryContentSearch }} className={editorStyles.contentSearchFailure} error={contentSearchError} /> : !contentSearchLoading && contentMatches.length === 0 ? <p className={editorStyles.contentSearchMessage}>Nessuna corrispondenza nei contenuti.</p> : <ul className={editorStyles.contentSearchList}>{contentMatches.map((match) => <li key={match.fileId}>
+            <Button className={editorStyles.contentSearchResult} title={`${match.fileId}:${match.line}:${match.column}`} variant="plain" onClick={() => void openFile(match.fileId)}>
+              <span className={editorStyles.contentSearchFile}><FileText aria-hidden="true" size={13} /><strong>{match.fileName}</strong><small>riga {match.line}</small></span>
+              <code>{match.preview || '(riga vuota)'}</code>
+              <span>{match.directory || 'radice'}</span>
+            </Button>
+          </li>)}</ul>}
+          {contentSearchTruncated && <p className={editorStyles.contentSearchWarning}>Mostrati i primi 100 file. Restringi la ricerca.</p>}
+        </section>}
         {truncated && <p className={editorStyles.treeWarning}>Elenco limitato a 2.000 elementi.</p>}
       </TreeView.Root>
     </aside></Splitter.Panel>

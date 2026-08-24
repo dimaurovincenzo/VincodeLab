@@ -12,6 +12,7 @@ function createFilesystemHandlers({
   projectFileIndex,
   readProjectFile,
   readProjectPreview,
+  searchProjectFileContents,
   renameProjectEntry,
   requireActiveWorkspace,
   resolveProjectDirectory,
@@ -43,6 +44,10 @@ function createFilesystemHandlers({
     [IPC_CHANNELS.FILES_READ, (event, fileId) => {
       assertTrustedSender(event)
       return readProjectFile(requireActiveWorkspace(), fileId)
+    }],
+    [IPC_CHANNELS.FILES_SEARCH_CONTENT, (event, query, options) => {
+      assertTrustedSender(event)
+      return searchProjectFileContents(requireActiveWorkspace(), query, options)
     }],
     [IPC_CHANNELS.FILES_PREVIEW, (event, fileId) => {
       assertTrustedSender(event)

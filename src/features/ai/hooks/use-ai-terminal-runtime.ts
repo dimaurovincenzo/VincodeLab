@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { Terminal } from '@xterm/xterm'
 import { toast } from '@/components/ui'
-import type { AiTerminalRestartOptions, AiTerminalRestartResult, HerdrCommand, TerminalStreamState } from '@/bridge'
+import type { TerminalStreamState } from '@/bridge'
 import { reportRendererFailure, showUserErrorToast } from '@/lib/renderer-error'
 import { scheduleVisibleTerminalRefit } from '@/lib/terminal-activation.js'
 import { suppressGlobalTerminalShortcut } from '@/lib/workbench-shortcuts'
 import type { XtermOutputController } from '@/lib/xterm-output-controller.js'
 import { observeXtermTheme } from '@/lib/xterm-theme'
 import { aiBridge } from '../api/ai.bridge'
-import type { AiSessionFailure, AiTerminalRuntimeState, FitAddonInstance, LaunchState, SearchAddonInstance } from '../model/ai-runtime.types'
+import type { AiSessionFailure, FitAddonInstance, LaunchState, SearchAddonInstance } from '../model/ai-runtime.types'
 import type { AiFailureController } from './use-ai-failure'
 import { useAiTerminalInstance } from './use-ai-terminal-instance'
 import { useAiTerminalPaste } from './use-ai-terminal-paste'
@@ -16,6 +16,7 @@ import { useAiTerminalPreferences, useAiTerminalPreferenceSyncEffect, useAiTermi
 
 type UseAiTerminalRuntimeOptions = {
   active: boolean
+  activeSessionId: string | null
   aiFailureRef: RefObject<AiSessionFailure | null>
   clearAiFailure: AiFailureController['clearAiFailure']
   focusRequest: number
@@ -36,6 +37,7 @@ type UseAiTerminalRuntimeOptions = {
 
 export function useAiTerminalRuntime({
   active,
+  activeSessionId,
   aiFailureRef,
   clearAiFailure,
   focusRequest,
@@ -54,6 +56,9 @@ export function useAiTerminalRuntime({
   workspace,
 }: UseAiTerminalRuntimeOptions) {
   const outputController = useRef<XtermOutputController | null>(null)
+  const activeSessionIdRef = useRef<string | null>(activeSessionId)
+  const connectedSessionIdRef = useRef<string | null>(null)
+  useEffect(() => { activeSessionIdRef.current = activeSessionId }, [activeSessionId])
   const fitAddon = useRef<FitAddonInstance | null>(null)
   const searchAddon = useRef<SearchAddonInstance | null>(null)
   const [terminalSearchOpen, setTerminalSearchOpen] = useState(false)
@@ -71,21 +76,11 @@ export function useAiTerminalRuntime({
   const streamStateIdentityRef = useRef('')
   const [streamState, setStreamState] = useState<TerminalStreamState | null>(null)
   const [terminalRendererGeneration, setTerminalRendererGeneration] = useState(0)
-  const terminalRuntimeRef = useRef<AiTerminalRuntimeState | null>(null)
-  const [terminalRuntime, setTerminalRuntime] = useState<AiTerminalRuntimeState | null>(null)
-
-  const updateTerminalRuntime = useCallback((nextRuntime: AiTerminalRuntimeState | null) => {
-    const current = terminalRuntimeRef.current
-    if (current?.runtime === nextRuntime?.runtime && current?.fallbackReason === nextRuntime?.fallbackReason && current?.piAvailable === nextRuntime?.piAvailable) return
-    terminalRuntimeRef.current = nextRuntime
-    setTerminalRuntime(nextRuntime)
+  const resumeTerminal = useCallback(() => {
+    const sessionId = activeSessionIdRef.current
+    if (!sessionId) return Promise.reject(new Error('Nessuna sessione Pi attiva.'))
+    return aiBridge.terminal.resume(sessionId)
   }, [])
-
-  const resumeTerminal = useCallback(async () => {
-    const snapshot = await aiBridge.terminal.resume({})
-    updateTerminalRuntime({ runtime: snapshot.runtime, fallbackReason: snapshot.fallbackReason, piAvailable: snapshot.piAvailable })
-    return snapshot
-  }, [updateTerminalRuntime])
 
   const copyTerminalSelection = useCallback(async function copyTerminalSelectionAction() {
     const selection = getTerminal()?.getSelection() ?? ''
@@ -115,17 +110,15 @@ export function useAiTerminalRuntime({
   }, [getTerminal])
 
   const reloadPi = useCallback(async function reloadPiAction() {
+    const sessionId = activeSessionIdRef.current
+    if (!sessionId) return
     try {
-      const result = await aiBridge.pi.reload()
-      if (!result.reloaded) {
-        toast.info('Esegui /reload nel pane Pi desiderato in Herdr.')
-        return
-      }
+      await aiBridge.pi.reload(sessionId)
       const refitAfterReload = () => {
         const xterm = getTerminal()
         if (!xterm) return
         fitAddon.current?.fit()
-        aiBridge.terminal.resize({ cols: xterm.cols, rows: xterm.rows })
+        aiBridge.terminal.resize(sessionId, { cols: xterm.cols, rows: xterm.rows })
       }
       scheduleVisibleTerminalRefit(refitAfterReload)
       window.setTimeout(refitAfterReload, 160)
@@ -142,17 +135,17 @@ export function useAiTerminalRuntime({
     }
   }, [clearAiFailure, getTerminal, publishAiFailure])
 
-  const restartPi = useCallback(async (options?: AiTerminalRestartOptions) => {
+  const restartPi = useCallback(async () => {
+    const sessionId = activeSessionIdRef.current
+    if (!sessionId) return
     setStatus('launching')
-    let restartResult: AiTerminalRestartResult
     try {
-      restartResult = await aiBridge.pi.restart(options)
-      updateTerminalRuntime({ runtime: restartResult.runtime, fallbackReason: restartResult.fallbackReason, piAvailable: restartResult.piAvailable })
+      await aiBridge.pi.restart(sessionId)
     } catch (nextError) {
       publishAiFailure(nextError, {
         operation: 'restart-ai-session',
         preserved: 'L’output precedente è rimasto disponibile.',
-        recovery: options?.runtime === 'pi' ? 'start-pi-direct' : 'restart',
+        recovery: 'restart',
         title: 'Sessione AI non riavviata',
         fallbackDescription: 'Non è stato possibile riavviare la sessione AI.',
       })
@@ -174,7 +167,7 @@ export function useAiTerminalRuntime({
     }
     try {
       await controller.reconnect(resumeTerminal)
-      toast.success(restartResult.runtime === 'herdr' ? 'Client Herdr riaperto.' : 'Sessione Pi riavviata.')
+      toast.success('Sessione Pi riavviata.')
     } catch (nextError) {
       publishAiFailure(nextError, {
         operation: 'restore-ai-output',
@@ -184,30 +177,7 @@ export function useAiTerminalRuntime({
         fallbackDescription: 'La sessione è attiva, ma il collegamento al nuovo output non è stato ripristinato.',
       })
     }
-  }, [clearAiFailure, publishAiFailure, resumeTerminal, setStatus, updateTerminalRuntime])
-
-  const runHerdrCommand = useCallback(async function runHerdrCommandAction(command: HerdrCommand) {
-    try {
-      const result = await aiBridge.terminal.herdrCommand(command)
-      if (command === 'new-pi' || command === 'new-pi-right' || command === 'new-pi-down') toast.success(`Agente ${result.agentName ?? 'Pi'} avviato in Herdr.`)
-      else if (command === 'close-pane') toast.success('Pane Herdr chiuso.')
-      else if (result.focused === false) toast.info('Nessun agente Herdr disponibile nel workspace.')
-      getTerminal()?.focus()
-      return result
-    } catch (nextError) {
-      const incident = reportRendererFailure(nextError, {
-        category: 'process',
-        component: 'ai-terminal',
-        operation: `herdr-${command}`,
-        title: command.startsWith('new-pi') ? 'Agente Pi non avviato' : 'Comando Herdr non completato',
-        fallbackDescription: command.startsWith('new-pi')
-          ? 'Herdr non ha potuto creare il nuovo agente. La sessione corrente è rimasta attiva.'
-          : 'Herdr non ha potuto cambiare agente. La sessione corrente è rimasta attiva.',
-      })
-      showUserErrorToast(incident, { label: 'Riprova', onClick: () => { void runHerdrCommandAction(command) } })
-      return null
-    }
-  }, [getTerminal])
+  }, [clearAiFailure, publishAiFailure, resumeTerminal, setStatus])
 
   const retryAiOutput = useCallback(async () => {
     const controller = outputController.current
@@ -241,7 +211,7 @@ export function useAiTerminalRuntime({
     setTerminalRendererGeneration((value) => value + 1)
   }, [setStatus])
 
-  const paste = useAiTerminalPaste({ restartPi, terminal })
+  const paste = useAiTerminalPaste({ activeSessionIdRef, restartPi, terminal })
   const pasteIntoTerminal = paste.pasteIntoTerminal
 
   const closeTerminalSearch = useCallback(() => {
@@ -269,41 +239,35 @@ export function useAiTerminalRuntime({
     updateHasUnreadTerminalOutput(false)
   }, [getTerminal, updateHasUnreadTerminalOutput])
 
-  useEffect(() => aiBridge.terminal.onExit(({ exitCode, signal, runtime, piAvailable }) => {
-    const exitedRuntime = runtime ?? terminalRuntimeRef.current?.runtime ?? 'pi'
-    const directPiAvailable = piAvailable ?? terminalRuntimeRef.current?.piAvailable ?? exitedRuntime === 'pi'
+  useEffect(() => aiBridge.terminal.onExit(({ exitCode, sessionId, signal }) => {
+    if (sessionId && sessionId !== activeSessionIdRef.current) return
     setStatus(exitCode === 0 && !signal ? 'ended' : 'error')
     if (exitCode === 0 && !signal) {
-      showEndedAiSession(exitedRuntime, directPiAvailable)
+      showEndedAiSession()
     } else if (signal) {
       publishAiFailure(new Error(`PTY signal ${signal}`), {
         operation: 'ai-session-crash',
         preserved: 'L’output già ricevuto è rimasto disponibile.',
         recovery: 'restart',
-        secondaryRecovery: exitedRuntime === 'herdr' ? directPiAvailable ? 'start-pi-direct' : 'settings' : undefined,
-        title: exitedRuntime === 'herdr' ? 'Client Herdr interrotto' : 'Sessione AI interrotta',
-        fallbackDescription: exitedRuntime === 'herdr' ? 'Il client Herdr si è interrotto; la fleet condivisa non è stata arrestata.' : 'La sessione AI si è interrotta in modo imprevisto.',
+        title: 'Sessione AI interrotta',
+        fallbackDescription: 'La sessione AI si è interrotta in modo imprevisto.',
       })
     } else {
       publishAiFailure(new Error(`PTY exit code ${exitCode ?? 'unknown'}`), {
         operation: 'ai-session-crash',
         preserved: 'L’output già ricevuto è rimasto disponibile.',
         recovery: 'restart',
-        secondaryRecovery: exitedRuntime === 'herdr' ? directPiAvailable ? 'start-pi-direct' : 'settings' : undefined,
-        title: exitedRuntime === 'herdr' ? 'Client Herdr terminato' : 'Sessione AI terminata in modo imprevisto',
-        fallbackDescription: exitedRuntime === 'herdr' ? 'Il client Herdr si è chiuso; la fleet condivisa non è stata arrestata.' : 'La sessione AI si è chiusa prima di completare il lavoro.',
+        title: 'Sessione AI terminata in modo imprevisto',
+        fallbackDescription: 'La sessione AI si è chiusa prima di completare il lavoro.',
       })
     }
   }), [publishAiFailure, setStatus, showEndedAiSession])
 
   useEffect(() => {
-    updateTerminalRuntime(null)
-  }, [updateTerminalRuntime, workspace])
-
-  useEffect(() => {
     const subscribe = aiBridge.terminal.onError
     if (!subscribe) return
     return subscribe((event) => {
+      if (event.sessionId && event.sessionId !== activeSessionIdRef.current) return
       if (event.operation === 'resize') {
         const incident = reportRendererFailure(event.error, {
           category: event.error.category,
@@ -321,7 +285,8 @@ export function useAiTerminalRuntime({
             const xterm = getTerminal()
             if (!xterm) return
             fitAddon.current?.fit()
-            aiBridge.terminal.resize({ cols: xterm.cols, rows: xterm.rows })
+            const sessionId = activeSessionIdRef.current
+            if (sessionId) aiBridge.terminal.resize(sessionId, { cols: xterm.cols, rows: xterm.rows })
           },
         })
         return
@@ -362,7 +327,8 @@ export function useAiTerminalRuntime({
     return scheduleVisibleTerminalRefit(() => {
       fitAddon.current?.fit()
       const xterm = getTerminal()
-      if (xterm) aiBridge.terminal.resize({ cols: xterm.cols, rows: xterm.rows })
+      const sessionId = activeSessionIdRef.current
+      if (xterm && sessionId) aiBridge.terminal.resize(sessionId, { cols: xterm.cols, rows: xterm.rows })
     })
   }, [active, getTerminal, workspace])
 
@@ -370,7 +336,8 @@ export function useAiTerminalRuntime({
     if (!active) return
     const report = () => {
       const metrics = outputController.current?.metrics()
-      if (metrics) aiBridge.terminal.reportRendererMetrics(metrics)
+      const sessionId = activeSessionIdRef.current
+      if (metrics && sessionId) aiBridge.terminal.reportRendererMetrics(sessionId, metrics)
     }
     report()
     const intervalId = window.setInterval(report, 2_000)
@@ -411,19 +378,47 @@ export function useAiTerminalRuntime({
     preferredTerminalScrollback,
     publishAiFailure,
     resumeTerminal,
+    activeSessionIdRef,
+    connectedSessionIdRef,
     searchAddon,
     setStatus,
     setTerminalInstance,
     terminalRendererGeneration,
     updateHasUnreadTerminalOutput,
     updateTerminalStreamState,
-    workspace,
+    workspace: activeSessionId ? workspace : null,
   })
 
   useEffect(() => observeXtermTheme((theme) => {
     const xterm = getTerminal()
     if (xterm) xterm.options.theme = theme
   }), [getTerminal])
+
+  useEffect(() => {
+    const sessionId = activeSessionId
+    const previousSessionId = connectedSessionIdRef.current
+    const controller = outputController.current
+    const xterm = getTerminal()
+    if (!sessionId || !previousSessionId || !controller || !xterm || sessionId === previousSessionId) return
+    aiBridge.terminal.disconnect(previousSessionId, { sessionId: previousSessionId })
+    connectedSessionIdRef.current = sessionId
+    if (typeof xterm.reset === 'function') xterm.reset()
+    else xterm.clear()
+    updateHasUnreadTerminalOutput(false)
+    updateTerminalStreamState(null)
+    void controller.reconnect(() => aiBridge.terminal.resume(sessionId)).then(() => {
+      fitAddon.current?.fit()
+      aiBridge.terminal.resize(sessionId, { cols: xterm.cols, rows: xterm.rows })
+      xterm.focus()
+      clearAiFailure('restore-ai-output')
+    }).catch((nextError) => publishAiFailure(nextError, {
+      operation: 'switch-ai-session',
+      preserved: 'La sessione selezionata e gli altri agenti sono rimasti attivi.',
+      recovery: 'resume-output',
+      title: 'Output dell’agente non collegato',
+      fallbackDescription: 'Riprova a selezionare la sessione.',
+    }))
+  }, [activeSessionId, clearAiFailure, getTerminal, publishAiFailure, updateHasUnreadTerminalOutput, updateTerminalStreamState])
 
   useAiTerminalPreferenceSyncEffect({
     fitAddon,
@@ -437,11 +432,9 @@ export function useAiTerminalRuntime({
   })
 
   const sendAiInput = useCallback(async (data: string) => {
-    if (terminalRuntimeRef.current?.runtime === 'herdr') {
-      toast.info('In Herdr seleziona il pane Pi desiderato e inserisci il contenuto direttamente.')
-      return false
-    }
-    await aiBridge.terminal.writeInput(data)
+    const sessionId = activeSessionIdRef.current
+    if (!sessionId) return false
+    await aiBridge.terminal.writeInput(sessionId, data)
     getTerminal()?.focus()
     return true
   }, [getTerminal])
@@ -458,7 +451,6 @@ export function useAiTerminalRuntime({
     reloadPi,
     resetTerminalZoom,
     restartPi,
-    runHerdrCommand,
     retryAiOutput,
     retryAiTerminal,
     revealTerminalOutput,
@@ -467,7 +459,6 @@ export function useAiTerminalRuntime({
     setTerminalQuery,
     setTerminalSearchOpen,
     streamState,
-    terminalRuntime,
     terminalQuery,
     terminalSearchOpen,
     updateHasUnreadTerminalOutput,

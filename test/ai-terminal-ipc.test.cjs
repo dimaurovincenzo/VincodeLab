@@ -19,18 +19,22 @@ function dependencies(overrides = {}) {
   return {
     assertTrustedSender() {},
     chooseTerminalAttachments: () => [],
+    closePiSession: () => undefined,
+    createPiSession: () => undefined,
     confineIpcOneWay: (_channel, listener) => listener,
     createTerminalDiagnosticsReport: (diagnostics) => ({
       generatedAt: '2026-08-24T10:00:00.000Z',
       ...diagnostics,
     }),
     dialog: { showSaveDialog: async () => ({ canceled: true }) },
+    focusPiSession: () => undefined,
     getMainWindow: () => null,
     getPiConfigProcess: () => null,
+    listPiSessions: () => ({ activeSessionId: null, sessions: [] }),
     maxPasteBytes: 5 * 1024 * 1024,
     piSessionController: {
       getInput: () => null,
-      getState: () => ({ runtime: 'pi', fallbackReason: null, piAvailable: true }),
+      getState: () => ({ status: 'running' }),
       getStream: () => null,
       resize: () => true,
       write: () => true,
@@ -38,8 +42,9 @@ function dependencies(overrides = {}) {
     prepareTerminalAttachment: (filePath) => ({ filePath }),
     rejectOneWay: oneWayError,
     reloadPi: () => undefined,
+    renamePiSession: () => undefined,
+    requireActiveWorkspace: () => '/tmp/workspace',
     restartPi: () => undefined,
-    runHerdrCommand: () => undefined,
     sanitizeRendererMetrics: (metrics) => metrics,
     startPiConfig: () => undefined,
     stopPiConfig: async () => undefined,
@@ -49,7 +54,7 @@ function dependencies(overrides = {}) {
   }
 }
 
-test('i manifesti registrano 14 invoke e 7 send senza domini estranei', () => {
+test('i manifesti registrano 18 invoke e 8 send senza domini estranei', () => {
   const handles = new Map()
   const listeners = new Map()
   const confinement = []
@@ -75,9 +80,13 @@ test('i manifesti registrano 14 invoke e 7 send senza domini estranei', () => {
   })
 
   assert.deepEqual(AI_TERMINAL_INVOKE_CHANNELS, [
+    'piSessions:list',
+    'piSessions:create',
+    'piSessions:focus',
+    'piSessions:rename',
+    'piSessions:close',
     'pi:reload',
     'pi:restart',
-    'herdr:command',
     'terminal:resume',
     'terminal:writeInput',
     'terminal:pasteStart',
@@ -95,6 +104,7 @@ test('i manifesti registrano 14 invoke e 7 send senza domini estranei', () => {
     'terminal:ack',
     'terminal:key',
     'terminal:rendererMetrics',
+    'terminal:disconnect',
     'piConfig:input',
     'piConfig:resize',
     'terminal:resize',
@@ -117,13 +127,13 @@ test('Pi lifecycle, resume e Pi Config invoke preservano guardie e return semant
   const event = { sender: { id: 51 } }
   const snapshot = { generation: 4 }
   const reloadResult = { reloaded: true }
-  const restartResult = { restarted: true }
+  const restartResult = { restarted: true, sessionId: 'session-1' }
   const startResult = { started: true, reused: false }
   const handlers = createAiTerminalInvokeHandlers(dependencies({
     assertTrustedSender: (receivedEvent) => calls.push(['guard', receivedEvent]),
     piSessionController: {
       getInput: () => null,
-      getState: () => ({ runtime: 'herdr', fallbackReason: null, piAvailable: true }),
+      getState: () => ({ status: 'running' }),
       getStream: () => ({ createResumeSnapshot: () => snapshot }),
       write: () => true,
     },
@@ -133,14 +143,14 @@ test('Pi lifecycle, resume e Pi Config invoke preservano guardie e return semant
     stopPiConfig: async () => { calls.push(['config-stop']) },
   }))
 
-  assert.equal(handlers.get('pi:reload')(event), reloadResult)
-  assert.equal(handlers.get('pi:restart')(event), restartResult)
-  assert.deepEqual(handlers.get('terminal:resume')(event), { generation: 4, runtime: 'herdr', piAvailable: true })
+  assert.equal(handlers.get('pi:reload')(event, 'session-1'), reloadResult)
+  assert.equal(handlers.get('pi:restart')(event, 'session-1'), restartResult)
+  assert.deepEqual(handlers.get('terminal:resume')(event, 'session-1'), { generation: 4 })
   assert.equal(handlers.get('piConfig:start')(event), startResult)
   assert.deepEqual(await handlers.get('piConfig:close')(event), { closed: true })
   assert.deepEqual(calls, [
     ['guard', event], ['reload'],
-    ['guard', event], ['restart', undefined],
+    ['guard', event], ['restart', 'session-1'],
     ['guard', event],
     ['guard', event], ['config-start'],
     ['guard', event], ['config-stop'],
@@ -148,56 +158,10 @@ test('Pi lifecycle, resume e Pi Config invoke preservano guardie e return semant
 
   const noSession = createAiTerminalInvokeHandlers(dependencies())
   assert.throws(
-    () => noSession.get('terminal:resume')({}),
+    () => noSession.get('terminal:resume')({}, 'session-1'),
     /La sessione del Terminale AI non è attiva\./,
   )
-  assert.throws(() => handlers.get('pi:restart')(event, { runtime: 'herdr' }), /Opzioni riavvio Terminale AI non valide/u)
-  assert.throws(() => handlers.get('pi:restart')(event, {}), /Opzioni riavvio Terminale AI non valide/u)
-  assert.equal(handlers.get('pi:restart')(event, { runtime: 'pi' }), restartResult)
-})
-
-test('comandi Herdr accettano solo azioni note e soltanto quando Herdr è attivo', async () => {
-  const calls = []
-  const event = { sender: { id: 52 } }
-  const handlers = createAiTerminalInvokeHandlers(dependencies({
-    assertTrustedSender: (receivedEvent) => calls.push(['guard', receivedEvent]),
-    piSessionController: {
-      getInput: () => null,
-      getState: () => ({ runtime: 'herdr' }),
-      getStream: () => null,
-      write: () => true,
-    },
-    runHerdrCommand: async (command) => {
-      calls.push(['command', command])
-      return { command, workspaceId: 'workspace-1' }
-    },
-    toApplicationError(cause, options) {
-      return Object.assign(new Error(options.message), { cause, options })
-    },
-  }))
-
-  assert.deepEqual(await handlers.get('herdr:command')(event, 'new-pi-right'), {
-    command: 'new-pi-right',
-    workspaceId: 'workspace-1',
-  })
-  assert.deepEqual(calls, [['guard', event], ['command', 'new-pi-right']])
-
-  await assert.rejects(
-    handlers.get('herdr:command')(event, 'run-arbitrary-command'),
-    (error) => error.options.code === 'HERDR_COMMAND_INVALID'
-      && error.options.category === 'validation',
-  )
-
-  const piHandlers = createAiTerminalInvokeHandlers(dependencies({
-    toApplicationError(cause, options) {
-      return Object.assign(new Error(options.message), { cause, options })
-    },
-  }))
-  await assert.rejects(
-    piHandlers.get('herdr:command')(event, 'new-pi'),
-    (error) => error.options.code === 'HERDR_NOT_ACTIVE'
-      && error.options.severity === 'info',
-  )
+  assert.equal(handlers.get('pi:restart')(event, 'session-1'), restartResult)
 })
 
 test('writeInput conserva limiti byte e ApplicationError pubblico per entrambi i failure', () => {
@@ -210,8 +174,8 @@ test('writeInput conserva limiti byte e ApplicationError pubblico per entrambi i
       getInput: () => null,
       getStream: () => null,
       getState: () => ({ runtime: 'pi' }),
-      write(data) {
-        calls.push(['write', data])
+      write(workspacePath, sessionId, data) {
+        calls.push(['write', workspacePath, sessionId, data])
         return acceptsInput
       },
     },
@@ -224,11 +188,11 @@ test('writeInput conserva limiti byte e ApplicationError pubblico per entrambi i
     },
   }))
 
-  assert.deepEqual(handlers.get('terminal:writeInput')(event, 'è'), { accepted: true, bytes: 2 })
+  assert.deepEqual(handlers.get('terminal:writeInput')(event, 'session-1', 'è'), { accepted: true, bytes: 2 })
 
   let invalidError
   try {
-    handlers.get('terminal:writeInput')(event, '')
+    handlers.get('terminal:writeInput')(event, 'session-1', '')
   } catch (error) {
     invalidError = error
   }
@@ -247,7 +211,7 @@ test('writeInput conserva limiti byte e ApplicationError pubblico per entrambi i
   acceptsInput = false
   let rejectedError
   try {
-    handlers.get('terminal:writeInput')(event, 'continua')
+    handlers.get('terminal:writeInput')(event, 'session-1', 'continua')
   } catch (error) {
     rejectedError = error
   }
@@ -261,25 +225,8 @@ test('writeInput conserva limiti byte e ApplicationError pubblico per entrambi i
     recoverable: true,
   })
   assert.throws(
-    () => handlers.get('terminal:writeInput')(event, 'x'.repeat(65_537)),
+    () => handlers.get('terminal:writeInput')(event, 'session-1', 'x'.repeat(65_537)),
     /TERMINAL_WRITE_INPUT_INVALID/,
-  )
-
-  const herdr = createAiTerminalInvokeHandlers(dependencies({
-    piSessionController: {
-      getInput: () => null,
-      getState: () => ({ runtime: 'herdr' }),
-      getStream: () => null,
-      write: () => true,
-    },
-    toApplicationError(cause, options) {
-      return Object.assign(new Error(options.message), { cause, options })
-    },
-  }))
-  assert.throws(
-    () => herdr.get('terminal:writeInput')(event, 'contesto'),
-    (error) => error.options.code === 'HERDR_PROGRAMMATIC_INPUT_DISABLED'
-      && error.options.severity === 'info',
   )
 })
 
@@ -303,24 +250,24 @@ test('paste start chunk e cancel preservano controller, fallback e limite', () =
     },
   }))
 
-  assert.deepEqual(handlers.get('terminal:pasteStart')(event, startInput), { accepted: true, totalBytes: 42 })
-  assert.deepEqual(handlers.get('terminal:pasteChunk')(event, chunkInput), { accepted: true, sentBytes: 4, totalBytes: 42 })
-  assert.deepEqual(handlers.get('terminal:pasteCancel')(event, 'paste-1'), { cancelled: true, sentBytes: 4, totalBytes: 42 })
+  assert.deepEqual(handlers.get('terminal:pasteStart')(event, 'session-1', startInput), { accepted: true, totalBytes: 42 })
+  assert.deepEqual(handlers.get('terminal:pasteChunk')(event, 'session-1', chunkInput), { accepted: true, sentBytes: 4, totalBytes: 42 })
+  assert.deepEqual(handlers.get('terminal:pasteCancel')(event, 'session-1', 'paste-1'), { cancelled: true, sentBytes: 4, totalBytes: 42 })
 
   const unavailable = createAiTerminalInvokeHandlers(dependencies({ maxPasteBytes: 1234 }))
-  assert.deepEqual(unavailable.get('terminal:pasteStart')(event, { totalBytes: 99 }), {
+  assert.deepEqual(unavailable.get('terminal:pasteStart')(event, 'session-1', { totalBytes: 99 }), {
     accepted: false,
     reason: 'not-running',
     totalBytes: 99,
     limit: 1234,
   })
-  assert.deepEqual(unavailable.get('terminal:pasteChunk')(event, chunkInput), {
+  assert.deepEqual(unavailable.get('terminal:pasteChunk')(event, 'session-1', chunkInput), {
     accepted: false,
     reason: 'not-running',
     sentBytes: 0,
     totalBytes: 0,
   })
-  assert.deepEqual(unavailable.get('terminal:pasteCancel')(event, 'paste-1'), {
+  assert.deepEqual(unavailable.get('terminal:pasteCancel')(event, 'session-1', 'paste-1'), {
     cancelled: false,
     sentBytes: 0,
     totalBytes: 0,
@@ -436,8 +383,8 @@ test('ready ack key metrics e resize conservano protocollo e rejection codes', (
     assertTrustedSender: (receivedEvent) => calls.push(['guard', receivedEvent]),
     piSessionController: {
       getStream: () => stream,
-      write(data) { calls.push(['key', data]); return acceptsWrite },
-      resize(cols, rows) { calls.push(['resize', cols, rows]); return acceptsResize },
+      write(workspacePath, sessionId, data) { calls.push(['key', workspacePath, sessionId, data]); return acceptsWrite },
+      resize(workspacePath, sessionId, cols, rows) { calls.push(['resize', workspacePath, sessionId, cols, rows]); return acceptsResize },
     },
     sanitizeRendererMetrics: (metrics) => {
       calls.push(['sanitize', metrics])
@@ -445,46 +392,46 @@ test('ready ack key metrics e resize conservano protocollo e rejection codes', (
     },
   }))
 
-  listeners.get('terminal:ready')(event, { generation: 2 })
-  listeners.get('terminal:ack')(event, { sequence: 8 })
-  listeners.get('terminal:key')(event, 'a')
-  listeners.get('terminal:rendererMetrics')(event, { bufferedBytes: 99 })
-  listeners.get('terminal:resize')(event, { cols: '90', rows: '30' })
+  listeners.get('terminal:ready')(event, 'session-1', { generation: 2 })
+  listeners.get('terminal:ack')(event, 'session-1', { sequence: 8 })
+  listeners.get('terminal:key')(event, 'session-1', 'a')
+  listeners.get('terminal:rendererMetrics')(event, 'session-1', { bufferedBytes: 99 })
+  listeners.get('terminal:resize')(event, 'session-1', { cols: '90', rows: '30' })
   assert.deepEqual(calls.filter(([kind]) => ['ready', 'ack', 'key', 'sanitize', 'metrics', 'resize'].includes(kind)), [
     ['ready', { generation: 2 }],
     ['ack', { sequence: 8 }],
-    ['key', 'a'],
+    ['key', '/tmp/workspace', 'session-1', 'a'],
     ['sanitize', { bufferedBytes: 99 }],
     ['metrics', { sanitized: true }],
-    ['resize', 90, 30],
+    ['resize', '/tmp/workspace', 'session-1', 90, 30],
   ])
 
   acceptsReady = false
   assert.throws(
-    () => listeners.get('terminal:ready')(event, {}),
+    () => listeners.get('terminal:ready')(event, 'session-1', {}),
     (error) => error.code === 'TERMINAL_READY_REJECTED'
       && error.message === 'Il collegamento renderer non è stato accettato.',
   )
   acceptsAck = false
   assert.throws(
-    () => listeners.get('terminal:ack')(event, {}),
+    () => listeners.get('terminal:ack')(event, 'session-1', {}),
     (error) => error.code === 'TERMINAL_ACK_REJECTED'
       && error.message === 'La conferma renderer non è stata accettata.',
   )
   acceptsWrite = false
   assert.throws(
-    () => listeners.get('terminal:key')(event, 'x'),
+    () => listeners.get('terminal:key')(event, 'session-1', 'x'),
     (error) => error.code === 'TERMINAL_INPUT_REJECTED'
       && error.message === 'Il Terminale AI non ha accettato l’input.',
   )
   acceptsResize = false
   assert.throws(
-    () => listeners.get('terminal:resize')(event, { cols: 90, rows: 30 }),
+    () => listeners.get('terminal:resize')(event, 'session-1', { cols: 90, rows: 30 }),
     (error) => error.code === 'TERMINAL_RESIZE_REJECTED'
       && error.message === 'Il Terminale AI non ha accettato il ridimensionamento.',
   )
   assert.throws(
-    () => listeners.get('terminal:resize')(event, { cols: 1, rows: 30 }),
+    () => listeners.get('terminal:resize')(event, 'session-1', { cols: 1, rows: 30 }),
     (error) => error.code === 'TERMINAL_RESIZE_INVALID'
       && error.message === 'Dimensioni Terminale AI non valide.',
   )
@@ -493,7 +440,7 @@ test('ready ack key metrics e resize conservano protocollo e rejection codes', (
   const noStream = createAiTerminalSendListeners(dependencies({
     sanitizeRendererMetrics: () => { sanitizedWithoutStream = true },
   }))
-  noStream.get('terminal:rendererMetrics')(event, {})
+  noStream.get('terminal:rendererMetrics')(event, 'session-1', {})
   assert.equal(sanitizedWithoutStream, false)
 })
 
@@ -582,6 +529,6 @@ test('guardie ed errori sync e async attraversano il registrar invariati', async
       resize: () => true,
     },
   }))
-  assert.throws(() => guardedSend.get('terminal:key')({}, 'a'), (error) => error === guardError)
+  assert.throws(() => guardedSend.get('terminal:key')({}, 'session-1', 'a'), (error) => error === guardError)
   assert.equal(oneWayCalled, false)
 })

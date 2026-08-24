@@ -12,9 +12,9 @@ export type TerminalPasteProgress = {
 }
 
 type TerminalPasteApi = {
-  startPaste: TerminalApi['startPaste']
-  writePasteChunk: TerminalApi['writePasteChunk']
-  cancelPaste: TerminalApi['cancelPaste']
+  startPaste: (input: { totalBytes: number }) => ReturnType<TerminalApi['startPaste']>
+  writePasteChunk: (input: { transferId: string; index: number; data: string }) => ReturnType<TerminalApi['writePasteChunk']>
+  cancelPaste: (transferId: string) => ReturnType<TerminalApi['cancelPaste']>
   chunkBytes?: number
 }
 

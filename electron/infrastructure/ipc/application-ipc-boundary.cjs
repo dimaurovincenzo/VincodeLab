@@ -47,7 +47,8 @@ function createApplicationIpcBoundary({ getWindow, log, sendToRenderer }) {
         const window = getWindow()
         if (!event || !window || window.isDestroyed() || window.webContents.isDestroyed()) return
         if (!isTrustedIpcEvent(event, window.webContents)) return
-        sendToRenderer(failure.eventChannel, failure.payload)
+        const sessionId = channel.startsWith('terminal:') && typeof args[1] === 'string' ? args[1] : null
+        sendToRenderer(failure.eventChannel, sessionId ? Object.freeze({ ...failure.payload, sessionId }) : failure.payload)
       },
     })
   }

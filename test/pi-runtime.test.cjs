@@ -21,8 +21,9 @@ function fixture() {
     onExit(listener) { onExit = listener },
   }
   const controller = {
-    reload: async () => ({ reloaded: true, runtime: 'pi' }),
-    start: async () => ({ started: true, runtime: 'pi', piAvailable: true }),
+    reload: async () => ({ reloaded: true }),
+    getState: () => ({ activeSessionId: 'session-1' }),
+    start: async () => ({ started: true }),
     stop: async () => ({ stopped: true }),
   }
   const runtime = createPiRuntime({
@@ -32,6 +33,7 @@ function fixture() {
     createStreamController: (options) => { streamOptions = options; return { stream: true } },
     deliverPiConfigData: (payload) => deliveries.push(['pi-config-data', payload]),
     deliverPiConfigExit: (payload) => deliveries.push(['pi-config-exit', payload]),
+    deliverPiSessionsChanged: (payload) => deliveries.push(['pi-sessions', payload]),
     deliverTerminalExit: (payload) => deliveries.push(['terminal-exit', payload]),
     deliverTerminalOutput: (payload) => deliveries.push(['terminal-output', payload]),
     deliverTerminalStreamState: (payload) => deliveries.push(['terminal-stream-state', payload]),
@@ -87,19 +89,19 @@ test('inoltra output, stato stream ed exit tramite porte semantiche senza altera
   assert.deepEqual(stream, { stream: true })
   streamOptions.sendBlock({ sessionId: 'session-1', sequence: 7, data: 'output' })
   streamOptions.sendState({ sessionId: 'session-1', paused: true })
+  sessionOptions.onChanged({ activeSessionId: 'session-1', sessions: [] })
   sessionOptions.onExit({
     exitCode: 2,
     signal: null,
     reason: 'exit',
-    runtime: 'herdr',
-    piAvailable: true,
     sessionId: 'session-1',
   })
 
   assert.deepEqual(fixtureValue.deliveries, [
     ['terminal-output', { sessionId: 'session-1', sequence: 7, data: 'output' }],
     ['terminal-stream-state', { sessionId: 'session-1', paused: true }],
-    ['terminal-exit', { exitCode: 2, signal: null, runtime: 'herdr', piAvailable: true }],
+    ['pi-sessions', { activeSessionId: 'session-1', sessions: [] }],
+    ['terminal-exit', { exitCode: 2, signal: null, sessionId: 'session-1' }],
   ])
 })
 
@@ -111,5 +113,5 @@ test('allegati annullati e stop config assente restano operazioni innocue', asyn
 
 test('reload delega al controller e mantiene il contratto pubblico', async () => {
   const { runtime } = fixture()
-  assert.deepEqual(await runtime.reload(), { reloaded: true, runtime: 'pi' })
+  assert.deepEqual(await runtime.reload(), { reloaded: true })
 })

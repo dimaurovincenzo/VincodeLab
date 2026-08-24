@@ -88,6 +88,44 @@ describe('WorkspaceChangeGuard delle risorse progetto', () => {
     expect(capture.onChange).toHaveBeenLastCalledWith(null)
   })
 
+  it('mostra il promemoria Pi solo dopo una modifica e lo chiude dopo la ricarica', async () => {
+    const user = userEvent.setup()
+    const skill: ProjectSkill = {
+      id: 'review-code',
+      name: 'review-code',
+      description: 'Review del codice',
+      valid: true,
+      issues: [],
+      content: '# Salvato',
+    }
+    const skills = {
+      list: vi.fn(async () => [skill]),
+      get: vi.fn(async () => skill),
+      update: vi.fn(async (skillId: string, content: string) => ({ ...skill, id: skillId, content })),
+      create: vi.fn(),
+      delete: vi.fn(),
+      reload: vi.fn(async () => ({ reloaded: true as const })),
+    }
+    installVincodeLab({ skills })
+
+    render(<ProjectSkills workspace="/tmp/reload-reminder" />)
+    expect(screen.queryByText(/Pi carica le skill progetto/iu)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Skill aggiornata/iu)).not.toBeInTheDocument()
+
+    await user.click(await screen.findByRole('option', { name: /review-code/i }))
+    const editor = await screen.findByRole('textbox', { name: 'Contenuto SKILL.md' })
+    await waitFor(() => expect(editor).toHaveValue('# Salvato'))
+    await user.type(editor, ' aggiornato')
+    await user.click(screen.getByRole('button', { name: /salva modifiche/i }))
+
+    const reminder = await screen.findByText(/Skill aggiornata/iu)
+    expect(reminder).toBeVisible()
+    expect(within(reminder).getByText('/trust')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Ricarica risorse Pi' }))
+    await waitFor(() => expect(screen.queryByText(/Skill aggiornata/iu)).not.toBeInTheDocument())
+    expect(skills.reload).toHaveBeenCalledTimes(1)
+  })
+
   it('mantiene selezione, contenuto e baseline correnti se la nuova skill non si apre', async () => {
     const user = userEvent.setup()
     const skillA: ProjectSkill = { id: 'skill-a', name: 'skill-a', description: 'A', valid: true, issues: [], content: '# A' }
@@ -209,6 +247,31 @@ describe('WorkspaceChangeGuard delle risorse progetto', () => {
     unmount()
     expect(capture.onChange).toHaveBeenCalledTimes(2)
     expect(capture.onChange).toHaveBeenLastCalledWith(null)
+  })
+
+  it('mostra il promemoria istruzioni solo dopo una modifica e lo chiude dopo la ricarica Pi', async () => {
+    const user = userEvent.setup()
+    const instructions = {
+      get: vi.fn(async () => ({ exists: true, content: '# Base' })),
+      save: vi.fn(async (content: string) => ({ exists: true as const, content })),
+      clear: vi.fn(),
+    }
+    const pi = { reload: vi.fn(async () => ({ reloaded: true as const })) }
+    installVincodeLab({ workspace: { getActive: vi.fn(async () => ({ path: '/tmp/instructions-reminder' })) }, instructions, pi })
+
+    render(<ProjectInstructions />)
+    expect(screen.queryByText(/Questo file aggiunge istruzioni/iu)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Istruzioni aggiornate/iu)).not.toBeInTheDocument()
+
+    const editor = await screen.findByRole('textbox', { name: 'Istruzioni progetto' })
+    await waitFor(() => expect(editor).toBeEnabled())
+    await user.type(editor, ' aggiornate')
+    await user.click(screen.getByRole('button', { name: /salva modifiche/i }))
+
+    expect(await screen.findByText(/Istruzioni aggiornate/iu)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Ricarica risorse Pi' }))
+    await waitFor(() => expect(screen.queryByText(/Istruzioni aggiornate/iu)).not.toBeInTheDocument())
+    expect(pi.reload).toHaveBeenCalledTimes(1)
   })
 
   it('mantiene le istruzioni nell’editor e consente di ripetere un salvataggio non riuscito', async () => {

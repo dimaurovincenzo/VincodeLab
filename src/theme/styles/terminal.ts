@@ -99,12 +99,6 @@ export const terminalStyles = {
     _focus: { boxShadow: 'none' },
   }),
   reload: css({ flex: '0 0 auto' }),
-  herdrCommands: css({ display: 'grid', gap: '2', p: '3', w: '64' }),
-  herdrCommandList: css({
-    display: 'grid',
-    gap: '1',
-    '& > button': { justifyContent: 'flex-start', w: 'full' },
-  }),
   contextActions: css({
     alignItems: 'center',
     display: 'flex',

@@ -1,7 +1,6 @@
-import { Suspense, useState } from 'react'
-import { Bot, BookOpen, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Columns2, Maximize2, MoreHorizontal, RefreshCw, Rows2, ScrollText, Search, TerminalSquare, Trash2, X } from 'lucide-react'
-import { Button, Field, IconButton, Popover, Spinner, Tabs } from '@/components/ui'
-import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
+import { Suspense } from 'react'
+import { BookOpen, ChevronDown, ChevronUp, RefreshCw, ScrollText, Search, TerminalSquare, X } from 'lucide-react'
+import { Button, Field, IconButton, Spinner, Splitter, Tabs, type SplitterPanelData } from '@/components/ui'
 import { TerminalToolbar } from '@/components/terminal-toolbar'
 import { TerminalPasteStatus } from './terminal-paste-status'
 import { ViewErrorBoundary } from '@/components/view-error-boundary'
@@ -11,13 +10,18 @@ import { aiStyles } from '@/theme/styles/ai'
 import { shellStyles } from '@/theme/styles/shell'
 import { terminalStyles } from '@/theme/styles/terminal'
 import { AiSessionErrorNotice } from './ai-session-error-notice'
+import { AiSessionSidebar } from './ai-session-sidebar'
 import { ProjectInstructions, ProjectSkills } from './lazy-ai-views'
 import { TerminalAttachments } from './terminal-attachments'
 import type { AiRuntimeController } from '../hooks/use-ai-runtime'
 import type { AiTab, TerminalContextAction } from '../model/ai-runtime.types'
 import { terminalPasteRecoveryLabel } from '../services/ai-error'
-import { aiTerminalRuntimeDescription, aiTerminalRuntimeLabel } from '../services/ai-terminal-runtime-label'
 import '@xterm/xterm/css/xterm.css'
+
+const aiSessionPanels: SplitterPanelData[] = [
+  { id: 'ai-sessions', minSize: '176px', maxSize: '420px', resizeBehavior: 'preserve-pixel-size' },
+  { id: 'ai-terminal', minSize: '420px' },
+]
 
 type AiWorkbenchProps = {
   contextActions: TerminalContextAction[]
@@ -42,7 +46,6 @@ export function AiWorkbench({
   aiTab,
   workspace,
 }: AiWorkbenchProps) {
-  const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null)
   const {
     aiFailure,
     cancelTerminalPaste,
@@ -60,7 +63,6 @@ export function AiWorkbench({
     reloadPi,
     resetTerminalZoom,
     restartPi,
-    runHerdrCommand,
     retryAiOutput,
     retryAiTerminal,
     revealTerminalOutput,
@@ -72,7 +74,6 @@ export function AiWorkbench({
     streamState,
     terminalElement,
     terminalQuery,
-    terminalRuntime,
     terminalSearchOpen,
     terminalStatus,
   } = runtime
@@ -89,11 +90,15 @@ export function AiWorkbench({
           </Tabs.List>
           <Tabs.Content value="terminal" className={aiStyles.tabPanel}>
             <ViewErrorBoundary viewName="Terminale AI">
-              <div className={terminalStyles.workspace} aria-label={`Terminale AI: ${workspace}`}>
+              <Splitter.Root asChild defaultFixedSize={230} panels={aiSessionPanels} storageKey={`vincodelab.ai.sessions-width:${workspace}`}>
+              <div className={aiStyles.sessionLayout}>
+                <Splitter.Panel className={aiStyles.sessionSidebarPanel} id="ai-sessions"><AiSessionSidebar controller={runtime} /></Splitter.Panel>
+                <Splitter.ResizeTrigger aria-label="Ridimensiona agenti Pi" id="ai-sessions:ai-terminal" title="Trascina per ridimensionare gli agenti. Doppio clic per ripristinare."><Splitter.ResizeTriggerIndicator /></Splitter.ResizeTrigger>
+                <Splitter.Panel asChild id="ai-terminal"><div className={terminalStyles.workspace} aria-label={`Terminale AI: ${workspace}`}>
                 <div className={terminalStyles.meta}>
                   <span className={`${terminalStyles.statusDot} ${status === 'launching' ? terminalStyles.statusLaunching : status === 'error' ? terminalStyles.statusError : status !== 'running' ? terminalStyles.statusInactive : ''}`} aria-hidden="true" />
-                  <span>{terminalRuntime?.runtime === 'herdr' ? `Contesto di avvio: ${workspace}` : workspace}</span>
-                  <span className={terminalStyles.runtimeStatus} role="status" title={aiTerminalRuntimeDescription(terminalRuntime)}>{aiTerminalRuntimeLabel(terminalRuntime)}</span>
+                  <span>{workspace}</span>
+                  <span className={terminalStyles.runtimeStatus} role="status">Pi Coding Agent</span>
                 </div>
                 <div className={terminalStyles.controls} aria-label="Controlli terminale">
                   {(streamState?.status === 'paused' || streamState?.status === 'stalled') && <div className={terminalStyles.streamStatus} role="status"><Spinner size={14} /> Rendering rallentato · recupero automatico in corso</div>}
@@ -106,35 +111,10 @@ export function AiWorkbench({
                       <IconButton size="icon-xs" tooltip="Chiudi ricerca" onClick={closeTerminalSearch}><X aria-hidden="true" size={14} /></IconButton>
                     </Field.Root>
                   ) : <span className={terminalStyles.hint}>⌘F cerca · ⌘± zoom</span>}
-                  {terminalRuntime?.runtime === 'herdr' && <>
-                    <IconButton disabled={status !== 'running'} tooltip="Agente Herdr precedente" onClick={() => void runHerdrCommand('previous-agent')}><ChevronLeft aria-hidden="true" size={15} /></IconButton>
-                    <IconButton disabled={status !== 'running'} tooltip="Avvia un nuovo agente Pi in Herdr" onClick={() => void runHerdrCommand('new-pi')}><Bot aria-hidden="true" size={15} /></IconButton>
-                    <IconButton disabled={status !== 'running'} tooltip="Agente Herdr successivo" onClick={() => void runHerdrCommand('next-agent')}><ChevronRight aria-hidden="true" size={15} /></IconButton>
-                    <Popover.Root positioning={{ placement: 'bottom-end' }}>
-                      <Popover.Trigger asChild><IconButton disabled={status !== 'running'} tooltip="Comandi Herdr"><MoreHorizontal aria-hidden="true" size={15} /></IconButton></Popover.Trigger>
-                      <Popover.Portal><Popover.Positioner><Popover.Content className={terminalStyles.herdrCommands}>
-                        <Popover.Title>Comandi Herdr</Popover.Title>
-                        <Popover.Description>Gestisci gli agenti nel workspace corrente.</Popover.Description>
-                        <div className={terminalStyles.herdrCommandList}>
-                          <Popover.CloseTrigger asChild><Button variant="plain" onClick={() => void runHerdrCommand('new-pi')}><Bot aria-hidden="true" size={15} /> Nuovo Pi in una tab</Button></Popover.CloseTrigger>
-                          <Popover.CloseTrigger asChild><Button variant="plain" onClick={() => void runHerdrCommand('new-pi-right')}><Columns2 aria-hidden="true" size={15} /> Nuovo Pi a destra</Button></Popover.CloseTrigger>
-                          <Popover.CloseTrigger asChild><Button variant="plain" onClick={() => void runHerdrCommand('new-pi-down')}><Rows2 aria-hidden="true" size={15} /> Nuovo Pi in basso</Button></Popover.CloseTrigger>
-                          <Popover.CloseTrigger asChild><Button variant="plain" onClick={() => void runHerdrCommand('zoom-pane')}><Maximize2 aria-hidden="true" size={15} /> Zoom del pane</Button></Popover.CloseTrigger>
-                          <Popover.CloseTrigger asChild><Button tone="danger" variant="plain" onClick={() => setConfirmation({
-                            title: 'Chiudi pane Herdr',
-                            detail: 'Il processo attivo nel pane verrà terminato. Gli altri agenti e pane resteranno disponibili.',
-                            confirmLabel: 'Chiudi pane',
-                            destructive: true,
-                            onConfirm: () => { void runHerdrCommand('close-pane') },
-                          })}><Trash2 aria-hidden="true" size={15} /> Chiudi pane</Button></Popover.CloseTrigger>
-                        </div>
-                      </Popover.Content></Popover.Positioner></Popover.Portal>
-                    </Popover.Root>
-                  </>}
-                  <IconButton className={terminalStyles.reload} disabled={terminalRuntime?.runtime === 'herdr'} tooltip={terminalRuntime?.runtime === 'herdr' ? 'Esegui /reload nel pane Pi desiderato in Herdr' : 'Ricarica risorse Pi'} onClick={() => void reloadPi()}><RefreshCw aria-hidden="true" size={15} /></IconButton>
-                  <TerminalToolbar fontSize={fontSize} statusLabel={terminalStatus} onClear={clearTerminal} onCopy={() => void copyTerminalSelection()} onPaste={() => void pasteIntoTerminal()} onResetZoom={resetTerminalZoom} onRestart={() => void restartPi()} onSearch={() => setTerminalSearchOpen(true)} onZoom={changeFontSize} restartLabel={terminalRuntime?.runtime === 'herdr' ? 'Ricollega il client Herdr (la fleet resta attiva)' : 'Riavvia sessione Pi'} />
+                  <IconButton className={terminalStyles.reload} tooltip="Ricarica risorse Pi" onClick={() => void reloadPi()}><RefreshCw aria-hidden="true" size={15} /></IconButton>
+                  <TerminalToolbar fontSize={fontSize} statusLabel={terminalStatus} onClear={clearTerminal} onCopy={() => void copyTerminalSelection()} onPaste={() => void pasteIntoTerminal()} onResetZoom={resetTerminalZoom} onRestart={() => void restartPi()} onSearch={() => setTerminalSearchOpen(true)} onZoom={changeFontSize} restartLabel="Riavvia sessione Pi" />
                 </div>
-                {terminalRuntime?.runtime === 'pi' && <TerminalAttachments contextActions={contextActions} onInsert={sendAiInput} />}
+                <TerminalAttachments contextActions={contextActions} onInsert={sendAiInput} />
                 <div className={terminalStyles.surface}><div className={terminalStyles.xtermHost} data-xterm-host="ai" key={workspace} ref={terminalElement} /></div>
                 {pasteProgress && <TerminalPasteStatus
                   failure={pasteFailure?.error}
@@ -146,9 +126,10 @@ export function AiWorkbench({
                   onClose={closeTerminalPasteStatus}
                 />}
                 {hasUnreadTerminalOutput && <Button className={terminalStyles.newOutput} size="sm" variant="subtle" onClick={revealTerminalOutput}>Nuovo output</Button>}
-                {aiFailure && <AiSessionErrorNotice failure={aiFailure} onOpenSettings={onOpenSettings} onReload={reloadPi} onRestart={() => restartPi()} onResumeOutput={retryAiOutput} onRetryTerminal={retryAiTerminal} onStartPiDirect={() => restartPi({ runtime: 'pi' })} />}
-                <ConfirmationDialog request={confirmation} onCancel={() => setConfirmation(null)} />
+                {aiFailure && <AiSessionErrorNotice failure={aiFailure} onOpenSettings={onOpenSettings} onReload={reloadPi} onRestart={() => restartPi()} onResumeOutput={retryAiOutput} onRetryTerminal={retryAiTerminal} />}
+                </div></Splitter.Panel>
               </div>
+              </Splitter.Root>
             </ViewErrorBoundary>
           </Tabs.Content>
           {shouldMountPersistentView(loadedSections, 'skills', aiTab === 'skills') && (

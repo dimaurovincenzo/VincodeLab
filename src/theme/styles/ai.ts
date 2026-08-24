@@ -1,6 +1,23 @@
 import { css } from '../../../styled-system/css'
 
 export const aiStyles = {
+  sessionLayout: css({ '--splitter-display': 'flex', flex: '1', minH: '0', minW: '0', overflow: 'hidden' }),
+  sessionSidebarPanel: css({ display: 'flex', minH: '0', minW: '0', overflow: 'hidden' }),
+  sessionSidebar: css({ bg: 'surfacePanel', display: 'flex', flex: '1', flexDirection: 'column', minH: '0', minW: '0', overflow: 'hidden' }),
+  sessionSidebarHeader: css({ alignItems: 'center', borderBottomColor: 'borderDefault', borderBottomWidth: '1px', display: 'flex', justifyContent: 'space-between', minH: '12', p: '2 2 2 3', '& > div': { display: 'grid', minW: '0' }, '& strong': { color: 'textPrimary', fontSize: 'xs' }, '& span': { color: 'textTertiary', fontSize: '2xs' } }),
+  sessionConcurrencyNotice: css({ bg: 'stateWarningSoft', borderBottomColor: 'stateWarning', borderBottomWidth: '1px', color: 'stateWarning', fontSize: '2xs', lineHeight: 'relaxed', m: '0', p: '2.5 3' }),
+  sessionList: css({ display: 'grid', gap: '1', minH: '0', overflowY: 'auto', p: '2' }),
+  sessionItem: css({ alignItems: 'center', borderColor: 'transparent', borderRadius: 'l1', borderWidth: '1px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', minW: '0', _hover: { bg: 'surfaceRaised' } }),
+  sessionItemActive: css({ bg: 'accentSubtle', borderColor: 'accentBorder', _hover: { bg: 'accentSubtle' } }),
+  sessionSelect: css({ alignItems: 'center', bg: 'transparent', border: '0', color: 'textPrimary', cursor: 'pointer', display: 'grid', gap: '2', gridTemplateColumns: 'auto minmax(0, 1fr)', minW: '0', p: '2', textAlign: 'left', _focusVisible: { boxShadow: 'inset 0 0 0 2px token(colors.focus)' }, _disabled: { cursor: 'default' } }),
+  sessionActivityDot: css({ bg: 'stateInactive', borderRadius: 'full', flex: '0 0 auto', h: '2', w: '2' }),
+  sessionActivityWorking: css({ animation: 'pulse 1.6s ease-in-out infinite', bg: 'accentSolid', boxShadow: '0 0 0 2px token(colors.accentSubtle)', _motionReduce: { animation: 'none' } }),
+  sessionActivityCompleted: css({ bg: 'stateSuccess', boxShadow: '0 0 0 2px token(colors.stateSuccessSoft)' }),
+  sessionActivityError: css({ bg: 'stateError', boxShadow: '0 0 0 2px token(colors.stateErrorSoft)' }),
+  sessionCopy: css({ minW: '0', '& strong, & small': { display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, '& strong': { fontSize: 'xs', fontWeight: '600' }, '& small': { color: 'textTertiary', fontSize: '2xs', mt: '0.5' } }),
+  sessionActions: css({ alignItems: 'center', display: 'flex', pr: '1' }),
+  sessionEmpty: css({ color: 'textSecondary', display: 'grid', fontSize: 'xs', gap: '2', justifyItems: 'start', p: '3 1', '& p': { m: '0' } }),
+  renameHeader: css({ alignItems: 'start', display: 'flex', justifyContent: 'space-between' }),
   workbench: css({
     bg: 'surfaceCanvas',
     display: 'flex',

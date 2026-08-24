@@ -14,8 +14,10 @@ import type { AiFailureController } from './use-ai-failure'
 type MutableRef<T> = RefObject<T> & { current: T }
 
 type UseAiTerminalInstanceOptions = {
+  activeSessionIdRef: MutableRef<string | null>
   aiFailureRef: RefObject<AiSessionFailure | null>
   clearAiFailure: AiFailureController['clearAiFailure']
+  connectedSessionIdRef: MutableRef<string | null>
   fitAddon: MutableRef<FitAddonInstance | null>
   fontSize: MutableRef<number>
   getTerminal: () => Terminal | null
@@ -36,8 +38,10 @@ type UseAiTerminalInstanceOptions = {
 }
 
 export function useAiTerminalInstance({
+  activeSessionIdRef,
   aiFailureRef,
   clearAiFailure,
+  connectedSessionIdRef,
   fitAddon,
   fontSize,
   getTerminal,
@@ -95,7 +99,8 @@ export function useAiTerminalInstance({
         const nextDimensions = { cols: xterm.cols, rows: xterm.rows }
         if (nextDimensions.cols === dimensions.cols && nextDimensions.rows === dimensions.rows) return
         dimensions = nextDimensions
-        aiBridge.terminal.resize(nextDimensions)
+        const sessionId = activeSessionIdRef.current
+        if (sessionId) aiBridge.terminal.resize(sessionId, nextDimensions)
       }
       const resizeScheduler = createAnimationFrameResizeScheduler(fit)
       const resizeObserver = new ResizeObserver(resizeScheduler.schedule)
@@ -106,8 +111,8 @@ export function useAiTerminalInstance({
 
       const controller = createXtermOutputController({
         write: (data, done) => xterm.write(data, done),
-        ack: aiBridge.terminal.ack,
-        ready: aiBridge.terminal.ready,
+        ack: (message) => aiBridge.terminal.ack(message.sessionId, message),
+        ready: (message) => aiBridge.terminal.ready(message.sessionId, message),
         onRendered: () => {
           if (shouldFollowTerminalOutput({ viewportY: xterm.buffer.active.viewportY, baseY: xterm.buffer.active.baseY })) xterm.scrollToBottom()
           else updateHasUnreadTerminalOutput(true)
@@ -122,8 +127,13 @@ export function useAiTerminalInstance({
       })
       outputController.current = controller
       const unsubscribeOutput = aiBridge.terminal.onOutput((block) => controller.accept(block))
-      const unsubscribeStreamState = aiBridge.terminal.onStreamState(updateTerminalStreamState)
+      const unsubscribeStreamState = aiBridge.terminal.onStreamState((state) => {
+        if (state.sessionId === activeSessionIdRef.current) updateTerminalStreamState(state)
+      })
+      const requestedSessionId = activeSessionIdRef.current
+      if (requestedSessionId) connectedSessionIdRef.current = requestedSessionId
       void resumeTerminal().then((snapshot) => {
+        connectedSessionIdRef.current = snapshot.sessionId
         controller.restore(snapshot)
         clearAiFailure('restore-ai-output')
       }).catch((nextError) => {
@@ -138,10 +148,16 @@ export function useAiTerminalInstance({
         })
       })
 
-      const inputDisposable = xterm.onData(aiBridge.terminal.writeKey)
+      const inputDisposable = xterm.onData((data) => {
+        const sessionId = activeSessionIdRef.current
+        if (sessionId) aiBridge.terminal.writeKey(sessionId, data)
+      })
       const scrollDisposable = xterm.onScroll(() => updateHasUnreadTerminalOutput(!shouldFollowTerminalOutput({ viewportY: xterm.buffer.active.viewportY, baseY: xterm.buffer.active.baseY })))
       xterm.focus()
       cleanup = () => {
+        const connectedSessionId = connectedSessionIdRef.current
+        if (connectedSessionId) aiBridge.terminal.disconnect(connectedSessionId, { sessionId: connectedSessionId })
+        connectedSessionIdRef.current = null
         unsubscribeOutput()
         unsubscribeStreamState()
         controller.dispose()
@@ -170,5 +186,5 @@ export function useAiTerminalInstance({
     })
 
     return () => { disposed = true; cleanup?.() }
-  }, [aiFailureRef, clearAiFailure, fitAddon, fontSize, getTerminal, getTerminalElement, outputController, preferredTerminalCursorStyle, preferredTerminalFontFamily, preferredTerminalScrollback, publishAiFailure, resumeTerminal, searchAddon, setStatus, setTerminalInstance, terminalRendererGeneration, updateHasUnreadTerminalOutput, updateTerminalStreamState, workspace])
+  }, [activeSessionIdRef, aiFailureRef, clearAiFailure, connectedSessionIdRef, fitAddon, fontSize, getTerminal, getTerminalElement, outputController, preferredTerminalCursorStyle, preferredTerminalFontFamily, preferredTerminalScrollback, publishAiFailure, resumeTerminal, searchAddon, setStatus, setTerminalInstance, terminalRendererGeneration, updateHasUnreadTerminalOutput, updateTerminalStreamState, workspace])
 }

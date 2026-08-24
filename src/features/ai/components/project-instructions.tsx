@@ -36,6 +36,7 @@ export function ProjectInstructions({ workspace, onWorkspaceGuardChange }: Props
   const [loadError, setLoadError] = useState<UserError | null>(null)
   const [operationFailure, setOperationFailure] = useState<InstructionsFailure | null>(null)
   const [saving, setSaving] = useState(false)
+  const [piReloadRequired, setPiReloadRequired] = useState(false)
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null)
   const loadRequestId = useRef(0)
   const workspaceRef = useRef<string | null>(workspace ?? null)
@@ -95,6 +96,7 @@ export function ProjectInstructions({ workspace, onWorkspaceGuardChange }: Props
     const job = (async () => {
       try {
         await aiBridge.instructions.save(nextContent)
+        setPiReloadRequired(true)
         if (requestWorkspace) commitVolatileDraft(instructionsDraftIdentity(requestWorkspace), nextContent)
         savedContentRef.current = nextContent
         existsRef.current = true
@@ -133,6 +135,7 @@ export function ProjectInstructions({ workspace, onWorkspaceGuardChange }: Props
     setOperationFailure(null)
     try {
       await aiBridge.instructions.clear()
+      setPiReloadRequired(true)
       if (workspaceRef.current) discardVolatileDraft(instructionsDraftIdentity(workspaceRef.current))
       contentRef.current = ''
       savedContentRef.current = ''
@@ -166,11 +169,8 @@ export function ProjectInstructions({ workspace, onWorkspaceGuardChange }: Props
   const reloadPi = async () => {
     setOperationFailure(null)
     try {
-      const result = await aiBridge.pi.reload()
-      if (!result.reloaded) {
-        toast.info('Esegui /reload nel pane Pi desiderato in Herdr.')
-        return
-      }
+      await aiBridge.pi.reload()
+      setPiReloadRequired(false)
       toast.success('Pi sta ricaricando le istruzioni progetto.')
     } catch (error) {
       setOperationFailure({
@@ -199,6 +199,7 @@ export function ProjectInstructions({ workspace, onWorkspaceGuardChange }: Props
         })
         if (baselineExists) await aiBridge.instructions.save(baseline)
         else await aiBridge.instructions.clear()
+        setPiReloadRequired(true)
       }
       contentRef.current = baseline
       savedContentRef.current = baseline
@@ -285,7 +286,7 @@ export function ProjectInstructions({ workspace, onWorkspaceGuardChange }: Props
           <Button size="sm" onClick={() => void save()} disabled={saving || loading || !hasUnsavedChanges}><Save aria-hidden="true" /> Salva modifiche</Button>
         </div>
       </div>
-      <div className={aiStyles.advisory}><AlertTriangle aria-hidden="true" size={15} /> Questo file aggiunge istruzioni al prompt generale Pi solo per il workspace aperto. In Herdr esegui <code>/reload</code> direttamente nel pane Pi desiderato.</div>
+      {piReloadRequired && <div className={aiStyles.advisory} role="status"><AlertTriangle aria-hidden="true" size={15} /> Istruzioni aggiornate. Usa “Ricarica risorse Pi” per applicarle alla sessione AI.</div>}
       {loadError && <ErrorNotice error={loadError} action={{ label: 'Riprova', onClick: loadInstructions }} />}
       {operationFailure && <ErrorNotice error={operationFailure.error} action={{ label: 'Riprova', onClick: retryOperation }} />}
       <Field.Root className={aiStyles.editorField}><Field.Textarea className={aiStyles.editorTextarea} disabled={loading || Boolean(loadError)} value={content} onChange={(event) => {

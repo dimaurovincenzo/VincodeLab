@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ProjectFileTreeNode } from '@/bridge'
+import type { ProjectFileContentMatch, ProjectFileTreeNode } from '@/bridge'
 import { toast } from '@/components/ui'
+import type { UserError } from '@/lib/user-error'
 import { editorBridge } from '../api/editor.bridge'
 import { resolveNewFileDraft } from '../model/editor-new-file'
 import type { EditorFailure } from '../model/editor-runtime.types'
@@ -53,6 +54,13 @@ export function useProjectExplorer({
   const [loadingDirectory, setLoadingDirectory] = useState<string | null>(null)
   const [refreshingExplorer, setRefreshingExplorer] = useState(false)
   const [explorerFailure, setExplorerFailure] = useState<EditorFailure | null>(null)
+  const [contentMatches, setContentMatches] = useState<ProjectFileContentMatch[]>([])
+  const [contentSearchError, setContentSearchError] = useState<UserError | null>(null)
+  const [contentSearchLoading, setContentSearchLoading] = useState(false)
+  const [contentSearchTruncated, setContentSearchTruncated] = useState(false)
+  const [contentSearchAttempt, setContentSearchAttempt] = useState(0)
+  const contentSearchRequest = useRef(0)
+  const contentSearchStarted = useRef(false)
   const newFileTrigger = useRef<HTMLButtonElement>(null)
   const loadingDirectories = useRef(new Set<string>())
   const restoredExpandedKey = useRef<string | null>(null)
@@ -121,6 +129,45 @@ export function useProjectExplorer({
     })
     return () => { active = false }
   }, [])
+
+  useEffect(() => {
+    const query = explorerQuery.trim()
+    const request = ++contentSearchRequest.current
+    const timer = window.setTimeout(() => {
+      if (query.length < 2) {
+        setContentMatches([])
+        setContentSearchError(null)
+        setContentSearchLoading(false)
+        setContentSearchTruncated(false)
+        if (contentSearchStarted.current) {
+          contentSearchStarted.current = false
+          void editorBridge.files.searchContent('').catch(() => undefined)
+        }
+        return
+      }
+      contentSearchStarted.current = true
+      setContentMatches([])
+      setContentSearchError(null)
+      setContentSearchLoading(true)
+      setContentSearchTruncated(false)
+      void editorBridge.files.searchContent(query, { maxResults: 100 }).then((result) => {
+        if (contentSearchRequest.current !== request || result.cancelled) return
+        setContentMatches(result.matches)
+        setContentSearchTruncated(result.truncated)
+      }).catch((error) => {
+        if (contentSearchRequest.current !== request) return
+        setContentSearchError(reportEditorFailure(error, {
+          category: 'filesystem',
+          operation: 'search-project-file-contents',
+          title: 'Ricerca nei contenuti non disponibile',
+          fallbackDescription: 'La ricerca per nome resta disponibile. Verifica l’accesso ai file del workspace e riprova.',
+        }))
+      }).finally(() => {
+        if (contentSearchRequest.current === request) setContentSearchLoading(false)
+      })
+    }, query.length < 2 ? 0 : 250)
+    return () => window.clearTimeout(timer)
+  }, [contentSearchAttempt, explorerQuery, workspace])
 
   const refreshCreatedFileInExplorer = async (fileId: string) => {
     const segments = fileId.split('/')
@@ -328,6 +375,10 @@ export function useProjectExplorer({
   const filteredTree = useMemo(() => filterEditorTree(tree, explorerQuery), [explorerQuery, tree])
 
   return {
+    contentMatches,
+    contentSearchError,
+    contentSearchLoading,
+    contentSearchTruncated,
     createFile,
     creatingFile,
     duplicateProjectEntryFromMenu,
@@ -347,6 +398,7 @@ export function useProjectExplorer({
     projectEntryDialogInput,
     projectEntryDialogOpener,
     refreshExplorer,
+    retryContentSearch: () => setContentSearchAttempt((current) => current + 1),
     refreshingExplorer,
     requestCloseEditorTabs,
     requestTrashProjectEntry,

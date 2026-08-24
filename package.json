@@ -85,6 +85,12 @@
       "electron/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "resources/pi",
+        "to": "pi"
+      }
+    ],
     "asarUnpack": [
       "node_modules/node-pty/**/*",
       "node_modules/better-sqlite3/**/*"

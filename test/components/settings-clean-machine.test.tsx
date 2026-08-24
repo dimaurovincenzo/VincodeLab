@@ -27,7 +27,6 @@ function installCleanMachineBridge() {
       { id: 'app-runtime', kind: 'included', label: 'Runtime VincodeLab', state: 'ready', detail: 'Electron e Node sono inclusi nell’app. Non è richiesta un’installazione Node/npm di sistema.' },
       { id: 'database-postgresql', kind: 'included', label: 'Driver PostgreSQL', state: 'ready', detail: 'Incluso nell’app: non serve installare client o comandi PostgreSQL sul computer.' },
       { id: 'pi-agent', kind: 'optional', label: 'Pi Coding Agent', state: 'missing', detail: 'Solo il Terminale AI resta disattivato; il resto continua a funzionare.' },
-      { id: 'herdr', kind: 'optional', label: 'Herdr', state: 'missing', detail: 'Herdr non è stato rilevato. Il Terminale AI userà Pi diretto quando disponibile.' },
       { id: 'npm-system', kind: 'optional', label: 'npm di sistema', state: 'missing', detail: 'Non serve per avviare VincodeLab.' },
     ],
   }
@@ -75,8 +74,7 @@ describe('Impostazioni su una macchina pulita', () => {
 
     expect(await screen.findByText('Pi Coding Agent non rilevato.')).toBeVisible()
     const status = screen.getByRole('status')
-    expect(status).toHaveTextContent('fallback Pi diretto restano disattivati')
-    expect(status).toHaveTextContent('Se Herdr è pronto, il Terminale AI può ancora aprire la fleet condivisa')
+    expect(status).toHaveTextContent('Il Terminale AI, la configurazione e i pacchetti Pi restano disattivati')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Configura Pi' })).toBeDisabled()
     expect(bridge.list).not.toHaveBeenCalled()
@@ -101,7 +99,6 @@ describe('Impostazioni su una macchina pulita', () => {
 
     const optional = screen.getByRole('region', { name: 'Strumenti opzionali' })
     expect(optional).toHaveTextContent('Pi Coding Agent')
-    expect(optional).toHaveTextContent('Herdr')
     expect(optional).toHaveTextContent('npm di sistema')
     expect(optional).toHaveTextContent('Non installato')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()

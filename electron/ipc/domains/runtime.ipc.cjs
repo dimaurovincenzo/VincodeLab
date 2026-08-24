@@ -5,17 +5,12 @@ function createRuntimeHandlers({
   cleanMachineSmokeMode = false,
   getPtyStatus,
   getRuntimeCapabilities,
-  inspectHerdr,
   resolvePiExecutable,
 }) {
   return new Map([
     [IPC_CHANNELS.RUNTIME_CAPABILITIES, async (event) => {
       assertTrustedSender(event)
-      const herdrStatus = await Promise.resolve()
-        .then(() => inspectHerdr())
-        .catch(() => ({ available: false, reason: 'preflight-failed' }))
       return getRuntimeCapabilities({
-        herdrStatus,
         piExecutable: resolvePiExecutable(),
         ptyStatus: getPtyStatus(),
         systemToolSearchOptions: cleanMachineSmokeMode

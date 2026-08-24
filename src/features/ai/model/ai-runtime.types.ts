@@ -1,11 +1,8 @@
 import type { UserError } from '@/lib/user-error'
-import type { AiTerminalRuntimeState } from '@/bridge'
 
 export type AiTab = 'terminal' | 'skills' | 'instructions'
 export type LaunchState = 'idle' | 'launching' | 'running' | 'ended' | 'error'
-export type { AiTerminalRuntimeState }
-
-export type AiFailureRecovery = 'reload' | 'restart' | 'start-pi-direct' | 'resume-output' | 'retry-terminal' | 'settings'
+export type AiFailureRecovery = 'reload' | 'restart' | 'resume-output' | 'retry-terminal' | 'settings'
 export type AiFailureContext = {
   category?: UserError['category']
   code?: string

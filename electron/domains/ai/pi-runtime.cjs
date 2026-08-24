@@ -11,13 +11,13 @@ function createPiRuntime({
   createStreamController = createTerminalStreamController,
   deliverPiConfigData,
   deliverPiConfigExit,
+  deliverPiSessionsChanged,
   deliverTerminalExit,
   deliverTerminalOutput,
   deliverTerminalStreamState,
   environmentForExecutable,
   getHomePath,
   getWindow,
-  initializeHerdr = async () => undefined,
   isProcessAlive,
   log,
   notifyWhenBackground,
@@ -32,40 +32,37 @@ function createPiRuntime({
   if (typeof isProcessAlive !== 'function') throw new Error('Verifica processo runtime Pi non valida.')
   if (typeof resolveExecutable !== 'function') throw new Error('Resolver eseguibile runtime Pi non valido.')
   if (typeof resolveLaunchCandidates !== 'function') throw new Error('Resolver lancio Terminale AI non valido.')
-  if (typeof initializeHerdr !== 'function') throw new Error('Inizializzatore Herdr non valido.')
   if (typeof attachmentPreparer !== 'function') throw new Error('Porta allegati Terminale AI non valida.')
   if (typeof deliverPiConfigData !== 'function') throw new Error('Porta dati configurazione Pi non valida.')
   if (typeof deliverPiConfigExit !== 'function') throw new Error('Porta uscita configurazione Pi non valida.')
+  if (typeof deliverPiSessionsChanged !== 'function') throw new Error('Porta stato sessioni Pi non valida.')
   if (typeof deliverTerminalExit !== 'function') throw new Error('Porta uscita Terminale AI non valida.')
   if (typeof deliverTerminalOutput !== 'function') throw new Error('Porta output Terminale AI non valida.')
   if (typeof deliverTerminalStreamState !== 'function') throw new Error('Porta stato stream Terminale AI non valida.')
   let configProcess
   let configExit
 
-  function handleSessionExit({ exitCode, signal, reason, runtime, piAvailable, sessionId }) {
+  function handleSessionExit({ exitCode, signal, reason, sessionId }) {
     const expected = reason !== 'exit' && reason !== 'failure'
     log(expected || (exitCode === 0 && !signal) ? 'info' : 'error', expected ? 'ai_terminal_stopped' : 'ai_terminal_exited', {
       exitCode,
       signal,
       reason,
-      runtime,
       sessionId,
     })
     // Stop, restart, cambio workspace e shutdown sono già osservabili dalla
     // rispettiva operazione; soltanto gli exit inattesi cambiano lo stato UI.
     if (expected) return
-    deliverTerminalExit({ exitCode, signal, runtime, piAvailable })
+    deliverTerminalExit({ exitCode, signal, sessionId })
     if (exitCode !== 0 || signal) {
-      const label = runtime === 'herdr' ? 'Herdr' : 'Pi'
       notifyWhenBackground(
-        `VincodeLab · ${label}`,
-        signal ? `${label} è stato interrotto (segnale ${signal}).` : `${label} si è chiuso con codice ${exitCode}.`,
+        'VincodeLab · Pi',
+        signal ? `Pi è stato interrotto (segnale ${signal}).` : `Pi si è chiuso con codice ${exitCode}.`,
       )
     }
   }
 
   const controller = createSessionController({
-    initializeHerdr,
     resolveLaunchCandidates,
     isProcessAlive,
     processFactory: (executable, args, options) => ptyRuntime.spawn(executable, args, options),
@@ -79,8 +76,9 @@ function createPiRuntime({
       getPty,
       waitForCapacity: (signal) => stream.waitForInputCapacity(signal),
     }),
-    onStarted: ({ fallbackReason, pid, runtime, sessionId }) => log('info', 'ai_terminal_started', { fallbackReason, pid, runtime, sessionId }),
+    onStarted: ({ pid, sessionId }) => log('info', 'ai_terminal_started', { pid, sessionId }),
     onExit: handleSessionExit,
+    onChanged: deliverPiSessionsChanged,
     onError: ({ source }) => log('error', 'ai_terminal_session_failure', { reason: source }),
   })
 
@@ -92,21 +90,23 @@ function createPiRuntime({
     return controller.stop(reason)
   }
 
-  async function reload() {
-    const result = await controller.reload()
-    log('info', result.reloaded ? 'ai_terminal_reload_sent' : 'ai_terminal_reload_skipped', { reason: result.reason, runtime: result.runtime })
+  async function reload(sessionId) {
+    const targetSessionId = sessionId ?? controller.getState().activeSessionId
+    const result = await controller.reload(requireActiveWorkspace(), targetSessionId)
+    log('info', 'ai_terminal_reload_sent', { sessionId: targetSessionId })
     return result
   }
 
-  async function restart(options) {
-    const result = await controller.start(requireActiveWorkspace(), options)
-    return {
-      restarted: true,
-      runtime: result.runtime,
-      piAvailable: result.piAvailable,
-      ...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}),
-    }
+  async function restart(sessionId) {
+    await controller.restart(requireActiveWorkspace(), sessionId)
+    return { restarted: true, sessionId }
   }
+
+  const listSessions = () => controller.list(requireActiveWorkspace())
+  const createSession = () => controller.create(requireActiveWorkspace())
+  const focusSession = (sessionId) => controller.focus(requireActiveWorkspace(), sessionId)
+  const renameSession = (sessionId, title) => controller.rename(requireActiveWorkspace(), sessionId, title)
+  const closeSession = (sessionId) => controller.close(requireActiveWorkspace(), sessionId)
 
   async function chooseAttachments() {
     const result = await showOpenDialog(getWindow(), {
@@ -169,9 +169,14 @@ function createPiRuntime({
 
   return Object.freeze({
     chooseAttachments,
+    closeSession,
     controller,
+    createSession,
+    focusSession,
     getConfigProcess: () => configProcess,
+    listSessions,
     reload,
+    renameSession,
     restart,
     start,
     startConfig,

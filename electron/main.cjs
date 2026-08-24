@@ -35,7 +35,7 @@ const { PI_COMMAND_TIMEOUT_MS, createPiSystemUseCases } = require('./domains/ai/
 const { createPiPackageSkillsFilesystemAdapter } = require('./infrastructure/filesystem/pi-package-skills-filesystem.adapter.cjs')
 const { createProjectInstructionsUseCases } = require('./domains/ai/project-instructions.cjs')
 const { createProjectInstructionsFilesystemAdapter } = require('./infrastructure/filesystem/project-instructions-filesystem.adapter.cjs')
-const { createProjectDirectoryListing, createProjectEntryMutations, createProjectFileActions, createProjectFileIndex, createProjectFileReader, createProjectFileSaver } = require('./domains/filesystem/project-files.cjs')
+const { createProjectDirectoryListing, createProjectEntryMutations, createProjectFileActions, createProjectFileContentSearch, createProjectFileIndex, createProjectFileReader, createProjectFileSaver } = require('./domains/filesystem/project-files.cjs')
 const { createProjectSkillsUseCases } = require('./domains/ai/project-skills.cjs')
 const { createProjectSkillsFilesystemAdapter } = require('./infrastructure/filesystem/project-skills-filesystem.adapter.cjs')
 const { createCommandCategory, createWorkspaceCommand, deleteCommandCategory, deleteWorkspaceCommand, getWorkspaceCommand, listWorkspaceCommands, moveWorkspaceCommand, updateCommandCategory, updateWorkspaceCommand } = require('./infrastructure/persistence/workspace-commands.repository.cjs')
@@ -83,7 +83,7 @@ const { createRendererRecoveryController } = require('./app/renderer-recovery-co
 const { createWindowCloseCoordinator } = require('./app/window-close-coordinator.cjs')
 const { createPtyRuntime } = require('./infrastructure/processes/pty-runtime.adapter.cjs')
 const { createPiCommandRunner, isPiProcessAlive } = require('./infrastructure/processes/pi-command-runner.adapter.cjs')
-const { createHerdrRuntimeAdapter } = require('./infrastructure/processes/herdr-runtime.adapter.cjs')
+const { createPiAgentStatusServer } = require('./infrastructure/processes/pi-agent-status-server.adapter.cjs')
 const { createShellHostAdapter } = require('./infrastructure/processes/shell-host.adapter.cjs')
 const { getRuntimeCapabilities } = require('./infrastructure/system/runtime-capabilities.adapter.cjs')
 const { createRendererEventSender } = require('./infrastructure/ipc/renderer-event-sender.cjs')
@@ -231,18 +231,15 @@ const piCommandRunner = createPiCommandRunner({
   getEnvironment: () => process.env,
   timeoutMs: PI_COMMAND_TIMEOUT_MS,
 })
-const herdrRuntime = createHerdrRuntimeAdapter({
-  getEnvironment: () => process.env,
-  getHomePath: () => applicationHomePath,
-  includeUserCandidates: !CLEAN_MACHINE_SMOKE_MODE,
-})
+const piAgentStatusServer = createPiAgentStatusServer({ log })
+const piAgentStatusExtensionPath = app.isPackaged
+  ? path.join(process.resourcesPath, 'pi', 'vincodelab-agent-status.mjs')
+  : path.join(__dirname, '..', 'resources', 'pi', 'vincodelab-agent-status.mjs')
 const aiTerminalLaunchPolicy = createAiTerminalLaunchPolicy({
   environmentForExecutable: environmentForPiExecutable,
-  getEnvironment: () => process.env,
-  herdrEnabled: !RELIABILITY_BENCHMARK_MODE,
-  inspectHerdr: herdrRuntime.inspect,
-  resolveHerdrSessionName: herdrRuntime.sessionNameForWorkspace,
+  getStatusTransport: piAgentStatusServer.descriptor,
   resolvePiExecutable,
+  statusExtensionPath: piAgentStatusExtensionPath,
 })
 const piPackageSkillsSource = createPiPackageSkillsFilesystemAdapter()
 const {
@@ -293,6 +290,7 @@ const {
 } = createProjectFileReader(createProjectFileReaderFilesystemAdapter())
 const { saveProjectFile } = createProjectFileSaver(createProjectFileSaveFilesystemAdapter())
 const projectFileIndex = createProjectFileIndex(createProjectFileIndexFilesystemAdapter())
+const { searchProjectFileContents } = createProjectFileContentSearch({ projectFileIndex, readProjectFile })
 const databaseOperations = createDatabaseOperationRegistry()
 const redisOperations = createRedisOperationRegistry()
 const githubUseCases = createGithubUseCases({ cache: githubCache, projects: githubProjects, runner: githubRunner })
@@ -417,13 +415,13 @@ const piRuntime = createPiRuntime({
   createPublicError,
   deliverPiConfigData: (payload) => sendToRenderer(IPC_CHANNELS.PI_CONFIG_DATA, payload),
   deliverPiConfigExit: (payload) => sendToRenderer(IPC_CHANNELS.PI_CONFIG_EXIT, payload),
+  deliverPiSessionsChanged: (payload) => sendToRenderer(IPC_CHANNELS.PI_SESSIONS_CHANGED, payload),
   deliverTerminalExit: (payload) => sendToRenderer(IPC_CHANNELS.TERMINAL_EXIT, payload),
   deliverTerminalOutput: (payload) => sendToRenderer(IPC_CHANNELS.TERMINAL_OUTPUT, payload),
   deliverTerminalStreamState: (payload) => sendToRenderer(IPC_CHANNELS.TERMINAL_STREAM_STATE, payload),
   environmentForExecutable: environmentForPiExecutable,
   getHomePath: () => applicationHomePath,
   getWindow: () => mainWindow,
-  initializeHerdr: herdrRuntime.initializeWorkspace,
   isProcessAlive: isPiProcessAlive,
   log,
   notifyWhenBackground,
@@ -435,8 +433,16 @@ const piRuntime = createPiRuntime({
   withCleanupDeadline,
 })
 const piSessionController = piRuntime.controller
+piAgentStatusServer.setEventHandler(({ sessionId, state }) => piSessionController.reportActivity(sessionId, state))
+void piAgentStatusServer.start().catch((error) => log('warning', 'pi_agent_status_server_unavailable', { error: error?.name ?? 'unknown' }))
+app.once('will-quit', () => { void piAgentStatusServer.stop() })
 const chooseTerminalAttachments = piRuntime.chooseAttachments
+const closePiSession = piRuntime.closeSession
+const createPiSession = piRuntime.createSession
+const focusPiSession = piRuntime.focusSession
+const listPiSessions = piRuntime.listSessions
 const reloadPi = piRuntime.reload
+const renamePiSession = piRuntime.renameSession
 const restartPi = piRuntime.restart
 const startPi = piRuntime.start
 const startPiConfig = piRuntime.startConfig
@@ -689,6 +695,7 @@ function registerApplicationIpc(instanceRegistry) {
     projectFileIndex,
     readProjectFile,
     readProjectPreview,
+    searchProjectFileContents,
     renameProjectEntry,
     requireActiveWorkspace,
     resolveProjectDirectory,
@@ -766,8 +773,13 @@ function registerApplicationIpc(instanceRegistry) {
     prepareTerminalAttachment,
     rejectOneWay,
     reloadPi,
+    closePiSession,
+    createPiSession,
+    focusPiSession,
+    listPiSessions,
+    renamePiSession,
+    requireActiveWorkspace,
     restartPi,
-    runHerdrCommand: (command) => herdrRuntime.runWorkspaceCommand(requireActiveWorkspace(), command),
     sanitizeRendererMetrics,
     startPiConfig,
     stopPiConfig,
@@ -790,9 +802,6 @@ function registerApplicationIpc(instanceRegistry) {
     cleanMachineSmokeMode: CLEAN_MACHINE_SMOKE_MODE,
     getPtyStatus: () => ptyRuntime.getStatus(),
     getRuntimeCapabilities,
-    inspectHerdr: () => RELIABILITY_BENCHMARK_MODE
-      ? { available: false, reason: 'disabled' }
-      : herdrRuntime.inspect(process.env),
     resolvePiExecutable,
   })
   registerPiSystemIpc({

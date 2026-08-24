@@ -105,3 +105,19 @@ test('rimuove e risolve un waiter di input quando il paste viene annullato', asy
   assert.equal(pty.resumes, 0)
   controller.dispose()
 })
+
+test('una sessione Pi in background conserva storico limitato senza sospendere il processo', () => {
+  const { controller, pty, sent } = harness()
+  controller.push('abcdefghijkl')
+  assert.equal(pty.pauses, 1)
+  assert.equal(controller.disconnect({ sessionId: 'session-a' }), true)
+  assert.equal(pty.resumes, 1)
+  const pauseCount = pty.pauses
+  for (let index = 0; index < 100; index += 1) controller.push('wxyz')
+  assert.equal(pty.pauses, pauseCount)
+  assert.equal(sent.length, 1)
+  const snapshot = controller.createResumeSnapshot()
+  assert.ok(snapshot.snapshot.bytes <= 32)
+  assert.match(snapshot.snapshot.data, /wxyz/u)
+  controller.dispose()
+})

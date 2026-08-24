@@ -138,8 +138,11 @@ describe('recovery del workspace Database', () => {
 
     await screen.findByRole('button', { name: 'Connetti' })
     expect(inspectSchema).not.toHaveBeenCalled()
+    expect(screen.getByText('Connessione non attiva')).toBeVisible()
+    expect(screen.getByText('“Database A” è selezionata ma non connessa.')).toBeVisible()
+    expect(screen.getByText('La connessione parte solo quando la richiedi.')).toBeVisible()
 
-    await user.click(screen.getByRole('button', { name: 'Connetti' }))
+    await user.click(screen.getByRole('button', { name: 'Connetti Database A' }))
     expect(await screen.findByRole('treeitem', { name: 'prima_tabella' })).toBeVisible()
     expect(await screen.findByRole('treeitem', { name: 'ultima_tabella' })).toBeVisible()
     expect(screen.getByRole('treeitem', { name: 'prima_tabella' })).toBeVisible()

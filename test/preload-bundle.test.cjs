@@ -113,6 +113,7 @@ test('il bundle conserva superficie, argomenti IPC e flag benchmark condizionali
     'index',
     'indexStatus',
     'read',
+    'searchContent',
     'preview',
     'prepareAttachment',
     'create',
@@ -131,7 +132,16 @@ test('il bundle conserva superficie, argomenti IPC e flag benchmark condizionali
     'delete',
     'reload',
   ])
-  assert.deepEqual(Array.from(Object.keys(api.pi)), ['reload', 'restart'])
+  assert.deepEqual(Array.from(Object.keys(api.pi)), [
+    'listSessions',
+    'createSession',
+    'focusSession',
+    'renameSession',
+    'closeSession',
+    'reload',
+    'restart',
+    'onSessionsChanged',
+  ])
   assert.deepEqual(Array.from(Object.keys(api.systemSkills)), [
     'list',
     'get',
@@ -266,6 +276,7 @@ test('il bundle conserva superficie, argomenti IPC e flag benchmark condizionali
     'resume',
     'ready',
     'ack',
+    'disconnect',
     'chooseAttachments',
     'prepareDroppedAttachments',
     'writeKey',
@@ -276,7 +287,6 @@ test('il bundle conserva superficie, argomenti IPC e flag benchmark condizionali
     'reportRendererMetrics',
     'diagnostics',
     'exportDiagnostics',
-    'herdrCommand',
     'resize',
     'onOutput',
     'onStreamState',

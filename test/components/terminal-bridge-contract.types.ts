@@ -20,31 +20,29 @@ type Equal<Left, Right> =
 
 type Expect<Value extends true> = Value
 
-type ExpectedAiTerminalRuntime = 'herdr' | 'pi'
-type ExpectedAiTerminalFallbackReason =
-  | 'missing'
-  | 'not-executable'
-  | 'timeout'
-  | 'invalid-version-output'
-  | 'preflight-failed'
-  | 'spawn-failed'
-  | 'early-exit'
-  | 'bootstrap-failed'
-  | 'nested-herdr'
-  | 'disabled'
-type ExpectedAiTerminalReloadResult =
-  | { reloaded: true; runtime: 'pi' }
-  | { reloaded: false; runtime: 'herdr'; reason: 'active-pane-ambiguous' }
-type ExpectedAiTerminalRestartOptions = { runtime: 'pi' }
-type ExpectedAiTerminalRestartResult = {
-  restarted: true
-  runtime: ExpectedAiTerminalRuntime
-  fallbackReason?: ExpectedAiTerminalFallbackReason
-  piAvailable?: boolean
+type ExpectedAiTerminalReloadResult = { reloaded: true }
+type ExpectedAiTerminalRestartResult = { restarted: true; sessionId: string }
+type ExpectedPiSession = {
+  sessionId: string
+  title: string
+  status: 'starting' | 'running' | 'exited' | 'error'
+  activity: 'ready' | 'working' | 'completed' | 'unknown'
+  active: boolean
+  createdAt: number
+  lastFocusedAt: number
+  pid: number | null
+  exitStatus: { exitCode: number | null; signal: number | string | null } | null
 }
+type ExpectedPiSessionsState = { workspacePath: string; activeSessionId: string | null; sessions: ExpectedPiSession[] }
 type ExpectedPiApi = {
-  reload: () => Promise<ExpectedAiTerminalReloadResult>
-  restart: (options?: ExpectedAiTerminalRestartOptions) => Promise<ExpectedAiTerminalRestartResult>
+  listSessions: () => Promise<ExpectedPiSessionsState>
+  createSession: () => Promise<ExpectedPiSession>
+  focusSession: (sessionId: string) => Promise<ExpectedPiSession>
+  renameSession: (sessionId: string, title: string) => Promise<ExpectedPiSession>
+  closeSession: (sessionId: string) => Promise<{ closed: true; activeSessionId: string | null }>
+  reload: (sessionId?: string) => Promise<ExpectedAiTerminalReloadResult>
+  restart: (sessionId: string) => Promise<ExpectedAiTerminalRestartResult>
+  onSessionsChanged: (listener: (state: ExpectedPiSessionsState) => void) => () => void
 }
 
 type ExpectedTerminalErrorCategory =
@@ -66,14 +64,14 @@ type ExpectedTerminalErrorCategory =
   | 'persistence'
   | 'internal'
 interface ExpectedTerminalExitStatus {
+  sessionId?: string
   exitCode: number | null
   signal: number | string | null
-  runtime?: ExpectedAiTerminalRuntime
-  piAvailable?: boolean
 }
 type ExpectedTerminalOneWayOperation = 'ready' | 'ack' | 'key' | 'resize'
 type ExpectedTerminalErrorRecovery = 'resume' | 'restart' | 'resize'
 interface ExpectedTerminalErrorEvent {
+  sessionId?: string
   operation: ExpectedTerminalOneWayOperation
   recovery: ExpectedTerminalErrorRecovery
   error: {
@@ -93,9 +91,6 @@ type ExpectedTerminalResumeSnapshot = {
   snapshot: { data: string; firstSequence: number; watermark: number; bytes: number }
   status: ExpectedTerminalStreamStatus
   exitStatus?: ExpectedTerminalExitStatus
-  runtime: ExpectedAiTerminalRuntime
-  fallbackReason?: ExpectedAiTerminalFallbackReason
-  piAvailable?: boolean
 }
 type ExpectedTerminalStreamState = { sessionId: string; status: ExpectedTerminalStreamStatus; queuedBytes: number }
 interface ExpectedTerminalAttachment {
@@ -109,21 +104,6 @@ type ExpectedTerminalPasteChunkResult =
   | { accepted: true; complete: boolean; sentBytes: number; totalBytes: number }
   | { accepted: false; reason: 'invalid-chunk' | 'cancelled' | 'not-running'; sentBytes: number; totalBytes: number }
 type ExpectedTerminalPasteCancelResult = { cancelled: boolean; sentBytes: number; totalBytes: number }
-type ExpectedHerdrCommand =
-  | 'new-pi'
-  | 'new-pi-right'
-  | 'new-pi-down'
-  | 'previous-agent'
-  | 'next-agent'
-  | 'zoom-pane'
-  | 'close-pane'
-type ExpectedHerdrCommandResult = {
-  command: ExpectedHerdrCommand
-  workspaceId: string
-  focused?: boolean
-  agentName?: string
-  paneId?: string
-}
 type ExpectedTerminalRendererMetrics = {
   queuedBlocks: number
   ackP50Ms: number
@@ -158,21 +138,21 @@ interface ExpectedTerminalDiagnosticsReport {
   }
 }
 type ExpectedTerminalApi = {
-  resume: (request: { knownSessionId?: string; lastAcknowledgedSequence?: number }) => Promise<ExpectedTerminalResumeSnapshot>
-  ready: (message: { sessionId: string; watermark: number }) => void
-  ack: (message: ExpectedTerminalOutputAck) => void
+  resume: (sessionId: string) => Promise<ExpectedTerminalResumeSnapshot>
+  ready: (sessionId: string, message: { sessionId: string; watermark: number }) => void
+  ack: (sessionId: string, message: ExpectedTerminalOutputAck) => void
+  disconnect: (sessionId: string, message: { sessionId: string }) => void
   chooseAttachments: () => Promise<ExpectedTerminalAttachment[]>
   prepareDroppedAttachments: (files: File[]) => Promise<ExpectedTerminalAttachment[]>
-  writeKey: (data: string) => void
-  writeInput: (data: string) => Promise<{ accepted: true; bytes: number }>
-  startPaste: (input: { totalBytes: number }) => Promise<ExpectedTerminalPasteStartResult>
-  writePasteChunk: (input: { transferId: string; index: number; data: string }) => Promise<ExpectedTerminalPasteChunkResult>
-  cancelPaste: (transferId: string) => Promise<ExpectedTerminalPasteCancelResult>
-  reportRendererMetrics: (metrics: ExpectedTerminalRendererMetrics) => void
-  diagnostics: () => Promise<ExpectedTerminalDiagnosticsReport>
-  exportDiagnostics: () => Promise<{ exported: boolean; filePath?: string }>
-  herdrCommand: (command: ExpectedHerdrCommand) => Promise<ExpectedHerdrCommandResult>
-  resize: (dimensions: { cols: number; rows: number }) => void
+  writeKey: (sessionId: string, data: string) => void
+  writeInput: (sessionId: string, data: string) => Promise<{ accepted: true; bytes: number }>
+  startPaste: (sessionId: string, input: { totalBytes: number }) => Promise<ExpectedTerminalPasteStartResult>
+  writePasteChunk: (sessionId: string, input: { transferId: string; index: number; data: string }) => Promise<ExpectedTerminalPasteChunkResult>
+  cancelPaste: (sessionId: string, transferId: string) => Promise<ExpectedTerminalPasteCancelResult>
+  reportRendererMetrics: (sessionId: string, metrics: ExpectedTerminalRendererMetrics) => void
+  diagnostics: (sessionId?: string) => Promise<ExpectedTerminalDiagnosticsReport>
+  exportDiagnostics: (sessionId?: string) => Promise<{ exported: boolean; filePath?: string }>
+  resize: (sessionId: string, dimensions: { cols: number; rows: number }) => void
   onOutput: (listener: (block: ExpectedTerminalOutputBlock) => void) => () => void
   onStreamState: (listener: (state: ExpectedTerminalStreamState) => void) => () => void
   onExit: (listener: (status: ExpectedTerminalExitStatus) => void) => () => void
@@ -210,13 +190,14 @@ export type TerminalBridgeContractAssertions = [
   Expect<Equal<BridgePiConfigErrorEvent['error']['severity'], BridgeApplicationErrorSeverity>>,
   Expect<Equal<PiApi, ExpectedPiApi>>,
   Expect<Equal<VincodeLabBridge['pi'], PiApi>>,
-  Expect<Equal<keyof PiApi, 'reload' | 'restart'>>,
+  Expect<Equal<keyof PiApi, 'listSessions' | 'createSession' | 'focusSession' | 'renameSession' | 'closeSession' | 'reload' | 'restart' | 'onSessionsChanged'>>,
   Expect<Equal<TerminalApi, ExpectedTerminalApi>>,
   Expect<Equal<VincodeLabBridge['terminal'], TerminalApi>>,
   Expect<Equal<keyof TerminalApi,
     | 'resume'
     | 'ready'
     | 'ack'
+    | 'disconnect'
     | 'chooseAttachments'
     | 'prepareDroppedAttachments'
     | 'writeKey'
@@ -227,7 +208,6 @@ export type TerminalBridgeContractAssertions = [
     | 'reportRendererMetrics'
     | 'diagnostics'
     | 'exportDiagnostics'
-    | 'herdrCommand'
     | 'resize'
     | 'onOutput'
     | 'onStreamState'
@@ -243,14 +223,8 @@ export type TerminalBridgeContractAssertions = [
 
 // @ts-expect-error Lo stato exit deve essere importato dal bridge, non dichiarato globalmente.
 export type TerminalExitStatusContractMustNotBeGlobal = TerminalExitStatus
-// @ts-expect-error Il runtime AI deve essere importato dal bridge, non dichiarato globalmente.
-export type AiTerminalRuntimeContractMustNotBeGlobal = AiTerminalRuntime
-// @ts-expect-error Il fallback AI deve essere importato dal bridge, non dichiarato globalmente.
-export type AiTerminalFallbackReasonContractMustNotBeGlobal = AiTerminalFallbackReason
 // @ts-expect-error Il reload AI deve essere importato dal bridge, non dichiarato globalmente.
 export type AiTerminalReloadResultContractMustNotBeGlobal = AiTerminalReloadResult
-// @ts-expect-error Le opzioni restart devono essere importate dal bridge, non dichiarate globalmente.
-export type AiTerminalRestartOptionsContractMustNotBeGlobal = AiTerminalRestartOptions
 // @ts-expect-error Il risultato restart deve essere importato dal bridge, non dichiarato globalmente.
 export type AiTerminalRestartResultContractMustNotBeGlobal = AiTerminalRestartResult
 // @ts-expect-error L’operazione terminale deve essere importata dal bridge, non dichiarata globalmente.

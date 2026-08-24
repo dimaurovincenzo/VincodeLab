@@ -18,7 +18,6 @@ function runtimeFixture(overrides = {}) {
       calls.push(['service', options])
       return snapshot
     },
-    inspectHerdr: async () => ({ available: true, executable: '/opt/homebrew/bin/herdr' }),
     resolvePiExecutable: () => '/usr/local/bin/pi',
     ...overrides,
   }
@@ -49,7 +48,6 @@ test('verifica il sender prima di leggere le capability e conserva le opzioni no
   assert.equal(fixture.calls[0][0], 'guard')
   assert.equal(fixture.calls[0][1], event)
   assert.deepEqual(fixture.calls[1], ['service', {
-    herdrStatus: { available: true, executable: '/opt/homebrew/bin/herdr' },
     piExecutable: '/usr/local/bin/pi',
     ptyStatus: { available: true },
     systemToolSearchOptions: undefined,

@@ -72,6 +72,23 @@ interface ExpectedProjectFileIndexStatus {
   error?: { code: string }
 }
 
+interface ExpectedProjectFileContentMatch {
+  fileId: string
+  fileName: string
+  directory: string
+  line: number
+  column: number
+  preview: string
+}
+
+interface ExpectedProjectFileContentSearchResult {
+  cancelled: boolean
+  filesSearched: number
+  matches: ExpectedProjectFileContentMatch[]
+  skippedFiles: number
+  truncated: boolean
+}
+
 interface ExpectedTerminalAttachment {
   absolutePath: string
   name: string
@@ -83,6 +100,7 @@ type ExpectedFilesApi = {
   index: (options?: { force?: boolean }) => Promise<ExpectedProjectFileIndexResult>
   indexStatus: () => Promise<ExpectedProjectFileIndexStatus | null>
   read: (fileId: string) => Promise<ExpectedProjectFileReadResult>
+  searchContent: (query: string, options?: { maxResults?: number }) => Promise<ExpectedProjectFileContentSearchResult>
   preview: (fileId: string) => Promise<{ id: string; name: string; kind: 'image' | 'pdf'; content: string; size: number }>
   prepareAttachment: (fileId: string) => Promise<ExpectedTerminalAttachment>
   create: (directoryId: string, fileName: string) => Promise<ExpectedProjectFileReadResult>
@@ -100,6 +118,8 @@ export type FilesBridgeContractAssertions = [
   Expect<Equal<Bridge.ProjectFileIndexEntry, ExpectedProjectFileIndexEntry>>,
   Expect<Equal<Bridge.ProjectFileIndexResult, ExpectedProjectFileIndexResult>>,
   Expect<Equal<Bridge.ProjectFileIndexStatus, ExpectedProjectFileIndexStatus>>,
+  Expect<Equal<Bridge.ProjectFileContentMatch, ExpectedProjectFileContentMatch>>,
+  Expect<Equal<Bridge.ProjectFileContentSearchResult, ExpectedProjectFileContentSearchResult>>,
   Expect<Equal<Bridge.FilesApi, ExpectedFilesApi>>,
   Expect<Equal<Bridge.VincodeLabBridge['files'], Bridge.FilesApi>>,
   Expect<Equal<Awaited<ReturnType<Bridge.FilesApi['prepareAttachment']>>, Bridge.TerminalAttachment>>,
@@ -109,6 +129,7 @@ export type FilesBridgeContractAssertions = [
     | 'index'
     | 'indexStatus'
     | 'read'
+    | 'searchContent'
     | 'preview'
     | 'prepareAttachment'
     | 'create'

@@ -30,7 +30,7 @@ function createTerminalStreamController({
   let inFlight = null
   let batchTimer = null
   let stallTimer = null
-  let rendererConnected = false
+  let rendererPhase = 'detached'
   let pausedForPressure = false
   let pausedForStall = false
   let ptyPaused = false
@@ -73,7 +73,7 @@ function createTerminalStreamController({
   }
 
   const pump = () => {
-    if (disposed || !rendererConnected || inFlight || queue.length === 0) return
+    if (disposed || rendererPhase !== 'connected' || inFlight || queue.length === 0) return
     inFlight = queue[0]
     sendBlock({ sessionId, sequence: inFlight.sequence, data: inFlight.data })
     stallTimer = setTimer(() => {
@@ -88,6 +88,7 @@ function createTerminalStreamController({
     blockCount += 1
     maxBlockBytes = Math.max(maxBlockBytes, block.bytes)
     history.append(block)
+    if (rendererPhase === 'detached') return
     queue.push(block)
     queuedBytes += block.bytes
     peakQueuedBytes = Math.max(peakQueuedBytes, queuedBytes)
@@ -135,11 +136,14 @@ function createTerminalStreamController({
 
   const createResumeSnapshot = () => {
     flushBatch()
-    rendererConnected = false
+    rendererPhase = 'connecting'
     if (stallTimer !== null) clearTimer(stallTimer)
     stallTimer = null
     inFlight = null
+    queue.length = 0
+    queuedBytes = 0
     pausedForStall = false
+    pausedForPressure = false
     syncPty()
     setStatus('recovering')
     return {
@@ -157,10 +161,24 @@ function createTerminalStreamController({
       queuedBytes -= block.bytes
       renderedBytes += block.bytes
     }
-    rendererConnected = true
+    rendererPhase = 'connected'
     updatePressure()
     setStatus(endedStatus && queue.length === 0 ? 'ended' : 'running')
     pump()
+    return true
+  }
+
+  const disconnect = (message) => {
+    if (disposed || message?.sessionId !== sessionId || rendererPhase === 'detached') return false
+    if (stallTimer !== null) clearTimer(stallTimer)
+    stallTimer = null
+    rendererPhase = 'detached'
+    inFlight = null
+    queue.length = 0
+    queuedBytes = 0
+    pausedForPressure = false
+    pausedForStall = false
+    syncPty()
     return true
   }
 
@@ -187,7 +205,7 @@ function createTerminalStreamController({
   const end = (status) => {
     flushBatch()
     endedStatus = status
-    if (queue.length === 0) setStatus('ended')
+    if (rendererPhase === 'connected' && queue.length === 0) setStatus('ended')
   }
 
   const dispose = () => {
@@ -201,6 +219,7 @@ function createTerminalStreamController({
       pausedSince = null
     }
     inputWaiters.splice(0).forEach((release) => release())
+    rendererPhase = 'detached'
     queue.length = 0
     history.clear()
   }
@@ -216,12 +235,14 @@ function createTerminalStreamController({
     pauseCount,
     pausedMs: pausedMs + (ptyPaused ? Math.max(0, now() - pausedSince) : 0),
     renderer: rendererMetrics,
+    rendererConnected: rendererPhase === 'connected',
   })
 
   return {
     push,
     ack,
     createResumeSnapshot,
+    disconnect,
     rendererReady: markRendererReady,
     waitForInputCapacity,
     end,

@@ -620,6 +620,7 @@ describe('ordinamento richieste del workspace GitHub', () => {
     const user = userEvent.setup()
     render(<GitHubWorkspace active workspace="/tmp/github-limited-files" />)
 
+    expect(await screen.findByText('Elenco limitato: il repository contiene altre modifiche o branch oltre quelli mostrati.')).toBeVisible()
     expect(await screen.findByText(/Elenco modifiche limitato a 2 file visibili/)).toBeInTheDocument()
     expect(screen.getByText(/Elenco branch limitato ai primi 1 risultati/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Aggiungi i 2 file visibili consentiti' }))
@@ -655,6 +656,7 @@ describe('ordinamento richieste del workspace GitHub', () => {
     const user = userEvent.setup()
     const view = render(<GitHubWorkspace active initialState={initialState('issues')} workspace="/tmp/github-limited-remote" />)
 
+    expect(await screen.findByText('Issue limitate: GitHub contiene altre issue oltre quelle caricate.')).toBeVisible()
     expect(await screen.findByText(/Elenco issue limitato alle prime 1 attività/)).toBeInTheDocument()
     expect(screen.getByText('altre etichette…')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Issue limitata/ }))
@@ -663,6 +665,7 @@ describe('ordinamento richieste del workspace GitHub', () => {
 
     view.unmount()
     render(<GitHubWorkspace active initialState={initialState('projects', 1)} workspace="/tmp/github-limited-remote" />)
+    expect(await screen.findByText('Progetti limitati: GitHub contiene altri progetti, elementi o campi oltre quelli caricati.')).toBeVisible()
     expect(await screen.findByText(/Elenco Project limitato ai primi 2 risultati/)).toBeInTheDocument()
     expect(await screen.findByText(/Sono mostrati solo i primi campi disponibili/)).toHaveTextContent('Alcune opzioni dei campi sono state abbreviate')
     expect(screen.getByText(/Sono mostrate solo le prime attività disponibili/)).toHaveTextContent('Alcuni valori delle attività sono stati abbreviati')

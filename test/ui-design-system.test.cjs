@@ -944,7 +944,7 @@ test('il terminale AI viene rifatto al ritorno nella tab e non eccede orizzontal
 
   assert.match(runtime, /if \(!workspace \|\| !active \|\| !getTerminal\(\)\) return/)
   assert.match(runtime, /fitAddon\.current\?\.fit\(\)/)
-  assert.match(runtime, /const xterm = getTerminal\(\)[\s\S]{0,180}aiBridge\.terminal\.resize\(\{ cols: xterm\.cols, rows: xterm\.rows \}\)/)
+  assert.match(runtime, /const xterm = getTerminal\(\)[\s\S]{0,260}aiBridge\.terminal\.resize\(sessionId, \{ cols: xterm\.cols, rows: xterm\.rows \}\)/)
   assert.match(styles, /workspace:\s*css\(\{[\s\S]*?minW:\s*'0'/)
   assert.match(styles, /surface:\s*css\(\{[\s\S]*?minW:\s*'0'/)
 })
@@ -983,7 +983,7 @@ test('il reload di Pi ripristina la geometria completa di xterm e non espone il 
   const styles = readTerminalStylesSource()
   const bridge = fs.readFileSync(path.join(__dirname, '../src/styles/views/terminal.css'), 'utf8')
 
-  assert.match(runtime, /await aiBridge\.pi\.reload\(\)[\s\S]*scheduleVisibleTerminalRefit/)
+  assert.match(runtime, /await aiBridge\.pi\.reload\(sessionId\)[\s\S]*scheduleVisibleTerminalRefit/)
   assert.match(runtime, /window\.setTimeout\(refitAfterReload, 160\)/)
   assert.match(styles, /xtermHost:\s*css\(\{[\s\S]*?h:\s*'full'[\s\S]*?w:\s*'full'/)
   assert.match(bridge, /\[data-xterm-host\] \.xterm\s*\{[^}]*width:\s*100%[^}]*height:\s*100%/)

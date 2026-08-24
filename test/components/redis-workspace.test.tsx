@@ -57,6 +57,9 @@ describe('Redis workspace read-only', () => {
     const view = render(<StrictMode><RedisWorkspace initialState={initialState} workspace="/tmp/redis-passive" /></StrictMode>)
 
     expect(await screen.findByRole('heading', { name: 'Connessione Redis inattiva' })).toBeVisible()
+    expect(screen.getByText('“Redis locale” è selezionata ma non connessa.')).toBeVisible()
+    expect(screen.getByText('Connettiti per caricare le chiavi Redis.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Connetti Redis locale dal browser chiavi' })).toBeVisible()
     expect(screen.getByText(/nessuna richiesta di rete parte entrando nella tab Redis/i)).toBeVisible()
     expect(harness.api.scanKeys).not.toHaveBeenCalled()
     expect(harness.api.readKey).not.toHaveBeenCalled()

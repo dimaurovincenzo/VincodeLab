@@ -2,6 +2,7 @@ import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react'
 import type { Terminal } from '@xterm/xterm'
 import type { LaunchState } from '../model/ai-runtime.types'
 import { useAiFailure } from './use-ai-failure'
+import { useAiSessions } from './use-ai-sessions'
 import { useAiTerminalRuntime } from './use-ai-terminal-runtime'
 
 type UseAiRuntimeOptions = {
@@ -35,7 +36,9 @@ export function useAiRuntime({
   const getTerminalElement = useCallback(() => terminalElement.current, [])
   const setTerminalInstance = useCallback((instance: Terminal | null) => { terminal.current = instance }, [])
   const failure = useAiFailure()
+  const sessions = useAiSessions(workspace)
   const runtime = useAiTerminalRuntime({
+    activeSessionId: sessions.activeSessionId,
     active,
     aiFailureRef: failure.aiFailureRef,
     clearAiFailure: failure.clearAiFailure,
@@ -60,9 +63,11 @@ export function useAiRuntime({
     terminal.current?.focus()
   }, [])
   const terminalStatus = status === 'running'
-    ? runtime.terminalRuntime?.runtime === 'herdr'
-      ? 'Herdr · sessione condivisa'
-      : 'Pi diretto pronto'
+    ? sessions.activeSession?.activity === 'working'
+      ? 'Pi sta lavorando'
+      : sessions.activeSession?.activity === 'completed'
+        ? 'Task completato'
+        : 'Pi pronto'
     : status === 'launching'
       ? 'Avvio Terminale AI…'
       : status === 'ended'
@@ -73,6 +78,7 @@ export function useAiRuntime({
 
   return {
     ...runtime,
+    ...sessions,
     aiFailure: failure.aiFailure,
     clearAiFailure: failure.clearAiFailure,
     publishAiFailure: failure.publishAiFailure,

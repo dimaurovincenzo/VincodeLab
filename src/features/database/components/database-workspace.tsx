@@ -413,8 +413,8 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
       <Splitter.Panel id="database-sidebar">
         <DatabaseExplorer
           activeSavedQueryId={editor.activeSavedQueryId} connectionError={connections.connectionError} connections={connections.connections}
-          connectionLocked={resources.disconnectAvailable} connectionReady={resources.connectionReady} expandedSchemas={expandedSchemas} history={resources.history} loadingConnections={connections.loadingConnections}
-          onClearHistory={requestClearHistory} onDeleteConnection={deleteConnection} onDeleteSavedQuery={deleteSavedQuery}
+          connectionLocked={resources.disconnectAvailable} connectionReady={resources.connectionReady} connecting={resources.loadingResources} expandedSchemas={expandedSchemas} history={resources.history} loadingConnections={connections.loadingConnections}
+          onClearHistory={requestClearHistory} onConnect={() => { void resources.connect() }} onDeleteConnection={deleteConnection} onDeleteSavedQuery={deleteSavedQuery}
           onEditConnection={connections.editConnection} onExpandedSchemasChange={setExpandedSchemas} onNewConnection={connections.openNewConnection}
           onOpenRoutine={(routine) => { void openRoutine(routine) }} onOpenSql={openSql} onOpenTable={openTable} onReloadConnections={() => { void connections.loadConnections() }}
           onSchemaFilterChange={resources.setSchemaFilter} onSelectConnection={selectConnection} onSidebarTabChange={setSidebarTab}

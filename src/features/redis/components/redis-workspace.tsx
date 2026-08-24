@@ -21,6 +21,8 @@ export function RedisWorkspace(props: RedisWorkspaceProps) {
     <section aria-busy={state.loadingConnections || state.sessionBusy} aria-label="Workspace Redis" className={rs.workspace}>
       <Splitter.Panel id="redis-browser">
         <RedisKeyBrowser
+          connectionInactive={!state.activeConnectionId}
+          connectionName={state.selected?.name ?? null}
           cursorDepth={state.pageIndex}
           disabled={!state.operational}
           error={state.scanError}
@@ -30,6 +32,7 @@ export function RedisWorkspace(props: RedisWorkspaceProps) {
           loading={state.scanLoading}
           selectedKey={state.selectedKeyRef}
           typeFilter={state.typeFilter}
+          onConnect={() => { void controller.connectSelected() }}
           onFilter={controller.applyFilters}
           onNext={controller.showNextPage}
           onPrevious={controller.showPreviousPage}

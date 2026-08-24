@@ -57,6 +57,7 @@ export function useProjectSkillsController({ workspace, onWorkspaceGuardChange }
   const [loadError, setLoadError] = useState<UserError | null>(null)
   const [operationFailure, setOperationFailure] = useState<SkillsFailure | null>(null)
   const [saving, setSaving] = useState(false)
+  const [piReloadRequired, setPiReloadRequired] = useState(false)
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null)
   const selectionRequestId = useRef(0)
   const selectionGeneration = useRef(0)
@@ -156,6 +157,7 @@ export function useProjectSkillsController({ workspace, onWorkspaceGuardChange }
     setOperationFailure(null)
     try {
       const skill = await aiBridge.skills.create(name)
+      setPiReloadRequired(true)
       setNewName('')
       await loadSkills()
       await selectSkill(skill.id)
@@ -186,6 +188,7 @@ export function useProjectSkillsController({ workspace, onWorkspaceGuardChange }
     const job = (async () => {
       try {
         const skill = await aiBridge.skills.update(skillId, nextContent)
+        setPiReloadRequired(true)
         commitVolatileDraft(skillDraftIdentity(workspace, skillId), nextContent)
         // Il salvataggio appartiene alla selezione catturata: se nel frattempo
         // l'utente apre un'altra skill, il suo baseline non deve essere sostituito.
@@ -228,6 +231,7 @@ export function useProjectSkillsController({ workspace, onWorkspaceGuardChange }
     setOperationFailure(null)
     try {
       await aiBridge.skills.delete(selectedId)
+      setPiReloadRequired(true)
       discardVolatileDraft(skillDraftIdentity(workspace, selectedId))
       selectionGeneration.current += 1
       selectedIdRef.current = null
@@ -269,11 +273,8 @@ export function useProjectSkillsController({ workspace, onWorkspaceGuardChange }
   const reloadPi = async () => {
     setOperationFailure(null)
     try {
-      const result = await aiBridge.skills.reload()
-      if (!result.reloaded) {
-        toast.info('Esegui /reload nel pane Pi desiderato in Herdr.')
-        return
-      }
+      await aiBridge.skills.reload()
+      setPiReloadRequired(false)
       toast.success('Pi sta ricaricando skill, prompt ed estensioni.')
     } catch (error) {
       setOperationFailure({
@@ -304,6 +305,7 @@ export function useProjectSkillsController({ workspace, onWorkspaceGuardChange }
         })
         if (selectedIdRef.current !== skillId) throw new Error('La skill selezionata è cambiata durante il ripristino.')
         await aiBridge.skills.update(skillId, baseline)
+        setPiReloadRequired(true)
         await loadSkills()
       }
       if (selectedIdRef.current !== skillId) return
@@ -433,6 +435,7 @@ export function useProjectSkillsController({ workspace, onWorkspaceGuardChange }
       loading,
       newName,
       operationFailure,
+      piReloadRequired,
       saving,
       selectedId,
       skills,

@@ -9,13 +9,13 @@ export type {
   AppearanceApi,
 } from './contracts/appearance.types'
 export type {
-  AiTerminalFallbackReason,
   AiTerminalReloadResult,
-  AiTerminalRestartOptions,
   AiTerminalRestartResult,
-  AiTerminalRuntime,
-  AiTerminalRuntimeState,
   PiApi,
+  PiSession,
+  PiSessionActivity,
+  PiSessionsState,
+  PiSessionStatus,
 } from './contracts/ai-terminal.types'
 export type {
   AppMenuApi,
@@ -54,6 +54,8 @@ export type {
 export type {
   FilesApi,
   ProjectFileIndexEntry,
+  ProjectFileContentMatch,
+  ProjectFileContentSearchResult,
   ProjectFileIndexResult,
   ProjectFileIndexStatus,
   ProjectFileReadResult,
@@ -165,8 +167,6 @@ export type {
   ShellSessionStatus,
 } from './contracts/shell-sessions.types'
 export type {
-  HerdrCommand,
-  HerdrCommandResult,
   TerminalApi,
   TerminalAttachment,
   TerminalDiagnosticsReport,

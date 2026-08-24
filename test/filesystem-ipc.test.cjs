@@ -21,6 +21,7 @@ function filesystemFixture(overrides = {}) {
     list: [{ id: 'README.md' }],
     preview: { kind: 'text', content: 'preview' },
     read: { id: 'file.txt', content: 'content' },
+    search: { cancelled: false, filesSearched: 1, matches: [], skippedFiles: 0, truncated: false },
     renamed: { id: 'src/renamed.txt', renamed: true },
     saved: { id: 'file.txt', revision: 'v1-next', size: 7 },
   }
@@ -71,6 +72,10 @@ function filesystemFixture(overrides = {}) {
       calls.push(['preview', workspacePath, fileId])
       return results.preview
     },
+    searchProjectFileContents: (workspacePath, query, options) => {
+      calls.push(['search-content', workspacePath, query, options])
+      return results.search
+    },
     renameProjectEntry: (workspacePath, entryId, entryName, expectedKind) => {
       calls.push(['rename', workspacePath, entryId, entryName, expectedKind])
       return results.renamed
@@ -103,7 +108,7 @@ function filesystemFixture(overrides = {}) {
   return { calls, dependencies, ipcMain, registrations, results }
 }
 
-test('registra una sola volta il manifesto dei 13 canali IPC Filesystem', () => {
+test('registra una sola volta il manifesto dei 14 canali IPC Filesystem', () => {
   const fixture = filesystemFixture()
   const registration = registerFilesystemIpc({ ipcMain: fixture.ipcMain, ...fixture.dependencies })
 
@@ -113,6 +118,7 @@ test('registra una sola volta il manifesto dei 13 canali IPC Filesystem', () => 
     'files:index',
     'files:indexStatus',
     'files:read',
+    'files:searchContent',
     'files:preview',
     'files:prepareAttachment',
     'files:create',
@@ -135,6 +141,7 @@ test('ogni handler verifica il sender prima di usare workspace o servizi', async
     ['files:index', [{}]],
     ['files:indexStatus', []],
     ['files:read', ['file.txt']],
+    ['files:searchContent', ['needle', { maxResults: 20 }]],
     ['files:preview', ['file.txt']],
     ['files:prepareAttachment', ['file.txt']],
     ['files:create', ['src', 'new.txt']],
@@ -168,6 +175,7 @@ test('le letture derivano sempre il workspace attivo e restituiscono il risultat
   assert.equal(handlers.get('files:listDirectory')(event, 'src'), fixture.results.directory)
   assert.equal(handlers.get('files:indexStatus')(event), fixture.results.indexStatus)
   assert.equal(handlers.get('files:read')(event, 'file.txt'), fixture.results.read)
+  assert.equal(handlers.get('files:searchContent')(event, 'needle', { maxResults: 20 }), fixture.results.search)
   assert.equal(handlers.get('files:preview')(event, 'image.png'), fixture.results.preview)
   assert.equal(handlers.get('files:prepareAttachment')(event, 'notes.md'), fixture.results.attachment)
 
@@ -176,6 +184,7 @@ test('le letture derivano sempre il workspace attivo e restituiscono il risultat
     ['guard', event], ['require-workspace'], ['list-directory', '/workspace/current', 'src'],
     ['guard', event], ['require-workspace'], ['index-status', '/workspace/current'],
     ['guard', event], ['require-workspace'], ['read', '/workspace/current', 'file.txt'],
+    ['guard', event], ['require-workspace'], ['search-content', '/workspace/current', 'needle', { maxResults: 20 }],
     ['guard', event], ['require-workspace'], ['preview', '/workspace/current', 'image.png'],
     ['guard', event], ['require-workspace'], ['prepare-attachment', '/workspace/current', 'notes.md'],
   ])

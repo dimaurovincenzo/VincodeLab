@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { FilePenLine, Plus, Trash2 } from 'lucide-react'
+import { FilePenLine, Plus, Trash2, Unplug } from 'lucide-react'
 import type { DatabaseConnection, DatabaseHistoryEntry, DatabaseRoutine, DatabaseSavedQuery, DatabaseTableSchema } from '@/bridge'
 import { Button, ErrorNotice, Field, IconButton, Progress, SelectField, Spinner, Tabs, TreeView, createTreeCollection } from '@/components/ui'
 import type { UserError } from '@/lib/user-error'
@@ -13,11 +13,13 @@ type DatabaseExplorerProps = {
   connectionError: UserError | null
   connectionLocked: boolean
   connectionReady: boolean
+  connecting: boolean
   connections: DatabaseConnection[]
   expandedSchemas: Set<string>
   history: DatabaseHistoryEntry[]
   loadingConnections: boolean
   onClearHistory: () => void
+  onConnect: () => void
   onDeleteConnection: (connection: DatabaseConnection) => void
   onDeleteSavedQuery: (query: DatabaseSavedQuery) => void
   onEditConnection: (connection: DatabaseConnection, opener: HTMLElement) => void
@@ -44,11 +46,13 @@ export function DatabaseExplorer({
   connectionError,
   connectionLocked,
   connectionReady,
+  connecting,
   connections,
   expandedSchemas,
   history,
   loadingConnections,
   onClearHistory,
+  onConnect,
   onDeleteConnection,
   onDeleteSavedQuery,
   onEditConnection,
@@ -157,9 +161,14 @@ export function DatabaseExplorer({
           {!selected
             ? <p className={db.listEmpty}>Seleziona o crea una connessione. Nessun database viene aperto automaticamente.</p>
             : !connectionReady
-              ? <div className={db.explorerList}>
-                  <p className={db.listEmpty}>“{selected.name}” è selezionata ma non connessa.</p>
-                  <p className={db.listEmpty}>Usa “Connetti” nella barra principale. La connessione parte solo su tua richiesta.</p>
+              ? <div className={db.disconnectedState} role="status">
+                  <span className={db.disconnectedIcon}><Unplug aria-hidden="true" size={18} /></span>
+                  <div className={db.disconnectedCopy}>
+                    <strong>Connessione non attiva</strong>
+                    <p>“{selected.name}” è selezionata ma non connessa.</p>
+                    <small>La connessione parte solo quando la richiedi.</small>
+                  </div>
+                  <Button aria-label={`Connetti ${selected.name}`} disabled={connecting || connectionLocked} onClick={onConnect}>{connecting ? <><Spinner size={14} /> Connessione…</> : 'Connetti'}</Button>
                 </div>
               : <>
                   <div className={db.schemaControls}>

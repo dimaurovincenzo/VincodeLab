@@ -103,7 +103,7 @@ Nel processo principale `electron/domains/shell/shell-session-manager.cjs` è il
 
 `electron/app/bootstrap.cjs` installa l'esperienza fatal prima di caricare moduli nativi. `electron/infrastructure/processes/pty-runtime.adapter.cjs` confina invece un componente PTY mancante o incompatibile: terminali e Pi risultano degradati, mentre le aree che non richiedono PTY restano operative. Una dipendenza essenziale del bundle assente viene presentata come installazione da riparare, senza esporre il messaggio raw del loader.
 
-La risoluzione di Pi è isolata nell'adapter `electron/infrastructure/processes/pi-executable.adapter.cjs`, proprietario della discovery su PATH, Homebrew, NVM e percorsi utente. La policy `electron/domains/ai/ai-terminal-launch-policy.cjs` sceglie tra il client Herdr e Pi diretto senza fare I/O: riceve resolver e preflight dagli adapter infrastructure, produce descrittori di lancio validati e conserva un solo fallback. `electron/infrastructure/processes/herdr-runtime.adapter.cjs` possiede invece verifica dell'eseguibile Herdr e preflight bounded di `herdr --version` senza shell. Se nessun runtime è disponibile, l'errore resta confinato al Terminale AI.
+La risoluzione di Pi è isolata nell'adapter `electron/infrastructure/processes/pi-executable.adapter.cjs`, proprietario della discovery su PATH, Homebrew, NVM e percorsi utente. La policy `electron/domains/ai/ai-terminal-launch-policy.cjs` riceve il resolver e produce un solo descrittore di lancio Pi validato, senza fare I/O direttamente. Se Pi non è disponibile, l'errore resta confinato al Terminale AI.
 
 La preparazione degli allegati locali è una capacità host nominata in `electron/infrastructure/filesystem/terminal-attachment.adapter.cjs`: verifica percorso assoluto, file regolare, assenza di symlink e leggibilità prima di restituire i soli metadati necessari. Il runtime AI riceve questa porta dalla composition root e non accede direttamente al filesystem.
 
@@ -113,7 +113,7 @@ Anche le skill Pi locali usano una porta dedicata. `electron/domains/ai/project-
 
 Le skill di sistema applicano lo stesso modello alla root configurata `~/.pi/agent/skills`. Il dominio `system-skills.cjs` possiede validazione, frontmatter, DTO e collision policy; la porta `system-skills-storage.port.cjs` nasconde formato e I/O. L’adapter `system-skills-filesystem.adapter.cjs` supporta sia directory con `SKILL.md` sia file `.md` legacy, limita il catalogo alle prime 500 entry, non segue symlink, crea con semantica no-clobber e cleanup della directory riservata, aggiorna atomicamente il target fissato da un handle opaco e rimuove soltanto il formato risolto.
 
-Il controller PTY possiede sempre un solo processo client. In modalità Herdr quel processo è esclusivamente il client: il server persistente, i workspace e i pane restano di proprietà di Herdr e non vengono arrestati dal lifecycle di VincodeLab. Il fallback Pi è ammesso soltanto prima del primo byte prodotto da Herdr; dopo l'attivazione richiede una recovery utente esplicita. L'IPC blocca l'iniezione programmatica di contesto nel client condiviso, mentre tastiera e incolla manuale attraversano il normale canale PTY.
+Il controller PTY possiede sempre una sola sessione Pi per finestra. Avvio, stop, cambio workspace e recovery sono serializzati; tastiera, allegati, contesto e incolla attraversano i canali confinati del Terminale AI senza creare processi concorrenti.
 
 ### Editor e filesystem
 

@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { undo, undoDepth } from '@codemirror/commands'
 import { EditorView } from '@codemirror/view'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AppPreferencesSnapshot, AppPreferenceValue, ContextMenuAction, ProjectFileTreeNode, VincodeLabBridge, WorkspaceSessionState } from '@/bridge'
+import type { AppPreferencesSnapshot, AppPreferenceValue, ContextMenuAction, ProjectFileContentSearchResult, ProjectFileTreeNode, VincodeLabBridge, WorkspaceSessionState } from '@/bridge'
 import { ProjectEditor } from '@/features/editor'
 import { publishAppPreferences } from '@/lib/app-preferences'
 import { clearVolatileDrafts, writeVolatileDraft } from '@/lib/volatile-draft-store'
@@ -45,6 +45,7 @@ type InstallOptions = {
   list?: () => Promise<FileListResult>
   listDirectory?: (directoryId: string) => Promise<FileListResult>
   read?: (fileId: string) => Promise<FileReadResult>
+  searchContent?: (query: string, options?: { maxResults?: number }) => Promise<ProjectFileContentSearchResult>
   save?: (fileId: string, content: string, options: FileSaveOptions) => Promise<FileSaveResult>
   trash?: (entryId: string, expectedKind: 'file' | 'directory') => Promise<{ id: string; kind: 'file' | 'directory'; trashed: true }>
 }
@@ -73,6 +74,7 @@ function installVincodeLab(entries: ProjectFileTreeNode[] = [], options: Install
     listDirectory: vi.fn(options.listDirectory ?? (async () => ({ entries: [], truncated: false }))),
     preview: vi.fn(async (fileId: string) => ({ id: fileId, name: fileId.split('/').at(-1) ?? fileId, kind: 'image' as const, content: '', size: 0 })),
     read: vi.fn(options.read ?? (async (fileId: string) => ({ id: fileId, name: fileId.split('/').at(-1) ?? fileId, content: savedSource, revision: `read:${fileId}`, size: savedSource.length }))),
+    searchContent: vi.fn(options.searchContent ?? (async () => ({ cancelled: false, filesSearched: 0, matches: [], skippedFiles: 0, truncated: false }))),
     rename: vi.fn(async (entryId: string, entryName: string, expectedKind: 'file' | 'directory') => {
       const parentId = entryId.split('/').slice(0, -1).join('/')
       return { id: parentId ? `${parentId}/${entryName}` : entryName, kind: expectedKind, name: entryName, previousId: entryId, renamed: entryName !== entryId.split('/').at(-1) }
@@ -149,6 +151,29 @@ describe('ProjectEditor state discard and TreeView rename', () => {
     await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Nome del nuovo file' })).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getByRole('button', { name: 'Nuovo file' })).toHaveFocus())
     expect(files.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('cerca nei contenuti dell’intero workspace e apre un file non presente nell’albero caricato', async () => {
+    const user = userEvent.setup()
+    const harness = installVincodeLab([{ id: 'README.md', kind: 'file', name: 'README.md' }], {
+      searchContent: async (query) => query ? {
+        cancelled: false,
+        filesSearched: 12,
+        matches: [{ fileId: 'src/segreto.ts', fileName: 'segreto.ts', directory: 'src', line: 12, column: 7, preview: 'const hiddenLogic = true' }],
+        skippedFiles: 1,
+        truncated: false,
+      } : { cancelled: true, filesSearched: 0, matches: [], skippedFiles: 0, truncated: false },
+    })
+    render(<ProjectEditor workspace="/tmp/vincodelab-project-editor-content-search" />)
+
+    const input = await screen.findByRole('searchbox', { name: 'Cerca file e contenuti nell’explorer' })
+    await user.type(input, 'hiddenLogic')
+
+    const result = await screen.findByRole('button', { name: /segreto\.ts.*riga 12.*hiddenLogic/i })
+    expect(harness.files.searchContent).toHaveBeenCalledWith('hiddenLogic', { maxResults: 100 })
+    expect(screen.getByText('Nessun nome o percorso corrispondente.')).toBeVisible()
+    await user.click(result)
+    await waitFor(() => expect(harness.files.read).toHaveBeenCalledWith('src/segreto.ts'))
   })
 
   it('rinomina il file cliccato dal menu contestuale e aggiorna Explorer senza cambiare bersaglio', async () => {

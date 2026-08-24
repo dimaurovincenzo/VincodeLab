@@ -88,13 +88,21 @@ export function useGitHubWorkspaceController({
   const githubResultLimited = state.data?.hasMore === true || state.data?.truncated === true
   const boardResultLimited = state.board?.hasMore === true || state.board?.truncated === true
   const boardLimitMessages = projectBoardLimitMessages(state.board)
-  const activeResultLimited = state.tab === 'changes'
+  const activeLimitMessage = state.tab === 'changes'
     ? (filesLimited || branchesLimited || gitResultLimited)
+      ? 'Elenco limitato: il repository contiene altre modifiche o branch oltre quelli mostrati.'
+      : null
     : state.tab === 'graph'
       ? (graphLimited || gitResultLimited)
+        ? 'Cronologia limitata: il repository contiene altri commit oltre quelli mostrati.'
+        : null
       : state.tab === 'issues'
         ? (issuesLimited || githubResultLimited)
+          ? 'Issue limitate: GitHub contiene altre issue oltre quelle caricate.'
+          : null
         : (projectsLimited || boardResultLimited || githubResultLimited)
+          ? 'Progetti limitati: GitHub contiene altri progetti, elementi o campi oltre quelli caricati.'
+          : null
   const staged = state.status?.files.filter((file) => file.index !== ' ' && file.index !== '?') ?? []
   const unstaged = state.status?.files.filter((file) => file.workingTree !== ' ' || file.index === '?') ?? []
   const stageable = unstaged.filter((file) => !file.sensitive)
@@ -137,7 +145,7 @@ export function useGitHubWorkspaceController({
       activeBoardGroupField,
       activeBoardGroupFieldId,
       activeCache,
-      activeResultLimited,
+      activeLimitMessage,
       boardGroups,
       boardHasFilters,
       boardItems,

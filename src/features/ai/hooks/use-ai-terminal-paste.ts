@@ -8,18 +8,39 @@ import type { TerminalPasteFailure } from '../model/ai-runtime.types'
 import { reportTerminalPasteFailure } from '../services/ai-error'
 
 type UseAiTerminalPasteOptions = {
+  activeSessionIdRef: RefObject<string | null>
   restartPi: () => Promise<void>
   terminal: RefObject<Terminal | null>
 }
 
-export function useAiTerminalPaste({ restartPi, terminal }: UseAiTerminalPasteOptions) {
+function createSessionPasteController(activeSessionIdRef: RefObject<string | null>) {
+  const activeSessionId = () => activeSessionIdRef.current
+  return createTerminalPasteController({
+    startPaste: (input) => {
+      const sessionId = activeSessionId()
+      return sessionId
+        ? aiBridge.terminal.startPaste(sessionId, input)
+        : Promise.resolve({ accepted: false as const, reason: 'not-running' as const, totalBytes: input.totalBytes, limit: 0 })
+    },
+    writePasteChunk: (input) => {
+      const sessionId = activeSessionId()
+      return sessionId
+        ? aiBridge.terminal.writePasteChunk(sessionId, input)
+        : Promise.resolve({ accepted: false as const, reason: 'not-running' as const, sentBytes: 0, totalBytes: 0 })
+    },
+    cancelPaste: (transferId) => {
+      const sessionId = activeSessionId()
+      return sessionId
+        ? aiBridge.terminal.cancelPaste(sessionId, transferId)
+        : Promise.resolve({ cancelled: false, sentBytes: 0, totalBytes: 0 })
+    },
+  })
+}
+
+export function useAiTerminalPaste({ activeSessionIdRef, restartPi, terminal }: UseAiTerminalPasteOptions) {
   const [pasteProgress, setPasteProgress] = useState<TerminalPasteProgress | null>(null)
   const [pasteFailure, setPasteFailure] = useState<TerminalPasteFailure | null>(null)
-  const [pasteController] = useState(() => createTerminalPasteController({
-    startPaste: aiBridge.terminal.startPaste,
-    writePasteChunk: aiBridge.terminal.writePasteChunk,
-    cancelPaste: aiBridge.terminal.cancelPaste,
-  }))
+  const [pasteController] = useState(() => createSessionPasteController(activeSessionIdRef))
 
   const pasteIntoTerminal = useCallback(async function pasteIntoTerminalAction() {
     try {

@@ -13,6 +13,7 @@ const {
 } = require('./project-file-save.cjs')
 const { createProjectFileReader } = require('./project-file-reader.cjs')
 const { createProjectFileIndex } = require('./project-file-index.cjs')
+const { createProjectFileContentSearch } = require('./project-file-content-search.cjs')
 const { isEditorVisibleFile } = require('./project-access-policy.cjs')
 
 module.exports = {
@@ -21,6 +22,7 @@ module.exports = {
   createProjectEntryMutations,
   createProjectFileActions,
   createProjectFileIndex,
+  createProjectFileContentSearch,
   createProjectFileReader,
   createProjectFileSaver,
   isEditorVisibleFile,

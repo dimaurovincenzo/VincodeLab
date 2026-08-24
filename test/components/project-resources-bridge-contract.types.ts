@@ -35,9 +35,7 @@ type ExpectedPiRuntimeStatus =
   | { state: 'ready'; executable: string; version: string }
   | { state: 'missing'; code: 'PI_NOT_INSTALLED'; executable: null; version: null }
 
-type ExpectedAiTerminalReloadResult =
-  | { reloaded: true; runtime: 'pi' }
-  | { reloaded: false; runtime: 'herdr'; reason: 'active-pane-ambiguous' }
+type ExpectedAiTerminalReloadResult = { reloaded: true }
 
 type ExpectedInstructionsApi = {
   get: () => Promise<{ exists: boolean; content: string }>

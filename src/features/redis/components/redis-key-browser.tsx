@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Database, Filter, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Database, Filter, RefreshCw, Unplug } from 'lucide-react'
 import { memo, useState } from 'react'
 import type { RedisKeySummary } from '@/bridge'
 import { Button, Field, IconButton, SelectField, Spinner } from '@/components/ui'
@@ -8,6 +8,8 @@ import type { UserError } from '@/lib/user-error'
 import { redisStyles as rs, redisTypeBadge } from '@/theme/styles/redis'
 
 type Props = {
+  connectionInactive: boolean
+  connectionName: string | null
   cursorDepth: number
   disabled?: boolean
   error: UserError | null
@@ -17,6 +19,7 @@ type Props = {
   loading: boolean
   selectedKey: string | null
   typeFilter: RedisKeyTypeFilter
+  onConnect: () => void
   onFilter: (filter: string, type: RedisKeyTypeFilter) => void
   onNext: () => void
   onPrevious: () => void
@@ -36,7 +39,7 @@ function ttlLabel(ttlMs: number | null, ttlState?: RedisKeySummary['ttlState']) 
   return `${Math.ceil(ttlMs / 3_600_000)} h`
 }
 
-export const RedisKeyBrowser = memo(function RedisKeyBrowser({ cursorDepth, disabled = false, error, filter, hasMore, keys, loading, selectedKey, typeFilter, onFilter, onNext, onPrevious, onRefresh, onSelect }: Props) {
+export const RedisKeyBrowser = memo(function RedisKeyBrowser({ connectionInactive, connectionName, cursorDepth, disabled = false, error, filter, hasMore, keys, loading, selectedKey, typeFilter, onConnect, onFilter, onNext, onPrevious, onRefresh, onSelect }: Props) {
   const [draftFilter, setDraftFilter] = useState(filter)
   const [draftType, setDraftType] = useState<RedisKeyTypeFilter>(typeFilter)
 
@@ -50,7 +53,15 @@ export const RedisKeyBrowser = memo(function RedisKeyBrowser({ cursorDepth, disa
       <SelectField aria-label="Tipo chiave Redis" disabled={disabled} options={redisTypeOptions} value={draftType} onValueChange={(value) => setDraftType(value as RedisKeyTypeFilter)} />
       <IconButton aria-label="Applica filtri chiavi" disabled={disabled} tooltip="Applica filtri" type="submit"><Filter aria-hidden="true" size={14} /></IconButton>
     </form>
-    {disabled && !keys.length ? <div className={rs.browserStatus}><Database aria-hidden="true" size={22} /><p>Connetti la configurazione selezionata per caricare le chiavi.</p></div> : error && !disabled ? <ErrorNotice action={{ label: 'Riprova SCAN', onClick: onRefresh }} className={rs.notice} error={error} /> : loading ? <div className={rs.browserStatus} role="status"><Spinner size={18} /> Caricamento chiavi…</div> : keys.length ? <ul aria-label="Chiavi Redis" className={rs.keyList}>{keys.map((item) => <li className={rs.keyItem} data-context-menu-id={item.keyRef} data-context-menu-kind="redis-key" key={item.keyRef}>
+    {connectionInactive && !keys.length ? connectionName ? <div className={rs.browserDisconnected} role="status">
+      <span className={rs.browserDisconnectedIcon}><Unplug aria-hidden="true" size={18} /></span>
+      <div className={rs.browserDisconnectedCopy}>
+        <strong>Connessione non attiva</strong>
+        <p>“{connectionName}” è selezionata ma non connessa.</p>
+        <small>Connettiti per caricare le chiavi Redis.</small>
+      </div>
+      <Button aria-label={`Connetti ${connectionName} dal browser chiavi`} onClick={onConnect}>Connetti</Button>
+    </div> : <div className={rs.browserStatus}><Database aria-hidden="true" size={22} /><p>Seleziona o crea una connessione Redis.</p></div> : error && !disabled ? <ErrorNotice action={{ label: 'Riprova SCAN', onClick: onRefresh }} className={rs.notice} error={error} /> : loading ? <div className={rs.browserStatus} role="status"><Spinner size={18} /> Caricamento chiavi…</div> : keys.length ? <ul aria-label="Chiavi Redis" className={rs.keyList}>{keys.map((item) => <li className={rs.keyItem} data-context-menu-id={item.keyRef} data-context-menu-kind="redis-key" key={item.keyRef}>
       <Button aria-current={selectedKey === item.keyRef ? 'true' : undefined} className={rs.keyButton} disabled={disabled} title={item.key} variant="plain" onClick={() => onSelect(item)}>
         <span className={redisTypeBadge({ type: item.type })}>{redisTypeLabel(item.type)}</span>
         <span className={rs.keyName}>{item.key}{item.binary ? ' · binaria' : ''}</span>

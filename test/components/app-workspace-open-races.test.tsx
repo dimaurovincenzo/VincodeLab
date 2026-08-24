@@ -3,11 +3,10 @@
 // oxlint-disable-next-line typescript/triple-slash-reference -- make Vite asset modules visible when App is imported by the test project.
 /// <reference types="vite/client" />
 
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
-  AiTerminalRestartOptions,
   AiTerminalRestartResult,
   AppMenuCommand,
   AppPreferencesSnapshot,
@@ -29,6 +28,20 @@ const editorGuardHarness = vi.hoisted(() => ({
   discardAll: vi.fn<() => Promise<void>>(),
   saveAll: vi.fn<() => Promise<void>>(),
 }))
+
+function testRectangle(width: number, height: number): DOMRect {
+  return {
+    bottom: height,
+    height,
+    left: 0,
+    right: width,
+    top: 0,
+    width,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  }
+}
 const databaseGuardHarness = vi.hoisted(() => ({
   discardAll: vi.fn<() => Promise<void>>(),
   saveAll: vi.fn<() => Promise<void>>(),
@@ -201,7 +214,7 @@ type WorkspaceBridgeOptions = {
   open: () => Promise<WorkspaceOpenResult | null>
   openRecent: (workspacePath: string) => Promise<WorkspaceOpenResult>
   piReload?: () => Promise<{ reloaded: true }>
-  piRestart?: (options?: AiTerminalRestartOptions) => Promise<AiTerminalRestartResult>
+  piRestart?: () => Promise<AiTerminalRestartResult>
   recents?: RecentWorkspace[]
   reveal?: () => Promise<{ revealed: true }>
   saveWorkspaceSession?: (snapshot: WorkspaceSessionWriteSnapshot) => Promise<WorkspaceSessionSnapshot>
@@ -250,8 +263,14 @@ function installBridge({ activeWorkspace = null, activeWorkspaceResult, getActiv
       prepareAttachment: vi.fn(),
     },
     pi: {
+      listSessions: vi.fn(async () => ({ workspacePath: activeWorkspaceResult?.path ?? activeWorkspace ?? '/workspace/test', activeSessionId: 'session-test', sessions: [{ sessionId: 'session-test', title: 'Agente 1', status: 'running' as const, activity: 'ready' as const, active: true, createdAt: 1, lastFocusedAt: 1, pid: 1, exitStatus: null }] })),
+      createSession: vi.fn(),
+      focusSession: vi.fn(),
+      renameSession: vi.fn(),
+      closeSession: vi.fn(),
+      onSessionsChanged: vi.fn(() => vi.fn()),
       reload: vi.fn(piReload ?? (async () => ({ reloaded: true as const }))),
-      restart: vi.fn(piRestart ?? (async () => ({ restarted: true as const, runtime: 'pi' as const, piAvailable: true }))),
+      restart: vi.fn(piRestart ?? (async (sessionId: string) => ({ restarted: true as const, sessionId }))),
     },
     preferences: {
       get: vi.fn(async () => preferenceSnapshot),
@@ -260,6 +279,7 @@ function installBridge({ activeWorkspace = null, activeWorkspaceResult, getActiv
       ack: vi.fn(),
       cancelPaste: vi.fn<VincodeLabBridge['terminal']['cancelPaste']>(async () => ({ cancelled: true, sentBytes: 0, totalBytes: 0 })),
       chooseAttachments: vi.fn<VincodeLabBridge['terminal']['chooseAttachments']>(async () => []),
+      disconnect: vi.fn(),
       onError: vi.fn(() => vi.fn()),
       onExit: vi.fn((listener: (status: TerminalExitStatus) => void) => {
         terminalExited = listener
@@ -271,17 +291,15 @@ function installBridge({ activeWorkspace = null, activeWorkspaceResult, getActiv
       reportRendererMetrics: vi.fn(),
       resize: vi.fn(),
       resume: vi.fn(terminalResume ?? (async () => ({
-        runtime: 'pi' as const,
-        piAvailable: true,
         sessionId: 'session-test',
         snapshot: { data: '', firstSequence: 0, watermark: 0, bytes: 0 },
         status: 'running' as const,
       }))),
       prepareDroppedAttachments: vi.fn<VincodeLabBridge['terminal']['prepareDroppedAttachments']>(async () => []),
-      startPaste: vi.fn<VincodeLabBridge['terminal']['startPaste']>(async ({ totalBytes }) => ({ accepted: true as const, transferId: 'paste-test', totalBytes })),
-      writeInput: vi.fn<VincodeLabBridge['terminal']['writeInput']>(async (data) => ({ accepted: true as const, bytes: new TextEncoder().encode(data).byteLength })),
+      startPaste: vi.fn<VincodeLabBridge['terminal']['startPaste']>(async (_sessionId, { totalBytes }) => ({ accepted: true as const, transferId: 'paste-test', totalBytes })),
+      writeInput: vi.fn<VincodeLabBridge['terminal']['writeInput']>(async (_sessionId, data) => ({ accepted: true as const, bytes: new TextEncoder().encode(data).byteLength })),
       writeKey: vi.fn(),
-      writePasteChunk: vi.fn<VincodeLabBridge['terminal']['writePasteChunk']>(async ({ data }) => {
+      writePasteChunk: vi.fn<VincodeLabBridge['terminal']['writePasteChunk']>(async (_sessionId, { data }) => {
         const totalBytes = new TextEncoder().encode(data).byteLength
         return { accepted: true as const, complete: true, sentBytes: totalBytes, totalBytes }
       }),
@@ -399,6 +417,26 @@ describe('apertura workspace nel renderer', () => {
     expect(xtermHarness.disposals).toBe(0)
   })
 
+  it('ridimensiona la sidebar agenti senza ricreare il Terminale AI', async () => {
+    const originalRectangle = HTMLElement.prototype.getBoundingClientRect
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      if (this.dataset.scope === 'splitter' && this.dataset.part === 'root') return testRectangle(1_000, 600)
+      if (this.dataset.scope === 'splitter' && this.dataset.part === 'panel' && this.dataset.index === '0') return testRectangle(230, 600)
+      if (this.dataset.scope === 'splitter' && this.dataset.part === 'panel' && this.dataset.index === '1') return testRectangle(764, 600)
+      return originalRectangle.call(this)
+    })
+    await renderActiveWorkspace()
+    const separator = screen.getByRole('separator', { name: 'Ridimensiona agenti Pi' })
+    const initialSize = separator.getAttribute('aria-valuenow')
+
+    separator.focus()
+    fireEvent.keyDown(separator, { key: 'ArrowRight' })
+
+    await waitFor(() => expect(separator).not.toHaveAttribute('aria-valuenow', initialSize))
+    expect(xtermHarness.constructions).toBe(1)
+    expect(xtermHarness.disposals).toBe(0)
+  })
+
   it('rende visibile e recuperabile il mancato ripristino del workspace precedente', async () => {
     installBridge({
       getActive: async () => { throw new Error('Session store offline /Users/alice/private token=restore-secret') },
@@ -499,7 +537,7 @@ describe('apertura workspace nel renderer', () => {
 
     expect(await screen.findByLabelText('Terminale AI: /tmp/workspace-recuperato')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Riprova apertura' })).not.toBeInTheDocument()
-    expect(screen.getByText('Pi diretto pronto')).toBeInTheDocument()
+    expect(screen.getByText('Pi pronto')).toBeInTheDocument()
   })
 
   it('instrada il comando nativo workspace.open attraverso la guardia delle modifiche', async () => {
@@ -542,48 +580,6 @@ describe('apertura workspace nel renderer', () => {
 })
 
 describe('Error Experience della sessione AI', () => {
-  it('presenta Herdr come client condiviso, limita le azioni ambigue e offre Pi diretto solo quando disponibile', async () => {
-    const snapshot: TerminalResumeSnapshot = {
-      runtime: 'herdr',
-      piAvailable: true,
-      sessionId: 'herdr-session-test',
-      snapshot: { data: 'fleet Herdr', firstSequence: 0, watermark: 0, bytes: 11 },
-      status: 'running',
-    }
-    const controls = await renderActiveWorkspace({ terminalResume: async () => snapshot })
-    const user = userEvent.setup()
-
-    expect(screen.getByRole('status')).toHaveTextContent('Herdr · sessione condivisa · seleziona o avvia un pane Pi')
-    expect(screen.getByText('Contesto di avvio: /tmp/workspace-lifecycle')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Esegui /reload nel pane Pi desiderato in Herdr' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Ricollega il client Herdr (la fleet resta attiva)' })).toBeEnabled()
-    expect(screen.queryByRole('button', { name: 'Allega file a Pi' })).not.toBeInTheDocument()
-
-    act(() => controls.dispatchTerminalExit({ exitCode: 1, signal: 0, runtime: 'herdr', piAvailable: true }))
-    const notice = await screen.findByRole('alert')
-    expect(within(notice).getByRole('heading', { name: 'Client Herdr terminato' })).toBeVisible()
-    expect(within(notice).getByRole('button', { name: 'Ricollega Herdr' })).toBeEnabled()
-    await user.click(within(notice).getByRole('button', { name: 'Avvia Pi diretto' }))
-    await waitFor(() => expect(controls.bridge.pi.restart).toHaveBeenCalledWith({ runtime: 'pi' }))
-  })
-
-  it('non propone Pi diretto quando Herdr è disponibile ma Pi locale manca', async () => {
-    const snapshot: TerminalResumeSnapshot = {
-      runtime: 'herdr',
-      piAvailable: false,
-      sessionId: 'herdr-only-session-test',
-      snapshot: { data: '', firstSequence: 0, watermark: 0, bytes: 0 },
-      status: 'running',
-    }
-    const controls = await renderActiveWorkspace({ terminalResume: async () => snapshot })
-
-    expect(screen.getByRole('status')).toHaveTextContent('Herdr · sessione condivisa · Pi locale non rilevato')
-    act(() => controls.dispatchTerminalExit({ exitCode: 1, signal: 0, runtime: 'herdr', piAvailable: false }))
-    const notice = await screen.findByRole('alert')
-    expect(within(notice).queryByRole('button', { name: 'Avvia Pi diretto' })).not.toBeInTheDocument()
-    expect(within(notice).getByRole('button', { name: 'Apri impostazioni' })).toBeEnabled()
-  })
-
   it('mantiene xterm e apre le Impostazioni quando l avvio richiede configurazione', async () => {
     const workspacePath = '/tmp/ai-config'
     const errorIncident = publicApplicationError(
@@ -690,7 +686,7 @@ describe('Error Experience della sessione AI', () => {
     const xtermHost = terminalView.querySelector('[data-xterm-host="ai"]')
     controls.bridge.pi.restart
       .mockRejectedValueOnce(new Error('restart timed out [AI_RESTART_TIMEOUT] [ERR-C1D2E3]'))
-      .mockResolvedValueOnce({ restarted: true, runtime: 'pi', piAvailable: true })
+      .mockResolvedValueOnce({ restarted: true, sessionId: 'session-test' })
 
     await user.click(screen.getByRole('button', { name: 'Riavvia sessione Pi' }))
 
@@ -710,7 +706,6 @@ describe('Error Experience della sessione AI', () => {
 
   it('se il riavvio riesce ma il resume fallisce ritenta soltanto il collegamento output', async () => {
     const snapshot: TerminalResumeSnapshot = {
-      runtime: 'pi',
       sessionId: 'session-test',
       snapshot: { data: 'output conservato', firstSequence: 0, watermark: 0, bytes: 16 },
       status: 'running',
@@ -766,7 +761,6 @@ describe('Error Experience della sessione AI', () => {
 
   it('recupera lo storico iniziale ritentando solo resume sulla stessa istanza xterm', async () => {
     const snapshot: TerminalResumeSnapshot = {
-      runtime: 'pi',
       sessionId: 'session-restored',
       snapshot: { data: 'storico recuperato', firstSequence: 0, watermark: 0, bytes: 18 },
       status: 'running',

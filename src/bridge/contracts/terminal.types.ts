@@ -1,16 +1,15 @@
-import type { AiTerminalFallbackReason, AiTerminalRuntime } from './ai-terminal.types'
 import type { ApplicationErrorCategory, ApplicationErrorSeverity } from './application-error.types'
 
 export interface TerminalExitStatus {
+  sessionId?: string
   exitCode: number | null
   signal: number | string | null
-  runtime?: AiTerminalRuntime
-  piAvailable?: boolean
 }
 
 export type TerminalOneWayOperation = 'ready' | 'ack' | 'key' | 'resize'
 export type TerminalErrorRecovery = 'resume' | 'restart' | 'resize'
 export interface TerminalErrorEvent {
+  sessionId?: string
   operation: TerminalOneWayOperation
   recovery: TerminalErrorRecovery
   error: {
@@ -31,26 +30,8 @@ export type TerminalResumeSnapshot = {
   snapshot: { data: string; firstSequence: number; watermark: number; bytes: number }
   status: TerminalStreamStatus
   exitStatus?: TerminalExitStatus
-  runtime: AiTerminalRuntime
-  fallbackReason?: AiTerminalFallbackReason
-  piAvailable?: boolean
 }
 export type TerminalStreamState = { sessionId: string; status: TerminalStreamStatus; queuedBytes: number }
-export type HerdrCommand =
-  | 'new-pi'
-  | 'new-pi-right'
-  | 'new-pi-down'
-  | 'previous-agent'
-  | 'next-agent'
-  | 'zoom-pane'
-  | 'close-pane'
-export type HerdrCommandResult = {
-  command: HerdrCommand
-  workspaceId: string
-  focused?: boolean
-  agentName?: string
-  paneId?: string
-}
 
 export interface TerminalAttachment {
   absolutePath: string
@@ -100,21 +81,21 @@ export interface TerminalDiagnosticsReport {
 }
 
 export type TerminalApi = {
-  resume: (request: { knownSessionId?: string; lastAcknowledgedSequence?: number }) => Promise<TerminalResumeSnapshot>
-  ready: (message: { sessionId: string; watermark: number }) => void
-  ack: (message: TerminalOutputAck) => void
+  resume: (sessionId: string) => Promise<TerminalResumeSnapshot>
+  ready: (sessionId: string, message: { sessionId: string; watermark: number }) => void
+  ack: (sessionId: string, message: TerminalOutputAck) => void
+  disconnect: (sessionId: string, message: { sessionId: string }) => void
   chooseAttachments: () => Promise<TerminalAttachment[]>
   prepareDroppedAttachments: (files: File[]) => Promise<TerminalAttachment[]>
-  writeKey: (data: string) => void
-  writeInput: (data: string) => Promise<{ accepted: true; bytes: number }>
-  startPaste: (input: { totalBytes: number }) => Promise<TerminalPasteStartResult>
-  writePasteChunk: (input: { transferId: string; index: number; data: string }) => Promise<TerminalPasteChunkResult>
-  cancelPaste: (transferId: string) => Promise<TerminalPasteCancelResult>
-  reportRendererMetrics: (metrics: TerminalRendererMetrics) => void
-  diagnostics: () => Promise<TerminalDiagnosticsReport>
-  exportDiagnostics: () => Promise<{ exported: boolean; filePath?: string }>
-  herdrCommand: (command: HerdrCommand) => Promise<HerdrCommandResult>
-  resize: (dimensions: { cols: number; rows: number }) => void
+  writeKey: (sessionId: string, data: string) => void
+  writeInput: (sessionId: string, data: string) => Promise<{ accepted: true; bytes: number }>
+  startPaste: (sessionId: string, input: { totalBytes: number }) => Promise<TerminalPasteStartResult>
+  writePasteChunk: (sessionId: string, input: { transferId: string; index: number; data: string }) => Promise<TerminalPasteChunkResult>
+  cancelPaste: (sessionId: string, transferId: string) => Promise<TerminalPasteCancelResult>
+  reportRendererMetrics: (sessionId: string, metrics: TerminalRendererMetrics) => void
+  diagnostics: (sessionId?: string) => Promise<TerminalDiagnosticsReport>
+  exportDiagnostics: (sessionId?: string) => Promise<{ exported: boolean; filePath?: string }>
+  resize: (sessionId: string, dimensions: { cols: number; rows: number }) => void
   onOutput: (listener: (block: TerminalOutputBlock) => void) => () => void
   onStreamState: (listener: (state: TerminalStreamState) => void) => () => void
   onExit: (listener: (status: TerminalExitStatus) => void) => () => void

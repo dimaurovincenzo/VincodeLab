@@ -61,12 +61,30 @@ export interface ProjectFileIndexStatus {
   error?: { code: string }
 }
 
+export interface ProjectFileContentMatch {
+  fileId: string
+  fileName: string
+  directory: string
+  line: number
+  column: number
+  preview: string
+}
+
+export interface ProjectFileContentSearchResult {
+  cancelled: boolean
+  filesSearched: number
+  matches: ProjectFileContentMatch[]
+  skippedFiles: number
+  truncated: boolean
+}
+
 export type FilesApi = {
   list: () => Promise<{ entries: ProjectFileTreeNode[]; truncated: boolean }>
   listDirectory: (directoryId: string) => Promise<{ entries: ProjectFileTreeNode[]; truncated: boolean }>
   index: (options?: { force?: boolean }) => Promise<ProjectFileIndexResult>
   indexStatus: () => Promise<ProjectFileIndexStatus | null>
   read: (fileId: string) => Promise<ProjectFileReadResult>
+  searchContent: (query: string, options?: { maxResults?: number }) => Promise<ProjectFileContentSearchResult>
   preview: (fileId: string) => Promise<{ id: string; name: string; kind: 'image' | 'pdf'; content: string; size: number }>
   prepareAttachment: (fileId: string) => Promise<TerminalAttachment>
   create: (directoryId: string, fileName: string) => Promise<ProjectFileReadResult>

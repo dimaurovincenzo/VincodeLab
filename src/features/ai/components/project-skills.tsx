@@ -40,7 +40,7 @@ export function ProjectSkills({ workspace, onWorkspaceGuardChange }: Props) {
     setNewName,
   } = controller.actions
   const { hasUnsavedChanges, selected, sidebarFailure, skillName, skillNameError } = controller.derived
-  const { content, loadError, loading, newName, operationFailure, saving, selectedId, skills } = controller.state
+  const { content, loadError, loading, newName, operationFailure, piReloadRequired, saving, selectedId, skills } = controller.state
   const skillCollection = useMemo(() => createListCollection({
     items: skills,
     itemToString: (skill) => skill.name,
@@ -111,7 +111,7 @@ export function ProjectSkills({ workspace, onWorkspaceGuardChange }: Props) {
           </div>
         </div>
 
-        <div className={aiStyles.advisory}><AlertTriangle aria-hidden="true" size={15} /> Pi carica le skill progetto solo dopo la conferma <code>/trust</code>. In Herdr esegui <code>/reload</code> direttamente nel pane Pi desiderato.</div>
+        {piReloadRequired && <div className={aiStyles.advisory} role="status"><AlertTriangle aria-hidden="true" size={15} /> Skill aggiornata. Se Pi richiede l’autorizzazione del workspace, esegui <code>/trust</code> nel Terminale AI; quindi usa “Ricarica risorse Pi”.</div>}
 
         {operationFailure && !sidebarFailure && <ErrorNotice error={operationFailure.error} action={{ label: 'Riprova', onClick: retryOperation }} />}
 

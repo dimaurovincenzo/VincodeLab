@@ -52,7 +52,7 @@ export function RuntimeSettingsSection({
       />
       {status?.state === 'missing' && <div className={settingsStyles.runtimeMissing} role="status">
         <CircleAlert aria-hidden="true" size={18} />
-        <span><strong>Pi Coding Agent non è installato o non è rilevabile.</strong> Configurazione, pacchetti e fallback Pi diretto restano disattivati. Se Herdr è pronto, il Terminale AI può ancora aprire la fleet condivisa. Installa Pi, poi seleziona “Aggiorna”.</span>
+        <span><strong>Pi Coding Agent non è installato o non è rilevabile.</strong> Il Terminale AI, la configurazione e i pacchetti Pi restano disattivati. Installa Pi, poi seleziona “Aggiorna”.</span>
       </div>}
       <Button className={settingsStyles.primaryPanelAction} size="sm" variant="outline" disabled={configBusy || !piReady} title={!piReady ? 'Installa Pi e aggiorna la verifica prima di configurarlo' : undefined} onClick={() => void startConfig()}>
         {configBusy && <Spinner size={14} />}

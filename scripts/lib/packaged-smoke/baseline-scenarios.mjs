@@ -153,9 +153,8 @@ export function verifyCleanMachineScenario() {
       notice = [...document.querySelectorAll('[role="status"], [role="alert"]')]
         .find((element) => {
           const content = element.textContent ?? ''
-          return content.includes('Runtime del Terminale AI non disponibile')
-            && content.includes('Herdr non è disponibile')
-            && content.includes('Pi Coding Agent non è installato o utilizzabile')
+          return content.includes('Pi Coding Agent non installato')
+            && content.includes('Pi Coding Agent non è installato o non è rilevabile')
         })
       if (notice) break
       await new Promise((resolve) => setTimeout(resolve, 25))
