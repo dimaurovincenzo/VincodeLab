@@ -158,6 +158,17 @@ test('obbliga il dominio Shell a usare collaboratori invece di filesystem e PTY 
   })
 })
 
+test('obbliga il dominio AI a usare adapter iniettati per i processi host', () => {
+  withFixture({
+    'electron/domains/ai/pi-runtime.cjs': [
+      "require('node:child_process')",
+      "require('child_process')",
+    ].join('\n'),
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('dominio AI dipende direttamente')).length, 2)
+  })
+})
+
 test('consente al preload di leggere il registro IPC ma vieta stringhe canale locali', () => {
   withFixture({
     'electron/ipc/channels.cjs': "module.exports = { IPC_CHANNELS: { FILES_READ: 'files:read' } }\n",

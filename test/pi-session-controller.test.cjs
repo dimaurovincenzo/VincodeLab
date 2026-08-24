@@ -122,6 +122,20 @@ function testHarness({ executable = '/opt/pi/bin/pi', outcomes = [], stopGraceMs
   }
 }
 
+test('richiede ambiente e liveness come collaboratori del processo Pi', () => {
+  const base = {
+    resolveExecutable: () => '/opt/pi/bin/pi',
+    processFactory() {},
+    createStream() {},
+    createInput() {},
+  }
+  assert.throws(() => createPiSessionController(base), /Provider ambiente Pi non valido/u)
+  assert.throws(
+    () => createPiSessionController({ ...base, environmentForExecutable: () => ({}) }),
+    /Verifica processo Pi non valida/u,
+  )
+})
+
 test('eseguibile assente e spawn throw non avvelenano i tentativi successivi', async () => {
   const spawnError = Object.assign(new Error('posix_spawn ENOENT'), { code: 'ENOENT' })
   const recoveredProcess = fakePty({ pid: 101 })

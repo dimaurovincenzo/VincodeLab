@@ -48,16 +48,6 @@ function disposeResource(resource) {
   }
 }
 
-function processIsAlive(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return null
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return error?.code === 'ESRCH' ? false : null
-  }
-}
-
 function validatePtyProcess(ptyProcess) {
   const methods = ['kill', 'onData', 'onExit', 'pause', 'resume', 'resize', 'write']
   if (!ptyProcess || typeof ptyProcess !== 'object' || methods.some((method) => typeof ptyProcess[method] !== 'function')) {
@@ -75,12 +65,14 @@ function normalizeExitStatus(event = {}) {
 
 function createPiSessionController(options = {}) {
   if (typeof options.resolveExecutable !== 'function') throw new Error('Resolver eseguibile Pi non valido.')
+  if (typeof options.environmentForExecutable !== 'function') throw new Error('Provider ambiente Pi non valido.')
   if (typeof options.processFactory !== 'function') throw new Error('Factory processo Pi non valida.')
   if (typeof options.createStream !== 'function') throw new Error('Factory stream Pi non valida.')
   if (typeof options.createInput !== 'function') throw new Error('Factory input Pi non valida.')
+  if (typeof options.isProcessAlive !== 'function') throw new Error('Verifica processo Pi non valida.')
 
   const resolveExecutable = options.resolveExecutable
-  const environmentForExecutable = options.environmentForExecutable ?? (() => process.env)
+  const environmentForExecutable = options.environmentForExecutable
   const processFactory = options.processFactory
   const createStream = options.createStream
   const createInput = options.createInput
@@ -88,7 +80,7 @@ function createPiSessionController(options = {}) {
   const onStarted = options.onStarted ?? (() => undefined)
   const onExit = options.onExit ?? (() => undefined)
   const onError = options.onError ?? (() => undefined)
-  const isProcessAlive = options.isProcessAlive ?? processIsAlive
+  const isProcessAlive = options.isProcessAlive
   const setTimer = options.setTimer ?? setTimeout
   const clearTimer = options.clearTimer ?? clearTimeout
   const scheduleStartCheck = options.scheduleStartCheck ?? setImmediate

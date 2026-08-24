@@ -1,6 +1,4 @@
-const { execFile } = require('node:child_process')
 const { listPiPackageSkills: discoverPiPackageSkills, parsePiPackageList } = require('./pi-package-skills.cjs')
-const { environmentForPi } = require('./pi-executable.cjs')
 const { createPublicError, isPublicError } = require('../errors/public-error.cjs')
 
 const MAX_SOURCE_LENGTH = 2048
@@ -38,25 +36,6 @@ const PUBLIC_FAILURES = Object.freeze({
 function assertPackageSource(source) {
   if (typeof source !== 'string' || !source.trim() || source.length > MAX_SOURCE_LENGTH || [...source].some((character) => character.charCodeAt(0) < 32)) throw new Error('Sorgente estensione non valida.')
   return source.trim()
-}
-
-function defaultRun(executable, args) {
-  return new Promise((resolve, reject) => {
-    execFile(executable, args, { env: environmentForPi(executable), timeout: PI_COMMAND_TIMEOUT_MS, maxBuffer: 1048576, windowsHide: true }, (error, stdout, stderr) => {
-      if (error) {
-        const failure = new Error('Pi command execution failed.')
-        failure.cause = error
-        failure.code = error.code
-        failure.killed = error.killed
-        failure.signal = error.signal
-        failure.stdout = stdout
-        failure.stderr = stderr
-        reject(failure)
-        return
-      }
-      resolve({ stdout, stderr })
-    })
-  })
 }
 
 function errorValues(error) {
@@ -167,7 +146,7 @@ function resolveOrThrow(resolveExecutable) {
 
 function normalizeResult(result) { return { output: [result.stdout, result.stderr].filter(Boolean).join('\n').trim() } }
 
-async function getPiSystemStatus(resolveExecutable, run = defaultRun) {
+async function getPiSystemStatus(resolveExecutable, run) {
   const executable = resolveExecutableValue(resolveExecutable)
   if (!executable) return Object.freeze({ state: 'missing', code: 'PI_NOT_INSTALLED', executable: null, version: null })
   const result = await runPiCommand(executable, ['--version'], run)
@@ -176,13 +155,13 @@ async function getPiSystemStatus(resolveExecutable, run = defaultRun) {
   return Object.freeze({ state: 'ready', executable, version })
 }
 
-async function listPiPackageRecords(resolveExecutable, run = defaultRun) {
+async function listPiPackageRecords(resolveExecutable, run) {
   const result = await runPiCommand(resolveOrThrow(resolveExecutable), ['list'], run)
   return parsePiPackageList(result.stdout)
 }
-async function listPiPackages(resolveExecutable, run = defaultRun) { return (await listPiPackageRecords(resolveExecutable, run)).map((item) => item.source) }
-async function listPiPackageSkills(resolveExecutable, run = defaultRun) { return discoverPiPackageSkills(await listPiPackageRecords(resolveExecutable, run)) }
-async function runPackageCommand(command, source, resolveExecutable, run = defaultRun) {
+async function listPiPackages(resolveExecutable, run) { return (await listPiPackageRecords(resolveExecutable, run)).map((item) => item.source) }
+async function listPiPackageSkills(resolveExecutable, run) { return discoverPiPackageSkills(await listPiPackageRecords(resolveExecutable, run)) }
+async function runPackageCommand(command, source, resolveExecutable, run) {
   const value = assertPackageSource(source)
   return normalizeResult(await runPiCommand(resolveOrThrow(resolveExecutable), [command, value], run))
 }
@@ -190,4 +169,27 @@ function installPiPackage(source, resolveExecutable, run) { return runPackageCom
 function updatePiPackage(source, resolveExecutable, run) { return runPackageCommand('update', source, resolveExecutable, run) }
 function removePiPackage(source, resolveExecutable, run) { return runPackageCommand('remove', source, resolveExecutable, run) }
 
-module.exports = { getPiSystemStatus, installPiPackage, listPiPackageRecords, listPiPackageSkills, listPiPackages, removePiPackage, updatePiPackage }
+function createPiSystemUseCases({ run } = {}) {
+  if (typeof run !== 'function') throw new TypeError('Runner comando Pi non valido.')
+  return Object.freeze({
+    getPiSystemStatus: (resolveExecutable) => getPiSystemStatus(resolveExecutable, run),
+    installPiPackage: (source, resolveExecutable) => installPiPackage(source, resolveExecutable, run),
+    listPiPackageRecords: (resolveExecutable) => listPiPackageRecords(resolveExecutable, run),
+    listPiPackageSkills: (resolveExecutable) => listPiPackageSkills(resolveExecutable, run),
+    listPiPackages: (resolveExecutable) => listPiPackages(resolveExecutable, run),
+    removePiPackage: (source, resolveExecutable) => removePiPackage(source, resolveExecutable, run),
+    updatePiPackage: (source, resolveExecutable) => updatePiPackage(source, resolveExecutable, run),
+  })
+}
+
+module.exports = {
+  PI_COMMAND_TIMEOUT_MS,
+  createPiSystemUseCases,
+  getPiSystemStatus,
+  installPiPackage,
+  listPiPackageRecords,
+  listPiPackageSkills,
+  listPiPackages,
+  removePiPackage,
+  updatePiPackage,
+}

@@ -1,6 +1,5 @@
 const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
 const { createPiSessionController } = require('./pi-session-controller.cjs')
-const { environmentForPi, resolvePiExecutable } = require('./pi-executable.cjs')
 const { safeKillPty } = require('../terminal/pty-lifecycle.cjs')
 const { prepareTerminalAttachment } = require('./terminal-attachments.cjs')
 const { createTerminalInputController } = require('../terminal/terminal-input.cjs')
@@ -12,18 +11,22 @@ function createPiRuntime({
   createInputController = createTerminalInputController,
   createSessionController = createPiSessionController,
   createStreamController = createTerminalStreamController,
-  environmentForExecutable = environmentForPi,
+  environmentForExecutable,
   getHomePath,
   getWindow,
+  isProcessAlive,
   log,
   notifyWhenBackground,
   ptyRuntime,
-  resolveExecutable = resolvePiExecutable,
+  resolveExecutable,
   requireActiveWorkspace,
   sendToRenderer,
   showOpenDialog,
   withCleanupDeadline,
 }) {
+  if (typeof environmentForExecutable !== 'function') throw new Error('Provider ambiente runtime Pi non valido.')
+  if (typeof isProcessAlive !== 'function') throw new Error('Verifica processo runtime Pi non valida.')
+  if (typeof resolveExecutable !== 'function') throw new Error('Resolver eseguibile runtime Pi non valido.')
   let configProcess
   let configExit
 
@@ -50,6 +53,7 @@ function createPiRuntime({
   const controller = createSessionController({
     resolveExecutable,
     environmentForExecutable,
+    isProcessAlive,
     processFactory: (executable, args, options) => ptyRuntime.spawn(executable, args, options),
     createStream: ({ pty: ptyProcess, sessionId }) => createStreamController({
       pty: ptyProcess,
@@ -126,15 +130,15 @@ function createPiRuntime({
   }
 
   async function stopConfig() {
-    const process = configProcess
-    if (!process) return { closed: false }
-    const exit = configExit?.process === process ? configExit.promise : Promise.resolve()
-    safeKillPty(process)
+    const ptyProcess = configProcess
+    if (!ptyProcess) return { closed: false }
+    const exit = configExit?.process === ptyProcess ? configExit.promise : Promise.resolve()
+    safeKillPty(ptyProcess)
     try {
       await withCleanupDeadline(exit, 1_500, 'pi-config-term')
     } catch {
       try {
-        process.kill('SIGKILL')
+        ptyProcess.kill('SIGKILL')
       } catch {
         // Il processo può essere già terminato; il secondo bounded wait resta
         // autorevole e propaga l'eventuale timeout di cleanup.

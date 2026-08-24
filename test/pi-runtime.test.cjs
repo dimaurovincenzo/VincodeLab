@@ -3,6 +3,10 @@ const test = require('node:test')
 
 const { createPiRuntime } = require('../electron/domains/ai/pi-runtime.cjs')
 
+test('richiede esplicitamente ambiente, resolver e liveness del processo Pi', () => {
+  assert.throws(() => createPiRuntime({}), /Provider ambiente runtime Pi non valido/u)
+})
+
 function fixture() {
   const deliveries = []
   const logs = []
@@ -25,6 +29,7 @@ function fixture() {
     environmentForExecutable: () => ({}),
     getHomePath: () => '/home/test',
     getWindow: () => ({}),
+    isProcessAlive: () => false,
     log: (...entry) => logs.push(entry),
     notifyWhenBackground() {},
     ptyRuntime: { spawn: (...args) => { spawned.push(args); return pty } },

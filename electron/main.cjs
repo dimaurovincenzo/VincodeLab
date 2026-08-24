@@ -18,12 +18,12 @@ const { installIpcMainErrorHandling } = require('./infrastructure/ipc/ipc-error-
 const { createFatalErrorExperience } = require('./app/fatal-error-experience.cjs')
 const { installNavigationGuards } = require('./infrastructure/security/ipc-security.adapter.cjs')
 const { createPublicError, toPublicErrorMessage } = require('./domains/errors/public-error.cjs')
-const { resolvePiExecutable } = require('./domains/ai/pi-executable.cjs')
+const { environmentForPi, resolvePiExecutable: findPiExecutable } = require('./domains/ai/pi-executable.cjs')
 const { prepareTerminalAttachment } = require('./domains/ai/terminal-attachments.cjs')
 const { MAX_PASTE_BYTES } = require('./domains/terminal/terminal-input.cjs')
 const { createTerminalDiagnosticsReport, sanitizeRendererMetrics } = require('./domains/terminal/terminal-diagnostics.cjs')
 const { createSystemSkill, deleteSystemSkill, getSystemSkill, listSystemSkills, updateSystemSkill } = require('./domains/ai/system-skills.cjs')
-const { getPiSystemStatus, installPiPackage, listPiPackageSkills, listPiPackages, removePiPackage, updatePiPackage } = require('./domains/ai/pi-system-service.cjs')
+const { PI_COMMAND_TIMEOUT_MS, createPiSystemUseCases } = require('./domains/ai/pi-system-service.cjs')
 const { clearProjectInstructions, getProjectInstructions, saveProjectInstructions } = require('./domains/ai/project-instructions.cjs')
 const { createProjectDirectory, createProjectFile, duplicateProjectEntry, listDirectoryEntries, listProjectFiles, openProjectFileWith, prepareProjectFileAttachment, readProjectFile, readProjectPreview, renameProjectEntry, resolveProjectDirectory, resolveProjectFile, saveProjectFile } = require('./domains/filesystem/project-files.cjs')
 const { createProjectFileIndex } = require('./domains/filesystem/project-file-index.cjs')
@@ -51,7 +51,7 @@ const { clearAllWorkspacePreferences, clearWorkspacePreference, getPreferences, 
 const updatePersistence = require('./infrastructure/persistence/update.repository.cjs')
 const updateActivation = require('./infrastructure/updates/update-activation.adapter.cjs')
 const updateChecker = require('./infrastructure/updates/update-checker.adapter.cjs')
-const { reconcileManagedPiPackages } = require('./infrastructure/updates/update-discovery.adapter.cjs')
+const { reconcileManagedPiPackages: reconcileManagedPiPackagesWithDependencies } = require('./infrastructure/updates/update-discovery.adapter.cjs')
 const updateDownloader = require('./infrastructure/updates/update-downloader.adapter.cjs')
 const { createUpdateService } = require('./domains/updates/update-service.cjs')
 const { APP_SECTIONS, createApplicationMenuTemplate, isApplicationMenuCommand } = require('./domains/menu/application-menu.cjs')
@@ -69,6 +69,7 @@ const { createReliabilityFaultInjection } = require('./app/reliability-fault-inj
 const { createRendererRecoveryController } = require('./app/renderer-recovery-controller.cjs')
 const { createWindowCloseCoordinator } = require('./app/window-close-coordinator.cjs')
 const { createPtyRuntime } = require('./infrastructure/processes/pty-runtime.adapter.cjs')
+const { createPiCommandRunner, isPiProcessAlive } = require('./infrastructure/processes/pi-command-runner.adapter.cjs')
 const { createShellHostAdapter } = require('./infrastructure/processes/shell-host.adapter.cjs')
 const { getRuntimeCapabilities } = require('./infrastructure/system/runtime-capabilities.adapter.cjs')
 const { createRendererEventSender } = require('./infrastructure/ipc/renderer-event-sender.cjs')
@@ -170,10 +171,31 @@ const reliabilityFaultInjection = RELIABILITY_FAULT_INJECTION_MODE
       getWorkspacePath: () => activeWorkspacePath,
     })
   : null
-const systemSkillsRoot = path.join(app.getPath('home'), '.pi', 'agent', 'skills')
-const piAgentRoot = path.join(app.getPath('home'), '.pi', 'agent')
+const applicationHomePath = app.getPath('home')
+const systemSkillsRoot = path.join(applicationHomePath, '.pi', 'agent', 'skills')
+const piAgentRoot = path.join(applicationHomePath, '.pi', 'agent')
 const ptyRuntime = createPtyRuntime()
 const shellHost = createShellHostAdapter({ environment: process.env })
+const resolvePiExecutable = () => findPiExecutable({ environment: process.env, homeDirectory: applicationHomePath })
+const environmentForPiExecutable = (executable) => environmentForPi(executable, process.env)
+const piCommandRunner = createPiCommandRunner({
+  buildEnvironment: environmentForPi,
+  getEnvironment: () => process.env,
+  timeoutMs: PI_COMMAND_TIMEOUT_MS,
+})
+const {
+  getPiSystemStatus,
+  installPiPackage,
+  listPiPackageSkills,
+  listPiPackages,
+  removePiPackage,
+  updatePiPackage,
+} = createPiSystemUseCases({ run: piCommandRunner.run })
+const reconcileManagedPiPackages = (resolveExecutableForReconciliation, allowedRoot) => reconcileManagedPiPackagesWithDependencies(
+  resolveExecutableForReconciliation,
+  allowedRoot,
+  { run: piCommandRunner.run },
+)
 const projectFileIndex = createProjectFileIndex()
 const databaseOperations = createDatabaseOperationRegistry()
 const redisOperations = createRedisOperationRegistry()
@@ -286,11 +308,14 @@ const dispatchContextMenuCommand = contextCommandDispatcher.dispatch
 
 const piRuntime = createPiRuntime({
   createPublicError,
-  getHomePath: () => app.getPath('home'),
+  environmentForExecutable: environmentForPiExecutable,
+  getHomePath: () => applicationHomePath,
   getWindow: () => mainWindow,
+  isProcessAlive: isPiProcessAlive,
   log,
   notifyWhenBackground,
   ptyRuntime,
+  resolveExecutable: resolvePiExecutable,
   requireActiveWorkspace,
   sendToRenderer,
   showOpenDialog: (...args) => dialog.showOpenDialog(...args),
