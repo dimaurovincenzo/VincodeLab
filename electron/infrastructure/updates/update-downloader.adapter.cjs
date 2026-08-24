@@ -5,7 +5,7 @@ const { execFile } = require('node:child_process')
 const { promisify } = require('node:util')
 const { createPublicError, toPublicError } = require('../../domains/errors/public-error.cjs')
 const { getManagedUpdateInternal, recordStagedUpdate, recordUpdateError } = require('../persistence/update.repository.cjs')
-const { environmentForPi, resolvePiExecutable } = require('../../domains/ai/pi-executable.cjs')
+const { environmentForPi, resolvePiExecutable } = require('../processes/pi-executable.adapter.cjs')
 const { resolveSystemExecutable } = require('../system/runtime-capabilities.adapter.cjs')
 
 const execFileAsync = promisify(execFile)

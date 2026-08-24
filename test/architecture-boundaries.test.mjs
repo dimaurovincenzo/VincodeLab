@@ -228,6 +228,7 @@ test('impedisce import e ricreazione dei path legacy rimossi', () => {
     'src/main.tsx': "import App from './App'\nexport { App }\n",
     'src/components/project-editor.tsx': 'export const ProjectEditor = {}\n',
     'electron/domains/github/service.cjs': "module.exports = require('../../github-service.cjs')\n",
+    'electron/domains/ai/pi-executable.cjs': 'module.exports = {}\n',
     'electron/domains/menu/context-command-dispatcher.cjs': 'module.exports = {}\n',
     'electron/managed-ssh-service.cjs': 'module.exports = {}\n',
     'electron/remote-file-store.cjs': 'module.exports = {}\n',
@@ -236,6 +237,7 @@ test('impedisce import e ricreazione dei path legacy rimossi', () => {
   }, (problems) => {
     assert.ok(problems.some((problem) => problem.includes('path legacy "src/App" rimosso; usa "src/app"')))
     assert.ok(problems.some((problem) => problem.includes('path legacy "electron/github-service" rimosso')))
+    assert.ok(problems.some((problem) => problem.includes('electron/domains/ai/pi-executable.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('electron/domains/menu/context-command-dispatcher.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('path legacy "electron/shell-session-manager" rimosso')))
     assert.ok(problems.some((problem) => problem.includes('electron/managed-ssh-service.cjs: path legacy rimosso ricreato')))

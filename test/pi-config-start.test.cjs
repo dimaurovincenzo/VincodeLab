@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
-const { environmentForPi } = require('../electron/domains/ai/pi-executable.cjs')
+const { environmentForPi } = require('../electron/infrastructure/processes/pi-executable.adapter.cjs')
 
 test('Pi eseguito da NVM aggiunge il proprio bin al PATH del processo', () => {
   const executable = '/Users/example/.nvm/versions/node/v24.19.0/bin/pi'

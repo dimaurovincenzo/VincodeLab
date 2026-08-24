@@ -4,7 +4,7 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { resolvePiExecutable } = require('../electron/domains/ai/pi-executable.cjs')
+const { resolvePiExecutable } = require('../electron/infrastructure/processes/pi-executable.adapter.cjs')
 
 test('un override Pi esplicito è autorevole anche quando indica assenza', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-pi-resolver-'))
