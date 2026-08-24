@@ -5,7 +5,11 @@ const path = require('node:path')
 const { readGitHubSource } = require('./helpers/github-source.cjs')
 
 const workspace = readGitHubSource()
-const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+const styles = [
+  '../src/theme/styles/github.ts',
+  '../src/theme/styles/github-issue-detail.ts',
+  '../src/theme/styles/github-project-board.ts',
+].map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8')).join('\n')
 
 test('GitHub usa primitive accessibili per azioni icon-only e selezione branch', () => {
   assert.match(workspace, /tooltip=\{file\.sensitive \?[\s\S]*?\} onClick=\{\(\) => void actions\.stage\(file\)\}><Plus aria-hidden="true" size=\{13\} \/><\/IconButton>/)

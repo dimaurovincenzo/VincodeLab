@@ -239,10 +239,24 @@ test("Database usa explorer e split pane enterprise senza palette locale", () =>
 });
 
 test("GitHub usa layout operativi continui e stati semantici", () => {
-  const github = readWorkspaceFile("src/theme/styles/github.ts");
+  const githubEntry = readWorkspaceFile("src/theme/styles/github.ts");
+  const githubIssueDetail = readWorkspaceFile("src/theme/styles/github-issue-detail.ts");
+  const githubProjectBoard = readWorkspaceFile("src/theme/styles/github-project-board.ts");
+  const github = [githubEntry, githubIssueDetail, githubProjectBoard].join("\n");
 
   for (const layout of ["changesContent", "graphContent", "issuesContent", "projectContent"]) assert.match(github, new RegExp(`${layout}:`));
   for (const state of ["stateSuccess", "stateWarning", "stateError", "stateInfo"]) assert.match(github, new RegExp(state));
+  assert.match(githubEntry, /import \{ githubIssueDetailStyles \} from '\.\/github-issue-detail'/);
+  assert.match(githubEntry, /import \{ githubProjectBoardStyles \} from '\.\/github-project-board'/);
+  assert.match(githubEntry, /\.\.\.githubIssueDetailStyles/);
+  assert.match(githubEntry, /\.\.\.githubProjectBoardStyles/);
+  assert.match(githubIssueDetail, /export const githubIssueDetailStyles/);
+  assert.match(githubIssueDetail, /issueListPanel:\s*css\(/);
+  assert.match(githubIssueDetail, /modalContent:\s*css\(/);
+  assert.match(githubProjectBoard, /export const githubProjectBoardStyles/);
+  assert.match(githubProjectBoard, /projectListPanel:\s*css\(/);
+  assert.match(githubProjectBoard, /projectTableRow:\s*cva\(/);
+  assert.doesNotMatch(githubEntry, /^  (?:issueListPanel|modalContent|projectListPanel|projectTableRow):\s*(?:css|cva)\(/m);
   assert.doesNotMatch(
     github,
     /linear-gradient|radial-gradient|#[0-9a-f]{3,8}\b|!important|data-theme/i,

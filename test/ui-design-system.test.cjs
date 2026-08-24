@@ -16,6 +16,14 @@ function readProjectSkillsSource() {
   ].map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8')).join('\n')
 }
 
+function readGitHubStylesSource() {
+  return [
+    '../src/theme/styles/github.ts',
+    '../src/theme/styles/github-issue-detail.ts',
+    '../src/theme/styles/github-project-board.ts',
+  ].map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8')).join('\n')
+}
+
 function readTerminalStylesSource() {
   return [
     '../src/theme/styles/terminal.ts',
@@ -94,7 +102,7 @@ test('il design system espone ruoli Graphite per superficie, stato, elevazione, 
 
 test('i layer temporanei usano uno scrim semantico condiviso', () => {
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/tokens.ts'), 'utf8')
-  const github = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const github = readGitHubStylesSource()
   const panda = fs.readFileSync(path.join(__dirname, '../panda.config.ts'), 'utf8')
   const recipes = fs.readFileSync(path.join(__dirname, '../src/theme/recipes.ts'), 'utf8')
 
@@ -540,7 +548,7 @@ test('GitHub separa il grafo e presenta i Projects del workspace in una tabella 
 test('la board Project rende le sub-issue nella gerarchia del rispettivo padre', () => {
   const component = readGitHubSource()
   const projectsModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-projects.ts'), 'utf8')
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
 
   assert.match(projectsModel, /function orderProjectItemsByHierarchy\(items: GitHubProjectItem\[\]\)/)
   assert.match(component, /orderProjectItemsByHierarchy\(items\)\.map\(\(\{ item, depth \}\)/)
@@ -555,7 +563,7 @@ test('Project GitHub comunica il caricamento e cerca le attività per numero iss
     readGitHubModule('components/github-project-board.tsx'),
   ].join('\n')
   const projectsModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-projects.ts'), 'utf8')
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
 
   assert.match(projectsModel, /function matchesProjectItemSearch\(item: GitHubProjectItem, query: string\)/)
   assert.match(projectsModel, /item\.content\?\.number === Number\(numeric\)/)
@@ -568,7 +576,7 @@ test('Project GitHub comunica il caricamento e cerca le attività per numero iss
 
 test('i gruppi Project sono intestazioni comprimibili e riconoscibili', () => {
   const github = readGitHubSource()
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
 
   assert.match(github, /const \[collapsedBoardGroups, setCollapsedBoardGroups\] = useState<Set<string>>\(new Set\(\)\)/)
   assert.match(github, /<Collapsible\.Root asChild key=\{group\} open=\{!collapsed\} onOpenChange=/)
@@ -592,7 +600,7 @@ test('la board Project espone una tabella ARIA completa senza mascherare i contr
 })
 
 test('la tabella Project riusa i colori del design system dell’app', () => {
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
 
   assert.match(styles, /projectTable:\s*css\(\{[^}]*bg:\s*'surfaceRaised'/)
   assert.match(styles, /projectTableHead:\s*css\(\{[\s\S]*?bg:\s*'surfaceSubtle'/)
@@ -606,7 +614,7 @@ test('la tabella Project riusa i colori del design system dell’app', () => {
 })
 
 test('GitHub applica ruoli Graphite alle superfici operative e agli stati delle Issue', () => {
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
 
   assert.match(styles, /workspace:\s*css\(\{[\s\S]*?bg:\s*'surfaceCanvas'/)
   assert.match(styles, /header:\s*css\(\{[\s\S]*?bg:\s*'surfaceRaised'/)
@@ -617,7 +625,7 @@ test('GitHub applica ruoli Graphite alle superfici operative e agli stati delle 
 
 test('le tab GitHub usano un indicatore Graphite rettilineo senza arrotondare la selezione', () => {
   const github = readGitHubSource()
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
   const recipes = fs.readFileSync(path.join(__dirname, '../src/theme/recipes.ts'), 'utf8')
 
   assert.match(github, /<Tabs\.List className=\{gh\.tabsList\}[^>]*aria-label="Sezioni GitHub"/)
@@ -631,7 +639,7 @@ test('le tab GitHub usano un indicatore Graphite rettilineo senza arrotondare la
 })
 
 test('GitHub non conserva una palette locale fuori dal design system', () => {
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
 
   assert.doesNotMatch(styles, /#[0-9a-f]{3,8}\b|rgb\(/i)
 })
@@ -669,7 +677,7 @@ test('il dettaglio Issue rende la descrizione come anteprima Markdown', () => {
     readGitHubModule('components/github-issue-dialogs.tsx'),
     readGitHubModule('components/github-project-item-dialog.tsx'),
   ].join('\n')
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
 
   assert.match(github, /<MarkdownPreview source=\{state\.selectedIssue\.body\}/)
   assert.match(github, /<MarkdownPreview source=\{derived\.issueDetail\.body\}/)
@@ -683,7 +691,7 @@ test('il selettore Project si richiude e gli assegnatari restano compatti nella 
     readGitHubModule('components/github-project-picker.tsx'),
     readGitHubModule('components/github-project-board.tsx'),
   ].join('\n')
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
 
   assert.match(github, /const \[projectPickerCollapsed, setProjectPickerCollapsed\] = useState\(false\)/)
   assert.match(github, /className=\{gh\.projectPickerContent\(\{ hidden: state\.projectPickerCollapsed \}\)\}/)
@@ -737,7 +745,7 @@ test('GitHub espone la freschezza cache e aggiorna senza bloccare dati disponibi
     readGitHubModule('components/github-header.tsx'),
   ].join('\n')
   const displayModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-display.ts'), 'utf8')
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
 
   assert.match(github, /gitBridge\.gitStatus\(\{ force \}\)/)
   assert.match(github, /githubBridge\.data\(\{ force \}\)/)
@@ -751,7 +759,7 @@ test('GitHub comunica ogni limite bounded e riferisce le azioni di gruppo ai fil
   const github = readGitHubSource()
   const feedback = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-feedback.tsx'), 'utf8')
   const projectsModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-projects.ts'), 'utf8')
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
   const gitTypes = fs.readFileSync(path.join(__dirname, '../src/bridge/contracts/git.types.ts'), 'utf8')
   const githubTypes = fs.readFileSync(path.join(__dirname, '../src/bridge/contracts/github.types.ts'), 'utf8')
   const boundedSources = `${github}\n${projectsModel}`
@@ -781,7 +789,7 @@ test('l’apertura di una board Project riusa la cache fino al refresh esplicito
 })
 
 test('GitHub non conserva stili della precedente board a colonne', () => {
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
 
   for (const selector of ['github-board-columns', 'github-board-column', 'github-board-card', 'github-card-open', 'github-card-status', 'github-item-detail', 'github-draft-form']) {
     assert.doesNotMatch(styles, new RegExp(`\\b${selector}\\b`))
@@ -1220,7 +1228,7 @@ test('Database separa SQL e dati in sotto-tab locali e apre i dati dopo una quer
 })
 
 test('il workbench Modifiche GitHub riempie la vista e dimensiona correttamente il commit', () => {
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
 
   assert.match(styles, /changesContent:\s*css\(\{[\s\S]*?flex:\s*'1'[\s\S]*?gridTemplateRows:\s*'auto minmax\(0, 1fr\)'[\s\S]*?overflow:\s*'hidden'/)
   assert.match(styles, /changesWorkbench:\s*css\(\{[\s\S]*?h:\s*'full'[\s\S]*?minH:\s*'0'[\s\S]*?overflow:\s*'hidden'/)
@@ -1230,7 +1238,7 @@ test('il workbench Modifiche GitHub riempie la vista e dimensiona correttamente 
 
 test('Modifiche GitHub usa un workbench master detail senza cronologia duplicata', () => {
   const github = readGitHubSource()
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
 
   assert.match(github, /className=\{gh\.changesWorkbench\}/)
   assert.match(github, /className=\{gh\.changeSidebar\}/)
@@ -1247,7 +1255,7 @@ test('Modifiche GitHub usa un workbench master detail senza cronologia duplicata
 test('Issue GitHub usa ricerca numerica e compositore modale', () => {
   const github = readGitHubSource()
   const issuesModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-issues.ts'), 'utf8')
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
 
   assert.match(issuesModel, /function matchesIssueSearch\(issue: GitHubIssue, query: string\)/)
   assert.match(issuesModel, /normalized\.match\(\/\^#\?\(\\d\+\)\$\/\)/)
@@ -1337,14 +1345,14 @@ test('le Impostazioni non smontano le sezioni persistenti del workspace', () => 
 })
 
 test('il grafo Git sfrutta tutta la larghezza della sezione GitHub', () => {
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
 
   assert.match(styles, /graphPanel:\s*css\(\{[^}]*gridColumn:\s*'1 \/ -1'[^}]*w:\s*'full'/)
 })
 
 test('il grafo Git mantiene continui i rami e differenzia le corsie', () => {
   const component = readGitHubSource()
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
+  const styles = readGitHubStylesSource()
   const pathStyles = styles.slice(styles.indexOf('export const gitGraphPathStyles'), styles.indexOf('export const gitGraphNodeStyles'))
   const nodeStyles = styles.slice(styles.indexOf('export const gitGraphNodeStyles'), styles.indexOf('export const githubMarkdownStyles'))
 
