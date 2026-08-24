@@ -5,12 +5,14 @@
  * normalizzazione e la persistenza vivono nei rispettivi owner.
  */
 
+import type { WorkspaceSessionApi, WorkspaceSessionState } from '@/bridge'
+
 export const WORKSPACE_SESSION_VERSION = 2 as const
 export const WORKSPACE_SESSION_DEBOUNCE_MS = 400
 export const MAX_WORKSPACE_SESSION_BYTES = 256 * 1024
 
 export type WorkspaceSessionClientState = WorkspaceSessionState
-export type WorkspaceSessionStorage = Pick<Window['vincodeLab']['workspaceSession'], 'get' | 'save'>
+export type WorkspaceSessionStorage = Pick<WorkspaceSessionApi, 'get' | 'save'>
 export type WorkspaceSessionUpdater = (current: Readonly<WorkspaceSessionState>) => WorkspaceSessionState
 export type WorkspaceSessionLoadSource = 'stored' | 'default' | 'fallback' | 'cancelled' | 'superseded'
 export type WorkspaceSessionRecovery = Readonly<{

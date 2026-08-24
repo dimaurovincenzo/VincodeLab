@@ -1,4 +1,4 @@
-import { optionalVincodeLabBridge } from '@/bridge'
+import { optionalVincodeLabBridge, type WorkspaceSessionSnapshot, type WorkspaceSessionState } from '@/bridge'
 
 import {
   cloneWorkspaceSessionState,

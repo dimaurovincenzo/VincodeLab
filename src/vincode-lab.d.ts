@@ -201,128 +201,6 @@ interface WorkspaceLaunchResult {
   message?: string
 }
 
-type RendererDraftScope =
-  | 'project-editor'
-  | 'project-instructions'
-  | 'project-skill'
-  | 'settings-package-source'
-  | 'settings-new-skill'
-  | 'settings-system-skill'
-  | 'database-sql'
-  | 'database-connection'
-  | 'database-grid'
-interface RendererDraftIdentity {
-  scope: RendererDraftScope
-  workspace: string
-  resource: string
-}
-interface RendererDraftSnapshot extends RendererDraftIdentity {
-  content: string
-  baseline: string
-}
-
-type WorkspaceSessionSection = 'ai' | 'editor' | 'terminal' | 'github' | 'database' | 'redis' | 'settings'
-type WorkspaceSessionFocusTarget =
-  | 'ai.terminal'
-  | 'ai.instructions'
-  | 'ai.skills'
-  | 'editor.code'
-  | 'editor.tabs'
-  | 'editor.tree'
-  | 'terminal.shell'
-  | 'terminal.commands'
-  | 'terminal.remote'
-  | 'github.changes'
-  | 'github.diff'
-  | 'github.graph'
-  | 'github.issues'
-  | 'github.projects'
-  | 'database.query'
-  | 'database.results'
-  | 'database.schema'
-  | 'redis.keys'
-  | 'redis.search'
-  | 'redis.inspector'
-  | 'settings.primary'
-
-interface WorkspaceSessionFileRef {
-  source: 'workspace' | 'remote'
-  id: string
-  mode?: 'source' | 'preview'
-}
-
-interface WorkspaceSessionFileView extends WorkspaceSessionFileRef {
-  selection: { anchor: number; head: number }
-  scroll: { top: number; left: number }
-}
-
-interface WorkspaceSessionState {
-  navigation: {
-    section: WorkspaceSessionSection
-    aiTab: 'terminal' | 'skills' | 'instructions'
-  }
-  editor: {
-    openFiles: WorkspaceSessionFileRef[]
-    activeFile: WorkspaceSessionFileRef | null
-    expandedDirectoryIds: string[]
-    fileViews: WorkspaceSessionFileView[]
-  }
-  terminal: {
-    tab: 'shell' | 'remote'
-    remoteView: 'server' | 'local'
-    selectedProfileCommandId: string | null
-    openSessionCount: number
-    activeSessionOrdinal: number | null
-  }
-  github: {
-    tab: 'changes' | 'graph' | 'issues' | 'projects'
-    selectedDiffPath: string | null
-    selectedProjectNumber: number | null
-    issueStateFilter: 'all' | 'OPEN' | 'CLOSED'
-    scroll: { changes: number; graph: number; issues: number; projects: number }
-  }
-  database: {
-    selectedConnectionId: string | null
-    sidebarTab: 'items' | 'queries' | 'history'
-    view: 'sql' | 'data'
-    expandedSchemaIds: string[]
-    selectedTableName: string | null
-    activeSavedQueryId: string | null
-    scroll: { explorer: number; editor: number; results: number }
-  }
-  redis: {
-    selectedConnectionId: string | null
-    databaseIndex: number
-    view: 'keys' | 'search'
-    typeFilter: 'all' | 'string' | 'hash' | 'list' | 'set' | 'zset' | 'stream' | 'json'
-    inspectorTab: 'value' | 'metadata'
-  }
-  panels: {
-    editorExplorer: number | null
-    terminalCommands: number | null
-    remoteConnections: number | null
-    databaseSidebar: number | null
-    githubProjectPicker: number | null
-  }
-  focus: {
-    view: WorkspaceSessionSection
-    target: WorkspaceSessionFocusTarget | null
-  }
-}
-
-interface WorkspaceSessionWriteSnapshot {
-  version: 2
-  state: WorkspaceSessionState
-}
-
-interface WorkspaceSessionSnapshot extends WorkspaceSessionWriteSnapshot {
-  updatedAt: number | null
-  recovery?: {
-    correlationId: string
-    kind: 'corrupt'
-  }
-}
-
 interface ProjectFileTreeNode {
   id: string
   name: string
@@ -755,15 +633,8 @@ interface Window {
       openInNewInstance: (workspacePath: string) => Promise<WorkspaceLaunchResult>
       onOpened: (listener: (result: WorkspaceOpenResult | null) => void) => () => void
     }
-    workspaceSession: {
-      get: () => Promise<WorkspaceSessionSnapshot>
-      save: (snapshot: WorkspaceSessionWriteSnapshot) => Promise<WorkspaceSessionSnapshot>
-    }
-    volatileDrafts: {
-      list: () => Promise<RendererDraftSnapshot[]>
-      write: (draft: RendererDraftSnapshot) => Promise<{ stored: boolean }>
-      discard: (identity: RendererDraftIdentity) => Promise<{ discarded: boolean }>
-    }
+    workspaceSession: import('./bridge').WorkspaceSessionApi
+    volatileDrafts: import('./bridge').VolatileDraftsApi
     appearance: {
       get: () => Promise<'system' | 'light' | 'dark'>
       set: (appearance: 'system' | 'light' | 'dark') => Promise<'system' | 'light' | 'dark'>

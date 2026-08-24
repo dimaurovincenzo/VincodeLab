@@ -1,3 +1,4 @@
+import type { WorkspaceSessionFileRef, WorkspaceSessionFileView, WorkspaceSessionSnapshot, WorkspaceSessionState } from '@/bridge'
 import {
   MAX_WORKSPACE_SESSION_BYTES,
   WORKSPACE_SESSION_VERSION,

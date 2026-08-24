@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
+import type { WorkspaceSessionFileView, WorkspaceSessionState } from '@/bridge'
 import { previewKindForFile, sessionFileRef } from '../model/editor-document'
 import type { EditorTab, ProjectEditorProps } from '../model/editor.types'
 

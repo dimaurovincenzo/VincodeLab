@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { WorkspaceSessionFocusTarget, WorkspaceSessionState } from '@/bridge'
 import { createWorkspaceSessionClient } from '@/features/workspace'
 import { reportRendererFailure } from '@/lib/renderer-error'
 import type { AppSection, WorkspaceSessionFailure } from '../model/app-controller.types'

@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import type { WorkspaceSessionState } from '@/bridge'
 import type { ConfirmationRequest } from '@/components/confirmation-dialog'
 import type { GitHubTab } from '../model/github-workspace.types'
 import { useRequestCoordinator } from './use-request-coordinator'

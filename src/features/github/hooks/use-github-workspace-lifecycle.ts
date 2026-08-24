@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import type { WorkspaceSessionState } from '@/bridge'
 import { toast } from '@/components/ui'
 import { gitBridge } from '@/features/git'
 import { useApplicationMenuCommand } from '@/lib/app-menu-command'

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { DatabaseConnection, DatabaseRoutine, DatabaseSavedQuery, DatabaseTableChange } from '@/bridge'
+import type { DatabaseConnection, DatabaseRoutine, DatabaseSavedQuery, DatabaseTableChange, WorkspaceSessionState } from '@/bridge'
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
 import { ErrorNotice, Spinner, Splitter, Tabs, toast, type SplitterPanelData } from '@/components/ui'
 import { effectivePreference, useAppPreferences } from '@/lib/app-preferences'

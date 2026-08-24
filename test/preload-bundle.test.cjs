@@ -78,6 +78,8 @@ test('il bundle conserva superficie, argomenti IPC e flag benchmark condizionali
     'database', 'redis', 'shellSessions', 'terminal',
   ])
   assert.equal(api.benchmark, undefined)
+  assert.deepEqual(Array.from(Object.keys(api.workspaceSession)), ['get', 'save'])
+  assert.deepEqual(Array.from(Object.keys(api.volatileDrafts)), ['list', 'write', 'discard'])
   assert.deepEqual(Array.from(Object.keys(api.database)), [
     'listConnections',
     'createConnection',

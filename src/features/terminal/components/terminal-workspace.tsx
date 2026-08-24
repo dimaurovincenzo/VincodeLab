@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight, FolderOpen, Plus, TerminalSquare, X } from 'lucide-react'
+import type { WorkspaceSessionState } from '@/bridge'
 import { RemoteFiles } from '@/features/remote-files'
 import { Button, ErrorNotice, IconButton, Spinner, Tabs } from '@/components/ui'
 import { terminalStyles } from '@/theme/styles/terminal'

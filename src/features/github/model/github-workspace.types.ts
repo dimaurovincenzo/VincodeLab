@@ -1,3 +1,5 @@
+import type { WorkspaceSessionState } from '@/bridge'
+
 export type GitHubTab = 'changes' | 'graph' | 'issues' | 'projects'
 
 export type GitHubWorkbenchRequest =

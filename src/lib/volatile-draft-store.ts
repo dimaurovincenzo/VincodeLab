@@ -1,24 +1,8 @@
-import { optionalVincodeLabBridge } from '@/bridge'
+import { optionalVincodeLabBridge, type RendererDraftIdentity, type RendererDraftSnapshot } from '@/bridge'
 
-export type VolatileDraftIdentity = Readonly<{
-  scope:
-    | 'project-editor'
-    | 'project-instructions'
-    | 'project-skill'
-    | 'settings-package-source'
-    | 'settings-new-skill'
-    | 'settings-system-skill'
-    | 'database-sql'
-    | 'database-connection'
-    | 'database-grid'
-  workspace: string
-  resource: string
-}>
+export type VolatileDraftIdentity = Readonly<RendererDraftIdentity>
 
-export type VolatileDraft = Readonly<{
-  content: string
-  baseline: string
-}>
+export type VolatileDraft = Readonly<Pick<RendererDraftSnapshot, 'content' | 'baseline'>>
 
 type VolatileDraftEntry = VolatileDraft & VolatileDraftIdentity & { sequence: number }
 export type VolatileDraftHydrationResult = Readonly<{ invalid: number; loaded: number }>

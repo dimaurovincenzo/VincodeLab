@@ -1,3 +1,4 @@
+import type { WorkspaceSessionState } from '@/bridge'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 
 export type EditorPreview = 'image' | 'pdf' | 'csv' | 'markdown'

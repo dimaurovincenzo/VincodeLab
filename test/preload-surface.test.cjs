@@ -134,7 +134,7 @@ test('le bozze volatili usano invoke con ack per rendere osservabili write e dis
   const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const workspaceStateIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace-state.ipc.cjs'), 'utf8'))
-  const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
+  const types = fs.readFileSync(path.join(__dirname, '../src/bridge/contracts/volatile-drafts.types.ts'), 'utf8')
 
   assert.match(preload, /write: \(draft\) => ipcRenderer\.invoke\('volatileDrafts:write', draft\)/)
   assert.match(preload, /discard: \(identity\) => ipcRenderer\.invoke\('volatileDrafts:discard', identity\)/)
@@ -189,7 +189,7 @@ test('Mostra nel Finder attraversa invoke e il menu delega ownership e recovery 
 test('la sessione workspace usa soltanto il workspace attivo e un sender trusted', () => {
   const preloadSource = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
+  const types = fs.readFileSync(path.join(__dirname, '../src/bridge/contracts/workspace-session.types.ts'), 'utf8')
   const workspaceStateIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace-state.ipc.cjs'), 'utf8'))
   const start = preloadSource.indexOf('workspaceSession: {')
   const end = preloadSource.indexOf('\n  appearance:', start)
@@ -202,7 +202,7 @@ test('la sessione workspace usa soltanto il workspace attivo e un sender trusted
   assert.match(workspaceStateIpc, /\['workspaceSession:save', \(event, snapshot\)[\s\S]{0,180}saveWorkspaceSession\(requireActiveWorkspace\(\), snapshot\)/)
   assert.match(main, /registerWorkspaceStateIpc\(\{/)
   assert.doesNotMatch(main, /ipcMain\.handle\('workspaceSession:/)
-  assert.match(types, /workspaceSession: \{[\s\S]*get: \(\) => Promise<WorkspaceSessionSnapshot>[\s\S]*save: \(snapshot: WorkspaceSessionWriteSnapshot\) => Promise<WorkspaceSessionSnapshot>/)
+  assert.match(types, /export type WorkspaceSessionApi = \{[\s\S]*get: \(\) => Promise<WorkspaceSessionSnapshot>[\s\S]*save: \(snapshot: WorkspaceSessionWriteSnapshot\) => Promise<WorkspaceSessionSnapshot>/)
 })
 
 test('preload espone refresh cache-aware senza API Node nel renderer', () => {

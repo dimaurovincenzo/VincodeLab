@@ -45,4 +45,20 @@ export type {
   RedisStringInspection,
   RedisZSetInspection,
 } from './contracts/redis.types'
+export type {
+  RendererDraftIdentity,
+  RendererDraftScope,
+  RendererDraftSnapshot,
+  VolatileDraftsApi,
+} from './contracts/volatile-drafts.types'
+export type {
+  WorkspaceSessionApi,
+  WorkspaceSessionFileRef,
+  WorkspaceSessionFileView,
+  WorkspaceSessionFocusTarget,
+  WorkspaceSessionSection,
+  WorkspaceSessionSnapshot,
+  WorkspaceSessionState,
+  WorkspaceSessionWriteSnapshot,
+} from './contracts/workspace-session.types'
 export type { VincodeLabBridge } from './contracts/vincode-lab-bridge'

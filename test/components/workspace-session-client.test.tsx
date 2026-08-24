@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { WorkspaceSessionSnapshot, WorkspaceSessionState, WorkspaceSessionWriteSnapshot } from '@/bridge'
 import {
   MAX_WORKSPACE_SESSION_BYTES,
   createDefaultWorkspaceSessionState,
