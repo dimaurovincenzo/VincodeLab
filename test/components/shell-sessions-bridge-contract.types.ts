@@ -1,4 +1,11 @@
-import type { ShellSessionsApi, VincodeLabBridge } from '@/bridge'
+import type {
+  ApplicationErrorCategory as BridgeApplicationErrorCategory,
+  ApplicationErrorSeverity as BridgeApplicationErrorSeverity,
+  ShellSessionErrorCategory as BridgeShellSessionErrorCategory,
+  ShellSessionErrorEvent as BridgeShellSessionErrorEvent,
+  ShellSessionsApi,
+  VincodeLabBridge,
+} from '@/bridge'
 
 type Equal<Left, Right> =
   (<Value>() => Value extends Left ? 1 : 2) extends
@@ -119,6 +126,8 @@ type ExpectedShellSessionsApi = {
 }
 
 export type ShellSessionsBridgeContractAssertions = [
+  Expect<Equal<BridgeShellSessionErrorCategory, BridgeApplicationErrorCategory>>,
+  Expect<Equal<BridgeShellSessionErrorEvent['error']['severity'], BridgeApplicationErrorSeverity>>,
   Expect<Equal<ShellSessionsApi, ExpectedShellSessionsApi>>,
   Expect<Equal<Window['vincodeLab']['shellSessions'], ShellSessionsApi>>,
   Expect<Equal<VincodeLabBridge['shellSessions'], ShellSessionsApi>>,

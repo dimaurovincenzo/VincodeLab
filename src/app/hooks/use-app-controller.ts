@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import type { ProjectFileIndexEntry } from '@/bridge'
 import type { CommandPaletteMode } from '@/components/command-palette'
 import { useAiRuntime } from '@/features/ai'
 import { effectivePreference, useAppPreferences } from '@/lib/app-preferences'

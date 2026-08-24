@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
+import type { ProjectFileTreeNode } from '@/bridge'
 import { toast } from '@/components/ui'
 import { discardVolatileDraft } from '@/lib/volatile-draft-store'
 import { editorBridge } from '../api/editor.bridge'

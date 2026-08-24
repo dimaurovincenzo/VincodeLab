@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Check, FilePlus2, Trash2 } from 'lucide-react'
+import type { PiPackageSkill, ProjectSkill } from '@/bridge'
 import { Button, createListCollection, Field, IconButton, Listbox, Spinner, Tabs } from '@/components/ui'
 import { SKILL_NAME_HELP, SKILL_NAME_MAX_LENGTH } from '@/lib/skill-name'
 import { settingsStyles } from '@/theme/styles/settings'

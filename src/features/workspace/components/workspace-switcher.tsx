@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ExternalLink, FolderOpen } from 'lucide-react'
+import type { RecentWorkspace, WorkspaceInstanceStatus } from '@/bridge'
 import { Button, ErrorNotice, Popover } from '@/components/ui'
 import { workspaceBridge } from '../api/workspace.bridge'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'

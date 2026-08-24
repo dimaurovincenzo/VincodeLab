@@ -4,6 +4,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import type { WorkspaceInstanceStatus } from '@/bridge'
 import { WorkspaceSwitcher } from '@/features/workspace'
 
 const availableStatus: WorkspaceInstanceStatus = {

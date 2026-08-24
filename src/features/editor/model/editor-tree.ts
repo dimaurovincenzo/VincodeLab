@@ -1,3 +1,4 @@
+import type { ProjectFileTreeNode } from '@/bridge'
 import type { EditorTreeNode } from './editor.types'
 
 export function toEditorTreeNodes(entries: ProjectFileTreeNode[], draftDirectoryId?: string, draftName = ''): EditorTreeNode[] {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ProjectSkill } from '@/bridge'
 import type { ConfirmationRequest } from '@/components/confirmation-dialog'
 import { toast } from '@/components/ui'
 import { skillNameIssue } from '@/lib/skill-name'

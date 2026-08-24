@@ -1,5 +1,5 @@
 import type { AiTerminalFallbackReason, AiTerminalRuntime } from './ai-terminal.types'
-import type { ShellSessionErrorCategory } from './shell-sessions.types'
+import type { ApplicationErrorCategory, ApplicationErrorSeverity } from './application-error.types'
 
 export interface TerminalExitStatus {
   exitCode: number | null
@@ -14,12 +14,12 @@ export interface TerminalErrorEvent {
   operation: TerminalOneWayOperation
   recovery: TerminalErrorRecovery
   error: {
-    category: ShellSessionErrorCategory
+    category: ApplicationErrorCategory
     code: string
     correlationId: string
     message: string
     recoverable: boolean
-    severity: 'info' | 'warning' | 'error'
+    severity: ApplicationErrorSeverity
   }
 }
 

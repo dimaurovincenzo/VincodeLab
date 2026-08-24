@@ -1,111 +1,3 @@
-interface PublicApplicationError {
-  category: 'validation' | 'not-found' | 'permission' | 'authentication' | 'network' | 'timeout' | 'cancelled' | 'conflict' | 'process' | 'database' | 'filesystem' | 'git' | 'github' | 'remote' | 'configuration' | 'persistence' | 'internal'
-  code: string
-  correlationId: string
-  message: string
-  recoverable: boolean
-  severity: 'info' | 'warning' | 'error'
-}
-
-interface WorkspaceOpenResult {
-  path?: string
-  error?: string
-  errorIncident?: PublicApplicationError
-}
-
-interface RecentWorkspace {
-  path: string
-  lastOpenedAt: number
-}
-
-interface WorkspaceInstanceStatus {
-  activeCount: number
-  maxInstances: 2
-  canOpenNew: boolean
-  workspaceOpenElsewhere: boolean
-  reason?: 'limit' | 'duplicate' | 'invalid-path'
-}
-
-interface WorkspaceLaunchResult {
-  launched: boolean
-  reason?: 'limit' | 'duplicate' | 'invalid-path' | 'launch-failed'
-  message?: string
-}
-
-interface ProjectFileTreeNode {
-  id: string
-  name: string
-  kind: 'file' | 'directory'
-  children?: ProjectFileTreeNode[]
-}
-
-interface ProjectFileReadResult { id: string; name: string; content: string; revision: string; size: number }
-interface ProjectFileSaveResult { id: string; revision: string; size: number }
-
-interface ProjectFileIndexEntry {
-  id: string
-  name: string
-  directory: string
-  extension: string
-  size: number
-  modifiedAt: number
-}
-
-interface ProjectFileIndexResult {
-  state: 'ready'
-  workspacePath: string
-  generation: number
-  files: ProjectFileIndexEntry[]
-  fileCount: number
-  directoriesVisited: number
-  entriesScanned: number
-  truncated: boolean
-  maxFiles: number
-  startedAt: number
-  completedAt: number
-  durationMs: number
-  cacheHit: boolean
-}
-
-interface ProjectFileIndexStatus {
-  state: 'indexing' | 'ready' | 'error' | 'cancelled'
-  workspacePath: string
-  generation: number
-  filesIndexed: number
-  directoriesVisited: number
-  entriesScanned: number
-  truncated: boolean
-  maxFiles: number
-  startedAt: number
-  updatedAt: number
-  completedAt?: number
-  error?: { code: string }
-}
-
-interface ProjectSkillIssue {
-  level: 'error' | 'warning'
-  message: string
-}
-
-interface ProjectSkill {
-  id: string
-  name: string
-  description: string
-  valid: boolean
-  issues: ProjectSkillIssue[]
-  content?: string
-}
-
-interface PiPackageSkill extends Omit<ProjectSkill, 'content'> {
-  source: string
-  packageName: string
-  relativePath: string
-}
-
-type PiRuntimeStatus =
-  | { state: 'ready'; executable: string; version: string }
-  | { state: 'missing'; code: 'PI_NOT_INSTALLED'; executable: null; version: null }
-
 type AppMenuSection = 'home' | 'ai' | 'ai-skills' | 'ai-instructions' | 'editor' | 'terminal' | 'github' | 'database' | 'redis' | 'settings'
 type LifecycleCloseReason = 'window' | 'quit'
 type LifecycleCloseDecision = 'proceed' | 'cancel'
@@ -309,56 +201,19 @@ interface Window {
       }) => Promise<{ opened: true }>
       onAction: (listener: (action: ContextMenuAction) => void) => () => void
     }
-    workspace: {
-      open: () => Promise<WorkspaceOpenResult | null>
-      getActive: () => Promise<WorkspaceOpenResult | null>
-      listRecent: () => Promise<RecentWorkspace[]>
-      reveal: () => Promise<{ revealed: true }>
-      openRecent: (workspacePath: string) => Promise<WorkspaceOpenResult>
-      instanceStatus: (workspacePath?: string) => Promise<WorkspaceInstanceStatus>
-      openInNewInstance: (workspacePath: string) => Promise<WorkspaceLaunchResult>
-      onOpened: (listener: (result: WorkspaceOpenResult | null) => void) => () => void
-    }
+    workspace: import('./bridge').WorkspaceApi
     workspaceSession: import('./bridge').WorkspaceSessionApi
     volatileDrafts: import('./bridge').VolatileDraftsApi
-    appearance: {
-      get: () => Promise<'system' | 'light' | 'dark'>
-      set: (appearance: 'system' | 'light' | 'dark') => Promise<'system' | 'light' | 'dark'>
-    }
+    appearance: import('./bridge').AppearanceApi
     preferences: import('./bridge').PreferencesApi
     updates: import('./bridge').UpdatesApi
-    files: {
-      list: () => Promise<{ entries: ProjectFileTreeNode[]; truncated: boolean }>
-      listDirectory: (directoryId: string) => Promise<{ entries: ProjectFileTreeNode[]; truncated: boolean }>
-      index: (options?: { force?: boolean }) => Promise<ProjectFileIndexResult>
-      indexStatus: () => Promise<ProjectFileIndexStatus | null>
-      read: (fileId: string) => Promise<ProjectFileReadResult>
-      preview: (fileId: string) => Promise<{ id: string; name: string; kind: 'image' | 'pdf'; content: string; size: number }>
-      prepareAttachment: (fileId: string) => Promise<import('./bridge').TerminalAttachment>
-      create: (directoryId: string, fileName: string) => Promise<ProjectFileReadResult>
-      createDirectory: (parentId: string, directoryName: string) => Promise<{ id: string; kind: 'directory'; name: string }>
-      rename: (entryId: string, entryName: string, expectedKind: 'file' | 'directory') => Promise<{ id: string; kind: 'file' | 'directory'; name: string; previousId: string; renamed: boolean }>
-      duplicate: (entryId: string, expectedKind: 'file' | 'directory') => Promise<{ id: string; kind: 'file' | 'directory'; name: string; sourceId: string }>
-      trash: (entryId: string, expectedKind: 'file' | 'directory') => Promise<{ id: string; kind: 'file' | 'directory'; trashed: true }>
-      save: (fileId: string, content: string, options: { revision?: string; force?: boolean }) => Promise<ProjectFileSaveResult>
-    }
-    instructions: {
-      get: () => Promise<{ exists: boolean; content: string }>
-      save: (content: string) => Promise<{ exists: true; content: string }>
-      clear: () => Promise<{ exists: false; content: string }>
-    }
-    skills: {
-      list: () => Promise<ProjectSkill[]>
-      get: (skillId: string) => Promise<ProjectSkill>
-      create: (name: string) => Promise<ProjectSkill>
-      update: (skillId: string, content: string) => Promise<ProjectSkill>
-      delete: (skillId: string) => Promise<{ deleted: true }>
-      reload: () => Promise<import('./bridge').AiTerminalReloadResult>
-    }
+    files: import('./bridge').FilesApi
+    instructions: import('./bridge').InstructionsApi
+    skills: import('./bridge').ProjectSkillsApi
     pi: import('./bridge').PiApi
-    systemSkills: { list: () => Promise<ProjectSkill[]>; get: (id: string) => Promise<ProjectSkill>; create: (name: string) => Promise<ProjectSkill>; update: (id: string, content: string) => Promise<ProjectSkill>; delete: (id: string) => Promise<{ deleted: true }> }
+    systemSkills: import('./bridge').SystemSkillsApi
     runtime: import('./bridge').RuntimeCapabilitiesApi
-    piSystem: { status: () => Promise<PiRuntimeStatus>; list: () => Promise<string[]>; listSkills: () => Promise<PiPackageSkill[]>; install: (source: string) => Promise<{ output: string }>; update: (source: string) => Promise<{ output: string }>; remove: (source: string) => Promise<{ output: string }> }
+    piSystem: import('./bridge').PiSystemApi
     piConfig: import('./bridge').PiConfigApi
     github: import('./bridge').GitHubApi
     workspaceCommands: import('./bridge').WorkspaceCommandsApi

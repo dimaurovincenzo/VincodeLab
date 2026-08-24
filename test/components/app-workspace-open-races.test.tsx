@@ -10,8 +10,11 @@ import type {
   AiTerminalRestartOptions,
   AiTerminalRestartResult,
   AppPreferencesSnapshot,
+  PublicApplicationError,
+  RecentWorkspace,
   TerminalExitStatus,
   TerminalResumeSnapshot,
+  WorkspaceOpenResult,
   WorkspaceSessionSnapshot,
   WorkspaceSessionWriteSnapshot,
 } from '@/bridge'

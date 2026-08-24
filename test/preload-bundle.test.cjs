@@ -78,8 +78,19 @@ test('il bundle conserva superficie, argomenti IPC e flag benchmark condizionali
     'database', 'redis', 'shellSessions', 'terminal',
   ])
   assert.equal(api.benchmark, undefined)
+  assert.deepEqual(Array.from(Object.keys(api.workspace)), [
+    'open',
+    'getActive',
+    'listRecent',
+    'reveal',
+    'openRecent',
+    'instanceStatus',
+    'openInNewInstance',
+    'onOpened',
+  ])
   assert.deepEqual(Array.from(Object.keys(api.workspaceSession)), ['get', 'save'])
   assert.deepEqual(Array.from(Object.keys(api.volatileDrafts)), ['list', 'write', 'discard'])
+  assert.deepEqual(Array.from(Object.keys(api.appearance)), ['get', 'set'])
   assert.deepEqual(Array.from(Object.keys(api.preferences)), [
     'get',
     'setGlobal',
@@ -96,8 +107,47 @@ test('il bundle conserva superficie, argomenti IPC e flag benchmark condizionali
     'rollback',
     'activatePending',
   ])
+  assert.deepEqual(Array.from(Object.keys(api.files)), [
+    'list',
+    'listDirectory',
+    'index',
+    'indexStatus',
+    'read',
+    'preview',
+    'prepareAttachment',
+    'create',
+    'createDirectory',
+    'rename',
+    'duplicate',
+    'trash',
+    'save',
+  ])
+  assert.deepEqual(Array.from(Object.keys(api.instructions)), ['get', 'save', 'clear'])
+  assert.deepEqual(Array.from(Object.keys(api.skills)), [
+    'list',
+    'get',
+    'create',
+    'update',
+    'delete',
+    'reload',
+  ])
   assert.deepEqual(Array.from(Object.keys(api.pi)), ['reload', 'restart'])
+  assert.deepEqual(Array.from(Object.keys(api.systemSkills)), [
+    'list',
+    'get',
+    'create',
+    'update',
+    'delete',
+  ])
   assert.deepEqual(Array.from(Object.keys(api.runtime)), ['capabilities'])
+  assert.deepEqual(Array.from(Object.keys(api.piSystem)), [
+    'status',
+    'list',
+    'listSkills',
+    'install',
+    'update',
+    'remove',
+  ])
   assert.deepEqual(Array.from(Object.keys(api.piConfig)), [
     'start',
     'close',

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ManagedUpdate, RuntimeCapabilitiesSnapshot } from '@/bridge'
+import type {
+  ManagedUpdate,
+  PiPackageSkill,
+  PiRuntimeStatus,
+  ProjectSkill,
+  RuntimeCapabilitiesSnapshot,
+} from '@/bridge'
 import { settingsBridge } from '../api/settings.bridge'
 import type { SettingsSectionFailure, SettingsTab } from '../model/settings.types'
 import { settingsUserError } from '../services/settings-error'

@@ -1,3 +1,5 @@
+import type { ApplicationErrorCategory, ApplicationErrorSeverity } from './application-error.types'
+
 export type ShellSessionStatus = 'starting' | 'running' | 'exited'
 
 export interface ShellSessionMetadata {
@@ -66,24 +68,7 @@ export interface ShellSessionExitEvent {
 
 export type ShellSessionOneWayOperation = 'ready' | 'ack' | 'disconnect' | 'write' | 'resize'
 export type ShellSessionErrorRecovery = 'resume' | 'restart' | 'resize'
-export type ShellSessionErrorCategory =
-  | 'validation'
-  | 'not-found'
-  | 'permission'
-  | 'authentication'
-  | 'network'
-  | 'timeout'
-  | 'cancelled'
-  | 'conflict'
-  | 'process'
-  | 'database'
-  | 'filesystem'
-  | 'git'
-  | 'github'
-  | 'remote'
-  | 'configuration'
-  | 'persistence'
-  | 'internal'
+export type ShellSessionErrorCategory = ApplicationErrorCategory
 
 export interface ShellSessionErrorEvent {
   sessionId: string
@@ -95,7 +80,7 @@ export interface ShellSessionErrorEvent {
     correlationId: string
     message: string
     recoverable: boolean
-    severity: 'info' | 'warning' | 'error'
+    severity: ApplicationErrorSeverity
   }
 }
 

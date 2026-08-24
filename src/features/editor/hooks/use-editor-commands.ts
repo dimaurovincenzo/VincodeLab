@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import type { ProjectFileTreeNode } from '@/bridge'
 import { useApplicationMenuCommand } from '@/lib/app-menu-command'
 import { editorBridge } from '../api/editor.bridge'
 import { editorTabCloseTargets, editorWorkbenchCycleDirection } from '../model/editor.commands'

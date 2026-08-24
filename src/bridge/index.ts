@@ -1,5 +1,14 @@
 export { bridgeNamespace, getVincodeLabBridge, optionalVincodeLabBridge } from './electron/get-vincode-lab-bridge'
 export type {
+  ApplicationErrorCategory,
+  ApplicationErrorSeverity,
+  PublicApplicationError,
+} from './contracts/application-error.types'
+export type {
+  AppAppearance,
+  AppearanceApi,
+} from './contracts/appearance.types'
+export type {
   AiTerminalFallbackReason,
   AiTerminalReloadResult,
   AiTerminalRestartOptions,
@@ -23,6 +32,15 @@ export type {
   DatabaseTablePage,
   DatabaseTableSchema,
 } from './contracts/database.types'
+export type {
+  FilesApi,
+  ProjectFileIndexEntry,
+  ProjectFileIndexResult,
+  ProjectFileIndexStatus,
+  ProjectFileReadResult,
+  ProjectFileSaveResult,
+  ProjectFileTreeNode,
+} from './contracts/files.types'
 export type {
   GitBranch,
   GitBranchPage,
@@ -54,6 +72,16 @@ export type {
   PiConfigErrorRecovery,
   PiConfigOneWayOperation,
 } from './contracts/pi-config.types'
+export type {
+  InstructionsApi,
+  PiPackageSkill,
+  PiRuntimeStatus,
+  PiSystemApi,
+  ProjectSkill,
+  ProjectSkillIssue,
+  ProjectSkillsApi,
+  SystemSkillsApi,
+} from './contracts/project-resources.types'
 export type {
   AppPreferenceDefinition,
   AppPreferencesSnapshot,
@@ -156,4 +184,11 @@ export type {
   WorkspaceCommandKind,
   WorkspaceCommandsApi,
 } from './contracts/workspace-commands.types'
+export type {
+  RecentWorkspace,
+  WorkspaceApi,
+  WorkspaceInstanceStatus,
+  WorkspaceLaunchResult,
+  WorkspaceOpenResult,
+} from './contracts/workspace.types'
 export type { VincodeLabBridge } from './contracts/vincode-lab-bridge'

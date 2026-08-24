@@ -1,4 +1,5 @@
 import { Bot, CircleAlert } from 'lucide-react'
+import type { PiRuntimeStatus } from '@/bridge'
 import { Button, Field, Spinner, Tabs } from '@/components/ui'
 import { settingsStyles } from '@/theme/styles/settings'
 import type { PiConfigController } from '../hooks/use-pi-config'

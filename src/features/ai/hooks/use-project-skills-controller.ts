@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { aiBridge } from '../api/ai.bridge'
+import type { ProjectSkill } from '@/bridge'
 import { toast } from '@/components/ui'
 import type { ConfirmationRequest } from '@/components/confirmation-dialog'
 import { skillNameIssue } from '@/lib/skill-name'
@@ -18,6 +18,7 @@ import {
   type UserError,
 } from '@/lib/user-error'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
+import { aiBridge } from '../api/ai.bridge'
 
 export type ProjectSkillsControllerProps = {
   workspace: string

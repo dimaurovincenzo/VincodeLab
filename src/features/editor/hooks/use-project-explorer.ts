@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ProjectFileTreeNode } from '@/bridge'
 import { toast } from '@/components/ui'
 import { editorBridge } from '../api/editor.bridge'
 import { resolveNewFileDraft } from '../model/editor-new-file'

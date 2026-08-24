@@ -1,4 +1,13 @@
-import type { PiApi, PiConfigApi, TerminalApi, VincodeLabBridge } from '@/bridge'
+import type {
+  ApplicationErrorCategory as BridgeApplicationErrorCategory,
+  ApplicationErrorSeverity as BridgeApplicationErrorSeverity,
+  PiApi,
+  PiConfigApi,
+  PiConfigErrorEvent as BridgePiConfigErrorEvent,
+  TerminalApi,
+  TerminalErrorEvent as BridgeTerminalErrorEvent,
+  VincodeLabBridge,
+} from '@/bridge'
 
 type Equal<Left, Right> =
   (<Value>() => Value extends Left ? 1 : 2) extends
@@ -178,6 +187,10 @@ type ExpectedPiConfigApi = {
 }
 
 export type TerminalBridgeContractAssertions = [
+  Expect<Equal<BridgeTerminalErrorEvent['error']['category'], BridgeApplicationErrorCategory>>,
+  Expect<Equal<BridgeTerminalErrorEvent['error']['severity'], BridgeApplicationErrorSeverity>>,
+  Expect<Equal<BridgePiConfigErrorEvent['error']['category'], BridgeApplicationErrorCategory>>,
+  Expect<Equal<BridgePiConfigErrorEvent['error']['severity'], BridgeApplicationErrorSeverity>>,
   Expect<Equal<PiApi, ExpectedPiApi>>,
   Expect<Equal<Window['vincodeLab']['pi'], PiApi>>,
   Expect<Equal<VincodeLabBridge['pi'], PiApi>>,

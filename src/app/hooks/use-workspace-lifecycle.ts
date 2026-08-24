@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { TerminalStreamState } from '@/bridge'
+import type { RecentWorkspace, TerminalStreamState, WorkspaceOpenResult } from '@/bridge'
 import { appBridge } from '@/app/api/app.bridge'
 import { toast } from '@/components/ui'
 import type { AiSessionFailure, LaunchState } from '@/features/ai'

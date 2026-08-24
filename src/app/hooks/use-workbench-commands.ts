@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { appBridge } from '@/app/api/app.bridge'
+import type { ProjectFileIndexEntry, RecentWorkspace } from '@/bridge'
 import type { CommandPaletteItem, CommandPaletteMode } from '@/components/command-palette'
 import type { EditorWorkbenchRequest } from '@/features/editor'
 import type { TerminalWorkspaceAction } from '@/features/terminal'

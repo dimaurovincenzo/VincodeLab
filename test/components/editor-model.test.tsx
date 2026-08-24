@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { GitFileStatus } from '@/bridge'
+import type { GitFileStatus, ProjectFileTreeNode } from '@/bridge'
 import {
   editorDocumentForTab,
   editorDraftIdentity,

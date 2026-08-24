@@ -1,4 +1,4 @@
-import type { ShellSessionErrorCategory } from './shell-sessions.types'
+import type { ApplicationErrorCategory, ApplicationErrorSeverity } from './application-error.types'
 import type { TerminalExitStatus } from './terminal.types'
 
 export type PiConfigOneWayOperation = 'input' | 'resize'
@@ -8,12 +8,12 @@ export interface PiConfigErrorEvent {
   operation: PiConfigOneWayOperation
   recovery: PiConfigErrorRecovery
   error: {
-    category: ShellSessionErrorCategory
+    category: ApplicationErrorCategory
     code: string
     correlationId: string
     message: string
     recoverable: boolean
-    severity: 'info' | 'warning' | 'error'
+    severity: ApplicationErrorSeverity
   }
 }
 

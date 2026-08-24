@@ -1,3 +1,4 @@
+import type { WorkspaceOpenResult } from '@/bridge'
 import { reportRendererFailure } from '@/lib/renderer-error'
 
 export function reportWorkspaceResultError(result: WorkspaceOpenResult, fallback: string) {
