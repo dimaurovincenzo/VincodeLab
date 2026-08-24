@@ -105,7 +105,9 @@ export function verifyRedisSelectScenario() {
     const dialogZIndex = zIndexOf(dialogPositioner ?? dialog)
     const popupZIndex = zIndexOf(popupPositioner ?? listbox)
     if (popupZIndex <= dialogZIndex) {
-      throw new Error('Il popup Redis non supera il dialog nello stacking: ' + popupZIndex + ' <= ' + dialogZIndex)
+      const popupClass = popupPositioner instanceof HTMLElement ? popupPositioner.className : listbox.className
+      const popupComputedZIndex = getComputedStyle(popupPositioner ?? listbox).zIndex
+      throw new Error('Il popup Redis non supera il dialog nello stacking: ' + popupZIndex + ' <= ' + dialogZIndex + '; classe=' + popupClass + '; computed=' + popupComputedZIndex)
     }
 
     const sentinelOption = options.find((element) => text(element) === 'Sentinel')
