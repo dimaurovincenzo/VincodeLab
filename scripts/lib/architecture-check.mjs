@@ -2,6 +2,23 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import ts from 'typescript'
+import {
+  aiFilesystemHostSpecifiers,
+  aiFilesystemIsolatedDomains,
+  aiProcessSpecifiers,
+  databaseDriverSpecifiers,
+  databaseVendorExecutionFactories,
+  databaseVendorLifecycleProperties,
+  databaseVendorSessionFactories,
+  databaseVendorTransactionMethods,
+  filesystemHostSpecifiers,
+  menuHostSpecifiers,
+  projectFileIndexIsolatedDomains,
+  projectFilesystemIsolatedDomains,
+  removedLegacyModules,
+  rendererBridgeGlobalContractNames,
+  shellOperationalSpecifiers,
+} from './architecture-policy.mjs'
 
 const require = createRequire(import.meta.url)
 const { IPC_PUBLIC_CHANNELS } = require('../../electron/ipc/channels.cjs')
@@ -11,211 +28,6 @@ const sourceRoots = ['src', 'electron']
 const ipcChannelRegistryFile = 'electron/ipc/channels.cjs'
 const ipcPublicChannelSet = new Set(IPC_PUBLIC_CHANNELS)
 const ipcChannelPattern = /^[a-z][A-Za-z0-9]*:[A-Za-z][A-Za-z0-9]*$/u
-const databaseDriverSpecifiers = Object.freeze(['better-sqlite3', 'mysql2', 'pg', 'tedious'])
-const databaseVendorExecutionFactories = new Set([
-  'addMssqlParameter',
-  'createMssqlRequest',
-  'createPostgresQuery',
-])
-const databaseVendorSessionFactories = new Set([
-  'createMssqlConnection',
-  'createMysqlClient',
-  'createPostgresClient',
-  'openMssqlConnection',
-  'openMssqlConnectionFromFactory',
-])
-const databaseVendorTransactionMethods = new Set([
-  'beginTransaction',
-  'commitTransaction',
-  'rollbackTransaction',
-])
-const databaseVendorLifecycleProperties = new Set([
-  'client',
-  'connection',
-  'destroy',
-  'end',
-  'socket',
-  'stream',
-])
-const shellOperationalSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'node-pty'])
-const aiProcessSpecifiers = new Set(['child_process', 'node:child_process'])
-const aiFilesystemHostSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'path', 'node:path'])
-const filesystemHostSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'path', 'node:path'])
-const projectFilesystemIsolatedDomains = new Map([
-  ['electron/domains/filesystem/project-access-policy.cjs', 'Policy accesso progetto'],
-  ['electron/domains/filesystem/project-directory-listing-host.port.cjs', 'Porta host elenco directory progetto'],
-  ['electron/domains/filesystem/project-directory-listing.cjs', 'Elenco directory progetto'],
-  ['electron/domains/filesystem/project-entry-mutations-host.port.cjs', 'Porta host mutazioni progetto'],
-  ['electron/domains/filesystem/project-entry-mutations.cjs', 'Mutazioni elementi progetto'],
-  ['electron/domains/filesystem/project-file-actions-host.port.cjs', 'Porta host azioni file progetto'],
-  ['electron/domains/filesystem/project-file-actions.cjs', 'Azioni file progetto'],
-  ['electron/domains/filesystem/project-file-reader-host.port.cjs', 'Porta host lettura file progetto'],
-  ['electron/domains/filesystem/project-file-reader.cjs', 'Lettura file progetto'],
-  ['electron/domains/filesystem/project-file-revision.cjs', 'Revisione file progetto'],
-  ['electron/domains/filesystem/project-file-save-host.port.cjs', 'Porta host salvataggio file progetto'],
-  ['electron/domains/filesystem/project-file-save.cjs', 'Salvataggio file progetto'],
-  ['electron/domains/filesystem/project-files.cjs', 'Facciata filesystem progetto'],
-])
-const projectFileIndexIsolatedDomains = new Map([
-  ['electron/domains/filesystem/project-file-index-host.port.cjs', 'Porta host Indice file progetto'],
-  ['electron/domains/filesystem/project-file-index.cjs', 'Indice file progetto'],
-])
-const aiFilesystemIsolatedDomains = new Map([
-  ['electron/domains/ai/pi-package-skills-source.port.cjs', 'Porta catalogo skill pacchetti Pi'],
-  ['electron/domains/ai/pi-package-skills.cjs', 'Catalogo skill pacchetti Pi'],
-  ['electron/domains/ai/project-instructions-storage.port.cjs', 'Porta Istruzioni progetto'],
-  ['electron/domains/ai/project-instructions.cjs', 'Istruzioni progetto'],
-  ['electron/domains/ai/project-skills-storage.port.cjs', 'Porta Skill progetto'],
-  ['electron/domains/ai/project-skills.cjs', 'Skill progetto'],
-  ['electron/domains/ai/system-skills-storage.port.cjs', 'Porta Skill di sistema'],
-  ['electron/domains/ai/system-skills.cjs', 'Skill di sistema'],
-])
-const menuHostSpecifiers = new Set(['child_process', 'electron', 'node:child_process'])
-const rendererBridgeGlobalContractNames = new Set([
-  'AppMenuApi',
-  'AppMenuCommand',
-  'AppMenuSection',
-  'BenchmarkApi',
-  'BenchmarkFault',
-  'BenchmarkWindowBounds',
-  'BenchmarkWindowRectangle',
-  'ContextMenuAction',
-  'ContextMenuApi',
-  'ContextMenuCommand',
-  'ContextMenuFlags',
-  'ContextMenuKind',
-  'ContextMenuOpenRequest',
-  'LifecycleApi',
-  'LifecycleCloseDecision',
-  'LifecycleCloseReason',
-  'LifecycleCloseRequest',
-  'VincodeLabBridge',
-])
-
-// These files predate src/bridge. Keep the list explicit so that new direct
-// renderer-to-preload dependencies cannot be introduced while each legacy
-// area is migrated independently.
-export const legacyDirectBridgeFiles = new Map([
-])
-
-// Removed compatibility paths are kept here as a one-way ratchet. Importers
-// must move to the canonical owner instead of recreating a facade in the old
-// location.
-export const removedLegacyModules = new Map([
-  ['src/App', 'src/app'],
-  ['src/app/components/ai-session-error-notice', 'src/features/ai'],
-  ['src/app/components/ai-workbench', 'src/features/ai'],
-  ['src/app/hooks/use-ai-failure', 'src/features/ai'],
-  ['src/app/hooks/use-ai-terminal-instance', 'src/features/ai'],
-  ['src/app/hooks/use-ai-terminal-paste', 'src/features/ai'],
-  ['src/app/hooks/use-ai-terminal-runtime', 'src/features/ai'],
-  ['src/components/terminal-paste-status', 'src/features/ai'],
-  ['src/components/database-workspace', 'src/features/database'],
-  ['src/components/free-terminal', 'src/features/terminal'],
-  ['src/components/github-workspace', 'src/features/github'],
-  ['src/components/project-editor', 'src/features/editor'],
-  ['src/components/remote-diff-dialog', 'src/features/editor'],
-  ['src/components/redis-workspace', 'src/features/redis'],
-  ['src/components/remote-files', 'src/features/remote-files'],
-  ['src/components/settings', 'src/features/settings'],
-  ['src/components/terminal-workspace', 'src/features/terminal'],
-  ['src/components/workspace-switcher', 'src/features/workspace'],
-  // These models have a single feature owner; keeping their former generic
-  // lib paths forbidden prevents compatibility facades from blurring it again.
-  ['src/lib/database-query', 'src/features/database'],
-  ['src/lib/editor-icon-resolution', 'src/features/editor'],
-  ['src/lib/editor-new-file', 'src/features/editor'],
-  ['src/lib/git-graph', 'src/features/github'],
-  ['src/lib/github-project-status', 'src/features/github'],
-  ['src/lib/remote-transfer-retry', 'src/features/remote-files'],
-  ['src/lib/shell-xterm-output-controller', 'src/features/terminal'],
-  ['src/lib/sql-format', 'src/features/database'],
-  ['src/lib/sql-highlight', 'src/features/database'],
-  ['src/lib/sql-lint', 'src/features/database'],
-  ['src/lib/workspace-command-library', 'src/features/terminal'],
-  ['src/lib/terminal-paste-controller', 'src/features/ai'],
-  ['src/lib/workspace-session', 'src/features/workspace'],
-  ['electron/github-service', 'electron/infrastructure/github/github-service.adapter.cjs'],
-  ['electron/github-operation-registry', 'electron/domains/github/github-operation-registry.cjs'],
-  ['electron/github-projects', 'electron/domains/github/github-projects.cjs'],
-  ['electron/github-cli-executable', 'electron/infrastructure/github/github-cli-executable.adapter.cjs'],
-  ['electron/fatal-error-experience', 'electron/app/fatal-error-experience.cjs'],
-  ['electron/application-menu', 'electron/domains/menu/application-menu.cjs'],
-  ['electron/context-menu', 'electron/domains/menu/context-menu.cjs'],
-  ['electron/domains/menu/context-command-dispatcher', 'electron/app/context-command-runtime.cjs'],
-  ['electron/logger', 'electron/infrastructure/logging/logger.adapter.cjs'],
-  ['electron/lifecycle-close-controller', 'electron/app/lifecycle-close-controller.cjs'],
-  ['electron/ipc-one-way-error', 'electron/infrastructure/ipc/ipc-one-way-error.cjs'],
-  ['electron/ipc-security', 'electron/infrastructure/security/ipc-security.adapter.cjs'],
-  ['electron/instance-launcher', 'electron/infrastructure/processes/instance-launcher.adapter.cjs'],
-  ['electron/instance-registry', 'electron/infrastructure/persistence/instance-registry.adapter.cjs'],
-  ['electron/app-preferences', 'electron/infrastructure/persistence/app-preferences.repository.cjs'],
-  ['electron/bootstrap', 'electron/app/bootstrap.cjs'],
-  ['electron/database-store', 'electron/infrastructure/persistence/database.repository.cjs'],
-  ['electron/redis-store', 'electron/infrastructure/persistence/redis.repository.cjs'],
-  ['electron/update-activation', 'electron/infrastructure/updates/update-activation.adapter.cjs'],
-  ['electron/update-checker', 'electron/infrastructure/updates/update-checker.adapter.cjs'],
-  ['electron/update-discovery', 'electron/infrastructure/updates/update-discovery.adapter.cjs'],
-  ['electron/update-downloader', 'electron/infrastructure/updates/update-downloader.adapter.cjs'],
-  ['electron/update-service', 'electron/domains/updates/update-service.cjs'],
-  ['electron/update-store', 'electron/infrastructure/persistence/update.repository.cjs'],
-  ['electron/workspace-cache', 'electron/infrastructure/persistence/workspace-cache.repository.cjs'],
-  ['electron/workspace-commands', 'electron/infrastructure/persistence/workspace-commands.repository.cjs'],
-  ['electron/workspace-session-store', 'electron/infrastructure/persistence/workspace-session.repository.cjs'],
-  ['electron/workspace-store', 'electron/infrastructure/persistence/workspace.repository.cjs'],
-  ['electron/managed-ssh-service', 'electron/infrastructure/remote/managed-ssh-service.adapter.cjs'],
-  ['electron/external-mutation-registry', 'electron/domains/workspace/external-mutation-registry.cjs'],
-  ['electron/file-utils', 'electron/infrastructure/filesystem/project-file-io-filesystem.service.cjs'],
-  ['electron/database-service', 'electron/domains/database/database-service.cjs'],
-  ['electron/database-operation-registry', 'electron/domains/database/database-operation-registry.cjs'],
-  ['electron/database-result-budget', 'electron/domains/database/database-result-budget.cjs'],
-  ['electron/database-session-registry', 'electron/domains/database/database-session-registry.cjs'],
-  ['electron/application-error', 'electron/domains/errors/application-error.cjs'],
-  ['electron/project-files', 'electron/domains/filesystem/project-files.cjs'],
-  ['electron/project-file-index', 'electron/domains/filesystem/project-file-index.cjs'],
-  ['electron/domains/filesystem/file-utils', 'electron/infrastructure/filesystem/project-file-io-filesystem.service.cjs'],
-  ['electron/domains/filesystem/project-path-model', 'electron/domains/filesystem/project-file-actions.cjs'],
-  ['electron/domains/filesystem/project-file-content', 'electron/domains/filesystem/project-file-save.cjs'],
-  ['electron/project-instructions', 'electron/domains/ai/project-instructions.cjs'],
-  ['electron/project-skills', 'electron/domains/ai/project-skills.cjs'],
-  ['electron/preload-error-experience', 'electron/app/preload-error-experience.cjs'],
-  ['electron/public-error', 'electron/domains/errors/public-error.cjs'],
-  ['electron/redis-service', 'electron/domains/redis/redis-service.cjs'],
-  ['electron/redis-connection-input', 'electron/domains/redis/redis-connection-input.cjs'],
-  ['electron/redis-operation-registry', 'electron/domains/redis/redis-operation-registry.cjs'],
-  ['electron/redis-result-budget', 'electron/domains/redis/redis-result-budget.cjs'],
-  ['electron/redis-session-registry', 'electron/domains/redis/redis-session-registry.cjs'],
-  ['electron/remote-file-service', 'electron/domains/remote-files/remote-file-service.cjs'],
-  ['electron/remote-file-store', 'electron/infrastructure/remote/remote-file-store.adapter.cjs'],
-  ['electron/renderer-recovery-controller', 'electron/app/renderer-recovery-controller.cjs'],
-  ['electron/shell-session-manager', 'electron/domains/shell/shell-session-manager.cjs'],
-  ['electron/shell-session-error-event', 'electron/domains/shell/shell-session-error-event.cjs'],
-  ['electron/sftp-service', 'electron/infrastructure/remote/sftp-service.adapter.cjs'],
-  ['electron/sqlite-database-worker', 'electron/infrastructure/database/sqlite-database-worker.cjs'],
-  ['electron/sqlite-worker-session', 'electron/infrastructure/database/sqlite-worker-session.adapter.cjs'],
-  ['electron/system-skills', 'electron/domains/ai/system-skills.cjs'],
-  ['electron/skill-validation', 'electron/domains/ai/skill-validation.cjs'],
-  ['electron/pi-package-skills', 'electron/domains/ai/pi-package-skills.cjs'],
-  ['electron/pi-executable', 'electron/infrastructure/processes/pi-executable.adapter.cjs'],
-  ['electron/domains/ai/pi-executable', 'electron/infrastructure/processes/pi-executable.adapter.cjs'],
-  ['electron/pi-session-controller', 'electron/domains/ai/pi-session-controller.cjs'],
-  ['electron/pi-system-service', 'electron/domains/ai/pi-system-service.cjs'],
-  ['electron/pty-lifecycle', 'electron/domains/terminal/pty-lifecycle.cjs'],
-  ['electron/pty-runtime', 'electron/infrastructure/processes/pty-runtime.adapter.cjs'],
-  ['electron/reliability-fault-injection', 'electron/app/reliability-fault-injection.cjs'],
-  ['electron/runtime-capabilities', 'electron/infrastructure/system/runtime-capabilities.adapter.cjs'],
-  ['electron/startup-bootstrap-guard', 'electron/app/startup-bootstrap-guard.cjs'],
-  ['electron/terminal-attachments', 'electron/infrastructure/filesystem/terminal-attachment.adapter.cjs'],
-  ['electron/domains/ai/terminal-attachments', 'electron/infrastructure/filesystem/terminal-attachment.adapter.cjs'],
-  ['electron/terminal-diagnostics', 'electron/domains/terminal/terminal-diagnostics.cjs'],
-  ['electron/terminal-history-buffer', 'electron/domains/terminal/terminal-history-buffer.cjs'],
-  ['electron/terminal-input', 'electron/domains/terminal/terminal-input.cjs'],
-  ['electron/terminal-stream-controller', 'electron/domains/terminal/terminal-stream-controller.cjs'],
-  ['electron/window-close-coordinator', 'electron/app/window-close-coordinator.cjs'],
-  ['electron/workspace-reveal', 'electron/domains/workspace/workspace-reveal.cjs'],
-  ['electron/volatile-draft-registry', 'electron/domains/workspace/volatile-draft-registry.cjs'],
-])
-
 function normalize(filePath) {
   return filePath.split(path.sep).join('/')
 }
@@ -631,11 +443,8 @@ export function inspectArchitecture({ root }) {
 
     if (file.startsWith('src/') && !file.startsWith('src/bridge/')) {
       const directAccesses = directBridgeAccessCount(sourceFile)
-      const legacyMaximum = legacyDirectBridgeFiles.get(file)
-      if (directAccesses > 0 && legacyMaximum === undefined) {
+      if (directAccesses > 0) {
         problems.push(`${file}: ${directAccesses} accessi diretti a window.vincodeLab fuori da src/bridge`)
-      } else if (legacyMaximum !== undefined && directAccesses !== legacyMaximum) {
-        problems.push(`${file}: accessi diretti al bridge ${directAccesses}, soglia legacy attesa ${legacyMaximum}; aggiorna intenzionalmente il ratchet`)
       }
     }
 
