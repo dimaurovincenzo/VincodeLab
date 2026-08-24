@@ -275,20 +275,6 @@ type PiRuntimeStatus =
   | { state: 'ready'; executable: string; version: string }
   | { state: 'missing'; code: 'PI_NOT_INSTALLED'; executable: null; version: null }
 
-interface RuntimeCapability {
-  id: string
-  kind: 'included' | 'optional'
-  label: string
-  state: 'ready' | 'missing' | 'broken'
-  code?: string
-  detail: string
-}
-
-interface RuntimeCapabilitiesSnapshot {
-  checkedAt: string
-  items: RuntimeCapability[]
-}
-
 interface GitFileStatus {
   path: string
   previousPath?: string
@@ -382,43 +368,6 @@ interface RemoteEntry { id: string; name: string; kind: 'file' | 'directory' | '
 interface RemoteTrackedFile { id: string; connectionId: string; name: string; remotePath: string; localState: 'synced' | 'modified' | 'conflict' | 'offline'; size: number | null; cacheSize: number; modifiedAt: number | null; mode: number | null; baselineHash: string; localHash: string; lastError: string | null; updatedAt: number }
 interface RemoteTransfer { id: string; direction: 'download' | 'upload'; name: string; state: 'queued' | 'running' | 'completed' | 'cancelled' | 'error'; bytes: number | null; total: number | null; error?: string }
 interface RemoteCompareResult { baselineChanged: boolean; binary: boolean; remoteHash: string; baselineHash: string; localHash: string; remoteContent?: string; localContent?: string }
-type AppPreferenceValue = string | number | boolean
-interface AppPreferenceDefinition { key: string; section: 'editor' | 'terminal' | 'git' | 'database'; label: string; type: 'number' | 'boolean' | 'enum'; default: AppPreferenceValue; min?: number; max?: number; step?: number; values?: string[] }
-interface AppPreferencesSnapshot {
-  schema: AppPreferenceDefinition[]
-  global: Record<string, AppPreferenceValue>
-  explicitGlobal: Record<string, AppPreferenceValue>
-  overrides: Record<string, AppPreferenceValue>
-  effective: Record<string, AppPreferenceValue>
-  sources: Record<string, 'default' | 'global' | 'workspace'>
-  workspaceAvailable: boolean
-  recovery?: {
-    kind: 'corrupt'
-    correlationId: string
-    globalCount: number
-    workspaceCount: number
-  }
-}
-interface ManagedUpdate {
-  id: string
-  kind: 'skill' | 'pi-extension' | 'pi-runtime'
-  name: string
-  sourceType: 'github' | 'runtime'
-  owner: string | null
-  repository: string | null
-  ref: string | null
-  channel: string
-  activeVersion: string
-  rollbackVersion: string | null
-  availableVersion: string | null
-  stagedVersion: string | null
-  changelog: string | null
-  policy: 'manual' | 'automatic'
-  status: string
-  restartRequired: boolean
-  lastCheckedAt: number | null
-  lastError: string | null
-}
 
 type AppMenuSection = 'home' | 'ai' | 'ai-skills' | 'ai-instructions' | 'editor' | 'terminal' | 'github' | 'database' | 'redis' | 'settings'
 type LifecycleCloseReason = 'window' | 'quit'
@@ -639,22 +588,8 @@ interface Window {
       get: () => Promise<'system' | 'light' | 'dark'>
       set: (appearance: 'system' | 'light' | 'dark') => Promise<'system' | 'light' | 'dark'>
     }
-    preferences: {
-      get: () => Promise<AppPreferencesSnapshot>
-      setGlobal: (key: string, value: AppPreferenceValue) => Promise<AppPreferencesSnapshot>
-      setWorkspace: (key: string, value: AppPreferenceValue) => Promise<AppPreferencesSnapshot>
-      clearWorkspace: (key: string) => Promise<AppPreferencesSnapshot>
-      clearAllWorkspace: () => Promise<AppPreferencesSnapshot>
-    }
-    updates: {
-      list: () => Promise<ManagedUpdate[]>
-      check: (id?: string) => Promise<ManagedUpdate[]>
-      download: (id: string) => Promise<ManagedUpdate>
-      downloadAll: () => Promise<ManagedUpdate[]>
-      setPolicy: (id: string, policy: 'manual' | 'automatic') => Promise<ManagedUpdate>
-      rollback: (id: string) => Promise<ManagedUpdate>
-      activatePending: () => Promise<Array<{ id: string; success: boolean; error?: string; update?: ManagedUpdate }>>
-    }
+    preferences: import('./bridge').PreferencesApi
+    updates: import('./bridge').UpdatesApi
     files: {
       list: () => Promise<{ entries: ProjectFileTreeNode[]; truncated: boolean }>
       listDirectory: (directoryId: string) => Promise<{ entries: ProjectFileTreeNode[]; truncated: boolean }>
@@ -688,7 +623,7 @@ interface Window {
       restart: (options?: AiTerminalRestartOptions) => Promise<AiTerminalRestartResult>
     }
     systemSkills: { list: () => Promise<ProjectSkill[]>; get: (id: string) => Promise<ProjectSkill>; create: (name: string) => Promise<ProjectSkill>; update: (id: string, content: string) => Promise<ProjectSkill>; delete: (id: string) => Promise<{ deleted: true }> }
-    runtime: { capabilities: () => Promise<RuntimeCapabilitiesSnapshot> }
+    runtime: import('./bridge').RuntimeCapabilitiesApi
     piSystem: { status: () => Promise<PiRuntimeStatus>; list: () => Promise<string[]>; listSkills: () => Promise<PiPackageSkill[]>; install: (source: string) => Promise<{ output: string }>; update: (source: string) => Promise<{ output: string }>; remove: (source: string) => Promise<{ output: string }> }
     piConfig: { start: () => Promise<{ started: boolean; reused: boolean }>; close: () => Promise<{ closed: true }>; write: (data: string) => void; resize: (dimensions: { cols: number; rows: number }) => void; onData: (listener: (data: string) => void) => () => void; onExit: (listener: (status: TerminalExitStatus) => void) => () => void; onError: (listener: (event: PiConfigErrorEvent) => void) => () => void }
     github: {

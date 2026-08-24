@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { AppPreferenceDefinition } from '@/bridge'
 import { Field } from '@/components/ui'
 
 export type NumberPreferenceInputProps = {

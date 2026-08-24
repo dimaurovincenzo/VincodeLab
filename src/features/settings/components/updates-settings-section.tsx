@@ -1,4 +1,5 @@
 import { Download, RefreshCw, RotateCcw } from 'lucide-react'
+import type { ManagedUpdate } from '@/bridge'
 import type { ConfirmationRequest } from '@/components/confirmation-dialog'
 import { Button, Checkbox, ErrorNotice, SegmentGroup, Tabs } from '@/components/ui'
 import { settingsStyles } from '@/theme/styles/settings'

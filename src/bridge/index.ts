@@ -23,6 +23,12 @@ export type {
   DatabaseTableSchema,
 } from './contracts/database.types'
 export type {
+  AppPreferenceDefinition,
+  AppPreferencesSnapshot,
+  AppPreferenceValue,
+  PreferencesApi,
+} from './contracts/preferences.types'
+export type {
   RedisApi,
   RedisConnection,
   RedisConnectionInput,
@@ -45,6 +51,15 @@ export type {
   RedisStringInspection,
   RedisZSetInspection,
 } from './contracts/redis.types'
+export type {
+  RuntimeCapabilitiesApi,
+  RuntimeCapabilitiesSnapshot,
+  RuntimeCapability,
+} from './contracts/runtime-capabilities.types'
+export type {
+  ManagedUpdate,
+  UpdatesApi,
+} from './contracts/updates.types'
 export type {
   RendererDraftIdentity,
   RendererDraftScope,

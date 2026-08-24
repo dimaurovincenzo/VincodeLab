@@ -4,7 +4,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { WorkspaceSessionState } from '@/bridge'
+import type { AppPreferencesSnapshot, AppPreferenceValue, WorkspaceSessionState } from '@/bridge'
 
 vi.mock('@/lib/app-preferences', () => ({
   effectivePreference: (preferences: AppPreferencesSnapshot | null, key: string, fallback: AppPreferenceValue) => preferences?.effective[key] ?? fallback,

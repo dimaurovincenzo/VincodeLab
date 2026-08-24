@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { AppPreferenceDefinition, AppPreferenceValue } from '@/bridge'
 import type { ConfirmationRequest } from '@/components/confirmation-dialog'
 import { toast } from '@/components/ui'
 import { useAppPreferences } from '@/lib/app-preferences'

@@ -1,3 +1,4 @@
+import type { AppPreferenceDefinition } from '@/bridge'
 import type { VolatileDraftIdentity } from '@/lib/volatile-draft-store'
 import type { PackageSource } from './settings.types'
 

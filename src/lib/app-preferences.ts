@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
-import { bridgeNamespace } from '@/bridge'
+import {
+  bridgeNamespace,
+  type AppPreferenceDefinition,
+  type AppPreferencesSnapshot,
+  type AppPreferenceValue,
+} from '@/bridge'
 
 type AppPreferencesWorkspaceKey = string | null
 type AppPreferencesContext = {

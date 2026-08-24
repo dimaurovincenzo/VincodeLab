@@ -1,3 +1,4 @@
+import type { AppPreferenceDefinition, AppPreferenceValue } from '@/bridge'
 import type { UserError } from '@/lib/user-error'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 

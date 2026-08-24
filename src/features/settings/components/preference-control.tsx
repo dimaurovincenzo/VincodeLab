@@ -1,3 +1,4 @@
+import type { AppPreferenceDefinition } from '@/bridge'
 import { Button, Checkbox, Field, SelectField } from '@/components/ui'
 import { preferenceEnumLabels } from '../model/settings-model'
 import { preferenceOriginStyle, settingsStyles } from '@/theme/styles/settings'

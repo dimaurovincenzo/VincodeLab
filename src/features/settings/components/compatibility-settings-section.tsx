@@ -1,4 +1,5 @@
 import { CircleAlert, CircleCheck, Cpu } from 'lucide-react'
+import type { RuntimeCapabilitiesSnapshot, RuntimeCapability } from '@/bridge'
 import { Tabs } from '@/components/ui'
 import { settingsStyles } from '@/theme/styles/settings'
 import type { SettingsSectionFailure } from '../model/settings.types'

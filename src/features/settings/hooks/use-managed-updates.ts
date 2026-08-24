@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { ManagedUpdate } from '@/bridge'
 import { toast } from '@/components/ui'
 import { normalizeUserError, reportUserError } from '@/lib/user-error'
 import { settingsBridge } from '../api/settings.bridge'

@@ -4,6 +4,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import type { AppPreferencesSnapshot } from '@/bridge'
 import { Settings } from '@/features/settings'
 import { setAppPreferencesWorkspace } from '@/lib/app-preferences'
 
