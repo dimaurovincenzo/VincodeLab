@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { DatabaseConnection } from '@/bridge'
 import type { UserError } from '@/lib/user-error'
 import { normalizeUserError, reportUserError } from '@/lib/user-error'
 import {

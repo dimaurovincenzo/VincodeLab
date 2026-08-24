@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { DatabaseConnection } from '@/bridge'
 import {
   connectionDraftFor,
   connectionDraftIdentity,

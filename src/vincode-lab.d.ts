@@ -504,18 +504,6 @@ interface RemoteEntry { id: string; name: string; kind: 'file' | 'directory' | '
 interface RemoteTrackedFile { id: string; connectionId: string; name: string; remotePath: string; localState: 'synced' | 'modified' | 'conflict' | 'offline'; size: number | null; cacheSize: number; modifiedAt: number | null; mode: number | null; baselineHash: string; localHash: string; lastError: string | null; updatedAt: number }
 interface RemoteTransfer { id: string; direction: 'download' | 'upload'; name: string; state: 'queued' | 'running' | 'completed' | 'cancelled' | 'error'; bytes: number | null; total: number | null; error?: string }
 interface RemoteCompareResult { baselineChanged: boolean; binary: boolean; remoteHash: string; baselineHash: string; localHash: string; remoteContent?: string; localContent?: string }
-interface DatabaseConnection { id: string; name: string; driver: 'sqlite' | 'postgres' | 'mysql' | 'mssql'; sqlitePath?: string; host?: string; port?: number; database?: string; user?: string; hasPassword: boolean }
-interface DatabaseConnectionInput { name: string; driver: DatabaseConnection['driver']; sqlitePath?: string; host?: string; port?: number; database?: string; user?: string; password?: string }
-interface DatabaseQueryResult { columns: string[]; rows: Record<string, unknown>[]; affectedRows: number | null; durationMs: number; hasMore: boolean; resultBytes: number; historyRecorded?: boolean }
-interface DatabaseCancelResult { cancelled: boolean; mutative: boolean }
-interface DatabaseColumn { name: string; type?: string; nullable: boolean; primaryKeyPosition?: number; editable: boolean }
-interface DatabaseTableSchema { name: string; columns: DatabaseColumn[]; primaryKey: string[] }
-interface DatabaseRoutine { name: string; kind: 'procedure' | 'function'; definition: string | null; definitionTruncated?: boolean }
-interface DatabaseSchemaPage { tables: DatabaseTableSchema[]; routines: DatabaseRoutine[]; hasMore?: boolean; nextOffset?: number | null; totalResources?: number }
-interface DatabaseTablePage { table: DatabaseTableSchema; rows: Record<string, unknown>[]; offset: number; hasMore: boolean; durationMs: number; resultBytes: number; readOnlyReason?: string }
-interface DatabaseTableChange { key: Record<string, unknown>; values: Record<string, unknown> }
-interface DatabaseSavedQuery { id: string; connectionId: string; name: string; sql: string; updatedAt?: number }
-interface DatabaseHistoryEntry { id: string; connectionId: string; sql: string; executedAt: number; durationMs: number; affectedRows: number | null }
 type AppPreferenceValue = string | number | boolean
 interface AppPreferenceDefinition { key: string; section: 'editor' | 'terminal' | 'git' | 'database'; label: string; type: 'number' | 'boolean' | 'enum'; default: AppPreferenceValue; min?: number; max?: number; step?: number; values?: string[] }
 interface AppPreferencesSnapshot {
@@ -898,29 +886,7 @@ interface Window {
       cleanup: (options?: { olderThan?: number }) => Promise<{ removed: number }>
       onTransfer: (listener: (transfer: RemoteTransfer) => void) => () => void
     }
-    database: {
-      listConnections: () => Promise<DatabaseConnection[]>
-      createConnection: (input: DatabaseConnectionInput) => Promise<DatabaseConnection>
-      updateConnection: (id: string, input: DatabaseConnectionInput) => Promise<DatabaseConnection>
-      deleteConnection: (id: string) => Promise<{ deleted: true }>
-      connect: (id: string) => Promise<{ connected: true }>
-      disconnect: (id: string) => Promise<{ disconnected: true }>
-      execute: (id: string, sql: string, options: { operationId: string; confirmed?: boolean; offset?: number; limit?: number; timeoutMs?: number }) => Promise<DatabaseQueryResult>
-      cancel: (operationId: string) => Promise<DatabaseCancelResult>
-      begin: (id: string) => Promise<{ active: true }>
-      commit: (id: string) => Promise<{ active: false }>
-      rollback: (id: string) => Promise<{ active: false }>
-      inspectSchema: (id: string, options?: { force?: boolean; offset?: number; limit?: number }) => Promise<DatabaseSchemaPage>
-      inspectRoutine: (id: string, routineName: string, kind: DatabaseRoutine['kind']) => Promise<DatabaseRoutine>
-      tableRows: (id: string, tableName: string, options?: { offset?: number; limit?: number; filter?: string }) => Promise<DatabaseTablePage>
-      updateTableRows: (id: string, tableName: string, changes: DatabaseTableChange[]) => Promise<{ updated: number }>
-      listSavedQueries: (id: string) => Promise<DatabaseSavedQuery[]>
-      saveQuery: (input: { connectionId: string; name: string; sql: string }) => Promise<DatabaseSavedQuery>
-      updateSavedQuery: (id: string, input: { name: string; sql: string }) => Promise<DatabaseSavedQuery>
-      deleteSavedQuery: (id: string) => Promise<{ deleted: true }>
-      listHistory: (id: string, limit?: number) => Promise<DatabaseHistoryEntry[]>
-      clearHistory: (id: string) => Promise<{ deleted: number }>
-    }
+    database: import('./bridge').DatabaseApi
     redis: VincodeRedisApi
     shellSessions: {
       list: () => Promise<ShellSessionList>

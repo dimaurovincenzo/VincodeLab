@@ -1,4 +1,5 @@
 import type { RefObject } from 'react'
+import type { DatabaseConnection, DatabaseQueryResult, DatabaseTableChange, DatabaseTablePage } from '@/bridge'
 import { Button, ErrorNotice, Tabs } from '@/components/ui'
 import type { UserError } from '@/lib/user-error'
 import { gridDraftIdentity } from '../model/database-connections'

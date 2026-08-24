@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import type { DatabaseConnection, DatabaseHistoryEntry, DatabaseQueryResult, DatabaseTablePage } from '@/bridge'
 import { toast } from '@/components/ui'
 import type { ConfirmationRequest } from '@/components/confirmation-dialog'
 import { isMutativeSql } from '../model/database-query'

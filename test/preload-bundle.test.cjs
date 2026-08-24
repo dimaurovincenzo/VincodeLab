@@ -78,6 +78,29 @@ test('il bundle conserva superficie, argomenti IPC e flag benchmark condizionali
     'database', 'redis', 'shellSessions', 'terminal',
   ])
   assert.equal(api.benchmark, undefined)
+  assert.deepEqual(Array.from(Object.keys(api.database)), [
+    'listConnections',
+    'createConnection',
+    'updateConnection',
+    'deleteConnection',
+    'connect',
+    'disconnect',
+    'execute',
+    'cancel',
+    'begin',
+    'commit',
+    'rollback',
+    'inspectSchema',
+    'inspectRoutine',
+    'tableRows',
+    'updateTableRows',
+    'listSavedQueries',
+    'saveQuery',
+    'updateSavedQuery',
+    'deleteSavedQuery',
+    'listHistory',
+    'clearHistory',
+  ])
 
   await api.database.connect('db-1')
   await api.database.disconnect('db-1')

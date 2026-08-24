@@ -1,4 +1,5 @@
 import { AlignLeft, PlugZap, Play, RefreshCw, RotateCcw, Save, Unplug, X } from 'lucide-react'
+import type { DatabaseConnection } from '@/bridge'
 import { Button, Spinner } from '@/components/ui'
 import type { DatabaseToolbarAction } from '../model/database.types'
 import { databaseStyles as db } from '@/theme/styles/database'

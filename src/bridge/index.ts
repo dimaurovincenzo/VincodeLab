@@ -8,6 +8,21 @@ export type {
   AiTerminalRuntimeState,
 } from './contracts/ai-terminal.types'
 export type {
+  DatabaseApi,
+  DatabaseCancelResult,
+  DatabaseColumn,
+  DatabaseConnection,
+  DatabaseConnectionInput,
+  DatabaseHistoryEntry,
+  DatabaseQueryResult,
+  DatabaseRoutine,
+  DatabaseSavedQuery,
+  DatabaseSchemaPage,
+  DatabaseTableChange,
+  DatabaseTablePage,
+  DatabaseTableSchema,
+} from './contracts/database.types'
+export type {
   RedisApi,
   RedisConnection,
   RedisConnectionInput,

@@ -5,6 +5,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EditorView } from '@codemirror/view'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DatabaseConnection, DatabaseRoutine } from '@/bridge'
 
 const formatSqlMock = vi.hoisted(() => vi.fn())
 

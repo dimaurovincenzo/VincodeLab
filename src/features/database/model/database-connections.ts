@@ -1,3 +1,4 @@
+import type { DatabaseConnection, DatabaseConnectionInput } from '@/bridge'
 import type { VolatileDraftIdentity } from '@/lib/volatile-draft-store'
 import type { DatabaseConnectionDraft, DatabaseDriver } from './database.types'
 

@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, type RefObject } from 'react'
+import type { DatabaseConnection } from '@/bridge'
 import { toast } from '@/components/ui'
 import { databaseBridge } from '../api/database.bridge'
 import type { DatabaseToolbarAction } from '../model/database.types'

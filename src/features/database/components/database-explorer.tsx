@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { FilePenLine, Plus, Trash2 } from 'lucide-react'
+import type { DatabaseConnection, DatabaseHistoryEntry, DatabaseRoutine, DatabaseSavedQuery, DatabaseTableSchema } from '@/bridge'
 import { Button, ErrorNotice, Field, IconButton, Progress, SelectField, Spinner, Tabs, TreeView, createTreeCollection } from '@/components/ui'
 import type { UserError } from '@/lib/user-error'
 import { databaseDriverLabel as driverLabel, tableLabel, tableSchemaName } from '../model/database-connections'

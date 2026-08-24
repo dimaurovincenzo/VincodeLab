@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RotateCcw, Save, Search, X } from 'lucide-react'
+import type { DatabaseColumn, DatabaseTableChange, DatabaseTablePage } from '@/bridge'
 import { Button, Editable, ErrorNotice, Field, IconButton, Spinner } from '@/components/ui'
 import { databaseStyles as db } from '@/theme/styles/database'
 import { discardVolatileDraft, readVolatileDraft, writeVolatileDraft, type VolatileDraftIdentity } from '@/lib/volatile-draft-store'

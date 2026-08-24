@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { DatabaseHistoryEntry, DatabaseSavedQuery, DatabaseTablePage, DatabaseTableSchema } from '@/bridge'
 import type { UserError } from '@/lib/user-error'
 import { readVolatileDraft } from '@/lib/volatile-draft-store'
 import { databaseBridge } from '../api/database.bridge'

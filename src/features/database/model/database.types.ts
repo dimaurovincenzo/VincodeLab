@@ -1,14 +1,18 @@
+import type {
+  DatabaseConnection,
+  DatabaseConnectionInput,
+  DatabaseRoutine,
+  DatabaseSchemaPage as DatabaseSchemaTransportPage,
+  DatabaseTableSchema,
+} from '@/bridge'
 import type { UserError } from '@/lib/user-error'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 
 export type DatabaseDriver = DatabaseConnection['driver']
 export type DatabaseConnectionDraft = DatabaseConnectionInput & { hasPassword?: boolean }
 export type DatabaseSchema = { tables: DatabaseTableSchema[]; routines: DatabaseRoutine[] }
-export type DatabaseSchemaPage = DatabaseSchema & {
+export type DatabaseSchemaPage = DatabaseSchemaTransportPage & {
   offset?: number
-  hasMore?: boolean
-  nextOffset?: number | null
-  totalResources?: number
 }
 export type DatabaseToolbarAction = 'schema' | 'begin' | 'commit' | 'rollback' | 'format' | null
 

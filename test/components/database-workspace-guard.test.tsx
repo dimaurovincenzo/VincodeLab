@@ -5,6 +5,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EditorView } from '@codemirror/view'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DatabaseConnection, DatabaseConnectionInput, DatabaseQueryResult, DatabaseRoutine } from '@/bridge'
 import { DatabaseWorkspace } from '@/features/database'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 
