@@ -9,10 +9,7 @@ const {
   renameProjectEntry,
 } = require('./project-entry-mutations.cjs')
 const {
-  openProjectFileWith,
-  prepareProjectFileAttachment,
-  revealProjectDirectory,
-  revealProjectFile,
+  createProjectFileActions,
 } = require('./project-file-actions.cjs')
 const {
   readProjectFile,
@@ -31,17 +28,14 @@ module.exports = {
   createProjectDirectory,
   createProjectDirectoryListing,
   createProjectFile,
+  createProjectFileActions,
   createProjectFileIndex,
   duplicateProjectEntry,
   isEditorVisibleFile,
-  openProjectFileWith,
-  prepareProjectFileAttachment,
   readProjectFile,
   readProjectPreview,
   renameProjectEntry,
   resolveProjectDirectory,
   resolveProjectFile,
-  revealProjectDirectory,
-  revealProjectFile,
   saveProjectFile,
 }

@@ -1,42 +1,49 @@
-const fs = require('node:fs')
-const path = require('node:path')
+const { assertProjectFileActionsHostPort } = require('./project-file-actions-host.port.cjs')
 const {
-  resolveProjectDirectory,
-  resolveProjectFile,
-} = require('./project-path-model.cjs')
+  validateProjectDirectoryId,
+  validateProjectEntryId,
+} = require('./project-access-policy.cjs')
 
-function prepareProjectFileAttachment(workspacePath, fileId) {
-  const absolutePath = fs.realpathSync(resolveProjectFile(workspacePath, fileId))
-  fs.accessSync(absolutePath, fs.constants.R_OK)
-  return { absolutePath, name: path.basename(absolutePath) }
-}
+function createProjectFileActions(host) {
+  const fileActionsHost = assertProjectFileActionsHostPort(host)
 
-function revealProjectFile(workspacePath, fileId, { showItemInFolder }) {
-  const filePath = resolveProjectFile(workspacePath, fileId)
-  showItemInFolder(filePath)
-  return { revealed: true }
-}
-
-function revealProjectDirectory(workspacePath, directoryId, { showItemInFolder }) {
-  const directoryPath = resolveProjectDirectory(workspacePath, directoryId)
-  showItemInFolder(directoryPath)
-  return { revealed: true }
-}
-
-async function openProjectFileWith(workspacePath, fileId, { chooseApplication, openWith }) {
-  const filePath = resolveProjectFile(workspacePath, fileId)
-  const applicationPath = await chooseApplication()
-  if (!applicationPath) return { opened: false }
-  if (typeof applicationPath !== 'string' || path.extname(applicationPath).toLowerCase() !== '.app') {
-    throw new Error('Seleziona un’applicazione macOS valida.')
+  function prepareProjectFileAttachment(workspacePath, fileId) {
+    validateProjectEntryId(fileId)
+    return fileActionsHost.prepareAttachment(workspacePath, fileId)
   }
-  await openWith(applicationPath, filePath)
-  return { opened: true }
+
+  function revealProjectFile(workspacePath, fileId, { showItemInFolder }) {
+    validateProjectEntryId(fileId)
+    const filePath = fileActionsHost.resolveFile(workspacePath, fileId)
+    showItemInFolder(filePath)
+    return { revealed: true }
+  }
+
+  function revealProjectDirectory(workspacePath, directoryId, { showItemInFolder }) {
+    validateProjectDirectoryId(directoryId)
+    const directoryPath = fileActionsHost.resolveDirectory(workspacePath, directoryId)
+    showItemInFolder(directoryPath)
+    return { revealed: true }
+  }
+
+  async function openProjectFileWith(workspacePath, fileId, { chooseApplication, openWith }) {
+    validateProjectEntryId(fileId)
+    const filePath = fileActionsHost.resolveFile(workspacePath, fileId)
+    const applicationPath = await chooseApplication()
+    if (!applicationPath) return { opened: false }
+    if (!fileActionsHost.isMacApplicationBundle(applicationPath)) {
+      throw new Error('Seleziona un’applicazione macOS valida.')
+    }
+    await openWith(applicationPath, filePath)
+    return { opened: true }
+  }
+
+  return Object.freeze({
+    openProjectFileWith,
+    prepareProjectFileAttachment,
+    revealProjectDirectory,
+    revealProjectFile,
+  })
 }
 
-module.exports = {
-  openProjectFileWith,
-  prepareProjectFileAttachment,
-  revealProjectDirectory,
-  revealProjectFile,
-}
+module.exports = { createProjectFileActions }

@@ -9,22 +9,28 @@ const {
   createProjectDirectory,
   createProjectDirectoryListing,
   createProjectFile,
+  createProjectFileActions,
   duplicateProjectEntry,
   isEditorVisibleFile,
-  openProjectFileWith,
   readProjectFile,
   readProjectPreview,
   renameProjectEntry,
   resolveProjectDirectory,
-  revealProjectDirectory,
-  revealProjectFile,
   saveProjectFile,
 } = require('../electron/domains/filesystem/project-files.cjs')
 const {
   createProjectDirectoryListingFilesystemAdapter,
 } = require('../electron/infrastructure/filesystem/project-directory-listing-filesystem.adapter.cjs')
+const {
+  createProjectFileActionsFilesystemAdapter,
+} = require('../electron/infrastructure/filesystem/project-file-actions-filesystem.adapter.cjs')
 
 const { listProjectFiles } = createProjectDirectoryListing(createProjectDirectoryListingFilesystemAdapter())
+const {
+  openProjectFileWith,
+  revealProjectDirectory,
+  revealProjectFile,
+} = createProjectFileActions(createProjectFileActionsFilesystemAdapter())
 
 test('il percorso IPC del file explorer usa soltanto scansione e letture asincrone', () => {
   const source = [

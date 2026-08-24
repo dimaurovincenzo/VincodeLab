@@ -41,10 +41,12 @@ const shellOperationalSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'nod
 const aiProcessSpecifiers = new Set(['child_process', 'node:child_process'])
 const aiFilesystemHostSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'path', 'node:path'])
 const filesystemHostSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'path', 'node:path'])
-const projectDirectoryListingIsolatedDomains = new Map([
+const projectFilesystemIsolatedDomains = new Map([
   ['electron/domains/filesystem/project-access-policy.cjs', 'Policy accesso progetto'],
   ['electron/domains/filesystem/project-directory-listing-host.port.cjs', 'Porta host elenco directory progetto'],
   ['electron/domains/filesystem/project-directory-listing.cjs', 'Elenco directory progetto'],
+  ['electron/domains/filesystem/project-file-actions-host.port.cjs', 'Porta host azioni file progetto'],
+  ['electron/domains/filesystem/project-file-actions.cjs', 'Azioni file progetto'],
 ])
 const projectFileIndexIsolatedDomains = new Map([
   ['electron/domains/filesystem/project-file-index-host.port.cjs', 'Porta host Indice file progetto'],
@@ -478,6 +480,7 @@ function importBoundaryProblems(importer, imported) {
   const ownerFeature = featureName(importer)
   const targetFeature = featureName(imported)
   const aiFilesystemIsolatedDomain = aiFilesystemIsolatedDomains.get(importer)
+  const projectFilesystemIsolatedDomain = projectFilesystemIsolatedDomains.get(importer)
 
   if (importer.startsWith('src/') && imported.startsWith('electron/')) {
     problems.push(`renderer dipende direttamente dal processo Electron (${imported})`)
@@ -485,6 +488,10 @@ function importBoundaryProblems(importer, imported) {
 
   if (aiFilesystemIsolatedDomain && imported.startsWith('electron/domains/filesystem/')) {
     problems.push(`dominio ${aiFilesystemIsolatedDomain} dipende da un'implementazione filesystem concreta (${imported}); usa la porta storage`)
+  }
+
+  if (projectFilesystemIsolatedDomain && imported === 'electron/domains/filesystem/project-path-model.cjs') {
+    problems.push(`dominio ${projectFilesystemIsolatedDomain} dipende dal resolver path concreto (${imported}); usa la porta host`)
   }
 
   if (targetFeature && ownerFeature !== targetFeature && !isFeaturePublicEntry(imported, targetFeature)) {
@@ -640,9 +647,9 @@ export function inspectArchitecture({ root }) {
         problems.push(`${file}: dominio ${aiFilesystemIsolatedDomain} dipende direttamente dal filesystem host "${specifier}"; usa la porta storage iniettata`)
         continue
       }
-      const projectDirectoryListingIsolatedDomain = projectDirectoryListingIsolatedDomains.get(file)
-      if (projectDirectoryListingIsolatedDomain && filesystemHostSpecifiers.has(specifier)) {
-        problems.push(`${file}: dominio ${projectDirectoryListingIsolatedDomain} dipende direttamente dal filesystem host "${specifier}"; usa la porta host iniettata`)
+      const projectFilesystemIsolatedDomain = projectFilesystemIsolatedDomains.get(file)
+      if (projectFilesystemIsolatedDomain && filesystemHostSpecifiers.has(specifier)) {
+        problems.push(`${file}: dominio ${projectFilesystemIsolatedDomain} dipende direttamente dal filesystem host "${specifier}"; usa la porta host iniettata`)
         continue
       }
       const projectFileIndexIsolatedDomain = projectFileIndexIsolatedDomains.get(file)

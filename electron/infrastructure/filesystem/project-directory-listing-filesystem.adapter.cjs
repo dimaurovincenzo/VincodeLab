@@ -1,33 +1,15 @@
 const fs = require('node:fs')
-const path = require('node:path')
 const { createProjectDirectoryListingHostPort } = require('../../domains/filesystem/project-directory-listing-host.port.cjs')
-
-function toId(relativePath) {
-  return relativePath.split(path.sep).join('/')
-}
+const { resolveExistingProjectPath } = require('./project-path-filesystem.service.cjs')
 
 function resolveDirectory(workspacePath, relativePath) {
-  const root = fs.realpathSync(workspacePath)
   const segments = relativePath ? relativePath.split('/').filter(Boolean) : []
   if ((typeof relativePath !== 'string' && relativePath !== undefined)
-    || segments.some((segment) => segment === '.' || segment === '..' || segment.includes(path.sep))) {
+    || segments.some((segment) => segment === '.' || segment === '..')) {
     throw new Error('Percorso file non valido.')
   }
-
-  let current = root
-  for (const segment of segments) {
-    current = path.join(current, segment)
-    const stats = fs.lstatSync(current)
-    if (stats.isSymbolicLink()) throw new Error('I link simbolici non sono accessibili dall’editor.')
-  }
-  if (current !== root && !current.startsWith(`${root}${path.sep}`)) throw new Error('Percorso file non valido.')
-
-  const stats = fs.lstatSync(current)
-  if (stats.isSymbolicLink() || !stats.isDirectory()) throw new Error('Cartella non trovata.')
-  return {
-    directory: current,
-    directoryId: toId(path.relative(root, current)),
-  }
+  const resolved = resolveExistingProjectPath(workspacePath, segments, 'directory')
+  return { directory: resolved.absolutePath, directoryId: resolved.id }
 }
 
 function neutralEntry(entry) {

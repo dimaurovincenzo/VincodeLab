@@ -384,6 +384,27 @@ test('mantiene filesystem e risoluzione path fuori dal listing, dalla porta e da
   })
 })
 
+test('mantiene filesystem e resolver concreto fuori dalle azioni file progetto e dalla loro porta', () => {
+  withFixture({
+    'electron/domains/filesystem/project-file-actions.cjs': [
+      "require('node:fs')",
+      "require('node:path')",
+      "require('./project-path-model.cjs')",
+    ].join('\n'),
+    'electron/domains/filesystem/project-file-actions-host.port.cjs': [
+      "require('fs/promises')",
+      "require('path')",
+    ].join('\n'),
+    'electron/domains/filesystem/project-path-model.cjs': 'module.exports = {}\n',
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('dominio Azioni file progetto dipende direttamente')).length, 2)
+    assert.equal(problems.filter((problem) => problem.includes('dominio Porta host azioni file progetto')).length, 2)
+    assert.equal(problems.filter((problem) => problem.includes('dominio Azioni file progetto dipende dal resolver path concreto')).length, 1)
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "path"')))
+  })
+})
+
 test('mantiene processi host ed Electron fuori dal dominio Menu', () => {
   withFixture({
     'electron/domains/menu/runtime.cjs': [
