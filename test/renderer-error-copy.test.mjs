@@ -11,8 +11,8 @@ const components = [
   'features/settings/components/settings.tsx',
   'components/project-skills.tsx',
   'components/project-instructions.tsx',
-  'components/terminal-diagnostics.tsx',
-  'components/terminal-attachments.tsx',
+  'features/ai/components/terminal-diagnostics.tsx',
+  'features/ai/components/terminal-attachments.tsx',
 ]
 
 function componentSource(fileName) {
