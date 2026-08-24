@@ -811,7 +811,7 @@ test('il terminale AI espone copia e incolla anche senza scorciatoie da tastiera
 
 test('l’incolla nel Terminale AI segnala esplicitamente un contenuto rifiutato', () => {
   const app = readAppSource()
-  const dialog = fs.readFileSync(path.join(__dirname, '../src/components/terminal-paste-status.tsx'), 'utf8')
+  const dialog = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/terminal-paste-status.tsx'), 'utf8')
 
   assert.match(app, /pasteController\.send\(text, setPasteProgress\)/)
   assert.match(dialog, /Contenuto non incollato/)

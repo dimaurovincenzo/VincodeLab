@@ -448,11 +448,11 @@ test('Dialog delega focus trap, Escape e semantica modale ad Ark senza ruoli man
   const consumers = [
     'src/components/confirmation-dialog.tsx',
     'src/components/workspace-change-dialog.tsx',
-    'src/components/remote-diff-dialog.tsx',
+    'src/features/editor/components/remote-diff-dialog.tsx',
     'src/features/database/components/database-connection-dialog.tsx',
     'src/features/remote-files/components/remote-files.tsx',
     'src/features/github/components/github-workspace.tsx',
-    'src/components/terminal-paste-status.tsx',
+    'src/features/ai/components/terminal-paste-status.tsx',
   ]
 
   for (const slot of ['Root', 'Backdrop', 'Positioner', 'Content', 'Title', 'Description', 'CloseTrigger']) {
@@ -473,10 +473,10 @@ test('Dialog delega focus trap, Escape e semantica modale ad Ark senza ruoli man
   const focusContracts = [
     ['src/components/confirmation-dialog.tsx', 'cancelButton', /finalFocusEl=\{\(\) => focusState\.opener\}/],
     ['src/components/workspace-change-dialog.tsx', 'cancelButton', /finalFocusEl=\{\(\) => focusState\.opener\}/],
-    ['src/components/remote-diff-dialog.tsx', 'closeButton', /finalFocusEl=\{\(\) => opener\.current\}/],
+    ['src/features/editor/components/remote-diff-dialog.tsx', 'closeButton', /finalFocusEl=\{\(\) => opener\.current\}/],
     ['src/features/database/components/database-connection-dialog.tsx', 'nameInputRef', /finalFocusEl=\{\(\) => openerRef\.current\}/],
     ['src/features/remote-files/components/remote-files.tsx', 'renameInput', /finalFocusEl=\{\(\) => renameDialogOpener\.current\}/],
-    ['src/components/terminal-paste-status.tsx', 'primaryAction', /finalFocusEl=\{\(\) => opener\.current\}/],
+    ['src/features/ai/components/terminal-paste-status.tsx', 'primaryAction', /finalFocusEl=\{\(\) => opener\.current\}/],
   ]
   for (const [file, initialFocusRef, finalFocusPattern] of focusContracts) {
     const source = read(file)
@@ -484,7 +484,7 @@ test('Dialog delega focus trap, Escape e semantica modale ad Ark senza ruoli man
     assert.match(source, finalFocusPattern, `${file} deve affidare ad Ark il ritorno all'opener`)
   }
 
-  for (const file of ['src/features/database/components/database-connection-dialog.tsx', 'src/components/terminal-paste-status.tsx', 'src/features/remote-files/components/remote-files.tsx', 'src/components/remote-diff-dialog.tsx']) {
+  for (const file of ['src/features/database/components/database-connection-dialog.tsx', 'src/features/ai/components/terminal-paste-status.tsx', 'src/features/remote-files/components/remote-files.tsx', 'src/features/editor/components/remote-diff-dialog.tsx']) {
     const source = read(file)
     assert.match(source, /<Dialog\.CloseTrigger asChild><IconButton[^>]*tooltip=/, `${file} deve usare IconButton con tooltip per la chiusura icon-only`)
     assert.doesNotMatch(source, /<Dialog\.CloseTrigger asChild><Button[^>]*(?:size="icon|aria-label="Chiudi)/, `${file} non deve ricreare un icon button con Button`)

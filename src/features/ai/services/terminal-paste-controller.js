@@ -1,3 +1,4 @@
+// Protocollo applicativo dell'incolla controllato nel terminale AI.
 const DEFAULT_CHUNK_BYTES = 16 * 1024
 
 function* splitUtf8Chunks(text, maxBytes = DEFAULT_CHUNK_BYTES) {

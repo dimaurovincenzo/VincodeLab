@@ -20,7 +20,7 @@ test('l’editor distingue i file remoti e li salva soltanto nella cache locale'
 })
 
 test('il confronto remoto usa CodeMirror MergeView e richiede un caricamento esplicito', () => {
-  const dialog = fs.readFileSync(path.join(__dirname, '../src/components/remote-diff-dialog.tsx'), 'utf8')
+  const dialog = readEditorModule('components/remote-diff-dialog.tsx')
 
   assert.match(dialog, /MergeView/)
   assert.match(dialog, /Carica sul server/)

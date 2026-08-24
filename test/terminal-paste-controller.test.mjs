@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createTerminalPasteController, splitUtf8Chunks } from '../src/lib/terminal-paste-controller.js'
+import { createTerminalPasteController, splitUtf8Chunks } from '../src/features/ai/services/terminal-paste-controller.js'
 
 test('non spezza surrogate pair e rispetta il limite byte', () => {
   const chunks = [...splitUtf8Chunks('a🚀b'.repeat(20), 9)]

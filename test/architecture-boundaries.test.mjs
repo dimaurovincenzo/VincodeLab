@@ -205,21 +205,29 @@ test('impedisce al runtime AI di tornare nella composition root renderer', () =>
   })
 })
 
-test('impedisce ai modelli con owner unico di tornare nella libreria condivisa', () => {
+test('impedisce ai moduli con owner unico di tornare nei vecchi path condivisi', () => {
   withFixture({
+    'src/components/remote-diff-dialog.tsx': 'export const dialog = {}\n',
+    'src/components/terminal-paste-status.tsx': 'export const status = {}\n',
     'src/lib/editor-icon-resolution.ts': 'export const icon = {}\n',
     'src/lib/editor-new-file.ts': 'export const draft = {}\n',
     'src/lib/git-graph.js': 'export const graph = {}\n',
     'src/lib/github-project-status.js': 'export const status = {}\n',
     'src/lib/remote-transfer-retry.ts': 'export const retry = {}\n',
+    'src/lib/shell-xterm-output-controller.ts': 'export const output = {}\n',
+    'src/lib/terminal-paste-controller.d.ts': 'export declare const paste: unknown\n',
     'src/lib/workspace-command-library.js': 'export const commands = {}\n',
   }, (problems) => {
     for (const [legacyPath, owner] of [
+      ['src/components/remote-diff-dialog.tsx', 'src/features/editor'],
+      ['src/components/terminal-paste-status.tsx', 'src/features/ai'],
       ['src/lib/editor-icon-resolution.ts', 'src/features/editor'],
       ['src/lib/editor-new-file.ts', 'src/features/editor'],
       ['src/lib/git-graph.js', 'src/features/github'],
       ['src/lib/github-project-status.js', 'src/features/github'],
       ['src/lib/remote-transfer-retry.ts', 'src/features/remote-files'],
+      ['src/lib/shell-xterm-output-controller.ts', 'src/features/terminal'],
+      ['src/lib/terminal-paste-controller.d.ts', 'src/features/ai'],
       ['src/lib/workspace-command-library.js', 'src/features/terminal'],
     ]) {
       assert.ok(problems.some((problem) => problem.includes(`${legacyPath}: path legacy rimosso ricreato; usa "${owner}"`)))

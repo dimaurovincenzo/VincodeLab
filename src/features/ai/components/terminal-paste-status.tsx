@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { X } from 'lucide-react'
 import { Button, Dialog, ErrorNotice, IconButton, Progress, Spinner, type ErrorNoticeAction } from '@/components/ui'
 import type { UserError } from '@/lib/user-error'
-import type { TerminalPasteProgress } from '@/lib/terminal-paste-controller.js'
+import type { TerminalPasteProgress } from '../services/terminal-paste-controller.js'
 import { terminalStyles } from '@/theme/styles/terminal'
 
 function formatBytes(bytes: number) {

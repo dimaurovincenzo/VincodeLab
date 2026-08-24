@@ -1,3 +1,4 @@
+// Coordinatore del flusso xterm specifico delle sessioni shell.
 type ShellXtermOutputControllerOptions = {
   sessionId: string
   write: (data: string, callback: () => void) => void

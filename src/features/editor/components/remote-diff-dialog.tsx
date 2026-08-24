@@ -7,7 +7,7 @@ import { Button, Dialog, IconButton } from '@/components/ui'
 import { graphiteCodeMirrorTheme } from '@/lib/codemirror-theme'
 import { remoteDiffDialogStyles } from '@/theme/styles/dialogs'
 
-type Props = {
+type RemoteDiffDialogProps = {
   file: RemoteTrackedFile
   comparison: RemoteCompareResult
   busy: boolean
@@ -16,7 +16,7 @@ type Props = {
   onForceUpload: () => void
 }
 
-export function RemoteDiffDialog({ file, comparison, busy, onClose, onUpload, onForceUpload }: Props) {
+export function RemoteDiffDialog({ file, comparison, busy, onClose, onUpload, onForceUpload }: RemoteDiffDialogProps) {
   const mergeHost = useRef<HTMLDivElement>(null)
   const closeButton = useRef<HTMLButtonElement>(null)
   const opener = useRef<HTMLElement | null>(document.activeElement instanceof HTMLElement ? document.activeElement : null)

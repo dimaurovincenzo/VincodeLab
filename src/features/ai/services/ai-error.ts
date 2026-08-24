@@ -1,4 +1,4 @@
-import type { TerminalPasteProgress } from '@/lib/terminal-paste-controller.js'
+import type { TerminalPasteProgress } from './terminal-paste-controller.js'
 import { normalizeUserError } from '@/lib/user-error'
 import { reportRendererFailure } from '@/lib/renderer-error'
 import type {

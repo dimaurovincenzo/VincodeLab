@@ -31,10 +31,12 @@ export const removedLegacyModules = new Map([
   ['src/app/hooks/use-ai-terminal-instance', 'src/features/ai'],
   ['src/app/hooks/use-ai-terminal-paste', 'src/features/ai'],
   ['src/app/hooks/use-ai-terminal-runtime', 'src/features/ai'],
+  ['src/components/terminal-paste-status', 'src/features/ai'],
   ['src/components/database-workspace', 'src/features/database'],
   ['src/components/free-terminal', 'src/features/terminal'],
   ['src/components/github-workspace', 'src/features/github'],
   ['src/components/project-editor', 'src/features/editor'],
+  ['src/components/remote-diff-dialog', 'src/features/editor'],
   ['src/components/redis-workspace', 'src/features/redis'],
   ['src/components/remote-files', 'src/features/remote-files'],
   ['src/components/settings', 'src/features/settings'],
@@ -48,10 +50,12 @@ export const removedLegacyModules = new Map([
   ['src/lib/git-graph', 'src/features/github'],
   ['src/lib/github-project-status', 'src/features/github'],
   ['src/lib/remote-transfer-retry', 'src/features/remote-files'],
+  ['src/lib/shell-xterm-output-controller', 'src/features/terminal'],
   ['src/lib/sql-format', 'src/features/database'],
   ['src/lib/sql-highlight', 'src/features/database'],
   ['src/lib/sql-lint', 'src/features/database'],
   ['src/lib/workspace-command-library', 'src/features/terminal'],
+  ['src/lib/terminal-paste-controller', 'src/features/ai'],
   ['src/lib/workspace-session', 'src/features/workspace'],
   ['electron/github-service', 'electron/infrastructure/github/github-service.adapter.cjs'],
   ['electron/github-operation-registry', 'electron/domains/github/github-operation-registry.cjs'],
@@ -256,17 +260,21 @@ function unresolvedModule(root, importer, specifier) {
   return null
 }
 
+function withoutSourceExtension(file) {
+  if (file.endsWith('.d.ts')) return file.slice(0, -'.d.ts'.length)
+  const extension = sourceExtensions.find((candidate) => file.endsWith(candidate))
+  return extension ? file.slice(0, -extension.length) : file
+}
+
 function extensionlessModule(root, importer, specifier) {
   const unresolved = unresolvedModule(root, importer, specifier)
   if (!unresolved) return null
   const relative = normalize(path.relative(root, unresolved))
-  const extension = sourceExtensions.find((candidate) => relative.endsWith(candidate))
-  return extension ? relative.slice(0, -extension.length) : relative
+  return withoutSourceExtension(relative)
 }
 
 function extensionlessFile(file) {
-  const extension = sourceExtensions.find((candidate) => file.endsWith(candidate))
-  return extension ? file.slice(0, -extension.length) : file
+  return withoutSourceExtension(file)
 }
 
 function featureName(file) {

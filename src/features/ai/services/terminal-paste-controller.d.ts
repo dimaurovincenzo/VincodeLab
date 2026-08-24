@@ -1,3 +1,4 @@
+/** Stato pubblico del trasferimento paste posseduto dalla feature AI. */
 export type TerminalPasteProgress = {
   status: 'starting' | 'running' | 'complete' | 'cancelled' | 'failed'
   sentBytes: number

@@ -9,7 +9,7 @@ import { createAnimationFrameResizeScheduler } from '@/lib/terminal-resize.js'
 import { shouldFollowTerminalOutput } from '@/lib/terminal-viewport.js'
 import { observeXtermTheme, readXtermTheme } from '@/lib/xterm-theme'
 import { terminalFontFamily } from '@/lib/app-preferences'
-import { createShellXtermOutputController } from '@/lib/shell-xterm-output-controller'
+import { createShellXtermOutputController } from '../services/shell-xterm-output-controller'
 
 type TerminalRuntimePreferences = {
   preferredCursorStyle: 'bar' | 'block' | 'underline'

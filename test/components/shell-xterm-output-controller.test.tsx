@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createShellXtermOutputController } from '@/lib/shell-xterm-output-controller'
+import { createShellXtermOutputController } from '@/features/terminal/services/shell-xterm-output-controller'
 
 const sessionId = 'session-0001'
 

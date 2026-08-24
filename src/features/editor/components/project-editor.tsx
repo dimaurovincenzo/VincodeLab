@@ -4,7 +4,7 @@ import { Braces, ChevronRight, ChevronsUpDown, CloudUpload, FileCode2, FileDiff,
 import { Button, Dialog, ErrorNotice, Field, IconButton, Spinner, Splitter, Tabs, TreeView, createTreeCollection, type ErrorNoticeAction, type SplitterPanelData } from '@/components/ui'
 import { ConfirmationDialog } from '@/components/confirmation-dialog'
 import { EmptyState } from '@/components/empty-state'
-import { RemoteDiffDialog } from '@/components/remote-diff-dialog'
+import { RemoteDiffDialog } from './remote-diff-dialog'
 import { editorStyles } from '@/theme/styles/editor'
 import { confirmationDialogStyles } from '@/theme/styles/dialogs'
 import { cx } from '../../../../styled-system/css'
