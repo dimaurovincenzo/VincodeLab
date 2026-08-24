@@ -7,12 +7,17 @@ const root = path.resolve(__dirname, '..')
 
 test('Redis richiede un gesto esplicito e non associa SCAN alla selezione persistita', () => {
   const workspace = readFileSync(path.join(root, 'src/features/redis/components/redis-workspace.tsx'), 'utf8')
+  const content = readFileSync(path.join(root, 'src/features/redis/components/redis-workspace-content.tsx'), 'utf8')
+  const session = readFileSync(path.join(root, 'src/features/redis/hooks/use-redis-session-controller.ts'), 'utf8')
+  const state = readFileSync(path.join(root, 'src/features/redis/hooks/use-redis-workspace-state.ts'), 'utf8')
 
-  assert.match(workspace, /const \[activeConnectionId, setActiveConnectionId\] = useState<string \| null>\(null\)/u)
-  assert.match(workspace, /const connectSelected = useCallback\(async \(\) => \{/u)
-  assert.match(workspace, /<RedisConnectionGate[\s\S]*onConnect=\{\(\) => void connectSelected\(\)\}/u)
-  assert.doesNotMatch(workspace, /if \(selectedId\) void scan/u)
-  assert.doesNotMatch(workspace, /\[selectedId\][^\n]*scan/u)
+  assert.match(workspace, /useRedisWorkspaceController\(props\)/u)
+  assert.doesNotMatch(workspace, /redisApi|useState/u)
+  assert.match(state, /const \[activeConnectionId, setActiveConnectionId\] = useState<string \| null>\(null\)/u)
+  assert.match(session, /const connectSelected = useCallback\(async \(\) => \{/u)
+  assert.match(content, /<RedisConnectionGate[\s\S]*onConnect=\{\(\) => void controller\.connectSelected\(\)\}/u)
+  assert.doesNotMatch(session, /if \(selectedId\) void browser\.scan/u)
+  assert.doesNotMatch(session, /\[selectedId\][^\n]*browser\.scan/u)
 })
 
 test('la vista Redis resta montata dopo la prima visita e il cambio tab non la ricrea', () => {
