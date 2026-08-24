@@ -390,6 +390,7 @@ export async function runPackagedSmoke({ appPath, faultRecovery = false, redisSe
         || cleanMachineSummary.nodeState !== 'missing'
         || !cleanMachineSummary.npmOptional
         || cleanMachineSummary.npmState !== 'missing'
+        || !cleanMachineSummary.recoveryVisible
         || !cleanMachineSummary.sanitized) {
         throw new Error('Degradazione su macchina pulita non confermata.')
       }

@@ -170,7 +170,11 @@ test('il fault recovery usa Page.crash, riconnette CDP e verifica la bozza nel r
     assert.doesNotThrow(() => new Function(`return ${scenario}`))
   }
   assert.doesNotThrow(() => new Function(`return ${cleanMachine}`))
-  assert.match(cleanMachine, /Pi Coding Agent non installato/u)
+  assert.match(cleanMachine, /Runtime del Terminale AI non disponibile/u)
+  assert.match(cleanMachine, /Herdr non è disponibile/u)
+  assert.match(cleanMachine, /Pi Coding Agent non è installato o utilizzabile/u)
+  assert.match(cleanMachine, /Apri impostazioni/u)
+  assert.match(cleanMachine, /recoveryVisible/u)
   assert.match(cleanMachine, /databaseDriversReady/u)
   assert.match(cleanMachine, /redisClientReady/u)
   assert.match(cleanMachine, /npmOptional/u)

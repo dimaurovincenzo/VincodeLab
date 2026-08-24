@@ -149,11 +149,18 @@ export function verifyCleanMachineScenario() {
     let notice
     while (performance.now() < deadline) {
       notice = [...document.querySelectorAll('[role="status"], [role="alert"]')]
-        .find((element) => element.textContent?.includes('Pi Coding Agent non installato'))
+        .find((element) => {
+          const content = element.textContent ?? ''
+          return content.includes('Runtime del Terminale AI non disponibile')
+            && content.includes('Herdr non è disponibile')
+            && content.includes('Pi Coding Agent non è installato o utilizzabile')
+        })
       if (notice) break
       await new Promise((resolve) => setTimeout(resolve, 25))
     }
-    if (!notice) throw new Error('Messaggio Pi non installato non visibile.')
+    if (!notice) throw new Error('Messaggio runtime AI mancanti non visibile.')
+    const recoveryVisible = [...notice.querySelectorAll('button')]
+      .some((element) => element.textContent?.replace(/\s+/g, ' ').trim() === 'Apri impostazioni')
     const bridge = window.vincodeLab
     if (!bridge?.runtime?.capabilities || !bridge?.workspace?.getActive) throw new Error('Bridge compatibilità incompleto.')
     const [capabilities, activeWorkspace] = await Promise.all([
@@ -173,6 +180,7 @@ export function verifyCleanMachineScenario() {
       npmOptional: byId.get('npm-system')?.kind === 'optional',
       npmState: byId.get('npm-system')?.state ?? null,
       piState: byId.get('pi-agent')?.state ?? null,
+      recoveryVisible,
       sanitized: !/Something went wrong|Cannot find module|MODULE_NOT_FOUND|ERR_DLOPEN|stack trace/iu.test(bodyText),
       userMessage: notice.textContent?.replace(/\s+/g, ' ').trim() ?? '',
     }
