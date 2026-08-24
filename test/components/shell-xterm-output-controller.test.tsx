@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { ShellSessionDataEvent, ShellSessionResumeSnapshot } from '@/bridge'
 import { createShellXtermOutputController } from '@/features/terminal/services/shell-xterm-output-controller'
 
 const sessionId = 'session-0001'

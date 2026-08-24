@@ -96,7 +96,17 @@ test('il bundle conserva superficie, argomenti IPC e flag benchmark condizionali
     'rollback',
     'activatePending',
   ])
+  assert.deepEqual(Array.from(Object.keys(api.pi)), ['reload', 'restart'])
   assert.deepEqual(Array.from(Object.keys(api.runtime)), ['capabilities'])
+  assert.deepEqual(Array.from(Object.keys(api.piConfig)), [
+    'start',
+    'close',
+    'write',
+    'resize',
+    'onData',
+    'onExit',
+    'onError',
+  ])
   assert.deepEqual(Array.from(Object.keys(api.github)), [
     'gitStatus',
     'initRepository',
@@ -185,6 +195,42 @@ test('il bundle conserva superficie, argomenti IPC e flag benchmark condizionali
     'deleteSavedQuery',
     'listHistory',
     'clearHistory',
+  ])
+  assert.deepEqual(Array.from(Object.keys(api.shellSessions)), [
+    'list',
+    'resume',
+    'ready',
+    'ack',
+    'disconnect',
+    'create',
+    'focus',
+    'write',
+    'resize',
+    'restart',
+    'close',
+    'onData',
+    'onExit',
+    'onError',
+  ])
+  assert.deepEqual(Array.from(Object.keys(api.terminal)), [
+    'resume',
+    'ready',
+    'ack',
+    'chooseAttachments',
+    'prepareDroppedAttachments',
+    'writeKey',
+    'writeInput',
+    'startPaste',
+    'writePasteChunk',
+    'cancelPaste',
+    'reportRendererMetrics',
+    'diagnostics',
+    'exportDiagnostics',
+    'resize',
+    'onOutput',
+    'onStreamState',
+    'onExit',
+    'onError',
   ])
 
   await api.database.connect('db-1')

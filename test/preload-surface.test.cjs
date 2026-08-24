@@ -73,13 +73,14 @@ test('il Terminale AI separa tasti interattivi, input programmatici con ack e pa
 test('il Terminale AI e piConfig espongono failure one-way classificati', () => {
   const preload = readCanonicalPreloadSource()
   const aiTerminalIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8'))
-  const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
+  const terminalTypes = fs.readFileSync(path.join(__dirname, '../src/bridge/contracts/terminal.types.ts'), 'utf8')
+  const piConfigTypes = fs.readFileSync(path.join(__dirname, '../src/bridge/contracts/pi-config.types.ts'), 'utf8')
 
   assert.match(preload, /ipcRenderer\.on\('terminal:error'/)
   assert.match(preload, /ipcRenderer\.on\('piConfig:error'/)
-  assert.match(types, /writeInput: \(data: string\) => Promise<\{ accepted: true; bytes: number \}>/)
-  assert.match(types, /onError: \(listener: \(event: TerminalErrorEvent\)/)
-  assert.match(types, /onError: \(listener: \(event: PiConfigErrorEvent\)/)
+  assert.match(terminalTypes, /writeInput: \(data: string\) => Promise<\{ accepted: true; bytes: number \}>/)
+  assert.match(terminalTypes, /onError: \(listener: \(event: TerminalErrorEvent\)/)
+  assert.match(piConfigTypes, /onError: \(listener: \(event: PiConfigErrorEvent\)/)
   assert.match(aiTerminalIpc, /confineIpcOneWay\(channel, listener\)/)
   for (const channel of ['terminal:key', 'terminal:resize', 'piConfig:input', 'piConfig:resize']) {
     assert.match(aiTerminalIpc, new RegExp(`\\['${channel}'`))

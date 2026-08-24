@@ -6,7 +6,15 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AppPreferencesSnapshot, WorkspaceSessionSnapshot, WorkspaceSessionWriteSnapshot } from '@/bridge'
+import type {
+  AiTerminalRestartOptions,
+  AiTerminalRestartResult,
+  AppPreferencesSnapshot,
+  TerminalExitStatus,
+  TerminalResumeSnapshot,
+  WorkspaceSessionSnapshot,
+  WorkspaceSessionWriteSnapshot,
+} from '@/bridge'
 import { createDefaultWorkspaceSessionState } from '@/features/workspace/model/workspace-session'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 

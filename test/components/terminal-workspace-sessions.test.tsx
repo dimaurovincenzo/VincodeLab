@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ShellSessionList, ShellSessionMetadata } from '@/bridge'
 
 vi.mock('@/features/terminal/components/free-terminal', () => ({
   FreeTerminal: ({

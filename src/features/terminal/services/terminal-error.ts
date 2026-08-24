@@ -1,3 +1,4 @@
+import type { ShellSessionErrorEvent, ShellSessionOneWayOperation } from '@/bridge'
 import { normalizeUserError, reportUserError } from '@/lib/user-error'
 import type {
   TerminalClipboardFailure,

@@ -2,6 +2,7 @@ import { useEffect, type Dispatch, type RefObject, type SetStateAction } from 'r
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { Terminal } from '@xterm/xterm'
+import type { ShellSessionResumeSnapshot } from '@/bridge'
 import { terminalBridge } from '../api/terminal.bridge'
 import type { TerminalFailure, TerminalSessionUiStatus } from '../model/terminal-session'
 import { reportTerminalFailure, terminalFailureFromEvent } from '../services/terminal-error'

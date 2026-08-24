@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Activity, Download, RefreshCw } from 'lucide-react'
+import type { TerminalDiagnosticsReport } from '@/bridge'
 import { Button, ErrorNotice, Spinner, toast } from '@/components/ui'
 import { aiBridge } from '../api/ai.bridge'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'

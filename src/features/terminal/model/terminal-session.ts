@@ -1,3 +1,4 @@
+import type { ShellSessionErrorRecovery, ShellSessionStatus } from '@/bridge'
 import type { UserError } from '@/lib/user-error'
 
 export type TerminalSessionUiStatus = 'starting' | 'ready' | 'exited' | 'error'

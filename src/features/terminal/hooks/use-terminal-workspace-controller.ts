@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { WorkspaceSessionState } from '@/bridge'
+import type { ShellSessionList, ShellSessionMetadata, WorkspaceSessionState } from '@/bridge'
 import { dispatchApplicationMenuCommand } from '@/lib/app-menu-command'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
 import { terminalBridge } from '../api/terminal.bridge'

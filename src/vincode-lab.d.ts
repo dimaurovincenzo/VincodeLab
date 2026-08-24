@@ -1,172 +1,3 @@
-interface TerminalExitStatus {
-  exitCode: number | null
-  signal: number | string | null
-  runtime?: AiTerminalRuntime
-  piAvailable?: boolean
-}
-
-type AiTerminalRuntime = import('./bridge').AiTerminalRuntime
-type AiTerminalFallbackReason = import('./bridge').AiTerminalFallbackReason
-type AiTerminalReloadResult = import('./bridge').AiTerminalReloadResult
-type AiTerminalRestartOptions = import('./bridge').AiTerminalRestartOptions
-type AiTerminalRestartResult = import('./bridge').AiTerminalRestartResult
-
-type ShellSessionStatus = 'starting' | 'running' | 'exited'
-interface ShellSessionMetadata {
-  sessionId: string
-  title: string
-  status: ShellSessionStatus
-  active: boolean
-  createdAt: number
-  lastFocusedAt: number
-  cols: number
-  rows: number
-  pid: number | null
-  exitStatus: { exitCode: number | null; signal: number | string | null } | null
-}
-interface ShellSessionList {
-  activeSessionId: string | null
-  sessions: ShellSessionMetadata[]
-}
-interface ShellSessionDataEvent {
-  sessionId: string
-  attachmentId: string
-  generation: number
-  sequence: number
-  data: string
-}
-interface ShellSessionOutputAck {
-  attachmentId: string
-  generation: number
-  sequence: number
-}
-interface ShellSessionRendererReady {
-  attachmentId: string
-  generation: number
-  watermark: number
-}
-interface ShellSessionOutputBlock {
-  sequence: number
-  data: string
-}
-interface ShellSessionResumeSnapshot {
-  sessionId: string
-  attachmentId: string
-  generation: number
-  blocks: ShellSessionOutputBlock[]
-  firstSequence: number
-  watermark: number
-  bytes: number
-  truncated: boolean
-  droppedBytes: number
-  status: ShellSessionStatus
-  exitStatus: { exitCode: number | null; signal: number | string | null } | null
-}
-interface ShellSessionExitEvent {
-  sessionId: string
-  exitCode: number | null
-  signal: number | string | null
-  reason: 'exit' | 'closed'
-}
-type ShellSessionOneWayOperation = 'ready' | 'ack' | 'disconnect' | 'write' | 'resize'
-type ShellSessionErrorRecovery = 'resume' | 'restart' | 'resize'
-type ShellSessionErrorCategory =
-  | 'validation'
-  | 'not-found'
-  | 'permission'
-  | 'authentication'
-  | 'network'
-  | 'timeout'
-  | 'cancelled'
-  | 'conflict'
-  | 'process'
-  | 'database'
-  | 'filesystem'
-  | 'git'
-  | 'github'
-  | 'remote'
-  | 'configuration'
-  | 'persistence'
-  | 'internal'
-interface ShellSessionErrorEvent {
-  sessionId: string
-  operation: ShellSessionOneWayOperation
-  recovery: ShellSessionErrorRecovery
-  error: {
-    category: ShellSessionErrorCategory
-    code: string
-    correlationId: string
-    message: string
-    recoverable: boolean
-    severity: 'info' | 'warning' | 'error'
-  }
-}
-
-type TerminalOneWayOperation = 'ready' | 'ack' | 'key' | 'resize'
-type TerminalErrorRecovery = 'resume' | 'restart' | 'resize'
-interface TerminalErrorEvent {
-  operation: TerminalOneWayOperation
-  recovery: TerminalErrorRecovery
-  error: {
-    category: ShellSessionErrorCategory
-    code: string
-    correlationId: string
-    message: string
-    recoverable: boolean
-    severity: 'info' | 'warning' | 'error'
-  }
-}
-
-type PiConfigOneWayOperation = 'input' | 'resize'
-type PiConfigErrorRecovery = 'restart' | 'resize'
-interface PiConfigErrorEvent {
-  operation: PiConfigOneWayOperation
-  recovery: PiConfigErrorRecovery
-  error: {
-    category: ShellSessionErrorCategory
-    code: string
-    correlationId: string
-    message: string
-    recoverable: boolean
-    severity: 'info' | 'warning' | 'error'
-  }
-}
-
-type TerminalStreamStatus = 'running' | 'paused' | 'stalled' | 'recovering' | 'ended'
-type TerminalOutputBlock = { sessionId: string; sequence: number; data: string }
-type TerminalOutputAck = { sessionId: string; sequence: number }
-type TerminalResumeSnapshot = {
-  sessionId: string
-  snapshot: { data: string; firstSequence: number; watermark: number; bytes: number }
-  status: TerminalStreamStatus
-  exitStatus?: TerminalExitStatus
-  runtime: AiTerminalRuntime
-  fallbackReason?: AiTerminalFallbackReason
-  piAvailable?: boolean
-}
-type TerminalStreamState = { sessionId: string; status: TerminalStreamStatus; queuedBytes: number }
-
-interface TerminalAttachment {
-  absolutePath: string
-  name: string
-}
-
-type TerminalPasteStartResult =
-  | { accepted: true; transferId: string; totalBytes: number }
-  | { accepted: false; reason: 'invalid' | 'too-large' | 'not-running'; totalBytes: number; limit: number }
-type TerminalPasteChunkResult =
-  | { accepted: true; complete: boolean; sentBytes: number; totalBytes: number }
-  | { accepted: false; reason: 'invalid-chunk' | 'cancelled' | 'not-running'; sentBytes: number; totalBytes: number }
-type TerminalPasteCancelResult = { cancelled: boolean; sentBytes: number; totalBytes: number }
-type TerminalRendererMetrics = { queuedBlocks: number; ackP50Ms: number; ackP95Ms: number; ackP99Ms: number; slowFrames: number; restoreCount: number; mode: 'standard' | 'webgl' }
-interface TerminalDiagnosticsReport {
-  version: 1
-  generatedAt: string
-  pipeline: { receivedBytes: number; renderedBytes: number; averageBlockBytes: number; maxBlockBytes: number; queuedBytes: number; peakQueuedBytes: number; pauseCount: number; pausedMs: number }
-  renderer: TerminalRendererMetrics
-  paste: { started: number; completed: number; cancelled: number; rejected: number; acceptedBytes: number; activeTransfers: number; pendingBytes: number }
-}
-
 interface PublicApplicationError {
   category: 'validation' | 'not-found' | 'permission' | 'authentication' | 'network' | 'timeout' | 'cancelled' | 'conflict' | 'process' | 'database' | 'filesystem' | 'git' | 'github' | 'remote' | 'configuration' | 'persistence' | 'internal'
   code: string
@@ -503,7 +334,7 @@ interface Window {
       indexStatus: () => Promise<ProjectFileIndexStatus | null>
       read: (fileId: string) => Promise<ProjectFileReadResult>
       preview: (fileId: string) => Promise<{ id: string; name: string; kind: 'image' | 'pdf'; content: string; size: number }>
-      prepareAttachment: (fileId: string) => Promise<TerminalAttachment>
+      prepareAttachment: (fileId: string) => Promise<import('./bridge').TerminalAttachment>
       create: (directoryId: string, fileName: string) => Promise<ProjectFileReadResult>
       createDirectory: (parentId: string, directoryName: string) => Promise<{ id: string; kind: 'directory'; name: string }>
       rename: (entryId: string, entryName: string, expectedKind: 'file' | 'directory') => Promise<{ id: string; kind: 'file' | 'directory'; name: string; previousId: string; renamed: boolean }>
@@ -522,57 +353,20 @@ interface Window {
       create: (name: string) => Promise<ProjectSkill>
       update: (skillId: string, content: string) => Promise<ProjectSkill>
       delete: (skillId: string) => Promise<{ deleted: true }>
-      reload: () => Promise<AiTerminalReloadResult>
+      reload: () => Promise<import('./bridge').AiTerminalReloadResult>
     }
-    pi: {
-      reload: () => Promise<AiTerminalReloadResult>
-      restart: (options?: AiTerminalRestartOptions) => Promise<AiTerminalRestartResult>
-    }
+    pi: import('./bridge').PiApi
     systemSkills: { list: () => Promise<ProjectSkill[]>; get: (id: string) => Promise<ProjectSkill>; create: (name: string) => Promise<ProjectSkill>; update: (id: string, content: string) => Promise<ProjectSkill>; delete: (id: string) => Promise<{ deleted: true }> }
     runtime: import('./bridge').RuntimeCapabilitiesApi
     piSystem: { status: () => Promise<PiRuntimeStatus>; list: () => Promise<string[]>; listSkills: () => Promise<PiPackageSkill[]>; install: (source: string) => Promise<{ output: string }>; update: (source: string) => Promise<{ output: string }>; remove: (source: string) => Promise<{ output: string }> }
-    piConfig: { start: () => Promise<{ started: boolean; reused: boolean }>; close: () => Promise<{ closed: true }>; write: (data: string) => void; resize: (dimensions: { cols: number; rows: number }) => void; onData: (listener: (data: string) => void) => () => void; onExit: (listener: (status: TerminalExitStatus) => void) => () => void; onError: (listener: (event: PiConfigErrorEvent) => void) => () => void }
+    piConfig: import('./bridge').PiConfigApi
     github: import('./bridge').GitHubApi
     workspaceCommands: import('./bridge').WorkspaceCommandsApi
     managedSsh: import('./bridge').ManagedSshApi
     remoteFiles: import('./bridge').RemoteFilesApi
     database: import('./bridge').DatabaseApi
     redis: VincodeRedisApi
-    shellSessions: {
-      list: () => Promise<ShellSessionList>
-      resume: (sessionId: string) => Promise<ShellSessionResumeSnapshot>
-      ready: (sessionId: string, message: ShellSessionRendererReady) => void
-      ack: (sessionId: string, message: ShellSessionOutputAck) => void
-      disconnect: (sessionId: string, message: { attachmentId: string; generation: number }) => void
-      create: () => Promise<ShellSessionMetadata>
-      focus: (sessionId: string) => Promise<ShellSessionMetadata>
-      write: (sessionId: string, data: string) => void
-      resize: (sessionId: string, dimensions: { cols: number; rows: number }) => void
-      restart: (sessionId: string) => Promise<ShellSessionMetadata>
-      close: (sessionId: string) => Promise<{ closed: boolean; activeSessionId: string | null }>
-      onData: (listener: (event: ShellSessionDataEvent) => void) => () => void
-      onExit: (listener: (event: ShellSessionExitEvent) => void) => () => void
-      onError: (listener: (event: ShellSessionErrorEvent) => void) => () => void
-    }
-    terminal: {
-      resume: (request: { knownSessionId?: string; lastAcknowledgedSequence?: number }) => Promise<TerminalResumeSnapshot>
-      ready: (message: { sessionId: string; watermark: number }) => void
-      ack: (message: TerminalOutputAck) => void
-      chooseAttachments: () => Promise<TerminalAttachment[]>
-      prepareDroppedAttachments: (files: File[]) => Promise<TerminalAttachment[]>
-      writeKey: (data: string) => void
-      writeInput: (data: string) => Promise<{ accepted: true; bytes: number }>
-      startPaste: (input: { totalBytes: number }) => Promise<TerminalPasteStartResult>
-      writePasteChunk: (input: { transferId: string; index: number; data: string }) => Promise<TerminalPasteChunkResult>
-      cancelPaste: (transferId: string) => Promise<TerminalPasteCancelResult>
-      reportRendererMetrics: (metrics: TerminalRendererMetrics) => void
-      diagnostics: () => Promise<TerminalDiagnosticsReport>
-      exportDiagnostics: () => Promise<{ exported: boolean; filePath?: string }>
-      resize: (dimensions: { cols: number; rows: number }) => void
-      onOutput: (listener: (block: TerminalOutputBlock) => void) => () => void
-      onStreamState: (listener: (state: TerminalStreamState) => void) => () => void
-      onExit: (listener: (status: TerminalExitStatus) => void) => () => void
-      onError: (listener: (event: TerminalErrorEvent) => void) => () => void
-    }
+    shellSessions: import('./bridge').ShellSessionsApi
+    terminal: import('./bridge').TerminalApi
   }
 }

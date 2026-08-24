@@ -1,5 +1,6 @@
 import { Paperclip, Send, X } from 'lucide-react'
 import { useRef, useState, type MouseEvent } from 'react'
+import type { TerminalAttachment } from '@/bridge'
 import { Button, ErrorNotice, FileUpload, IconButton, Spinner, toast, type FileUploadFileChangeDetails } from '@/components/ui'
 import { aiBridge } from '../api/ai.bridge'
 import type { TerminalContextAction } from '../model/ai-runtime.types'

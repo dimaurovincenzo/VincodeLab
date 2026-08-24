@@ -4,6 +4,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { TerminalDiagnosticsReport } from '@/bridge'
 import { TerminalDiagnostics } from '@/features/ai'
 import { TerminalAttachments } from '@/features/ai/components/terminal-attachments'
 import { Toaster, toast } from '@/components/ui'

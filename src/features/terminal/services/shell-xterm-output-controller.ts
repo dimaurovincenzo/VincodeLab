@@ -1,4 +1,11 @@
 // Coordinatore del flusso xterm specifico delle sessioni shell.
+import type {
+  ShellSessionDataEvent,
+  ShellSessionOutputAck,
+  ShellSessionRendererReady,
+  ShellSessionResumeSnapshot,
+} from '@/bridge'
+
 type ShellXtermOutputControllerOptions = {
   sessionId: string
   write: (data: string, callback: () => void) => void

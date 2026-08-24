@@ -1,3 +1,5 @@
+import type { TerminalOutputAck, TerminalOutputBlock, TerminalResumeSnapshot } from '@/bridge'
+
 export type XtermOutputController = {
   accept: (block: TerminalOutputBlock) => boolean
   restore: (payload: TerminalResumeSnapshot) => boolean

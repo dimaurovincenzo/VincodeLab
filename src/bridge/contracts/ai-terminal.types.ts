@@ -29,3 +29,8 @@ export type AiTerminalRestartResult = {
   fallbackReason?: AiTerminalFallbackReason
   piAvailable?: boolean
 }
+
+export type PiApi = {
+  reload: () => Promise<AiTerminalReloadResult>
+  restart: (options?: AiTerminalRestartOptions) => Promise<AiTerminalRestartResult>
+}

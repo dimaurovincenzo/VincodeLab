@@ -6,6 +6,7 @@ export type {
   AiTerminalRestartResult,
   AiTerminalRuntime,
   AiTerminalRuntimeState,
+  PiApi,
 } from './contracts/ai-terminal.types'
 export type {
   DatabaseApi,
@@ -48,6 +49,12 @@ export type {
   ManagedSshConnection,
 } from './contracts/managed-ssh.types'
 export type {
+  PiConfigApi,
+  PiConfigErrorEvent,
+  PiConfigErrorRecovery,
+  PiConfigOneWayOperation,
+} from './contracts/pi-config.types'
+export type {
   AppPreferenceDefinition,
   AppPreferencesSnapshot,
   AppPreferenceValue,
@@ -88,6 +95,40 @@ export type {
   RuntimeCapabilitiesSnapshot,
   RuntimeCapability,
 } from './contracts/runtime-capabilities.types'
+export type {
+  ShellSessionDataEvent,
+  ShellSessionErrorCategory,
+  ShellSessionErrorEvent,
+  ShellSessionErrorRecovery,
+  ShellSessionExitEvent,
+  ShellSessionList,
+  ShellSessionMetadata,
+  ShellSessionOneWayOperation,
+  ShellSessionOutputAck,
+  ShellSessionOutputBlock,
+  ShellSessionRendererReady,
+  ShellSessionResumeSnapshot,
+  ShellSessionsApi,
+  ShellSessionStatus,
+} from './contracts/shell-sessions.types'
+export type {
+  TerminalApi,
+  TerminalAttachment,
+  TerminalDiagnosticsReport,
+  TerminalErrorEvent,
+  TerminalErrorRecovery,
+  TerminalExitStatus,
+  TerminalOneWayOperation,
+  TerminalOutputAck,
+  TerminalOutputBlock,
+  TerminalPasteCancelResult,
+  TerminalPasteChunkResult,
+  TerminalPasteStartResult,
+  TerminalRendererMetrics,
+  TerminalResumeSnapshot,
+  TerminalStreamState,
+  TerminalStreamStatus,
+} from './contracts/terminal.types'
 export type {
   ManagedUpdate,
   UpdatesApi,

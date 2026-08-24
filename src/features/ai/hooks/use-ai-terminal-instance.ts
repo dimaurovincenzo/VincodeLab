@@ -1,5 +1,6 @@
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { Terminal } from '@xterm/xterm'
+import type { TerminalResumeSnapshot, TerminalStreamState } from '@/bridge'
 import { terminalFontFamily } from '@/lib/app-preferences'
 import { scheduleVisibleTerminalRefit } from '@/lib/terminal-activation.js'
 import { createAnimationFrameResizeScheduler } from '@/lib/terminal-resize.js'

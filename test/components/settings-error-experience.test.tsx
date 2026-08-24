@@ -4,7 +4,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AppPreferencesSnapshot, ManagedUpdate } from '@/bridge'
+import type { AppPreferencesSnapshot, ManagedUpdate, PiConfigErrorEvent } from '@/bridge'
 import { Settings } from '@/features/settings'
 import { toastStore } from '@/components/ui/toast-store'
 import { setAppPreferencesWorkspace } from '@/lib/app-preferences'

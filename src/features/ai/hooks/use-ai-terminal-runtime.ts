@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { Terminal } from '@xterm/xterm'
 import { toast } from '@/components/ui'
-import type { AiTerminalRestartOptions, AiTerminalRestartResult } from '@/bridge'
+import type { AiTerminalRestartOptions, AiTerminalRestartResult, TerminalStreamState } from '@/bridge'
 import { terminalFontFamily } from '@/lib/app-preferences'
 import { reportRendererFailure, reportTransientFailure, showUserErrorToast } from '@/lib/renderer-error'
 import { scheduleVisibleTerminalRefit } from '@/lib/terminal-activation.js'
