@@ -16,6 +16,15 @@ function readProjectSkillsSource() {
   ].map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8')).join('\n')
 }
 
+function readTerminalStylesSource() {
+  return [
+    '../src/theme/styles/terminal.ts',
+    '../src/theme/styles/terminal-session.ts',
+    '../src/theme/styles/terminal-free-command.ts',
+    '../src/theme/styles/terminal-diagnostics.ts',
+  ].map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8')).join('\n')
+}
+
 test('design system definisce token e focus condivisi', () => {
   const tokens = fs.readFileSync(path.join(__dirname, '../src/theme/tokens.ts'), 'utf8')
   const globalCss = fs.readFileSync(path.join(__dirname, '../src/theme/global-css.ts'), 'utf8')
@@ -151,7 +160,7 @@ test('il design system definisce una scala tipografica per le superfici desktop'
 
 test('la shell dell’app riusa i ruoli Graphite per canvas, toolbar e feedback', () => {
   const shell = fs.readFileSync(path.join(__dirname, '../src/theme/styles/shell.ts'), 'utf8')
-  const terminal = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
+  const terminal = readTerminalStylesSource()
 
   assert.match(shell, /root:\s*css\(\{[\s\S]*?bg:\s*'surfaceCanvas'/)
   assert.match(shell, /toolbar:\s*css\(\{[\s\S]*?bg:\s*'surfaceRaised'/)
@@ -427,7 +436,7 @@ test('la superficie Skill non introduce una palette locale', () => {
 
 test('Terminale e Istruzioni usano solo ruoli Graphite', () => {
   const terminal = [
-    fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8'),
+    readTerminalStylesSource(),
     fs.readFileSync(path.join(__dirname, '../src/theme/styles/ai.ts'), 'utf8'),
   ].join('\n')
 
@@ -845,7 +854,7 @@ test('i terminali riusano una toolbar con reset zoom e riavvio', () => {
 
 test('il valore dello zoom conserva spazio proprio tra i controlli meno e più', () => {
   const toolbar = fs.readFileSync(path.join(__dirname, '../src/components/terminal-toolbar.tsx'), 'utf8')
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
+  const styles = readTerminalStylesSource()
 
   assert.match(toolbar, /className=\{terminalStyles\.zoomReset\} aria-label="Reimposta zoom"/)
   assert.match(styles, /zoomReset:\s*css\(\{[^}]*minW:\s*'9\.5'/)
@@ -853,7 +862,7 @@ test('il valore dello zoom conserva spazio proprio tra i controlli meno e più',
 })
 
 test('la barra del Terminale AI resta piatta ma lascia respiro a testo e controlli', () => {
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
+  const styles = readTerminalStylesSource()
   const iconButton = fs.readFileSync(path.join(__dirname, '../src/components/ui/icon-button.tsx'), 'utf8')
   const recipes = fs.readFileSync(path.join(__dirname, '../src/theme/recipes.ts'), 'utf8')
   const controls = styles.slice(styles.indexOf('  controls: css({'), styles.indexOf('  streamStatus: css({'))
@@ -923,7 +932,7 @@ test('il Terminale AI parte a 11 px e le viste terminale ricevono lo stato di at
 
 test('il terminale AI viene rifatto al ritorno nella tab e non eccede orizzontalmente', () => {
   const runtime = fs.readFileSync(path.join(__dirname, '../src/features/ai/hooks/use-ai-terminal-runtime.ts'), 'utf8')
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
+  const styles = readTerminalStylesSource()
 
   assert.match(runtime, /if \(!workspace \|\| !active \|\| !getTerminal\(\)\) return/)
   assert.match(runtime, /fitAddon\.current\?\.fit\(\)/)
@@ -951,7 +960,7 @@ test('la Home usa una transizione breve solo per risultati ed empty state', () =
 test('il Terminale AI misura xterm dentro un host flessibile senza tagliare l ultima riga', () => {
   const app = readAppSource()
   const aiStyles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/ai.ts'), 'utf8')
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
+  const styles = readTerminalStylesSource()
   const bridge = fs.readFileSync(path.join(__dirname, '../src/styles/views/terminal.css'), 'utf8')
 
   assert.match(app, /className=\{terminalStyles\.xtermHost\} data-xterm-host="ai" key=\{workspace\}/)
@@ -963,7 +972,7 @@ test('il Terminale AI misura xterm dentro un host flessibile senza tagliare l ul
 
 test('il reload di Pi ripristina la geometria completa di xterm e non espone il viewport nero predefinito', () => {
   const runtime = fs.readFileSync(path.join(__dirname, '../src/features/ai/hooks/use-ai-terminal-runtime.ts'), 'utf8')
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
+  const styles = readTerminalStylesSource()
   const bridge = fs.readFileSync(path.join(__dirname, '../src/styles/views/terminal.css'), 'utf8')
 
   assert.match(runtime, /await aiBridge\.pi\.reload\(\)[\s\S]*scheduleVisibleTerminalRefit/)
@@ -977,14 +986,14 @@ test('il reload di Pi ripristina la geometria completa di xterm e non espone il 
 })
 
 test('il terminale libero conserva margini laterali simmetrici', () => {
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
+  const styles = readTerminalStylesSource()
 
   assert.match(styles, /freePage:\s*css\(\{[\s\S]*?minW:\s*'0'/)
   assert.match(styles, /freePage:\s*css\(\{[\s\S]*?boxSizing:\s*'border-box'/)
 })
 
 test('il Terminale libero non espone una cornice chiara attorno al canvas', () => {
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
+  const styles = readTerminalStylesSource()
   const surface = styles.slice(styles.indexOf('  freeSurface: css({'), styles.indexOf('  commandSplitter: css({'))
 
   assert.doesNotMatch(surface, /\bp:/)
@@ -993,7 +1002,7 @@ test('il Terminale libero non espone una cornice chiara attorno al canvas', () =
 
 test('il terminale libero apre una sidebar comandi senza ridimensionare il PTY', () => {
   const component = readTerminalSource()
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
+  const styles = readTerminalStylesSource()
 
   assert.match(component, /aria-label="Apri comandi workspace"/)
   assert.match(component, /className=\{terminalStyles\.commandSidebar\}/)
@@ -1014,7 +1023,7 @@ test('il terminale libero apre una sidebar comandi senza ridimensionare il PTY',
 
 test('i comandi workspace usano primitive Field Select Collapsible e IconButton senza fallback HTML', () => {
   const component = readTerminalSource()
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
+  const styles = readTerminalStylesSource()
 
   for (const primitive of ['Field', 'SelectField', 'Collapsible', 'IconButton']) assert.match(component, new RegExp(`<${primitive}`))
   assert.match(component, /<IconButton tooltip="Chiudi comandi workspace"/)
@@ -1032,7 +1041,7 @@ test('la sidebar invoca le azioni di salvataggio al click', () => {
 
 test('la libreria comandi mostra categorie collassabili e feedback di caricamento', () => {
   const component = readTerminalSource()
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
+  const styles = readTerminalStylesSource()
 
   assert.match(component, /workspaceCommandLibraryView\(categories, commandSearch\)/)
   assert.match(component, /const \[expandedCategoryIds, setExpandedCategoryIds\] = useState<Set<string>>/)
@@ -1127,7 +1136,7 @@ test('Database usa un explorer con tab, albero schema e modifica della connessio
 test('Database mantiene compatta la connessione e il pannello comandi mostra il form solo su richiesta', () => {
   const databaseStyles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
   const terminal = readTerminalSource()
-  const terminalStyles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
+  const terminalStyles = readTerminalStylesSource()
 
   assert.match(databaseStyles, /sidebar:\s*css\(\{[\s\S]*?gridTemplateRows:\s*'auto minmax\(0, 1fr\) auto'/)
   assert.match(databaseStyles, /explorerTabs:\s*css\(\{[\s\S]*?minH:\s*'10'/)

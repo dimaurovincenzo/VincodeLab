@@ -159,7 +159,11 @@ test("primitive e shell rispettano la geometria enterprise", () => {
 
 test("Terminale e AI possiedono stili isolati e senza palette locale", () => {
   const ai = readWorkspaceFile("src/theme/styles/ai.ts");
-  const terminal = readWorkspaceFile("src/theme/styles/terminal.ts");
+  const terminalEntry = readWorkspaceFile("src/theme/styles/terminal.ts");
+  const terminalSession = readWorkspaceFile("src/theme/styles/terminal-session.ts");
+  const terminalFreeCommand = readWorkspaceFile("src/theme/styles/terminal-free-command.ts");
+  const terminalDiagnostics = readWorkspaceFile("src/theme/styles/terminal-diagnostics.ts");
+  const terminal = [terminalEntry, terminalSession, terminalFreeCommand, terminalDiagnostics].join("\n");
   const remote = readWorkspaceFile("src/theme/styles/remote.ts");
   const xtermBridge = readWorkspaceFile("src/styles/views/terminal.css");
   for (const source of [ai, terminal, remote, xtermBridge]) {
@@ -167,7 +171,21 @@ test("Terminale e AI possiedono stili isolati e senza palette locale", () => {
     assert.doesNotMatch(source, /!important|data-theme|prefers-color-scheme/);
   }
   assert.match(ai, /export const aiStyles/);
-  assert.match(terminal, /export const terminalStyles/);
+  assert.match(terminalEntry, /export const terminalStyles/);
+  assert.match(terminalEntry, /import \{ terminalSessionStyles \} from '\.\/terminal-session'/);
+  assert.match(terminalEntry, /import \{ terminalFreeCommandStyles \} from '\.\/terminal-free-command'/);
+  assert.match(terminalEntry, /import \{ terminalDiagnosticsStyles \} from '\.\/terminal-diagnostics'/);
+  for (const owner of ["terminalSessionStyles", "terminalFreeCommandStyles", "terminalDiagnosticsStyles"]) {
+    assert.match(terminalEntry, new RegExp(`\\.\\.\\.${owner}`));
+  }
+  assert.match(terminalSession, /export const terminalSessionStyles/);
+  assert.match(terminalSession, /sessionWorkspace:\s*css\(/);
+  assert.match(terminalFreeCommand, /export const terminalFreeCommandStyles/);
+  assert.match(terminalFreeCommand, /freePage:\s*css\(/);
+  assert.match(terminalFreeCommand, /commandSidebar:\s*css\(/);
+  assert.match(terminalDiagnostics, /export const terminalDiagnosticsStyles/);
+  assert.match(terminalDiagnostics, /diagnostics:\s*css\(/);
+  assert.doesNotMatch(terminalEntry, /^  (?:sessionWorkspace|freePage|commandSidebar|diagnostics):\s*css\(/m);
   assert.match(remote, /export const remoteStyles/);
   assert.match(terminal, /minW:\s*'0'/);
   assert.match(remote, /gridTemplateColumns:/);

@@ -346,7 +346,17 @@ test('gli allegati Pi delegano drop, focus e tastiera a FileUpload senza cambiar
   const attachments = read('src/features/ai/components/terminal-attachments.tsx')
   const fileUpload = read('src/components/ui/file-upload.tsx')
   const recipes = read('src/theme/recipes.ts')
-  const styles = [attachments, fileUpload, recipes, read('src/theme/styles/terminal.ts')].join('\n')
+  const styles = [
+    attachments,
+    fileUpload,
+    recipes,
+    ...[
+      'src/theme/styles/terminal.ts',
+      'src/theme/styles/terminal-session.ts',
+      'src/theme/styles/terminal-free-command.ts',
+      'src/theme/styles/terminal-diagnostics.ts',
+    ].map(read),
+  ].join('\n')
 
   for (const slot of ['Root', 'Dropzone', 'HiddenInput', 'Trigger', 'ItemGroup', 'Item', 'ItemName', 'ItemDeleteTrigger']) {
     assert.match(attachments, new RegExp(`<FileUpload\\.${slot}`))
