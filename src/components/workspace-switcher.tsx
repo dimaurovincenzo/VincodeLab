@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ExternalLink, FolderOpen } from 'lucide-react'
 import { Button, ErrorNotice, Popover } from '@/components/ui'
+import { workspaceBridge } from '@/features/workspace'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
 import { workspaceSwitcherStyles } from '@/theme/styles/home'
 
@@ -40,7 +41,7 @@ export function WorkspaceSwitcher({ appIconUrl, currentPath, recents, onChooseDi
     const request = ++statusRequest.current
     setLoadingStatuses(true)
     try {
-      const entries = await Promise.all(workspaces.map(async ({ path }) => [path, await window.vincodeLab.workspace.instanceStatus(path)] as const))
+      const entries = await Promise.all(workspaces.map(async ({ path }) => [path, await workspaceBridge.workspace.instanceStatus(path)] as const))
       if (request !== statusRequest.current) return
       setStatuses(Object.fromEntries(entries))
       setFailure((current) => current?.kind === 'status' ? null : current)

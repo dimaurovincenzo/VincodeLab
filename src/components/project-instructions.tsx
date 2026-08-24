@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, RefreshCw, RotateCcw, Save, ScrollText } from 'lucide-react'
+import { aiBridge } from '@/features/ai'
 import { Button, ErrorNotice, Field, toast } from '@/components/ui'
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
 import { commitVolatileDraft, discardVolatileDraft, restoreVolatileDraft, writeVolatileDraft, type VolatileDraftIdentity } from '@/lib/volatile-draft-store'
@@ -49,9 +50,9 @@ export function ProjectInstructions({ workspace, onWorkspaceGuardChange }: Props
     setLoading(true)
     setLoadError(null)
     try {
-      const activeWorkspace = workspace ? { path: workspace } : await window.vincodeLab.workspace.getActive()
+      const activeWorkspace = workspace ? { path: workspace } : await aiBridge.workspace.getActive()
       if (!activeWorkspace?.path) throw new Error('Nessun workspace attivo per le istruzioni progetto.')
-      const result = await window.vincodeLab.instructions.get()
+      const result = await aiBridge.instructions.get()
       if (requestId !== loadRequestId.current) return
       const nextContent = restoreVolatileDraft(instructionsDraftIdentity(activeWorkspace.path), result.content)
       workspaceRef.current = activeWorkspace.path
@@ -93,7 +94,7 @@ export function ProjectInstructions({ workspace, onWorkspaceGuardChange }: Props
     setSaving(true)
     const job = (async () => {
       try {
-        await window.vincodeLab.instructions.save(nextContent)
+        await aiBridge.instructions.save(nextContent)
         if (requestWorkspace) commitVolatileDraft(instructionsDraftIdentity(requestWorkspace), nextContent)
         savedContentRef.current = nextContent
         existsRef.current = true
@@ -131,7 +132,7 @@ export function ProjectInstructions({ workspace, onWorkspaceGuardChange }: Props
     setSaving(true)
     setOperationFailure(null)
     try {
-      await window.vincodeLab.instructions.clear()
+      await aiBridge.instructions.clear()
       if (workspaceRef.current) discardVolatileDraft(instructionsDraftIdentity(workspaceRef.current))
       contentRef.current = ''
       savedContentRef.current = ''
@@ -165,7 +166,7 @@ export function ProjectInstructions({ workspace, onWorkspaceGuardChange }: Props
   const reloadPi = async () => {
     setOperationFailure(null)
     try {
-      await window.vincodeLab.pi.reload()
+      await aiBridge.pi.reload()
       toast.success('Pi sta ricaricando le istruzioni progetto.')
     } catch (error) {
       setOperationFailure({
@@ -192,8 +193,8 @@ export function ProjectInstructions({ workspace, onWorkspaceGuardChange }: Props
           // La recovery seguente riscrive esplicitamente la baseline; il failure della
           // write concorrente è già stato presentato dal salvataggio che l'ha avviata.
         })
-        if (baselineExists) await window.vincodeLab.instructions.save(baseline)
-        else await window.vincodeLab.instructions.clear()
+        if (baselineExists) await aiBridge.instructions.save(baseline)
+        else await aiBridge.instructions.clear()
       }
       contentRef.current = baseline
       savedContentRef.current = baseline

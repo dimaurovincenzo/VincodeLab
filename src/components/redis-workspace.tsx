@@ -2,6 +2,7 @@ import { Database, FilePenLine, Plus, RefreshCw, Search, Trash2 } from 'lucide-r
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ErrorNotice, IconButton, SelectField, Spinner, Splitter, Tabs, toast, type SplitterPanelData } from '@/components/ui'
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
+import { redisBridge } from '@/features/redis'
 import { RedisConnectionDialog } from '@/components/redis-connection-dialog'
 import { RedisInspectorEmpty, RedisKeyInspector } from '@/components/redis-key-inspector'
 import { RedisKeyBrowser } from '@/components/redis-key-browser'
@@ -318,7 +319,7 @@ export function RedisWorkspace({ workspace, focusRequest = 0, initialState, onCo
     copyContextText(visibleValue, 'Valore Redis visibile copiato.')
   }, [contextKey, copyContextText, inspection, inspectorTab, mode, selectKey])
   useEffect(() => { contextActionHandlerRef.current = handleContextAction }, [handleContextAction])
-  useEffect(() => window.vincodeLab.contextMenu.onAction((action) => contextActionHandlerRef.current(action)), [])
+  useEffect(() => redisBridge.contextMenu.onAction((action) => contextActionHandlerRef.current(action)), [])
 
   return <Splitter.Root asChild defaultFixedSize={330} panels={panels} storageKey={`vincodelab.redis.browser-width:${workspace}`}><section aria-busy={loadingConnections} aria-label="Workspace Redis" className={rs.workspace}>
     <Splitter.Panel id="redis-browser"><RedisKeyBrowser cursorDepth={pageIndex} error={scanError} filter={filter} hasMore={page.hasMore} keys={page.keys} loading={scanLoading} selectedKey={selectedKeyRef} typeFilter={typeFilter} onFilter={applyFilters} onNext={showNextPage} onPrevious={showPreviousPage} onRefresh={refreshPage} onSelect={handleKeySelect} /></Splitter.Panel>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, BookOpen, Check, FilePlus2, RefreshCw, Save, Trash2 } from 'lucide-react'
+import { aiBridge } from '@/features/ai'
 import { Button, createListCollection, ErrorNotice, Field, IconButton, Listbox, Spinner, Splitter, toast, type SplitterPanelData } from '@/components/ui'
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
 import { EmptyState } from '@/components/empty-state'
@@ -70,7 +71,7 @@ export function ProjectSkills({ workspace, onWorkspaceGuardChange }: Props) {
     setLoading(true)
     setLoadError(null)
     try {
-      const nextSkills = await window.vincodeLab.skills.list()
+      const nextSkills = await aiBridge.skills.list()
       if (requestId !== loadRequestId.current) return
       setSkills(nextSkills)
     } catch (error) {
@@ -91,7 +92,7 @@ export function ProjectSkills({ workspace, onWorkspaceGuardChange }: Props) {
     const previousSkillId = selectedIdRef.current
     const previousContent = contentRef.current
     try {
-      const skill = await window.vincodeLab.skills.get(skillId)
+      const skill = await aiBridge.skills.get(skillId)
       // Un completamento più lento non deve sostituire una selezione già cambiata dall’utente.
       if (requestId !== selectionRequestId.current) return
       if (skill.id !== skillId) throw new Error('La skill caricata non corrisponde alla selezione richiesta.')
@@ -154,7 +155,7 @@ export function ProjectSkills({ workspace, onWorkspaceGuardChange }: Props) {
     setSaving(true)
     setOperationFailure(null)
     try {
-      const skill = await window.vincodeLab.skills.create(name)
+      const skill = await aiBridge.skills.create(name)
       setNewName('')
       await loadSkills()
       await selectSkill(skill.id)
@@ -185,7 +186,7 @@ export function ProjectSkills({ workspace, onWorkspaceGuardChange }: Props) {
     setSaving(true)
     const job = (async () => {
       try {
-        const skill = await window.vincodeLab.skills.update(skillId, nextContent)
+        const skill = await aiBridge.skills.update(skillId, nextContent)
         commitVolatileDraft(skillDraftIdentity(workspace, skillId), nextContent)
         // Il salvataggio appartiene alla selezione catturata: se nel frattempo
         // l'utente apre un'altra skill, il suo baseline non deve essere sostituito.
@@ -228,7 +229,7 @@ export function ProjectSkills({ workspace, onWorkspaceGuardChange }: Props) {
     setSaving(true)
     setOperationFailure(null)
     try {
-      await window.vincodeLab.skills.delete(selectedId)
+      await aiBridge.skills.delete(selectedId)
       discardVolatileDraft(skillDraftIdentity(workspace, selectedId))
       selectionGeneration.current += 1
       selectedIdRef.current = null
@@ -263,7 +264,7 @@ export function ProjectSkills({ workspace, onWorkspaceGuardChange }: Props) {
   const reloadPi = async () => {
     setOperationFailure(null)
     try {
-      await window.vincodeLab.skills.reload()
+      await aiBridge.skills.reload()
       toast.success('Pi sta ricaricando skill, prompt ed estensioni.')
     } catch (error) {
       setOperationFailure({
@@ -294,7 +295,7 @@ export function ProjectSkills({ workspace, onWorkspaceGuardChange }: Props) {
           // già comunicato il proprio failure senza perdere il contenuto della skill.
         })
         if (selectedIdRef.current !== skillId) throw new Error('La skill selezionata è cambiata durante il ripristino.')
-        await window.vincodeLab.skills.update(skillId, baseline)
+        await aiBridge.skills.update(skillId, baseline)
         await loadSkills()
       }
       if (selectedIdRef.current !== skillId) return
