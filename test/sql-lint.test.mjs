@@ -5,7 +5,7 @@ import test from 'node:test'
 import { EditorState } from '@codemirror/state'
 import { MSSQL, sql } from '@codemirror/lang-sql'
 
-import { sqlLintDiagnostics } from '../src/lib/sql-lint.ts'
+import { sqlLintDiagnostics } from '../src/features/database/services/sql-lint.ts'
 
 test('il lint SQL segnala la sintassi incompleta senza errori sulle query valide', () => {
   const valid = EditorState.create({ doc: 'SELECT 1 AS risultato', extensions: [sql({ dialect: MSSQL })] })

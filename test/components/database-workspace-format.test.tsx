@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const formatSqlMock = vi.hoisted(() => vi.fn())
 
-vi.mock('@/lib/sql-format', () => ({
+vi.mock('@/features/database/services/sql-format', () => ({
   createSqlFormatChange: formatSqlMock,
 }))
 

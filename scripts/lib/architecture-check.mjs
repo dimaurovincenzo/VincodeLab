@@ -41,11 +41,15 @@ export const removedLegacyModules = new Map([
   ['src/components/workspace-switcher', 'src/features/workspace'],
   // These models have a single feature owner; keeping their former generic
   // lib paths forbidden prevents compatibility facades from blurring it again.
+  ['src/lib/database-query', 'src/features/database'],
   ['src/lib/editor-icon-resolution', 'src/features/editor'],
   ['src/lib/editor-new-file', 'src/features/editor'],
   ['src/lib/git-graph', 'src/features/github'],
   ['src/lib/github-project-status', 'src/features/github'],
   ['src/lib/remote-transfer-retry', 'src/features/remote-files'],
+  ['src/lib/sql-format', 'src/features/database'],
+  ['src/lib/sql-highlight', 'src/features/database'],
+  ['src/lib/sql-lint', 'src/features/database'],
   ['src/lib/workspace-command-library', 'src/features/terminal'],
   ['src/lib/workspace-session', 'src/features/workspace'],
   ['electron/github-service', 'electron/infrastructure/github/github-service.adapter.cjs'],

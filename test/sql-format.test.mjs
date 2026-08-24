@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { createSqlFormatChange, formatSqlText } from '../src/lib/sql-format.ts'
+import { createSqlFormatChange, formatSqlText } from '../src/features/database/services/sql-format.ts'
 
 test('formatta SQL Server con il dialetto Transact-SQL della connessione', async () => {
   assert.equal(

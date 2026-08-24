@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { toast } from '@/components/ui'
 import type { ConfirmationRequest } from '@/components/confirmation-dialog'
-import { isMutativeSql } from '@/lib/database-query'
+import { isMutativeSql } from '../model/database-query'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
 import { databaseBridge } from '../api/database.bridge'
 import type { QueryHistoryRefreshFailure } from '../model/database.types'
