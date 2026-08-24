@@ -5,6 +5,7 @@ import defaultFileIcon from '@iconify-icons/vscode-icons/default-file'
 import defaultFolderIcon from '@iconify-icons/vscode-icons/default-folder'
 import { Button, createListCollection, Dialog, ErrorNotice, Field, IconButton, Listbox, SelectField, Spinner, Splitter, Tabs, toast, type SplitterPanelData } from '@/components/ui'
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
+import { remoteFilesBridge } from '@/features/remote-files'
 import { createRemoteTransferRetryController } from '@/lib/remote-transfer-retry'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
 import { remoteStyles } from '@/theme/styles/remote'
@@ -135,7 +136,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
     setLoadingTracked(true)
     setTrackedError(null)
     try {
-      setTrackedFiles(await window.vincodeLab.remoteFiles.listTracked())
+      setTrackedFiles(await remoteFilesBridge.remoteFiles.listTracked())
     } catch (nextError) {
       setTrackedError(reportRemoteFailure(nextError, 'list-local-copies', 'Copie locali non caricate', 'I file già aperti restano disponibili. Riprova a leggere la cache locale.', 'filesystem'))
     } finally {
@@ -148,8 +149,8 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
     setConnectionError(null)
     try {
       const [next, commandLibrary] = await Promise.all([
-        window.vincodeLab.managedSsh.list(),
-        window.vincodeLab.workspaceCommands.list(),
+        remoteFilesBridge.managedSsh.list(),
+        remoteFilesBridge.workspaceCommands.list(),
       ])
       setProfiles(commandLibrary.categories.flatMap((category) => category.commands).filter((command) => command.kind === 'ssh'))
       setConnections(next)
@@ -199,7 +200,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
     return () => { cancelled = true }
   }, [active, loadTracked, workspace])
 
-  useEffect(() => window.vincodeLab.managedSsh.onStatus((status) => {
+  useEffect(() => remoteFilesBridge.managedSsh.onStatus((status) => {
     setConnections((current) => {
       const exists = current.some((connection) => connection.id === status.id)
       return exists ? current.map((connection) => connection.id === status.id ? status : connection) : [...current, status]
@@ -214,7 +215,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
     ))
   }), [connectionId])
 
-  useEffect(() => window.vincodeLab.remoteFiles.onTransfer((transfer) => {
+  useEffect(() => remoteFilesBridge.remoteFiles.onTransfer((transfer) => {
     retryController.observe(transfer)
     setTransfers((current) => ({ ...current, [transfer.id]: transfer }))
     if (transfer.state === 'error') {
@@ -254,7 +255,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
       if (cancelled) return
       setLoadingEntries(true)
       setBrowseError(null)
-      void window.vincodeLab.remoteFiles.browse(connectionId, currentLocation.id).then((result) => {
+      void remoteFilesBridge.remoteFiles.browse(connectionId, currentLocation.id).then((result) => {
         if (cancelled) return
         setEntries(result.entries)
         setLocations((current) => current.map((location, index) => index === current.length - 1 ? { ...location, path: result.path } : location))
@@ -287,7 +288,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
       name: entry.name,
       execute: async () => {
         try {
-          const tracked = await window.vincodeLab.remoteFiles.downloadAndTrack(entry.id)
+          const tracked = await remoteFilesBridge.remoteFiles.downloadAndTrack(entry.id)
           setTrackedFiles((current) => [tracked, ...current.filter((file) => file.id !== tracked.id)])
           onOpenRemoteFile(tracked.id)
           toast.success(`File scaricato: ${entry.name}`)
@@ -305,7 +306,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
       name: entry.name,
       execute: async () => {
         try {
-          const result = await window.vincodeLab.remoteFiles.downloadAs(entry.id)
+          const result = await remoteFilesBridge.remoteFiles.downloadAs(entry.id)
           if (result.saved) toast.success(`File salvato: ${entry.name}`)
         } catch (nextError) {
           publishTransferFallback(nextError, 'download-as', 'Download interrotto', `“${entry.name}” non è stato salvato. Il file remoto è rimasto invariato.`)
@@ -320,7 +321,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
       detail: 'L’elemento verrà eliminato dal server remoto. Questa azione non può essere annullata da VincodeLab.',
       confirmLabel: 'Elimina dal server',
       destructive: true,
-      onConfirm: () => void window.vincodeLab.remoteFiles.remove(entry.id).then(() => {
+      onConfirm: () => void remoteFilesBridge.remoteFiles.remove(entry.id).then(() => {
         toast.success('Elemento remoto eliminato.')
         setRefreshToken((current) => current + 1)
       }).catch((nextError) => showRemoteFailure(
@@ -363,7 +364,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
   async function createDirectory() {
     if (!connectionId || !createName.trim()) return
     try {
-      await window.vincodeLab.remoteFiles.createDirectory(connectionId, currentLocation.id, createName)
+      await remoteFilesBridge.remoteFiles.createDirectory(connectionId, currentLocation.id, createName)
       setCreateName('')
       setRefreshToken((current) => current + 1)
     } catch (nextError) {
@@ -381,7 +382,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
   const renameEntry = async () => {
     if (!renaming || !renameValue.trim()) return
     try {
-      await window.vincodeLab.remoteFiles.rename(renaming.id, renameValue)
+      await remoteFilesBridge.remoteFiles.rename(renaming.id, renameValue)
       setRenameError(null)
       setRenaming(null)
       setRefreshToken((current) => current + 1)
@@ -401,7 +402,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
       name: null,
       execute: async () => {
         try {
-          const uploaded = await window.vincodeLab.remoteFiles.chooseAndUpload(requestedConnectionId, requestedDirectoryId)
+          const uploaded = await remoteFilesBridge.remoteFiles.chooseAndUpload(requestedConnectionId, requestedDirectoryId)
           if (uploaded.length) {
             toast.success(`${uploaded.length} file caricati.`)
             setRefreshToken((current) => current + 1)
@@ -432,7 +433,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
       detail: protectedCopy ? 'La copia locale non è sincronizzata. Scartandola perderai le modifiche che non sono state caricate sul server.' : 'La copia sincronizzata verrà rimossa dalla cache privata di VincodeLab.',
       confirmLabel: protectedCopy ? 'Scarta modifiche locali' : 'Scarta copia',
       destructive: protectedCopy,
-      onConfirm: () => void window.vincodeLab.remoteFiles.discard(file.id, { force: protectedCopy }).then(() => {
+      onConfirm: () => void remoteFilesBridge.remoteFiles.discard(file.id, { force: protectedCopy }).then(() => {
         setTrackedFiles((current) => current.filter((entry) => entry.id !== file.id))
         toast.success('Copia locale rimossa.')
       }).catch((nextError) => showRemoteFailure(
@@ -451,7 +452,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
       title: 'Pulisci copie sincronizzate',
       detail: 'Verranno rimosse soltanto le copie già sincronizzate. Le copie modificate, in conflitto o offline resteranno disponibili.',
       confirmLabel: 'Pulisci sincronizzati',
-      onConfirm: () => void window.vincodeLab.remoteFiles.cleanup({ olderThan: Date.now() + 1 }).then((result) => {
+      onConfirm: () => void remoteFilesBridge.remoteFiles.cleanup({ olderThan: Date.now() + 1 }).then((result) => {
         void loadTracked()
         toast.success(result.removed ? `${result.removed} copie o temporanei rimossi.` : 'La cache è già pulita.')
       }).catch((nextError) => showRemoteFailure(
@@ -466,7 +467,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
   }
 
   const cancelTransfer = useCallback(function cancelTransfer(transfer: RemoteTransfer) {
-    void window.vincodeLab.remoteFiles.cancelTransfer(transfer.id).catch((nextError) => showRemoteFailure(
+    void remoteFilesBridge.remoteFiles.cancelTransfer(transfer.id).catch((nextError) => showRemoteFailure(
       nextError,
       'cancel-transfer',
       'Trasferimento non annullato',
@@ -477,7 +478,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
   }, [])
 
   const revealLocal = useCallback(function revealLocal(file: RemoteTrackedFile) {
-    void window.vincodeLab.remoteFiles.revealLocal(file.id).catch((nextError) => showRemoteFailure(
+    void remoteFilesBridge.remoteFiles.revealLocal(file.id).catch((nextError) => showRemoteFailure(
       nextError,
       'reveal-local-copy',
       'Copia locale non mostrata',
@@ -487,7 +488,7 @@ export function RemoteFiles({ active, workspace, preferredConnectionId, onOpenRe
     ))
   }, [])
 
-  useEffect(() => window.vincodeLab.contextMenu.onAction((rawAction) => {
+  useEffect(() => remoteFilesBridge.contextMenu.onAction((rawAction) => {
     // Il contratto preload viene ampliato insieme ai template nativi. Questo
     // narrowing locale mantiene il componente compatibile durante la migrazione.
     const action = rawAction as RemoteFilesContextAction

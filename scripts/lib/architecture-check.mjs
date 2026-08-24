@@ -15,7 +15,6 @@ export const legacyDirectBridgeFiles = new Map([
   ['src/components/project-instructions.tsx', 7],
   ['src/components/project-skills.tsx', 7],
   ['src/components/redis-workspace.tsx', 1],
-  ['src/components/remote-files.tsx', 17],
   ['src/components/terminal-attachments.tsx', 2],
   ['src/components/terminal-diagnostics.tsx', 2],
   ['src/components/terminal-workspace.tsx', 8],

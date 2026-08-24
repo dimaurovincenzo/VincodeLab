@@ -104,6 +104,8 @@ L’explorer usa `SCAN`, letture paginate per tipo, preflight della dimensione e
 
 Il servizio SSH usa gli eseguibili OpenSSH locali e una connessione controllata per workspace. SFTP esegue operazioni serializzate e limitate. I file aperti vengono copiati in una cache applicativa, confrontati tramite hash e sincronizzati soltanto su azione esplicita; lo stato di conflitto non sovrascrive automaticamente né la copia locale né quella remota.
 
+`src/features/remote-files/` possiede il confine renderer per profili SSH, navigazione SFTP, trasferimenti, copie tracciate e comandi contestuali. La vista risolve queste capacità tramite l'API pubblica della feature e non accede più direttamente al preload.
+
 ## Persistenza
 
 VincodeLab mantiene i propri metadati interni nella directory `userData` di Electron, separati dal repository aperto. Il database `vincodelab.sqlite` usa WAL e permessi locali restrittivi e contiene, tra gli altri:
