@@ -3,6 +3,22 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 
+function ipcRegistrationModules() {
+  const root = path.join(__dirname, '../electron/ipc')
+  const walk = (directory) => fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const target = path.join(directory, entry.name)
+    if (entry.isDirectory()) return walk(target)
+    return entry.name.endsWith('.cjs') ? [target] : []
+  })
+  return fs.existsSync(root) ? walk(root) : []
+}
+
+function declaredIpcInvokeChannels() {
+  return ipcRegistrationModules().flatMap((modulePath) => Object.entries(require(modulePath))
+    .filter(([name, value]) => name.endsWith('_INVOKE_CHANNELS') && Array.isArray(value))
+    .flatMap(([, value]) => value))
+}
+
 test('preload espone soltanto le API impostazioni previste', () => {
   const source = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
   assert.match(source, /systemSkills:/)
@@ -197,8 +213,12 @@ test('ogni API invoke esposta dal preload ha un handler nel main process', () =>
   const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const channels = [...preload.matchAll(/ipcRenderer\.invoke\('([^']+)'/g)].map((match) => match[1])
+  const handlers = [...main.matchAll(/ipcMain\.handle\('([^']+)'/g)]
+    .map((match) => match[1])
+    .concat(declaredIpcInvokeChannels())
 
-  for (const channel of channels) assert.match(main, new RegExp(`ipcMain\\.handle\\('${channel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`))
+  assert.equal(new Set(handlers).size, handlers.length, 'ogni canale invoke deve avere un solo proprietario')
+  for (const channel of channels) assert.ok(handlers.includes(channel), `handler mancante per ${channel}`)
 })
 
 test('preload espone i comandi workspace senza scrivere direttamente nella shell', () => {

@@ -66,6 +66,7 @@ Benchmark e stress test sono descritti in [testing.md](testing.md).
 
 ```text
 electron/                 processo principale, preload e servizi nativi
+  ipc/domains/            registratori IPC per dominio con dipendenze iniettate
 src/
   app/                    composizione, provider, layout e stato della shell
   features/               capacità verticali con API pubblica per feature
@@ -88,6 +89,8 @@ Artefatti locali come `node_modules/`, `styled-system/`, `dist/` e `release/` so
 La struttura modulare viene introdotta progressivamente. Un componente nel percorso legacy può fungere da facciata temporanea, ma la nuova logica di dominio deve entrare nella feature proprietaria. Non importare file interni di un'altra feature: usa il relativo `index.ts`.
 
 Le eccezioni esistenti agli accessi diretti a `window.vincodeLab` sono registrate con un conteggio massimo nel controllo architetturale. Non aumentare tali soglie; quando migri un accesso, riduci o rimuovi esplicitamente la relativa eccezione.
+
+Ogni registratore in `electron/ipc/domains/` deve esportare il manifesto `*_INVOKE_CHANNELS`, verificare il sender prima di invocare il servizio e non intercettare gli errori destinati alla boundary IPC globale. Il test di parità confronta questi manifesti con le API esposte dal preload. Non spezzare fisicamente `electron/preload.cjs` senza introdurre prima un bundler compatibile con il sandbox.
 
 ## Override locali utili
 

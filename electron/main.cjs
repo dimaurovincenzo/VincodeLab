@@ -57,6 +57,7 @@ const { createRendererRecoveryController } = require('./renderer-recovery-contro
 const { createWindowCloseCoordinator } = require('./window-close-coordinator.cjs')
 const { createPtyRuntime } = require('./pty-runtime.cjs')
 const { getRuntimeCapabilities } = require('./runtime-capabilities.cjs')
+const { registerRuntimeIpc } = require('./ipc/domains/runtime.ipc.cjs')
 
 // Ogni invoke attraversa lo stesso confine: gli errori raw restano nel main,
 // mentre renderer e log condividono categoria, operazione e correlation ID.
@@ -1687,15 +1688,13 @@ async function initializeApplication() {
   ipcMain.handle('systemSkills:create', (event, name) => { assertTrustedSender(event); return createSystemSkill(systemSkillsRoot, name) })
   ipcMain.handle('systemSkills:update', (event, id, content) => { assertTrustedSender(event); return updateSystemSkill(systemSkillsRoot, id, content) })
   ipcMain.handle('systemSkills:delete', (event, id) => { assertTrustedSender(event); deleteSystemSkill(systemSkillsRoot, id); return { deleted: true } })
-  ipcMain.handle('runtime:capabilities', (event) => {
-    assertTrustedSender(event)
-    return getRuntimeCapabilities({
-      piExecutable: resolvePiExecutable(),
-      ptyStatus: ptyRuntime.getStatus(),
-      systemToolSearchOptions: CLEAN_MACHINE_SMOKE_MODE
-        ? { includeCommonDirectories: false, includeNvm: false }
-        : undefined,
-    })
+  registerRuntimeIpc({
+    ipcMain,
+    assertTrustedSender,
+    cleanMachineSmokeMode: CLEAN_MACHINE_SMOKE_MODE,
+    getPtyStatus: () => ptyRuntime.getStatus(),
+    getRuntimeCapabilities,
+    resolvePiExecutable,
   })
   ipcMain.handle('piSystem:status', (event) => { assertTrustedSender(event); return getPiSystemStatus(resolvePiExecutable) })
   ipcMain.handle('piSystem:list', (event) => { assertTrustedSender(event); return listPiPackages(resolvePiExecutable) })
