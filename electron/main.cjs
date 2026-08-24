@@ -84,6 +84,7 @@ const { createAiTerminalLaunchPolicy } = require('./domains/ai/ai-terminal-launc
 const { createWorkspaceOperationBoundary } = require('./domains/workspace/workspace-operation-boundary.cjs')
 const { createWorkspaceRuntimeCleanup } = require('./domains/workspace/workspace-runtime-cleanup.cjs')
 const { createWorkspaceOpener } = require('./domains/workspace/workspace-opener.cjs')
+const { createWorkspaceInstanceUseCases } = require('./domains/workspace/workspace-instance-use-cases.cjs')
 const { createWindowLifecycleRuntime } = require('./app/window-lifecycle-runtime.cjs')
 const { createApplicationMenuFeedbackRuntime } = require('./app/application-menu-feedback-runtime.cjs')
 const { createApplicationShutdownRuntime, withCleanupDeadline } = require('./app/application-shutdown-runtime.cjs')
@@ -155,7 +156,6 @@ let mainWindow
 let activeWorkspacePath
 let activeWorkspaceError
 let activeWorkspaceIncident
-let launchInProgress = false
 let applicationShutdownRuntime
 let applicationStartupRuntime
 const instanceId = randomUUID()
@@ -468,30 +468,32 @@ const {
 } = applicationShutdownRuntime
 
 function registerApplicationIpc(instanceRegistry) {
-  registerWorkspaceIpc({
+  const workspaceInstanceUseCases = createWorkspaceInstanceUseCases({
     applicationExecutable: process.execPath,
     applicationIsPackaged: app.isPackaged,
+    getApplicationPath: () => app.getAppPath(),
+    getInstanceStatus: (workspacePath) => instanceRegistry.status(workspacePath),
+    isDirectory,
+    launchWorkspaceInstance,
+    log,
+    scheduleTimeout: setTimeout,
+    showErrorBox: (title, message) => dialog.showErrorBox(title, message),
+    toPublicErrorMessage,
+  })
+  registerWorkspaceIpc({
     assertTrustedSender,
     chooseAndOpenWorkspace,
     getActiveWorkspaceError: () => activeWorkspaceError,
     getActiveWorkspaceIncident: () => activeWorkspaceIncident,
     getActiveWorkspacePath: () => activeWorkspacePath,
-    getApplicationPath: () => app.getAppPath(),
-    instanceRegistry,
+    getWorkspaceInstanceStatus: workspaceInstanceUseCases.getStatus,
     ipcMain,
-    isDirectory,
-    isLaunchInProgress: () => launchInProgress,
-    launchWorkspaceInstance,
     listRecentWorkspaces,
-    log,
     openPath: (workspacePath) => shell.openPath(workspacePath),
     openWorkspace,
+    openWorkspaceInNewInstance: workspaceInstanceUseCases.openInNewInstance,
     requireActiveWorkspace,
     revealWorkspace,
-    scheduleTimeout: setTimeout,
-    setLaunchInProgress: (value) => { launchInProgress = value },
-    showErrorBox: (title, message) => dialog.showErrorBox(title, message),
-    toPublicErrorMessage,
   })
   registerWorkspaceStateIpc({
     ipcMain,

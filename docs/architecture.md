@@ -73,6 +73,8 @@ I template dei menu restano trasformazioni pure sotto `electron/domains/menu/`. 
 
 I registratori in `electron/ipc/domains/` dichiarano manifesti invoke/send, ricevono dipendenze dalla composition root e lasciano alla boundary IPC globale la trasformazione degli errori. Le sorgenti preload sono modulari; `scripts/build-preload.mjs` genera deterministicamente `electron/preload.cjs`, mentre `npm run check:preload` impedisce drift dell'artefatto senza ridurre `sandbox` o `contextIsolation`.
 
+L'apertura di un workspace in una nuova istanza è coordinata dal caso d'uso `electron/domains/workspace/workspace-instance-use-cases.cjs`. Il lock di lancio, la validazione e il mapping dei failure rimangono privati al dominio; l'handler Workspace verifica il sender e delega, senza possedere stato di processo.
+
 ## Domini applicativi
 
 ### Shell e Pi

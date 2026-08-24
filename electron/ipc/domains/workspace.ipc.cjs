@@ -1,30 +1,18 @@
 const { IPC_CHANNELS, WORKSPACE_INVOKE_CHANNELS } = require('../channels.cjs')
 
-const path = require('node:path')
-
 function createWorkspaceHandlers({
-  applicationExecutable,
-  applicationIsPackaged,
   assertTrustedSender,
   chooseAndOpenWorkspace,
   getActiveWorkspaceError,
   getActiveWorkspaceIncident,
   getActiveWorkspacePath,
-  getApplicationPath,
-  instanceRegistry,
-  isDirectory,
-  isLaunchInProgress,
-  launchWorkspaceInstance,
+  getWorkspaceInstanceStatus,
   listRecentWorkspaces,
-  log,
   openPath,
   openWorkspace,
+  openWorkspaceInNewInstance,
   requireActiveWorkspace,
   revealWorkspace,
-  scheduleTimeout,
-  setLaunchInProgress,
-  showErrorBox,
-  toPublicErrorMessage,
 }) {
   return new Map([
     [IPC_CHANNELS.WORKSPACE_OPEN, (event) => {
@@ -38,55 +26,11 @@ function createWorkspaceHandlers({
     }],
     [IPC_CHANNELS.WORKSPACE_INSTANCE_STATUS, (event, workspacePath) => {
       assertTrustedSender(event)
-      if (workspacePath !== undefined && (typeof workspacePath !== 'string' || workspacePath.length > 4_096 || !path.isAbsolute(workspacePath))) {
-        return { ...instanceRegistry.status(), canOpenNew: false, workspaceOpenElsewhere: false, reason: 'invalid-path' }
-      }
-      return instanceRegistry.status(workspacePath)
+      return getWorkspaceInstanceStatus(workspacePath)
     }],
     [IPC_CHANNELS.WORKSPACE_OPEN_IN_NEW_INSTANCE, async (event, workspacePath) => {
       assertTrustedSender(event)
-      if (isLaunchInProgress()) return { launched: false, reason: 'limit', message: 'Apertura di una nuova finestra già in corso.' }
-      if (typeof workspacePath !== 'string' || workspacePath.length > 4_096 || !path.isAbsolute(workspacePath) || !isDirectory(workspacePath)) {
-        return { launched: false, reason: 'invalid-path', message: 'La cartella selezionata non è disponibile.' }
-      }
-      const status = instanceRegistry.status(workspacePath)
-      if (!status.canOpenNew) {
-        const reason = status.workspaceOpenElsewhere ? 'duplicate' : 'limit'
-        return {
-          launched: false,
-          reason,
-          message: reason === 'duplicate'
-            ? 'Questo workspace è già aperto in un’altra finestra.'
-            : 'Puoi usare al massimo due finestre contemporaneamente.',
-        }
-      }
-
-      setLaunchInProgress(true)
-      try {
-        return await launchWorkspaceInstance({
-          executable: applicationExecutable,
-          appPath: getApplicationPath(),
-          packaged: applicationIsPackaged,
-          workspacePath,
-          onPostLaunchError: (error) => {
-            log('error', 'workspace_instance_process_error')
-            showErrorBox(
-              'Nuova finestra terminata',
-              toPublicErrorMessage(error, { code: 'WORKSPACE_INSTANCE_PROCESS_FAILED', message: 'La nuova finestra non è rimasta disponibile.' }),
-            )
-          },
-        })
-      } catch (error) {
-        log('error', 'workspace_instance_launch_failed')
-        return {
-          launched: false,
-          reason: 'launch-failed',
-          message: toPublicErrorMessage(error, { code: 'WORKSPACE_INSTANCE_LAUNCH_FAILED', message: 'Impossibile aprire una nuova finestra.' }),
-        }
-      } finally {
-        const releaseLaunch = scheduleTimeout(() => { setLaunchInProgress(false) }, 2_000)
-        releaseLaunch.unref()
-      }
+      return await openWorkspaceInNewInstance(workspacePath)
     }],
     [IPC_CHANNELS.WORKSPACE_LIST_RECENT, (event) => {
       assertTrustedSender(event)

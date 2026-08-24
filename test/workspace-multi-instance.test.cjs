@@ -9,6 +9,7 @@ const startupRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/app
 const shutdownRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-shutdown-runtime.cjs'), 'utf8')
 const preload = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8'))
 const workspaceIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace.ipc.cjs'), 'utf8'))
+const workspaceInstanceUseCases = fs.readFileSync(path.join(__dirname, '../electron/domains/workspace/workspace-instance-use-cases.cjs'), 'utf8')
 
 test('il preload espone solo stato e avvio confinato della nuova istanza', () => {
   assert.match(preload, /instanceStatus: \(workspacePath\) => ipcRenderer\.invoke\('workspace:instanceStatus', workspacePath\)/)
@@ -32,13 +33,16 @@ test('apertura in nuova istanza valida directory, limite e duplicati prima dello
   assert.match(main, /registerWorkspaceIpc\(\{/)
   assert.doesNotMatch(main, /ipcMain\.handle\('workspace:/)
   assert.match(workspaceIpc, /workspace:instanceStatus[^]*assertTrustedSender\(event\)/)
+  assert.match(workspaceIpc, /return getWorkspaceInstanceStatus\(workspacePath\)/)
   assert.match(workspaceIpc, /\['workspace:openInNewInstance', async/)
   assert.match(workspaceIpc, /assertTrustedSender\(event\)/)
-  assert.match(workspaceIpc, /isDirectory\(workspacePath\)/)
-  assert.match(workspaceIpc, /instanceRegistry\.status\(workspacePath\)/)
-  assert.match(workspaceIpc, /return await launchWorkspaceInstance/)
-  assert.match(workspaceIpc, /onPostLaunchError/)
-  assert.match(workspaceIpc, /reason: 'launch-failed'/)
+  assert.match(workspaceIpc, /return await openWorkspaceInNewInstance\(workspacePath\)/)
+  assert.doesNotMatch(workspaceIpc, /isDirectory|instanceRegistry|launchWorkspaceInstance|launchInProgress/)
+  assert.match(workspaceInstanceUseCases, /isDirectory\(workspacePath\)/)
+  assert.match(workspaceInstanceUseCases, /getInstanceStatus\(workspacePath\)/)
+  assert.match(workspaceInstanceUseCases, /return await launchWorkspaceInstance/)
+  assert.match(workspaceInstanceUseCases, /onPostLaunchError/)
+  assert.match(workspaceInstanceUseCases, /reason: 'launch-failed'/)
 })
 
 test('un workspace passato da riga di comando viene aperto nel processo dedicato', () => {

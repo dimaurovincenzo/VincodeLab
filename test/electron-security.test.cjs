@@ -43,6 +43,7 @@ test('un kill PTY già terminato non interrompe il coordinatore di cleanup', () 
 test('i DTO workspace redigono gli errori interni prima di raggiungere il renderer', () => {
   const source = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const workspaceIpc = expandIpcChannelConstants(fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace.ipc.cjs'), 'utf8'))
+  const workspaceInstanceUseCases = fs.readFileSync(path.join(__dirname, '../electron/domains/workspace/workspace-instance-use-cases.cjs'), 'utf8')
   const openWorkspace = fs.readFileSync(path.join(__dirname, '../electron/domains/workspace/workspace-opener.cjs'), 'utf8')
 
   assert.match(source, /require\('\.\/domains\/errors\/public-error\.cjs'\)/)
@@ -50,7 +51,8 @@ test('i DTO workspace redigono gli errori interni prima di raggiungere il render
   assert.match(openWorkspace, /PI_START_FAILED/)
   assert.match(openWorkspace, /WORKSPACE_OPEN_FAILED/)
   assert.match(openWorkspace, /errorIncident/)
-  assert.match(workspaceIpc, /WORKSPACE_INSTANCE_LAUNCH_FAILED/)
+  assert.match(workspaceInstanceUseCases, /WORKSPACE_INSTANCE_LAUNCH_FAILED/)
   assert.doesNotMatch(openWorkspace, /error instanceof Error \? error\.message/)
   assert.doesNotMatch(workspaceIpc, /error instanceof Error \? error\.message/)
+  assert.doesNotMatch(workspaceInstanceUseCases, /error instanceof Error \? error\.message/)
 })
