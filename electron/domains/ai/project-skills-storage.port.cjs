@@ -1,6 +1,8 @@
 const PROJECT_SKILLS_STORAGE_METHODS = Object.freeze([
+  'assertRootPresent',
   'create',
   'list',
+  'prepareUpdate',
   'read',
   'remove',
   'write',

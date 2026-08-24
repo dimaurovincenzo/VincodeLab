@@ -49,6 +49,7 @@ function createProjectSkillsUseCases({ storage } = {}) {
   }
 
   function getProjectSkill(workspacePath, skillId) {
+    skillsStorage.assertRootPresent(workspacePath)
     const reference = createSkillReference(skillId)
     return toProjectSkill(skillsStorage.read(workspacePath, reference), true)
   }
@@ -67,7 +68,9 @@ function createProjectSkillsUseCases({ storage } = {}) {
     if (typeof content !== 'string' || content.length > MAX_CONTENT_LENGTH) {
       throw new Error('Contenuto skill non valido.')
     }
+    skillsStorage.assertRootPresent(workspacePath)
     const reference = createSkillReference(skillId)
+    const updateHandle = skillsStorage.prepareUpdate(workspacePath, reference)
     const validationName = reference.kind === 'root-markdown'
       ? 'skills'
       : reference.segments.at(-1)
@@ -75,11 +78,12 @@ function createProjectSkillsUseCases({ storage } = {}) {
     if (!validation.valid) {
       throw new Error(validation.issues.find((entry) => entry.level === 'error')?.message ?? 'Skill non valida.')
     }
-    skillsStorage.write(workspacePath, reference, content)
+    skillsStorage.write(updateHandle, content)
     return getProjectSkill(workspacePath, reference.id)
   }
 
   function deleteProjectSkill(workspacePath, skillId) {
+    skillsStorage.assertRootPresent(workspacePath)
     skillsStorage.remove(workspacePath, createSkillReference(skillId))
   }
 

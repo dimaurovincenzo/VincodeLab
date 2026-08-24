@@ -33,7 +33,7 @@ test('crea la root Pi nativa, usa file atomici e rimuove solo la skill richiesta
   assert.deepEqual(fs.readdirSync(path.join(skillsRoot, 'prima')), ['SKILL.md'])
   assert.deepEqual(adapter.read(workspacePath, reference('prima')), { id: 'prima', content: content('prima') })
 
-  adapter.write(workspacePath, reference('prima'), content('prima-aggiornata'))
+  adapter.write(adapter.prepareUpdate(workspacePath, reference('prima')), content('prima-aggiornata'))
   assert.deepEqual(fs.readdirSync(path.join(skillsRoot, 'prima')), ['SKILL.md'])
   assert.equal(adapter.read(workspacePath, reference('prima')).content, content('prima-aggiornata'))
 
@@ -90,6 +90,28 @@ test('create non sovrascrive uno SKILL.md pubblicato da una corsa concorrente', 
   assert.equal(
     fs.readFileSync(path.join(workspacePath, '.pi', 'skills', 'contesa', 'SKILL.md'), 'utf8'),
     concurrentContent,
+  )
+})
+
+test('prepareUpdate mantiene il target directory anche se compare una skill Markdown alla root', (t) => {
+  const workspacePath = temporaryDirectory(t)
+  const adapter = createProjectSkillsFilesystemAdapter()
+  const skillsRoot = path.join(workspacePath, '.pi', 'skills')
+  const skillDirectory = path.join(skillsRoot, 'stabile')
+  const directorySkillFile = path.join(skillDirectory, 'SKILL.md')
+  const rootMarkdownFile = path.join(skillsRoot, 'stabile.md')
+  fs.mkdirSync(skillDirectory, { recursive: true })
+  fs.writeFileSync(directorySkillFile, content('directory-originale'))
+
+  const updateHandle = adapter.prepareUpdate(workspacePath, reference('stabile'))
+  fs.writeFileSync(rootMarkdownFile, content('root-concorrente'), { flag: 'wx' })
+  adapter.write(updateHandle, content('directory-aggiornata'))
+
+  assert.equal(fs.readFileSync(directorySkillFile, 'utf8'), content('directory-aggiornata'))
+  assert.equal(fs.readFileSync(rootMarkdownFile, 'utf8'), content('root-concorrente'))
+  assert.throws(
+    () => adapter.write(updateHandle, content('secondo-update')),
+    /Handle aggiornamento skill progetto non valido/u,
   )
 })
 
@@ -164,6 +186,6 @@ test('mantiene i messaggi per root assente, ID inesistente e file non regolare',
   const invalidFilePath = path.join(workspacePath, '.pi', 'skills', 'demo', 'SKILL.md')
   fs.mkdirSync(invalidFilePath, { recursive: true })
   assert.throws(() => adapter.read(workspacePath, reference('demo')), /Il file richiesto non è un file regolare/u)
-  assert.throws(() => adapter.write(workspacePath, reference('demo'), content('demo')), /Il file richiesto non è un file regolare/u)
+  assert.throws(() => adapter.prepareUpdate(workspacePath, reference('demo')), /Il file richiesto non è un file regolare/u)
   assert.throws(() => adapter.remove(workspacePath, reference('demo')), /Il file richiesto non è un file regolare/u)
 })

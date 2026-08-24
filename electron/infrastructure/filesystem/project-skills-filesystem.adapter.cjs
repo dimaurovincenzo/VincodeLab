@@ -84,7 +84,13 @@ function resolveSkillFile(workspacePath, reference) {
 }
 
 function createProjectSkillsFilesystemAdapter() {
+  const preparedUpdateTargets = new WeakMap()
+
   return createProjectSkillsStoragePort({
+    assertRootPresent(workspacePath) {
+      if (!getSafeSkillsRoot(workspacePath)) throw new Error('Skill non trovata.')
+    },
+
     create(workspacePath, name, content) {
       const root = getSafeSkillsRoot(workspacePath, true)
       const directory = path.join(root, name)
@@ -103,6 +109,13 @@ function createProjectSkillsFilesystemAdapter() {
       return root ? collectSkillRecords(root) : []
     },
 
+    prepareUpdate(workspacePath, reference) {
+      const { filePath } = resolveSkillFile(workspacePath, reference)
+      const handle = Object.freeze({})
+      preparedUpdateTargets.set(handle, filePath)
+      return handle
+    },
+
     read(workspacePath, reference) {
       const { filePath } = resolveSkillFile(workspacePath, reference)
       return { id: reference.id, content: fs.readFileSync(filePath, 'utf8') }
@@ -114,8 +127,10 @@ function createProjectSkillsFilesystemAdapter() {
       fs.rmSync(target, { recursive: !rootMarkdown, force: false, maxRetries: 2 })
     },
 
-    write(workspacePath, reference, content) {
-      const { filePath } = resolveSkillFile(workspacePath, reference)
+    write(handle, content) {
+      const filePath = preparedUpdateTargets.get(handle)
+      if (!filePath) throw new TypeError('Handle aggiornamento skill progetto non valido.')
+      preparedUpdateTargets.delete(handle)
       writeFileAtomic(filePath, content)
     },
   })
