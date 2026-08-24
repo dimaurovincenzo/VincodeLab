@@ -32,7 +32,17 @@ function createPtyRuntime(load = () => require('node-pty')) {
     },
     spawn(executable, args, options) {
       if (!implementation) throw loadError
-      return implementation.spawn(executable, args, options)
+      // node-pty normalizza le opzioni mutando `options.env`. I descrittori del
+      // dominio restano invece immutabili: il confine vendor riceve una copia
+      // propria e non può modificare la policy o l'ambiente del chiamante.
+      const mutableArgs = Array.isArray(args) ? [...args] : args
+      const mutableOptions = options && typeof options === 'object'
+        ? {
+            ...options,
+            ...(options.env && typeof options.env === 'object' ? { env: { ...options.env } } : {}),
+          }
+        : options
+      return implementation.spawn(executable, mutableArgs, mutableOptions)
     },
   })
 }

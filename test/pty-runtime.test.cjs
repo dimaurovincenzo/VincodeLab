@@ -11,6 +11,29 @@ test('il runtime PTY inoltra spawn quando il modulo incluso è pronto', () => {
   assert.equal(calls.length, 1)
 })
 
+test('il confine PTY isola i descrittori immutabili dalle mutazioni di node-pty', () => {
+  const args = Object.freeze([])
+  const environment = Object.freeze({ PATH: '/usr/bin' })
+  const options = Object.freeze({ cwd: '/tmp', env: environment })
+  let receivedArgs
+  let receivedOptions
+  const runtime = createPtyRuntime(() => ({
+    spawn: (_executable, nextArgs, nextOptions) => {
+      receivedArgs = nextArgs
+      receivedOptions = nextOptions
+      nextOptions.env = { ...nextOptions.env, TERM_PROGRAM: 'node-pty' }
+      return { pid: 43 }
+    },
+  }))
+
+  assert.deepEqual(runtime.spawn('/bin/zsh', args, options), { pid: 43 })
+  assert.notEqual(receivedArgs, args)
+  assert.notEqual(receivedOptions, options)
+  assert.notEqual(receivedOptions.env, environment)
+  assert.deepEqual(options, { cwd: '/tmp', env: { PATH: '/usr/bin' } })
+  assert.equal(receivedOptions.env.TERM_PROGRAM, 'node-pty')
+})
+
 test('un modulo PTY mancante degrada terminali senza errore raw', () => {
   const runtime = createPtyRuntime(() => { const error = new Error('/Users/private/node-pty missing'); error.code = 'MODULE_NOT_FOUND'; throw error })
   assert.deepEqual(runtime.getStatus(), { state: 'broken', code: 'PTY_RUNTIME_UNAVAILABLE' })
