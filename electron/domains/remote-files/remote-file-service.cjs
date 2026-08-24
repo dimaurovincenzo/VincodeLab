@@ -1,11 +1,11 @@
 const crypto = require('node:crypto')
 const path = require('node:path')
 const { toPublicError } = require('../errors/public-error.cjs')
+const { createRemoteEntryRegistry } = require('./remote-entry-registry.cjs')
 const { toPublicTrackedFile } = require('./remote-file-model.cjs')
 
 const MAX_EDITABLE_BYTES = 20 * 1024 * 1024
 const MAX_TRANSFER_BYTES = 100 * 1024 * 1024
-const MAX_CACHED_ENTRIES = 10_000
 function exposeAsync(operation, options) {
   return async (...args) => {
     try {
@@ -45,8 +45,7 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
     statBoundedFile,
   } = createFileIo({ tempRoot, fileOperations, log })
   const toPublicFile = (item) => toPublicTrackedFile(item, { stat: io.stat })
-  const entries = new Map()
-  const entryIdsByKey = new Map()
+  const entryRegistry = createRemoteEntryRegistry()
   const transfers = new Map()
   const activeOperations = new Set()
   const closedWorkspaces = new Set()
@@ -115,35 +114,6 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
     return connection
   }
 
-  function requireEntry(workspacePath, entryId, expectedKind) {
-    const entry = entries.get(entryId)
-    if (!entry || entry.workspacePath !== workspacePath) throw new Error('Elemento remoto non trovato nel workspace.')
-    if (expectedKind && entry.kind !== expectedKind) throw new Error('Tipo di elemento remoto non valido.')
-    entries.delete(entryId)
-    entries.set(entryId, entry)
-    return entry
-  }
-
-  function entryKey(workspacePath, connectionId, remotePath) {
-    return `${workspacePath}\0${connectionId}\0${remotePath}`
-  }
-
-  function cacheEntry(internal) {
-    const key = entryKey(internal.workspacePath, internal.connectionId, internal.remotePath)
-    const id = entryIdsByKey.get(key) ?? crypto.randomUUID()
-    const cached = { ...internal, id, cacheKey: key }
-    entryIdsByKey.set(key, id)
-    entries.delete(id)
-    entries.set(id, cached)
-    while (entries.size > MAX_CACHED_ENTRIES) {
-      const oldestId = entries.keys().next().value
-      const oldest = entries.get(oldestId)
-      entries.delete(oldestId)
-      if (oldest) entryIdsByKey.delete(oldest.cacheKey)
-    }
-    return cached
-  }
-
   function transferDto(transfer) {
     const { controller: _controller, workspacePath: _workspacePath, ...dto } = transfer
     return dto
@@ -189,7 +159,7 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
     const connection = requireConnection(workspacePath, connectionId)
     let remotePath
     if (directoryId) {
-      const directory = requireEntry(workspacePath, directoryId, 'directory')
+      const directory = entryRegistry.requireEntry(workspacePath, directoryId, 'directory')
       if (directory.connectionId !== connectionId) throw new Error('Directory associata a una connessione diversa.')
       remotePath = directory.remotePath
     } else {
@@ -197,7 +167,7 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
     }
     const listed = await sftp.list(connection, remotePath, lifecycleSignal)
     const publicEntries = listed.map((item) => {
-      const internal = cacheEntry({ ...item, workspacePath, connectionId, remotePath: path.posix.join(remotePath, item.name) })
+      const internal = entryRegistry.cacheEntry({ ...item, workspacePath, connectionId, remotePath: path.posix.join(remotePath, item.name) })
       return {
         id: internal.id,
         name: item.name,
@@ -214,7 +184,7 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
 
   async function downloadAndTrack(workspacePath, lifecycleSignal, entryId) {
     workspacePath = requireWorkspace(workspacePath)
-    const entry = requireEntry(workspacePath, entryId, 'file')
+    const entry = entryRegistry.requireEntry(workspacePath, entryId, 'file')
     if (Number.isFinite(entry.size) && entry.size > MAX_TRANSFER_BYTES) throw new Error('Il file remoto supera il limite di trasferimento.')
     const connection = requireConnection(workspacePath, entry.connectionId)
     return withTransfer(workspacePath, 'download', entry.name, async (signal) => {
@@ -245,7 +215,7 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
 
   async function downloadAs(workspacePath, lifecycleSignal, entryId) {
     workspacePath = requireWorkspace(workspacePath)
-    const entry = requireEntry(workspacePath, entryId, 'file')
+    const entry = entryRegistry.requireEntry(workspacePath, entryId, 'file')
     if (Number.isFinite(entry.size) && entry.size > MAX_TRANSFER_BYTES) throw new Error('Il file remoto supera il limite di trasferimento.')
     const destination = await chooseDestination(entry.name)
     if (lifecycleSignal.aborted) throw cancellationError()
@@ -396,7 +366,7 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
     if (lifecycleSignal.aborted) throw cancellationError()
     if (!Array.isArray(selected) || selected.length === 0) return []
     const connection = requireConnection(requireWorkspace(workspacePath), connectionId)
-    const directory = directoryId ? requireEntry(workspacePath, directoryId, 'directory').remotePath : await sftp.resolveRoot(connection, connection.remoteRoot, lifecycleSignal)
+    const directory = directoryId ? entryRegistry.requireEntry(workspacePath, directoryId, 'directory').remotePath : await sftp.resolveRoot(connection, connection.remoteRoot, lifecycleSignal)
     const results = []
     for (const localPath of selected) {
       if (lifecycleSignal.aborted) throw cancellationError()
@@ -431,37 +401,33 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
   async function createDirectory(workspacePath, lifecycleSignal, connectionId, parentId, name) {
     if (typeof name !== 'string' || !name.trim() || name.includes('/') || /[\0\r\n]/.test(name)) throw new Error('Nome cartella non valido.')
     const connection = requireConnection(requireWorkspace(workspacePath), connectionId)
-    const parentPath = parentId ? requireEntry(workspacePath, parentId, 'directory').remotePath : await sftp.resolveRoot(connection, connection.remoteRoot, lifecycleSignal)
+    const parentPath = parentId ? entryRegistry.requireEntry(workspacePath, parentId, 'directory').remotePath : await sftp.resolveRoot(connection, connection.remoteRoot, lifecycleSignal)
     await sftp.mkdir(connection, path.posix.join(parentPath, name.trim()), lifecycleSignal)
     return { created: true }
   }
 
   async function rename(workspacePath, lifecycleSignal, entryId, name) {
     if (typeof name !== 'string' || !name.trim() || name.includes('/') || /[\0\r\n]/.test(name)) throw new Error('Nome remoto non valido.')
-    const entry = requireEntry(requireWorkspace(workspacePath), entryId)
+    const entry = entryRegistry.requireEntry(requireWorkspace(workspacePath), entryId)
     if (!entry.destructiveAllowed) throw new Error('Questo elemento remoto è in sola lettura.')
     const connection = requireConnection(workspacePath, entry.connectionId)
     const previousPath = entry.remotePath
     const nextPath = path.posix.join(path.posix.dirname(previousPath), name.trim())
     await sftp.rename(connection, previousPath, nextPath, lifecycleSignal)
-    entryIdsByKey.delete(entry.cacheKey)
-    entry.remotePath = nextPath
-    entry.cacheKey = entryKey(entry.workspacePath, entry.connectionId, nextPath)
-    entryIdsByKey.set(entry.cacheKey, entry.id)
+    entryRegistry.updateEntryPath(entry, nextPath)
     const tracked = store.listTrackedFiles(workspacePath).find((item) => item.connectionId === entry.connectionId && item.remotePath === previousPath)
     if (tracked) store.updateRemotePath(workspacePath, tracked.id, nextPath)
-    entry.name = name.trim()
+    entryRegistry.updateEntryName(entry, name.trim())
     return { renamed: true }
   }
 
   async function remove(workspacePath, lifecycleSignal, entryId) {
-    const entry = requireEntry(requireWorkspace(workspacePath), entryId)
+    const entry = entryRegistry.requireEntry(requireWorkspace(workspacePath), entryId)
     if (!entry.destructiveAllowed) throw new Error('Questo elemento remoto è in sola lettura.')
     const connection = requireConnection(workspacePath, entry.connectionId)
     if (entry.kind === 'directory') await sftp.rmdir(connection, entry.remotePath, lifecycleSignal)
     else await sftp.remove(connection, entry.remotePath, lifecycleSignal)
-    entries.delete(entryId)
-    entryIdsByKey.delete(entry.cacheKey)
+    entryRegistry.removeEntry(entry)
     return { removed: true }
   }
 
@@ -498,11 +464,7 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
     for (const [id, transfer] of transfers) {
       if (transfer.workspacePath === workspacePath) transfers.delete(id)
     }
-    for (const [id, entry] of entries) {
-      if (entry.workspacePath !== workspacePath) continue
-      entries.delete(id)
-      entryIdsByKey.delete(entry.cacheKey)
-    }
+    entryRegistry.clearWorkspace(workspacePath)
   }
 
   function closeWorkspace(workspacePath) {
@@ -544,8 +506,7 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
     const closing = waitForLifecycle(targets).then(() => {
       activeOperations.clear()
       transfers.clear()
-      entries.clear()
-      entryIdsByKey.clear()
+      entryRegistry.clear()
     })
     closeAllPromise = closing
     void closing.catch(() => {
@@ -571,7 +532,7 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
   }
 
   function getResourceCounts() {
-    return { entries: entries.size, transfers: transfers.size, operations: activeOperations.size }
+    return { entries: entryRegistry.getSize(), transfers: transfers.size, operations: activeOperations.size }
   }
 
   return {
