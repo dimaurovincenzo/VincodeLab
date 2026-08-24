@@ -3,6 +3,7 @@ const path = require('node:path')
 const { toPublicError } = require('../errors/public-error.cjs')
 const { createRemoteEntryRegistry } = require('./remote-entry-registry.cjs')
 const { toPublicTrackedFile } = require('./remote-file-model.cjs')
+const { createRemoteTransferRegistry } = require('./remote-transfer-registry.cjs')
 
 const MAX_EDITABLE_BYTES = 20 * 1024 * 1024
 const MAX_TRANSFER_BYTES = 100 * 1024 * 1024
@@ -46,7 +47,7 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
   } = createFileIo({ tempRoot, fileOperations, log })
   const toPublicFile = (item) => toPublicTrackedFile(item, { stat: io.stat })
   const entryRegistry = createRemoteEntryRegistry()
-  const transfers = new Map()
+  const transferRegistry = createRemoteTransferRegistry({ notify })
   const activeOperations = new Set()
   const closedWorkspaces = new Set()
   const cleanedWorkspaces = new Set()
@@ -114,43 +115,21 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
     return connection
   }
 
-  function transferDto(transfer) {
-    const { controller: _controller, workspacePath: _workspacePath, ...dto } = transfer
-    return dto
-  }
-
-  function updateTransfer(transfer, patch) {
-    Object.assign(transfer, patch)
-    const dto = transferDto(transfer)
-    notify(dto)
-    return dto
-  }
-
   async function withTransfer(workspacePath, direction, name, operation, lifecycleSignal) {
-    const transfer = {
-      id: crypto.randomUUID(), workspacePath, direction, name,
-      state: 'queued', bytes: null, total: null, error: undefined,
-      controller: new AbortController(),
-    }
-    const abortFromLifecycle = () => transfer.controller.abort()
-    if (lifecycleSignal?.aborted) transfer.controller.abort()
-    else lifecycleSignal?.addEventListener('abort', abortFromLifecycle, { once: true })
-    transfers.set(transfer.id, transfer)
-    updateTransfer(transfer, { state: 'running' })
+    const { finish, transfer } = transferRegistry.startTransfer({ workspacePath, direction, name, lifecycleSignal })
     try {
       const result = await operation(transfer.controller.signal, transfer)
-      updateTransfer(transfer, { state: 'completed' })
+      transferRegistry.updateTransfer(transfer, { state: 'completed' })
       return result
     } catch (error) {
       const cancelled = transfer.controller.signal.aborted
       const publicError = toPublicError(error, cancelled
         ? { code: 'REMOTE_TRANSFER_CANCELLED', message: 'Trasferimento remoto annullato.' }
         : { code: direction === 'download' ? 'REMOTE_DOWNLOAD_FAILED' : 'REMOTE_UPLOAD_FAILED', message: direction === 'download' ? 'Download remoto non riuscito.' : 'Upload remoto non riuscito.' })
-      updateTransfer(transfer, { state: cancelled ? 'cancelled' : 'error', error: cancelled ? undefined : publicError.message })
+      transferRegistry.updateTransfer(transfer, { state: cancelled ? 'cancelled' : 'error', error: cancelled ? undefined : publicError.message })
       throw publicError
     } finally {
-      lifecycleSignal?.removeEventListener('abort', abortFromLifecycle)
-      transfers.delete(transfer.id)
+      finish()
     }
   }
 
@@ -392,10 +371,7 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
 
   function cancelTransfer(workspacePath, transferId) {
     workspacePath = requireWorkspace(workspacePath)
-    const transfer = transfers.get(transferId)
-    if (!transfer || transfer.workspacePath !== workspacePath || transfer.state !== 'running') return false
-    transfer.controller.abort()
-    return true
+    return transferRegistry.cancelTransfer(workspacePath, transferId)
   }
 
   async function createDirectory(workspacePath, lifecycleSignal, connectionId, parentId, name) {
@@ -461,9 +437,7 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
     for (const operation of activeOperations) {
       if (operation.workspacePath === workspacePath) activeOperations.delete(operation)
     }
-    for (const [id, transfer] of transfers) {
-      if (transfer.workspacePath === workspacePath) transfers.delete(id)
-    }
+    transferRegistry.clearWorkspace(workspacePath)
     entryRegistry.clearWorkspace(workspacePath)
   }
 
@@ -476,9 +450,7 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
     closedWorkspaces.add(workspacePath)
     const matchingOperations = [...activeOperations].filter((operation) => operation.workspacePath === workspacePath)
     for (const operation of matchingOperations) operation.controller.abort()
-    for (const transfer of transfers.values()) {
-      if (transfer.workspacePath === workspacePath && transfer.state === 'running') transfer.controller.abort()
-    }
+    transferRegistry.abortRunningForWorkspace(workspacePath)
     const targets = matchingOperations.map((operation) => operation.settled)
     if (typeof sftp.closeWorkspace === 'function') targets.push(Promise.resolve().then(() => sftp.closeWorkspace(workspacePath)))
     const closing = waitForLifecycle(targets).then(() => {
@@ -498,14 +470,12 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
     closingAll = true
     reopenWorkspaces.clear()
     for (const operation of activeOperations) operation.controller.abort()
-    for (const transfer of transfers.values()) {
-      if (transfer.state === 'running') transfer.controller.abort()
-    }
+    transferRegistry.abortAllRunning()
     const targets = [...activeOperations].map((operation) => operation.settled)
     if (typeof sftp.closeAll === 'function') targets.push(Promise.resolve().then(() => sftp.closeAll()))
     const closing = waitForLifecycle(targets).then(() => {
       activeOperations.clear()
-      transfers.clear()
+      transferRegistry.clear()
       entryRegistry.clear()
     })
     closeAllPromise = closing
@@ -532,7 +502,7 @@ function createRemoteFileService({ ssh, sftp, store, tempRoot, chooseFiles, choo
   }
 
   function getResourceCounts() {
-    return { entries: entryRegistry.getSize(), transfers: transfers.size, operations: activeOperations.size }
+    return { entries: entryRegistry.getSize(), transfers: transferRegistry.getSize(), operations: activeOperations.size }
   }
 
   return {
