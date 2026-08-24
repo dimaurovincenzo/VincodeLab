@@ -905,10 +905,14 @@ test('gli allegati sono esclusivi di Pi e non inviano Invio', () => {
 
 test('il Terminale AI parte a 11 px e le viste terminale ricevono lo stato di attivazione', () => {
   const app = readAppSource()
+  const preferences = fs.readFileSync(path.join(__dirname, '../src/features/ai/hooks/use-ai-terminal-preferences.ts'), 'utf8')
+  const runtime = fs.readFileSync(path.join(__dirname, '../src/features/ai/hooks/use-ai-terminal-runtime.ts'), 'utf8')
   const freeTerminal = readTerminalSource()
   const terminalWorkspace = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/terminal-workspace.tsx'), 'utf8')
 
-  assert.match(app, /const \[fontSize, setFontSize\] = useState\(11\)/)
+  assert.match(preferences, /const \[fontSize, setFontSize\] = useState\(11\)/)
+  assert.match(runtime, /useAiTerminalPreferences\(\{ fitAddon, getTerminal, preferredTerminalFontSize, workspace \}\)/)
+  assert.doesNotMatch(runtime, /readTerminalPreferences|writeTerminalPreferences|nextTerminalFontSize/)
   assert.match(app, /<TerminalWorkspace\b[^>]*active=\{appSection === 'terminal'\}[^>]*workspace=\{workspace\}/)
   assert.match(terminalWorkspace, /active=\{active && tab === 'shell' && activeSessionId === session\.sessionId\}/)
   assert.match(terminalWorkspace, /sessionId=\{session\.sessionId\}/)

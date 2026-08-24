@@ -8,6 +8,7 @@ const appSourceFiles = [
   'src/features/ai/model/ai-runtime.types.ts',
   'src/features/ai/services/ai-error.ts',
   'src/features/ai/hooks/use-ai-failure.ts',
+  'src/features/ai/hooks/use-ai-terminal-preferences.ts',
   'src/features/ai/hooks/use-ai-terminal-paste.ts',
   'src/features/ai/hooks/use-ai-terminal-instance.ts',
   'src/features/ai/hooks/use-ai-terminal-runtime.ts',
