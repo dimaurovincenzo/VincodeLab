@@ -12,6 +12,11 @@ const ipcChannelRegistryFile = 'electron/ipc/channels.cjs'
 const ipcPublicChannelSet = new Set(IPC_PUBLIC_CHANNELS)
 const ipcChannelPattern = /^[a-z][A-Za-z0-9]*:[A-Za-z][A-Za-z0-9]*$/u
 const databaseDriverSpecifiers = Object.freeze(['better-sqlite3', 'mysql2', 'pg', 'tedious'])
+const databaseVendorExecutionFactories = new Set([
+  'addMssqlParameter',
+  'createMssqlRequest',
+  'createPostgresQuery',
+])
 const shellOperationalSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'node-pty'])
 const aiProcessSpecifiers = new Set(['child_process', 'node:child_process'])
 const menuHostSpecifiers = new Set(['child_process', 'electron', 'node:child_process'])
@@ -183,6 +188,17 @@ function moduleSpecifiers(sourceFile) {
 
 function isDatabaseDriverSpecifier(specifier) {
   return databaseDriverSpecifiers.some((driver) => specifier === driver || specifier.startsWith(`${driver}/`))
+}
+
+function databaseVendorFactoryReferences(sourceFile) {
+  const references = new Set()
+  const visit = (node) => {
+    const name = ts.isIdentifier(node) || ts.isStringLiteralLike(node) ? node.text : null
+    if (name && databaseVendorExecutionFactories.has(name)) references.add(name)
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return [...references]
 }
 
 function unwrapExpression(node) {
@@ -420,6 +436,12 @@ export function inspectArchitecture({ root }) {
     const dependencies = []
 
     for (const problem of ipcChannelLiteralProblems(file, sourceFile)) problems.push(`${file}: ${problem}`)
+
+    if (file.startsWith('electron/domains/database/')) {
+      for (const factory of databaseVendorFactoryReferences(sourceFile)) {
+        problems.push(`${file}: factory driver "${factory}" non consentita nel dominio Database; usa executeRemote della porta driver`)
+      }
+    }
 
     if (file.startsWith('src/') && !file.startsWith('src/bridge/')) {
       const directAccesses = directBridgeAccessCount(sourceFile)

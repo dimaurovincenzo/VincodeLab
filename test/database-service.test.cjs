@@ -11,7 +11,7 @@ const { closeDatabase } = require('../electron/infrastructure/persistence/worksp
 const { createConnection, getConnectionWithSecrets, recordHistory } = require('../electron/infrastructure/persistence/database.repository.cjs')
 const { beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
 const { MAX_ROUTINE_DEFINITION_CHARS, normalizeSchemaPageOptions, remotePrimaryKeyQuery, remoteRoutineDefinitionQuery, remoteRoutinePageSql, remoteTableIdentityPageSql } = require('../electron/domains/database/database-schema-model.cjs')
-const { nodeDatabaseDriverAdapter } = require('../electron/infrastructure/database/node-database-driver.adapter.cjs')
+const { createNodeDatabaseDriverAdapter, nodeDatabaseDriverAdapter } = require('../electron/infrastructure/database/node-database-driver.adapter.cjs')
 const { SqliteWorkerSession, sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics } = require('../electron/infrastructure/database/sqlite-worker-session.adapter.cjs')
 
 configureDatabasePersistence({ getConnectionWithSecrets, recordHistory })
@@ -429,11 +429,14 @@ test('interrompe lo stream PostgreSQL appena il budget incrementale è superato'
     },
   })
   const key = 'workspace-budget\u0000postgres'
+  const driverPort = createNodeDatabaseDriverAdapter({
+    loadPostgres: () => ({ Query: FakeQuery }),
+  })
   let registry
   const controller = createRemoteSessionLifecycleController({ closeSession: (sessionKey) => registry.close(sessionKey) })
   registry = createDatabaseSessionRegistry({ closeSession: disposeRemoteSession, forceCloseSession: forceCloseRemoteSession })
   const session = await registry.acquire(key, async ({ setCandidate }) => {
-    const candidate = { driver: 'postgres', client, Query: FakeQuery }
+    const candidate = { driver: 'postgres', client, driverPort }
     setCandidate(candidate)
     controller.track(key, candidate)
     return candidate
@@ -446,7 +449,7 @@ test('interrompe lo stream PostgreSQL appena il budget incrementale è superato'
   assert.equal(destroyCalls, 1)
   assert.ok(emittedRows < 100)
   const replacement = await registry.acquire(key, async ({ setCandidate }) => {
-    const candidate = { driver: 'postgres', client: new EventEmitter(), Query: FakeQuery }
+    const candidate = { driver: 'postgres', client: new EventEmitter(), driverPort }
     candidate.client.end = async () => undefined
     setCandidate(candidate)
     return candidate
@@ -470,7 +473,7 @@ test('legge MySQL a eventi senza materializzare il risultato e distingue una col
     },
   }
 
-  const result = await executeRemote({ driver: 'mysql', client: { connection: rawClient } }, 'SELECT affectedRows FROM fixture')
+  const result = await executeRemote({ driver: 'mysql', client: { connection: rawClient }, driverPort: nodeDatabaseDriverAdapter }, 'SELECT affectedRows FROM fixture')
   assert.deepEqual(result, { rows: [{ affectedRows: 7, label: 'riga utente' }], affectedRows: null })
 })
 
@@ -489,11 +492,16 @@ test('la cancellazione raggiunge la Request SQL Server e libera subito la coda',
     cancel() { this.cancelCalls += 1 }
   }
   const controller = new AbortController()
+  const driverPort = createNodeDatabaseDriverAdapter({
+    loadMssql: () => ({
+      Request: FakeRequest,
+      TYPES: { Bit: {}, Float: {}, Int: {}, NVarChar: {} },
+    }),
+  })
   const session = {
     driver: 'mssql',
-    Request: FakeRequest,
-    TYPES: { Bit: {}, Float: {}, Int: {}, NVarChar: {} },
     client: { execSql() {} },
+    driverPort,
   }
   const pending = executeRemote(session, 'WAITFOR DELAY', [], 30_000, { signal: controller.signal })
   await new Promise((resolve) => setImmediate(resolve))

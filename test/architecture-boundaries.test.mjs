@@ -147,6 +147,21 @@ test('obbliga il dominio Database a usare porte invece di driver e adapter opera
   })
 })
 
+test('impedisce alle factory streaming dei vendor di rientrare nel dominio Database', () => {
+  withFixture({
+    'electron/domains/database/runtime.cjs': [
+      'driverPort.createPostgresQuery()',
+      'driverPort.createMssqlRequest()',
+      "driverPort['addMssqlParameter']()",
+    ].join('\n'),
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('factory driver')).length, 3)
+    for (const factory of ['createPostgresQuery', 'createMssqlRequest', 'addMssqlParameter']) {
+      assert.ok(problems.some((problem) => problem.includes(`factory driver "${factory}"`)))
+    }
+  })
+})
+
 test('obbliga il dominio Shell a usare collaboratori invece di filesystem e PTY operativi', () => {
   withFixture({
     'electron/domains/shell/runtime.cjs': [

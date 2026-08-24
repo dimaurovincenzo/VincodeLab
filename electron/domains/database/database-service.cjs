@@ -203,147 +203,19 @@ function resultCollector(options) {
   return createResultBudget(options?.resultBudget)
 }
 
-function createPostgresQuery(session, config) {
-  if (typeof session.driverPort?.createPostgresQuery === 'function') return session.driverPort.createPostgresQuery(config)
-  if (typeof session.Query === 'function') return new session.Query(config)
-  throw new TypeError('Porta query PostgreSQL non disponibile.')
-}
-
-function createMssqlRequest(session, sql, callback) {
-  if (typeof session.driverPort?.createMssqlRequest === 'function') return session.driverPort.createMssqlRequest(sql, callback)
-  if (typeof session.Request === 'function') return new session.Request(sql, callback)
-  throw new TypeError('Porta query SQL Server non disponibile.')
-}
-
-function addMssqlParameter(session, request, name, value) {
-  if (typeof session.driverPort?.addMssqlParameter === 'function') {
-    session.driverPort.addMssqlParameter(request, name, value)
-    return
-  }
-  const type = typeof value === 'boolean' ? session.TYPES?.Bit : typeof value === 'number' ? (Number.isInteger(value) ? session.TYPES?.Int : session.TYPES?.Float) : session.TYPES?.NVarChar
-  if (!type) throw new TypeError('Porta parametri SQL Server non disponibile.')
-  request.addParameter(name, type, value)
-}
-
-function executePostgres(session, sql, parameters, timeoutMs, options) {
-  return new Promise((resolve, reject) => {
-    const collector = resultCollector(options)
-    const query = createPostgresQuery(session, { text: sql, values: parameters })
-    query.query_timeout = timeoutMs
-    let settled = false
-    const finish = (error, result) => {
-      if (settled) return
-      settled = true
-      options.signal?.removeEventListener('abort', onAbort)
-      if (error) reject(error)
-      else resolve({
-        rows: collector.rows,
-        affectedRows: typeof result?.rowCount === 'number' && result.command !== 'SELECT' ? result.rowCount : null,
-      })
-    }
-    const failAndClose = (error) => {
-      finish(error)
-      invalidateRemoteSession(session, error)
-    }
-    const onAbort = () => failAndClose(abortError())
-    query.on('row', (row) => {
-      if (settled) return
-      try { collector.add(row) } catch (error) { failAndClose(error) }
-    })
-    query.on('error', (error) => finish(error))
-    query.on('end', (result) => finish(undefined, Array.isArray(result) ? result.at(-1) : result))
-    if (options.signal?.aborted) return onAbort()
-    options.signal?.addEventListener('abort', onAbort, { once: true })
-    try { session.client.query(query) } catch (error) { finish(error) }
-  })
-}
-
-function executeMysql(session, sql, parameters, timeoutMs, options) {
-  return new Promise((resolve, reject) => {
-    const collector = resultCollector(options)
-    let affectedRows = null
-    let hasFields = false
-    let settled = false
-    let command
-    const finish = (error) => {
-      if (settled) return
-      settled = true
-      options.signal?.removeEventListener('abort', onAbort)
-      if (error) reject(error)
-      else resolve({ rows: collector.rows, affectedRows })
-    }
-    const failAndClose = (error) => {
-      finish(error)
-      invalidateRemoteSession(session, error)
-    }
-    const onAbort = () => failAndClose(abortError())
-    if (options.signal?.aborted) return onAbort()
-    options.signal?.addEventListener('abort', onAbort, { once: true })
-    try {
-      const rawClient = session.client.connection ?? session.client
-      command = rawClient.query({ sql, values: parameters, timeout: timeoutMs })
-      command.on('fields', () => { hasFields = true })
-      command.on('result', (row) => {
-        if (settled) return
-        if (!hasFields && !Array.isArray(row) && Number.isFinite(row?.affectedRows)) {
-          affectedRows = row.affectedRows
-          return
-        }
-        try { collector.add(row) } catch (error) { failAndClose(error) }
-      })
-      command.on('error', (error) => finish(error))
-      command.on('end', () => finish())
-    } catch (error) {
-      finish(error)
-    }
-  })
-}
-
-function executeMssql(session, sql, parameters, timeoutMs, options) {
-  return new Promise((resolve, reject) => {
-    const collector = resultCollector(options)
-    let affectedRows = null
-    let settled = false
-    let request
-    const finish = (error, count) => {
-      if (settled) return
-      settled = true
-      options.signal?.removeEventListener('abort', onAbort)
-      if (error) reject(error)
-      else resolve({ rows: collector.rows, affectedRows: count ?? affectedRows })
-    }
-    const cancelAndFail = (error) => {
-      try { request?.cancel?.() } catch {
-        // La richiesta sta già terminando con `error`: il cancel è best effort e
-        // non deve mascherare la causa che verrà classificata per il renderer.
-      }
-      finish(error)
-    }
-    const onAbort = () => cancelAndFail(abortError())
-    request = createMssqlRequest(session, sql, (error, count) => finish(error, count))
-    if (typeof request.setTimeout === 'function') request.setTimeout(timeoutMs)
-    parameters.forEach((value, index) => {
-      addMssqlParameter(session, request, `p${index}`, value)
-    })
-    request.on('row', (columns) => {
-      if (settled) return
-      try { collector.add(Object.fromEntries(columns.map((column) => [column.metadata.colName, column.value]))) } catch (error) { cancelAndFail(error) }
-    })
-    request.on('doneInProc', (count) => { affectedRows = count })
-    if (options.signal?.aborted) return onAbort()
-    options.signal?.addEventListener('abort', onAbort, { once: true })
-    try { session.client.execSql(request) } catch (error) { finish(error) }
-  })
-}
-
 function executeRemote(session, sql, parameters = [], timeoutMs = 30_000, options = {}) {
   return enqueueRemoteOperation(session, () => {
     if (options.signal?.aborted) throw abortError()
-    const operation = session.driver === 'postgres'
-      ? executePostgres(session, sql, parameters, timeoutMs, options)
-      : session.driver === 'mysql'
-        ? executeMysql(session, sql, parameters, timeoutMs, options)
-        : executeMssql(session, sql, parameters, timeoutMs, options)
+    if (typeof session?.driverPort?.executeRemote !== 'function') throw new TypeError('Porta esecuzione database remota non disponibile.')
+    const collector = resultCollector(options)
+    const operation = session.driverPort.executeRemote(session, {
+      sql,
+      parameters,
+      timeoutMs,
+      signal: options.signal,
+      onRow: (row) => collector.add(row),
+      onInvalidate: (error) => invalidateRemoteSession(session, error),
+    }).then(({ affectedRows }) => ({ rows: collector.rows, affectedRows }))
     return raceRemoteSessionFailure(session, operation)
   }).catch((error) => { throw toDatabasePublicError(error, { phase: 'query' }) })
 }

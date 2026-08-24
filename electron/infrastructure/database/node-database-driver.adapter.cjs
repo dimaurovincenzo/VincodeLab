@@ -1,5 +1,11 @@
 const { createDatabaseDriverPort } = require('../../domains/database/database-driver.port.cjs')
 
+function cancellationError() {
+  const error = new Error('database_query_cancelled')
+  error.name = 'AbortError'
+  return error
+}
+
 function createNodeDatabaseDriverAdapter({
   loadMssql = () => require('tedious'),
   loadMysql = () => require('mysql2/promise'),
@@ -14,22 +20,9 @@ function createNodeDatabaseDriverAdapter({
   const postgresDriver = () => { postgres ??= loadPostgres(); return postgres }
 
   return createDatabaseDriverPort({
-    addMssqlParameter(request, name, value) {
-      const { TYPES } = mssqlDriver()
-      const type = typeof value === 'boolean'
-        ? TYPES.Bit
-        : typeof value === 'number'
-          ? (Number.isInteger(value) ? TYPES.Int : TYPES.Float)
-          : TYPES.NVarChar
-      request.addParameter(name, type, value)
-    },
     createMssqlConnection(config) {
       const { Connection } = mssqlDriver()
       return new Connection(config)
-    },
-    createMssqlRequest(sql, callback) {
-      const { Request } = mssqlDriver()
-      return new Request(sql, callback)
     },
     createMysqlClient(config) {
       return mysqlDriver().createConnection(config)
@@ -38,9 +31,131 @@ function createNodeDatabaseDriverAdapter({
       const { Client } = postgresDriver()
       return new Client(config)
     },
-    createPostgresQuery(config) {
-      const { Query } = postgresDriver()
-      return new Query(config)
+    executeRemote(session, {
+      sql,
+      parameters = [],
+      timeoutMs = 30_000,
+      signal,
+      onRow = () => undefined,
+      onInvalidate = () => undefined,
+    } = {}) {
+      if (session?.driver === 'postgres') {
+        return new Promise((resolve, reject) => {
+          const { Query } = postgresDriver()
+          const query = new Query({ text: sql, values: parameters })
+          query.query_timeout = timeoutMs
+          let settled = false
+          const finish = (error, result) => {
+            if (settled) return
+            settled = true
+            signal?.removeEventListener('abort', onAbort)
+            if (error) reject(error)
+            else resolve({
+              affectedRows: typeof result?.rowCount === 'number' && result.command !== 'SELECT'
+                ? result.rowCount
+                : null,
+            })
+          }
+          const failAndInvalidate = (error) => {
+            finish(error)
+            onInvalidate(error)
+          }
+          const onAbort = () => failAndInvalidate(cancellationError())
+          query.on('row', (row) => {
+            if (settled) return
+            try { onRow(row) } catch (error) { failAndInvalidate(error) }
+          })
+          query.on('error', (error) => finish(error))
+          query.on('end', (result) => finish(undefined, Array.isArray(result) ? result.at(-1) : result))
+          if (signal?.aborted) return onAbort()
+          signal?.addEventListener('abort', onAbort, { once: true })
+          try { session.client.query(query) } catch (error) { finish(error) }
+        })
+      }
+
+      if (session?.driver === 'mysql') {
+        return new Promise((resolve, reject) => {
+          let affectedRows = null
+          let hasFields = false
+          let settled = false
+          const finish = (error) => {
+            if (settled) return
+            settled = true
+            signal?.removeEventListener('abort', onAbort)
+            if (error) reject(error)
+            else resolve({ affectedRows })
+          }
+          const failAndInvalidate = (error) => {
+            finish(error)
+            onInvalidate(error)
+          }
+          const onAbort = () => failAndInvalidate(cancellationError())
+          if (signal?.aborted) return onAbort()
+          signal?.addEventListener('abort', onAbort, { once: true })
+          try {
+            const rawClient = session.client.connection ?? session.client
+            const command = rawClient.query({ sql, values: parameters, timeout: timeoutMs })
+            command.on('fields', () => { hasFields = true })
+            command.on('result', (row) => {
+              if (settled) return
+              if (!hasFields && !Array.isArray(row) && Number.isFinite(row?.affectedRows)) {
+                affectedRows = row.affectedRows
+                return
+              }
+              try { onRow(row) } catch (error) { failAndInvalidate(error) }
+            })
+            command.on('error', (error) => finish(error))
+            command.on('end', () => finish())
+          } catch (error) {
+            finish(error)
+          }
+        })
+      }
+
+      if (session?.driver !== 'mssql') throw new TypeError('Sessione database remota non valida.')
+      return new Promise((resolve, reject) => {
+        const { Request, TYPES } = mssqlDriver()
+        let affectedRows = null
+        let settled = false
+        let request
+        const finish = (error, count) => {
+          if (settled) return
+          settled = true
+          signal?.removeEventListener('abort', onAbort)
+          if (error) reject(error)
+          else resolve({ affectedRows: count ?? affectedRows })
+        }
+        const cancelAndFail = (error) => {
+          try { request?.cancel?.() } catch {
+            // La Request sta già terminando: il cancel best effort non deve
+            // mascherare il failure che verrà classificato dal dominio.
+          }
+          finish(error)
+        }
+        const onAbort = () => cancelAndFail(cancellationError())
+        request = new Request(sql, (error, count) => finish(error, count))
+        if (typeof request.setTimeout === 'function') request.setTimeout(timeoutMs)
+        parameters.forEach((value, index) => {
+          const type = typeof value === 'boolean'
+            ? TYPES.Bit
+            : typeof value === 'number'
+              ? (Number.isInteger(value) ? TYPES.Int : TYPES.Float)
+              : TYPES.NVarChar
+          request.addParameter(`p${index}`, type, value)
+        })
+        request.on('row', (columns) => {
+          if (settled) return
+          try {
+            onRow(Object.fromEntries(columns.map((column) => [column.metadata.colName, column.value])))
+          } catch (error) {
+            cancelAndFail(error)
+          }
+        })
+        request.on('doneInProc', (count) => { affectedRows = count })
+        if (signal?.aborted) return onAbort()
+        signal?.addEventListener('abort', onAbort, { once: true })
+        try { session.client.execSql(request) } catch (error) { finish(error) }
+      })
     },
   })
 }

@@ -113,6 +113,8 @@ L'ingresso nella sezione e il ripristino del profilo selezionato leggono soltant
 
 Il contratto comune in `electron/domains/database/database-service.cjs` normalizza SQLite, PostgreSQL, MySQL e SQL Server. Le sessioni e le operazioni attive appartengono al main; il renderer riceve schemi e risultati sottoposti a budget. Le mutazioni della griglia avvengono in una transazione esplicita.
 
+L'esecuzione streaming dei database remoti attraversa la porta `electron/domains/database/database-driver.port.cjs`. L'adapter `electron/infrastructure/database/node-database-driver.adapter.cjs` possiede Query e Request dei vendor, eventi, timeout, parametri e cancellazione; il dominio conserva invece coda per sessione, budget progressivo, invalidazione del lifecycle e mapping degli errori pubblici. Le factory Query/Request specifiche dei vendor non fanno parte della porta pubblica e un ratchet architetturale ne impedisce il ritorno nel dominio.
+
 Gli schemi grandi sono caricati in modo incrementale. `inspectSchema({ offset, limit, force })` restituisce `tables`, `routines`, `hasMore` e `nextOffset`; offset e limite si applicano separatamente a tabelle e routine e vengono imposti nel driver prima della materializzazione. Le pagine già ricevute vengono unite e deduplicate nel renderer. L'apertura di una tabella non presente nella cache usa un lookup puntuale invece di caricare l'intero catalogo.
 
 SQLite usa `electron/infrastructure/database/sqlite-worker-session.adapter.cjs`, iniettato nel servizio di dominio dalla composition root. Il worker dedicato mantiene query e cancellazione fuori dal processo principale senza invertire la direzione delle dipendenze.

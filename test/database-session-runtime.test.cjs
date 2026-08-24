@@ -6,12 +6,10 @@ const { createDatabaseSessionRuntime } = require('../electron/domains/database/d
 function fakeDriverPort(overrides = {}) {
   const unused = () => { throw new Error('Driver non atteso nel test.') }
   return {
-    addMssqlParameter: unused,
     createMssqlConnection: unused,
-    createMssqlRequest: unused,
     createMysqlClient: unused,
     createPostgresClient: unused,
-    createPostgresQuery: unused,
+    executeRemote: unused,
     ...overrides,
   }
 }
