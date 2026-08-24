@@ -46,8 +46,9 @@ Chiudendo uno dei due processi, `concurrently` arresta anche l'altro. `npm start
 | Comando | Scopo |
 | --- | --- |
 | `npm run dev` | Renderer Vite ed Electron in sviluppo |
-| `npm run check` | Gate completo: repository, lint, CSS, test e build |
+| `npm run check` | Gate completo: repository, architettura, lint, CSS, test e build |
 | `npm run check:repo` | Percorsi locali, artefatti, segreti evidenti e link Markdown |
+| `npm run check:architecture` | Confini dei moduli, accessi al bridge e dipendenze circolari |
 | `npm run demo:create` | Crea il workspace dimostrativo locale e riproducibile |
 | `npm run screenshots:capture` | Rigenera gli screenshot pubblici dal bundle Electron |
 | `npm run build` | Type-check TypeScript e build renderer di produzione |
@@ -66,8 +67,12 @@ Benchmark e stress test sono descritti in [testing.md](testing.md).
 ```text
 electron/                 processo principale, preload e servizi nativi
 src/
+  app/                    composizione, provider, layout e stato della shell
+  features/               capacità verticali con API pubblica per feature
+  bridge/                 unico accesso renderer al preload Electron
   components/             viste e componenti React
     ui/                    unico ingresso per le primitive condivise
+  shared/                 moduli neutrali realmente condivisi
   lib/                    stato e logica renderer riutilizzabile
   styles/                 CSS tecnico per shell, CodeMirror e xterm
   theme/                  token, recipe e stili Panda Graphite
@@ -79,6 +84,10 @@ vite.config.ts            build e Content Security Policy del renderer
 ```
 
 Artefatti locali come `node_modules/`, `styled-system/`, `dist/` e `release/` sono ignorati da Git.
+
+La struttura modulare viene introdotta progressivamente. Un componente nel percorso legacy può fungere da facciata temporanea, ma la nuova logica di dominio deve entrare nella feature proprietaria. Non importare file interni di un'altra feature: usa il relativo `index.ts`.
+
+Le eccezioni esistenti agli accessi diretti a `window.vincodeLab` sono registrate con un conteggio massimo nel controllo architetturale. Non aumentare tali soglie; quando migri un accesso, riduci o rimuovi esplicitamente la relativa eccezione.
 
 ## Override locali utili
 

@@ -5,10 +5,14 @@ const test = require('node:test')
 
 test('l’editor distingue i file remoti e li salva soltanto nella cache locale', () => {
   const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
+  const types = fs.readFileSync(path.join(__dirname, '../src/features/editor/model/editor.types.ts'), 'utf8')
+  const documentModel = fs.readFileSync(path.join(__dirname, '../src/features/editor/model/editor-document.ts'), 'utf8')
+  const bridge = fs.readFileSync(path.join(__dirname, '../src/features/editor/api/editor.bridge.ts'), 'utf8')
 
-  assert.match(editor, /source: 'workspace' \| 'remote'/)
-  assert.match(editor, /window\.vincodeLab\.remoteFiles\.saveLocal/)
-  assert.match(editor, /Remoto · Modificato/)
+  assert.match(types, /source: 'workspace' \| 'remote'/)
+  assert.match(bridge, /get remoteFiles\(\)/)
+  assert.match(editor, /editorBridge\.remoteFiles\.saveLocal/)
+  assert.match(documentModel, /Remoto · Modificato/)
   assert.match(editor, /remoteOpenRequest/)
 })
 

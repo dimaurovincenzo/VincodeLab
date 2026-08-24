@@ -358,6 +358,29 @@ afterEach(() => {
 })
 
 describe('apertura workspace nel renderer', () => {
+  it('mantiene la stessa istanza delle viste operative dopo la navigazione reale della shell', async () => {
+    const user = userEvent.setup()
+    await renderActiveWorkspace()
+
+    await user.click(screen.getByRole('tab', { name: 'Editor' }))
+    const editorView = (await screen.findByText('Editor salvato')).parentElement
+    expect(editorView).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Modifica editor' }))
+
+    await user.click(screen.getByRole('tab', { name: 'Database' }))
+    const databaseView = (await screen.findByText('Database pulito')).parentElement
+    expect(databaseView).not.toBeNull()
+
+    await user.click(screen.getByRole('tab', { name: 'AI' }))
+    await user.click(screen.getByRole('tab', { name: 'Editor' }))
+    expect(screen.getByText('Editor modificato').parentElement).toBe(editorView)
+
+    await user.click(screen.getByRole('tab', { name: 'Database' }))
+    expect(screen.getByText('Database pulito').parentElement).toBe(databaseView)
+    expect(xtermHarness.constructions).toBe(1)
+    expect(xtermHarness.disposals).toBe(0)
+  })
+
   it('rende visibile e recuperabile il mancato ripristino del workspace precedente', async () => {
     installBridge({
       getActive: async () => { throw new Error('Session store offline /Users/alice/private token=restore-secret') },

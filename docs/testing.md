@@ -11,7 +11,7 @@ npm run check
 git diff --check
 ```
 
-`npm run check` esegue controllo di igiene del repository, lint, audit CSS, test, type-check e build. Per sole modifiche Markdown sono sufficienti `npm run check:repo` e i controlli dei diff, ma la pull request deve indicare esplicitamente quali gate non erano pertinenti.
+`npm run check` esegue controllo di igiene del repository, confini architetturali, lint, audit CSS, test, type-check e build. Per sole modifiche Markdown sono sufficienti `npm run check:repo` e i controlli dei diff, ma la pull request deve indicare esplicitamente quali gate non erano pertinenti.
 
 ## Livelli di verifica
 
@@ -20,6 +20,7 @@ git diff --check
 | Servizi e contratti | `node:test` in `test/*.test.cjs` e `test/*.test.mjs` | Main, preload, IPC, persistenza, processi e moduli puri |
 | Componenti | Vitest, jsdom e Testing Library in `test/components/` | Interazioni React, focus, tastiera e feedback |
 | Analisi statica | oxlint e TypeScript | Errori di codice, tipi e import |
+| Confini architetturali | `scripts/check-architecture.mjs` e `import/no-cycle` | Livelli, API pubbliche, bridge e cicli |
 | Design system | `scripts/audit-css.mjs` | Token, dipendenze UI e residui CSS vietati |
 | Produzione | Vite ed electron-builder | Chunk, asset, moduli nativi e bundle |
 | Runtime | smoke packaged e test manuale | Avvio Electron, integrazioni e recovery reali |
@@ -40,6 +41,14 @@ npx vitest run --config vitest.config.ts test/components/settings-number-prefere
 ```
 
 Usa poi `npm test` prima del merge per intercettare regressioni incrociate.
+
+## Refactor strutturali
+
+Per uno spostamento o un'estrazione usa la sequenza `sposta → verifica → estrae → verifica → ripulisce → verifica`. Ogni slice deve conservare contratti e comportamento prima che venga rimossa la facciata precedente.
+
+Alcuni test storici leggono ancora il testo dei sorgenti per proteggere vincoli di UI o sicurezza. Non aggiornarli soltanto per inseguire un nuovo percorso: quando la responsabilità viene estratta, aggiungi prima un test diretto del comportamento o del contratto e limita il controllo testuale al solo wiring che non è osservabile in jsdom.
+
+Per viste persistenti aggiungi un test della shell reale con feature simulate e verifica l'identità del nodo DOM dopo la navigazione. Un harness isolato non dimostra che `App` eviti davvero il remount.
 
 ## Prestazioni e affidabilità
 

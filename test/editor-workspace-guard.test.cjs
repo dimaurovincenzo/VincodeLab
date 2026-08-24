@@ -18,7 +18,7 @@ test('l’editor espone un contratto per proteggere le modifiche durante il camb
   assert.match(editor, /await saveEditorTabById\(fileId\)/)
   assert.match(editor, /await tab\.pendingJob\.catch/)
   assert.match(editor, /content: discarded\.savedContent/)
-  assert.match(editor, /await window\.vincodeLab\.files\.save\(tab\.id, tab\.savedContent, \{ revision \}\)/)
+  assert.match(editor, /await editorBridge\.files\.save\(tab\.id, tab\.savedContent, \{ revision \}\)/)
   assert.match(editor, /setDocumentFailure\(\{ error: incident, recovery: \{ kind: 'save-all' \} \}\)/)
 })
 

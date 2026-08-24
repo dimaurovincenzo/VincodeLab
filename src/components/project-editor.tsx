@@ -131,40 +131,43 @@ import { effectivePreference, useAppPreferences } from '@/lib/app-preferences'
 import { graphiteCodeMirrorTheme } from '@/lib/codemirror-theme'
 import { resolveNewFileDraft } from '@/lib/editor-new-file'
 import { specialFileIconKey, type SpecialFileIconKey } from '@/lib/editor-icon-resolution'
+import {
+  clearCachedEditorStateForFile,
+  editorBridge,
+  editorDocumentForTab,
+  editorDraftIdentity,
+  editorStateKey,
+  editorTabCloseTargets,
+  editorWorkbenchCycleDirection,
+  filterEditorTree,
+  findProjectTreeEntry,
+  gitStatusMap,
+  mergeRefreshedProjectEntries,
+  parseCsvPreview,
+  previewKindForFile,
+  previewLabelFor,
+  projectEntriesOverlap,
+  projectEntryContainsPath,
+  remoteStateLabel,
+  remapProjectPath,
+  removeProjectTreeEntry,
+  renameProjectTreeEntry,
+  replaceDirectoryChildren,
+  sessionFileRef,
+  toEditorTreeNodes,
+  type EditorPreview,
+  type EditorTab,
+  type EditorTreeNode,
+  type ProjectEditorProps,
+} from '@/features/editor'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
-import { commitVolatileDraft, discardVolatileDraft, readVolatileDraft, restoreVolatileDraft, writeVolatileDraft, type VolatileDraftIdentity } from '@/lib/volatile-draft-store'
+import { commitVolatileDraft, discardVolatileDraft, readVolatileDraft, restoreVolatileDraft, writeVolatileDraft } from '@/lib/volatile-draft-store'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 import { editorStyles } from '@/theme/styles/editor'
 import { confirmationDialogStyles } from '@/theme/styles/dialogs'
 import { cx } from '../../styled-system/css'
 
-type EditorPreview = 'image' | 'pdf' | 'csv' | 'markdown'
-export type RemoteOpenRequest = { id: string; nonce: number }
-export type EditorWorkbenchRequest =
-  | { kind: 'open-file'; fileId: string; nonce: number }
-  | { kind: 'focus-editor' | 'focus-explorer' | 'close-active' | 'next-tab' | 'previous-tab'; nonce: number }
-export type EditorWorkbenchContext = {
-  activeFileId: string | null
-  activeFileName: string | null
-  dirty: boolean
-  source: 'workspace' | 'remote' | null
-  selection: { fromLine: number; toLine: number } | null
-}
-type RemoteEditorFile = { file: RemoteTrackedFile; connectionTitle: string; binary: boolean }
-type EditorTab = {
-  id: string
-  name: string
-  content: string
-  savedContent: string
-  revision: number
-  savedRevision: number
-  instance: number
-  source: 'workspace' | 'remote'
-  diskRevision?: string
-  restoredExternalConflict?: boolean
-  preview?: EditorPreview
-  remote?: RemoteEditorFile
-}
+export type { EditorWorkbenchContext, EditorWorkbenchRequest, RemoteOpenRequest } from '@/features/editor'
 
 type EditorFileConflict = { error: UserError; fileId: string; instance: number }
 type EditorFailureRecovery =
@@ -186,12 +189,6 @@ type ProjectEntryDialogState = {
   mode: 'rename' | 'new-directory'
   value: string
 }
-
-type EditorTreeNode =
-  | { kind: 'root'; value: 'editor:root'; name: string; children: EditorTreeNode[] }
-  | { kind: 'file'; value: string; id: string; name: string }
-  | { kind: 'directory'; value: string; id: string; name: string; loaded: boolean; children?: EditorTreeNode[] }
-  | { kind: 'new-file'; value: string; name: string; directoryId: string }
 
 type EditorCompartments = {
   fontSize: Compartment
@@ -240,16 +237,6 @@ function showGitStatusWarning(
   })
 }
 
-const editorStateCacheSuffixes = ['source', 'preview:image', 'preview:pdf', 'preview:csv', 'preview:markdown'] as const
-
-function clearCachedEditorStateForFile<TState, TScroll>(fileId: string, states: Map<string, TState>, scrollPositions: Map<string, TScroll>) {
-  for (const suffix of editorStateCacheSuffixes) {
-    const key = `${fileId}::${suffix}`
-    states.delete(key)
-    scrollPositions.delete(key)
-  }
-}
-
 function StartTreeNodeRenameEffect({ attempt, startRenaming, value }: { attempt: number; startRenaming: (value: string) => void; value: string }) {
   const started = useRef<string | null>(null)
 
@@ -271,56 +258,6 @@ const editorPanels: SplitterPanelData[] = [
   { id: 'editor-explorer', minSize: '220px', maxSize: '720px', resizeBehavior: 'preserve-pixel-size' },
   { id: 'editor-document', minSize: '420px' },
 ]
-
-type Props = {
-  workspace: string
-  initialState?: WorkspaceSessionState['editor']
-  remoteOpenRequest?: RemoteOpenRequest | null
-  workbenchRequest?: EditorWorkbenchRequest | null
-  onContextChange?: (context: EditorWorkbenchContext) => void
-  onOpenGitDiff?: (fileId: string) => void
-  onSendContextToAi?: (includeSelection: boolean) => void
-  onSessionChange?: (state: WorkspaceSessionState['editor']) => void
-  onWorkspaceGuardChange?: (guard: WorkspaceChangeGuard | null) => void
-}
-
-function remoteStateLabel(state: RemoteTrackedFile['localState']) {
-  switch (state) {
-    case 'synced': return 'Remoto · Sincronizzato'
-    case 'modified': return 'Remoto · Modificato'
-    case 'conflict': return 'Remoto · Conflitto'
-    case 'offline': return 'Remoto · Offline'
-  }
-}
-
-function previewKindForFile(fileName: string): EditorPreview | undefined {
-  const extension = fileName.split('.').pop()?.toLowerCase()
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(extension ?? '')) return 'image'
-  if (extension === 'pdf') return 'pdf'
-  if (extension === 'csv') return 'csv'
-  if (extension === 'md') return 'markdown'
-  return undefined
-}
-
-function parseCsvPreview(content: string) {
-  const firstLine = content.split(/\r?\n/, 1)[0] ?? ''
-  const separator = (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? ';' : ','
-  const rows: string[][] = [[]]
-  let cell = ''
-  let quoted = false
-  for (let index = 0; index < content.length; index += 1) {
-    const character = content[index]
-    if (character === '"') {
-      if (quoted && content[index + 1] === '"') { cell += '"'; index += 1 } else quoted = !quoted
-    } else if (!quoted && character === separator) { rows.at(-1)!.push(cell); cell = '' } else if (!quoted && (character === '\n' || character === '\r')) {
-      if (character === '\r' && content[index + 1] === '\n') index += 1
-      rows.at(-1)!.push(cell); cell = ''
-      if (rows.length < 101) rows.push([])
-    } else cell += character
-  }
-  if (rows.length <= 100) rows.at(-1)!.push(cell)
-  return rows.filter((row) => row.some((value) => value.length > 0)).map((row) => row.slice(0, 30))
-}
 
 function appendMarkdownInline(parent: HTMLElement, text: string) {
   const tokens = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\((?:https?:\/\/|mailto:)[^)]+\))/g)
@@ -482,15 +419,6 @@ function remoteStatusClass(state: RemoteTrackedFile['localState']) {
   }
 }
 
-function gitStatusMap(status: GitStatus) {
-  const next = new Map<string, GitFileStatus>()
-  for (const file of status.files) {
-    next.set(file.path, file)
-    if (file.previousPath) next.set(file.previousPath, file)
-  }
-  return next
-}
-
 const FILE_NAME_ICONS: Record<string, typeof npmIcon> = {
   '.gitignore': gitIcon, '.prettierrc': prettierIcon, '.prettierignore': prettierIcon, '.eslintrc': eslintIcon,
   'dockerfile': dockerIcon, 'docker-compose.yml': dockerIcon, 'docker-compose.yaml': dockerIcon,
@@ -574,118 +502,6 @@ function languageForFile(fileName: string) {
   return []
 }
 
-function languageLabelFor(fileName: string) {
-  const extension = fileName.split('.').pop()?.toLowerCase()
-  const labels: Record<string, string> = { ts: 'TypeScript', tsx: 'TSX', js: 'JavaScript', jsx: 'JSX', json: 'JSON', md: 'Markdown', mdx: 'MDX', html: 'HTML', css: 'CSS', scss: 'SCSS', yml: 'YAML', yaml: 'YAML', sh: 'Shell', sql: 'SQL', py: 'Python' }
-  return labels[extension ?? ''] ?? 'Testo'
-}
-
-function previewLabelFor(preview: EditorPreview | undefined, fileName: string) {
-  if (preview === 'image') return 'Immagine'
-  if (preview === 'pdf') return 'PDF'
-  if (preview === 'csv') return 'Tabella CSV'
-  if (preview === 'markdown') return 'Markdown'
-  return languageLabelFor(fileName)
-}
-
-function editorStateKey(tab: EditorTab) {
-  return `${tab.id}::${tab.preview ? `preview:${tab.preview}` : 'source'}`
-}
-
-function editorDraftIdentity(workspace: string, source: EditorTab['source'], tabId: string): VolatileDraftIdentity {
-  return { scope: 'project-editor', workspace, resource: JSON.stringify([source, tabId]) }
-}
-
-function sessionFileRef(tab: EditorTab): WorkspaceSessionFileRef {
-  return {
-    source: tab.source,
-    id: tab.source === 'remote' && tab.remote ? tab.remote.file.id : tab.id,
-    mode: tab.preview ? 'preview' : 'source',
-  }
-}
-
-function editorDocumentForTab(tab: EditorTab) {
-  return tab.preview === 'image' || tab.preview === 'pdf' ? '' : tab.content
-}
-
-function toEditorTreeNodes(entries: ProjectFileTreeNode[], draftDirectoryId?: string, draftName = ''): EditorTreeNode[] {
-  return entries.map((entry): EditorTreeNode => {
-    if (entry.kind === 'file') return { kind: 'file', value: entry.id, id: entry.id, name: entry.name }
-    const children = entry.children?.length ? toEditorTreeNodes(entry.children, draftDirectoryId, draftName) : []
-    if (draftDirectoryId === entry.id) children.unshift({ kind: 'new-file', value: `editor:new-file:${entry.id}`, name: draftName, directoryId: entry.id })
-    return { kind: 'directory', value: entry.id, id: entry.id, name: entry.name, loaded: entry.children !== undefined, children }
-  })
-}
-
-function replaceDirectoryChildren(entries: ProjectFileTreeNode[], directoryId: string, children: ProjectFileTreeNode[]): ProjectFileTreeNode[] {
-  return entries.map((entry) => {
-    if (entry.id === directoryId) return { ...entry, children }
-    return entry.children ? { ...entry, children: replaceDirectoryChildren(entry.children, directoryId, children) } : entry
-  })
-}
-
-function remapProjectPath(value: string, previousId: string, nextId: string) {
-  return value === previousId ? nextId : value.startsWith(`${previousId}/`) ? `${nextId}${value.slice(previousId.length)}` : value
-}
-
-function projectEntryContainsPath(entryId: string, entryKind: 'file' | 'directory', candidate: string) {
-  return candidate === entryId || (entryKind === 'directory' && (entryId === '' || candidate.startsWith(`${entryId}/`)))
-}
-
-function projectEntriesOverlap(leftId: string, leftKind: 'file' | 'directory', rightId: string, rightKind: 'file' | 'directory') {
-  return projectEntryContainsPath(leftId, leftKind, rightId) || projectEntryContainsPath(rightId, rightKind, leftId)
-}
-
-function renameProjectTreeEntry(entries: ProjectFileTreeNode[], previousId: string, nextId: string): ProjectFileTreeNode[] {
-  return entries.map((entry) => {
-    if (entry.id === previousId || entry.id.startsWith(`${previousId}/`)) {
-      const id = remapProjectPath(entry.id, previousId, nextId)
-      return {
-        ...entry,
-        id,
-        ...(entry.id === previousId ? { name: nextId.split('/').at(-1) ?? entry.name } : {}),
-        ...(entry.children ? { children: renameProjectTreeEntry(entry.children, previousId, nextId) } : {}),
-      }
-    }
-    return entry.children ? { ...entry, children: renameProjectTreeEntry(entry.children, previousId, nextId) } : entry
-  })
-}
-
-function removeProjectTreeEntry(entries: ProjectFileTreeNode[], entryId: string): ProjectFileTreeNode[] {
-  return entries
-    .filter((entry) => entry.id !== entryId)
-    .map((entry) => entry.children ? { ...entry, children: removeProjectTreeEntry(entry.children, entryId) } : entry)
-}
-
-function mergeRefreshedProjectEntries(current: ProjectFileTreeNode[], refreshed: ProjectFileTreeNode[]) {
-  const currentById = new Map(current.map((entry) => [entry.id, entry]))
-  return refreshed.map((entry) => {
-    const existing = currentById.get(entry.id)
-    return entry.kind === 'directory' && existing?.kind === 'directory' && existing.children
-      ? { ...entry, children: existing.children }
-      : entry
-  })
-}
-
-function findProjectTreeEntry(entries: ProjectFileTreeNode[], entryId: string): ProjectFileTreeNode | undefined {
-  for (const entry of entries) {
-    if (entry.id === entryId) return entry
-    const nested = entry.children && findProjectTreeEntry(entry.children, entryId)
-    if (nested) return nested
-  }
-  return undefined
-}
-
-function filterEditorTree(entries: ProjectFileTreeNode[], query: string): ProjectFileTreeNode[] {
-  const normalizedQuery = query.trim().toLocaleLowerCase('it-IT')
-  if (!normalizedQuery) return entries
-  return entries.flatMap((entry) => {
-    if (entry.kind === 'file') return entry.name.toLocaleLowerCase('it-IT').includes(normalizedQuery) ? [entry] : []
-    const children = entry.children ? filterEditorTree(entry.children, normalizedQuery) : undefined
-    return entry.name.toLocaleLowerCase('it-IT').includes(normalizedQuery) || (children?.length ?? 0) > 0 ? [{ ...entry, children }] : []
-  })
-}
-
 function createEditorSearchPanel(view: EditorView) {
   const dom = document.createElement('form')
   dom.className = 'editor-search-panel'
@@ -749,7 +565,7 @@ function createEditorSearchPanel(view: EditorView) {
   return { dom, top: true, mount: () => searchInput.focus(), update: syncQuery }
 }
 
-export function ProjectEditor({ workspace, initialState, remoteOpenRequest = null, workbenchRequest = null, onContextChange, onOpenGitDiff, onSendContextToAi, onSessionChange, onWorkspaceGuardChange }: Props) {
+export function ProjectEditor({ workspace, initialState, remoteOpenRequest = null, workbenchRequest = null, onContextChange, onOpenGitDiff, onSendContextToAi, onSessionChange, onWorkspaceGuardChange }: ProjectEditorProps) {
   const { preferences } = useAppPreferences()
   const editorFontSize = effectivePreference(preferences, 'editor.fontSize', 13)
   const editorTabSize = effectivePreference(preferences, 'editor.tabSize', 2)
@@ -867,7 +683,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
   }, [])
 
   const refreshGitStatus = useCallback(async () => {
-    const result = await window.vincodeLab.github.gitStatus({ force: true })
+    const result = await editorBridge.github.gitStatus({ force: true })
     setGitStatusByPath(gitStatusMap(result.data))
     toast.remove(gitStatusWarningToastId)
   }, [])
@@ -931,10 +747,10 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
   const saveEditorTab = useCallback(async (tab: EditorTab, force = false) => {
     const requestWorkspace = workspace
     const remoteFile = tab.source === 'remote' && tab.remote
-      ? await window.vincodeLab.remoteFiles.saveLocal(tab.remote.file.id, tab.content)
+      ? await editorBridge.remoteFiles.saveLocal(tab.remote.file.id, tab.content)
       : null
     const savedFile = !remoteFile
-      ? await window.vincodeLab.files.save(tab.id, tab.content, force ? { force: true } : { revision: tab.diskRevision })
+      ? await editorBridge.files.save(tab.id, tab.content, force ? { force: true } : { revision: tab.diskRevision })
       : null
 
     if (!editorAlive.current || workspaceRef.current !== requestWorkspace) return
@@ -1093,12 +909,12 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
         if (!editorAlive.current || workspaceRef.current !== requestWorkspace) throw new Error('Il workspace è cambiato durante il ripristino.')
         if (tab.source === 'remote') {
           if (!tab.remoteFileId) throw new Error('Copia remota non disponibile per il ripristino.')
-          restoredRemoteFiles.set(tab.id, await window.vincodeLab.remoteFiles.saveLocal(tab.remoteFileId, tab.savedContent))
+          restoredRemoteFiles.set(tab.id, await editorBridge.remoteFiles.saveLocal(tab.remoteFileId, tab.savedContent))
           return
         }
         const current = tabsRef.current.find((entry) => entry.id === tab.id && entry.instance === tab.instance)
         const revision = current?.diskRevision ?? tab.diskRevision
-        const saved = await window.vincodeLab.files.save(tab.id, tab.savedContent, { revision })
+        const saved = await editorBridge.files.save(tab.id, tab.savedContent, { revision })
         restoredProjectRevisions.set(tab.id, saved.revision)
       }))
 
@@ -1150,7 +966,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
   const refreshExplorer = useCallback(async (quiet = false) => {
     setRefreshingExplorer(true)
     try {
-      const result = await window.vincodeLab.files.list()
+      const result = await editorBridge.files.list()
       setTree(result.entries)
       setTruncated(result.truncated)
       toast.remove(createdFileExplorerWarningToastId)
@@ -1184,7 +1000,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
 
   useEffect(() => {
     let active = true
-    void window.vincodeLab.files.list().then((result) => {
+    void editorBridge.files.list().then((result) => {
       if (!active) return
       setTree(result.entries)
       setTruncated(result.truncated)
@@ -1487,8 +1303,8 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
       request = (async () => {
         const previewKind = previewKindForFile(fileId)
         const file = previewKind === 'image' || previewKind === 'pdf'
-          ? await window.vincodeLab.files.preview(fileId)
-          : await window.vincodeLab.files.read(fileId)
+          ? await editorBridge.files.preview(fileId)
+          : await editorBridge.files.read(fileId)
         const draftIdentity = editorDraftIdentity(requestWorkspace, 'workspace', file.id)
         const volatileDraft = readVolatileDraft(draftIdentity)
         const restoredExternalConflict = Boolean(volatileDraft && volatileDraft.content !== file.content && volatileDraft.baseline !== file.content)
@@ -1574,10 +1390,10 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
       setLoadingFile(loadingId)
       request = (async () => {
         const [preview, connections] = await Promise.all([
-          window.vincodeLab.remoteFiles.preview(fileId),
-          window.vincodeLab.managedSsh.list(),
+          editorBridge.remoteFiles.preview(fileId),
+          editorBridge.managedSsh.list(),
         ])
-        const content = preview.binary ? '' : (await window.vincodeLab.remoteFiles.read(fileId)).content
+        const content = preview.binary ? '' : (await editorBridge.remoteFiles.read(fileId)).content
         const connection = connections.find((entry) => entry.id === preview.file.connectionId)
         const previewKind = preview.binary ? undefined : previewKindForFile(preview.file.name)
         const restoredContent = preview.binary
@@ -1773,8 +1589,8 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
       return
     }
     try {
-      const comparison = await window.vincodeLab.remoteFiles.compare(tab.remote.file.id)
-      const tracked = (await window.vincodeLab.remoteFiles.listTracked()).find((entry) => entry.id === tab.remote?.file.id) ?? tab.remote.file
+      const comparison = await editorBridge.remoteFiles.compare(tab.remote.file.id)
+      const tracked = (await editorBridge.remoteFiles.listTracked()).find((entry) => entry.id === tab.remote?.file.id) ?? tab.remote.file
       updateRemoteTab(tracked)
       setRemoteDiffFile(tracked)
       setRemoteComparison(comparison)
@@ -1798,10 +1614,10 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
     if (!file || uploadingRemote) return
     setUploadingRemote(true)
     try {
-      const result = await window.vincodeLab.remoteFiles.upload(file.id, { force })
+      const result = await editorBridge.remoteFiles.upload(file.id, { force })
       if (result.status === 'conflict') {
-        const comparison = await window.vincodeLab.remoteFiles.compare(file.id)
-        const tracked = (await window.vincodeLab.remoteFiles.listTracked()).find((entry) => entry.id === file.id) ?? { ...file, localState: 'conflict' as const }
+        const comparison = await editorBridge.remoteFiles.compare(file.id)
+        const tracked = (await editorBridge.remoteFiles.listTracked()).find((entry) => entry.id === file.id) ?? { ...file, localState: 'conflict' as const }
         updateRemoteTab(tracked)
         setRemoteDiffFile(tracked)
         setRemoteComparison(comparison)
@@ -1886,7 +1702,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
     savingCounts.current.set(fileId, 1)
     setSavingFileIds((current) => new Set(current).add(fileId))
     try {
-      const file = await window.vincodeLab.files.read(fileId)
+      const file = await editorBridge.files.read(fileId)
       if (!editorAlive.current || workspaceRef.current !== requestWorkspace) return
       const current = tabsRef.current.find((entry) => entry.id === fileId && entry.instance === instance)
       if (!current) return
@@ -2003,14 +1819,15 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
       return
     }
 
-    cycleOpenTab(workbenchRequest.kind === 'next-tab' ? 1 : -1)
+    const cycleDirection = editorWorkbenchCycleDirection(workbenchRequest)
+    if (cycleDirection) cycleOpenTab(cycleDirection)
   }, [activeId, closeTab, cycleOpenTab, focusEditor, focusExplorer, openFile, sessionRestoreReady, workbenchRequest])
 
   const refreshCreatedFileInExplorer = async (fileId: string) => {
     const segments = fileId.split('/')
     const directorySegments = segments.slice(0, -1)
     if (!directorySegments.length) {
-      const result = await window.vincodeLab.files.list()
+      const result = await editorBridge.files.list()
       setTree(result.entries)
       setTruncated(result.truncated)
       return
@@ -2020,7 +1837,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
     const directoriesToExpand: string[] = []
     for (let index = 1; index <= directorySegments.length; index += 1) {
       const directoryId = directorySegments.slice(0, index).join('/')
-      const result = await window.vincodeLab.files.listDirectory(directoryId)
+      const result = await editorBridge.files.listDirectory(directoryId)
       nextTree = replaceDirectoryChildren(nextTree, directoryId, result.entries)
       directoriesToExpand.push(directoryId)
       if (result.truncated) toast.info(`La cartella ${directoryId} è limitata a 1.000 elementi.`)
@@ -2040,7 +1857,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
     const intent = ++activationIntent.current
     setCreatingFile(true)
     try {
-      const file = await window.vincodeLab.files.create(selectedDirectoryId ?? '', draft.fileName)
+      const file = await editorBridge.files.create(selectedDirectoryId ?? '', draft.fileName)
       if (!editorAlive.current || workspaceRef.current !== requestWorkspace) return
       const tab: EditorTab = {
         id: file.id,
@@ -2118,7 +1935,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
     loadingDirectories.current.add(directoryId)
     setLoadingDirectory(directoryId)
     try {
-      const result = await window.vincodeLab.files.listDirectory(directoryId)
+      const result = await editorBridge.files.listDirectory(directoryId)
       setTree((current) => replaceDirectoryChildren(current, directoryId, result.entries))
       setExplorerFailure((current) => current?.recovery?.kind === 'load-directory' && current.recovery.directoryId === directoryId ? null : current)
       if (result.truncated) toast.info(`La cartella ${directoryName} è limitata a 1.000 elementi.`)
@@ -2142,8 +1959,8 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
   const refreshMutationParent = useCallback(async (entryId: string) => {
     const parentId = entryId.split('/').slice(0, -1).join('/')
     const result = parentId
-      ? await window.vincodeLab.files.listDirectory(parentId)
-      : await window.vincodeLab.files.list()
+      ? await editorBridge.files.listDirectory(parentId)
+      : await editorBridge.files.list()
     setTree((current) => {
       if (!parentId) return mergeRefreshedProjectEntries(current, result.entries)
       const existing = findProjectTreeEntry(current, parentId)
@@ -2253,7 +2070,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
           setProjectEntryDialog((current) => current ? { ...current, busy: false } : current)
           return
         }
-        const created = await window.vincodeLab.files.createDirectory(request.entryId, request.value)
+        const created = await editorBridge.files.createDirectory(request.entryId, request.value)
         await refreshMutationParent(created.id)
         setExpanded((current) => request.entryId ? new Set(current).add(request.entryId) : current)
         setSelectedDirectoryId(created.id)
@@ -2265,7 +2082,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
         }
         const finishIdentityMutation = beginProjectIdentityMutation(request.entryId, request.entryKind)
         try {
-          const renamed = await window.vincodeLab.files.rename(request.entryId, request.value, request.entryKind)
+          const renamed = await editorBridge.files.rename(request.entryId, request.value, request.entryKind)
           if (renamed.renamed) applyRenamedProjectEntry(renamed.previousId, renamed.id, request.entryKind)
           toast.success(renamed.renamed ? 'Elemento rinominato.' : 'Nome già aggiornato.', { description: renamed.id })
         } finally {
@@ -2298,7 +2115,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
   const duplicateProjectEntryFromMenu = useCallback(async (entryId: string, entryKind: 'file' | 'directory') => {
     if (!projectEntryCanMutate(entryId, entryKind)) return
     try {
-      const duplicated = await window.vincodeLab.files.duplicate(entryId, entryKind)
+      const duplicated = await editorBridge.files.duplicate(entryId, entryKind)
       await refreshMutationParent(duplicated.id)
       if (entryKind === 'file') void openFile(duplicated.id)
       toast.success(entryKind === 'file' ? 'File duplicato.' : 'Cartella duplicata.', { description: duplicated.id })
@@ -2334,7 +2151,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
       onConfirm: () => {
         if (!projectEntryCanMutate(entryId, entryKind)) return
         const finishIdentityMutation = beginProjectIdentityMutation(entryId, entryKind)
-        void Promise.resolve().then(() => window.vincodeLab.files.trash(entryId, entryKind)).then(async () => {
+        void Promise.resolve().then(() => editorBridge.files.trash(entryId, entryKind)).then(async () => {
           for (const tab of affectedWorkspaceTabs(entryId, entryKind)) closeTabConfirmed(tab.id)
           setTree((current) => removeProjectTreeEntry(current, entryId))
           setExpanded((current) => new Set([...current].filter((id) => !projectEntryContainsPath(entryId, entryKind, id))))
@@ -2383,7 +2200,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
     })
   }, [closeTabConfirmed])
 
-  useEffect(() => window.vincodeLab.contextMenu?.onAction?.((action) => {
+  useEffect(() => editorBridge.contextMenu?.onAction?.((action) => {
     const contextId = action.contextId ?? ''
     if (action.command === 'workspaceFile.open' && contextId) { void openFile(contextId); return }
     if (action.command === 'workspaceFile.rename' && contextId) { openRenameProjectEntry(contextId, 'file'); return }
@@ -2419,17 +2236,15 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
     if (tabIndex < 0) return
     const targetTab = tabsRef.current[tabIndex]
     if (action.command === 'editorTab.save') { void saveEditorTabById(tabId); return }
-    if (action.command === 'editorTab.close') { requestCloseEditorTabs([tabId]); return }
-    if (action.command === 'editorTab.closeOthers') { requestCloseEditorTabs(tabsRef.current.filter((tab) => tab.id !== tabId).map((tab) => tab.id)); return }
-    if (action.command === 'editorTab.closeRight') { requestCloseEditorTabs(tabsRef.current.slice(tabIndex + 1).map((tab) => tab.id)); return }
-    if (action.command === 'editorTab.closeAll') { requestCloseEditorTabs(tabsRef.current.map((tab) => tab.id)); return }
+    const closeTargets = editorTabCloseTargets(action.command, tabsRef.current.map((tab) => tab.id), tabId)
+    if (closeTargets) { requestCloseEditorTabs(closeTargets); return }
     if (targetTab.source !== 'remote' || !targetTab.remote) return
     activationIntent.current += 1
     activeIdRef.current = targetTab.id
     setActiveId(targetTab.id)
     if (action.command === 'editorRemote.compare' || action.command === 'editorRemote.upload') { void compareRemoteFile(); return }
     if (action.command === 'editorRemote.reveal') {
-      void window.vincodeLab.remoteFiles.revealLocal(targetTab.remote.file.id).catch((error) => {
+      void editorBridge.remoteFiles.revealLocal(targetTab.remote.file.id).catch((error) => {
         setDocumentFailure({
           error: reportEditorFailure(error, {
             category: 'filesystem',
@@ -2456,7 +2271,7 @@ export function ProjectEditor({ workspace, initialState, remoteOpenRequest = nul
         .sort((left, right) => left.split('/').length - right.split('/').length)
       for (const directoryId of directoryIds) {
         try {
-          const result = await window.vincodeLab.files.listDirectory(directoryId)
+          const result = await editorBridge.files.listDirectory(directoryId)
           if (cancelled) return
           setTree((current) => replaceDirectoryChildren(current, directoryId, result.entries))
         } catch (error) {

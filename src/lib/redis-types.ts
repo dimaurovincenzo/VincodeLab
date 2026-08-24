@@ -1,3 +1,5 @@
+import { bridgeNamespace } from '@/bridge'
+
 export const redisKeyTypes = ['all', 'string', 'hash', 'list', 'set', 'zset', 'stream', 'json'] as const
 
 export type RedisKeyType = Exclude<(typeof redisKeyTypes)[number], 'all'>
@@ -201,7 +203,7 @@ export type RedisWorkbenchContext = Readonly<{
 }>
 
 export function redisApi(): RedisApi {
-  return (window as unknown as { vincodeLab: { redis: RedisApi } }).vincodeLab.redis
+  return bridgeNamespace('redis')
 }
 
 export function redisTypeLabel(type: RedisKeyType | RedisKeyTypeFilter) {

@@ -6,7 +6,7 @@ Ogni istanza Electron di VincodeLab gestisce una finestra e un workspace attivo.
 
 | Livello | Percorsi principali | Responsabilità |
 | --- | --- | --- |
-| Renderer | `src/` | Interfaccia React, stato delle viste, CodeMirror, xterm e feedback utente |
+| Renderer | `src/app/`, `src/features/`, `src/bridge/`, `src/shared/` | Composizione React, capacità verticali, confine Electron e codice neutrale condiviso |
 | Design system | `src/components/ui/`, `src/theme/`, `panda.config.ts` | Primitive Ark UI, componenti Park-style, token e recipe Graphite |
 | Preload | `electron/preload.cjs` | API `window.vincodeLab`, serializzazione e ricostruzione degli errori pubblici |
 | Processo principale | `electron/bootstrap.cjs`, `electron/main.cjs`, `electron/*.cjs` | Bootstrap protetto, lifecycle, IPC, filesystem, processi, Git/GitHub, SSH/SFTP, database e Redis |
@@ -22,6 +22,7 @@ contenuto del workspace
           │
           ▼
  React renderer (sandbox, nessun Node.js)
+          │ src/bridge
           │ window.vincodeLab
           ▼
  preload / contextBridge
@@ -36,9 +37,28 @@ Principi da preservare:
 
 - nessuna API generica per eseguire codice o accedere a percorsi arbitrari dal renderer;
 - superficie preload minima, nominata e dichiarata anche in `src/vincode-lab.d.ts`;
+- accesso a `window.vincodeLab` confinato progressivamente in `src/bridge/`, con soglie legacy che possono soltanto diminuire;
 - output tecnici e segreti filtrati prima di attraversare l'IPC;
 - operazioni remote o distruttive esplicite e annullabili quando possibile;
 - Content Security Policy identica tra sviluppo e build, salvo gli endpoint loopback necessari a Vite.
+
+## Moduli e dipendenze
+
+La migrazione strutturale usa un monolite modulare: Feature-Sliced Architecture pragmatica nel renderer e Clean Architecture pragmatica con Ports & Adapters nel processo Electron.
+
+```text
+src/app → src/features → src/bridge, src/shared, src/components/ui, src/theme
+
+electron/app → electron/ipc → electron/domains ← porte
+                                      ↑
+                         electron/infrastructure
+```
+
+Ogni feature espone un ingresso pubblico `index.ts`; una feature non può importare file interni di un'altra feature. `shared` non dipende da feature o shell. Il renderer non importa moduli Electron. Domini, IPC e preload non possono invertire i rispettivi confini.
+
+`npm run check:architecture` analizza import e accessi al preload tramite l'AST TypeScript, applica soglie decrescenti ai file legacy e rileva cicli. Oxlint esegue inoltre `import/no-cycle` sul grafo completo.
+
+La struttura viene introdotta per slice. I file ancora nella disposizione precedente restano facciate compatibili finché i test comportamentali non consentono di rimuoverli senza cambiare il runtime.
 
 ## Domini applicativi
 
@@ -52,7 +72,7 @@ La risoluzione di Pi è isolata in `electron/pi-executable.cjs`. Se l'eseguibile
 
 ### Editor e filesystem
 
-`src/components/project-editor.tsx` coordina explorer, tab e CodeMirror. Le operazioni reali sui file passano da `electron/project-files.cjs`, che risolve gli identificatori rispetto al workspace. Anteprime binarie e allegati applicano limiti di dimensione prima di raggiungere il renderer o Pi.
+`src/components/project-editor.tsx` è la facciata transitoria che coordina lifecycle React e CodeMirror. Tipi, trasformazioni pure, routing dei comandi e accesso al preload risiedono in `src/features/editor/`. Le operazioni reali sui file passano da `electron/project-files.cjs`, che risolve gli identificatori rispetto al workspace. Anteprime binarie e allegati applicano limiti di dimensione prima di raggiungere il renderer o Pi.
 
 ### Git e GitHub
 
@@ -109,7 +129,7 @@ Una nuova funzionalità privilegiata dovrebbe seguire questo flusso:
 
 1. definire un contratto di dominio piccolo e validabile;
 2. implementare il servizio nel main senza dipendenze dal renderer;
-3. esporre un'API preload specifica e aggiornare i tipi globali;
+3. esporre un'API preload specifica, aggiornare i tipi globali e consumarla attraverso `src/bridge`;
 4. normalizzare errori, annullamento, timeout e recovery;
 5. consumare l'API da una vista che usa `@/components/ui` e i token Graphite;
 6. aggiungere test del servizio, del confine IPC e dell'interazione UI;
