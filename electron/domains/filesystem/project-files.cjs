@@ -20,6 +20,7 @@ const {
   readProjectPreview,
   saveProjectFile,
 } = require('./project-file-content.cjs')
+const { createProjectFileIndex } = require('./project-file-index.cjs')
 const {
   isEditorVisibleFile,
   resolveProjectDirectory,
@@ -30,6 +31,7 @@ module.exports = {
   collectDirectoryEntries,
   createProjectDirectory,
   createProjectFile,
+  createProjectFileIndex,
   duplicateProjectEntry,
   isEditorVisibleFile,
   listDirectoryEntries,

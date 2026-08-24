@@ -1,5 +1,4 @@
-const fs = require('node:fs')
-const path = require('node:path')
+const { assertProjectFileIndexHostPort } = require('./project-file-index-host.port.cjs')
 
 const DEFAULT_MAX_FILES = 20_000
 const MAX_CONFIGURABLE_FILES = 100_000
@@ -50,41 +49,10 @@ function normalizeExclusions(excludedDirectories) {
   return normalized
 }
 
-function validateWorkspacePath(workspacePath) {
-  if (typeof workspacePath !== 'string' || !workspacePath || workspacePath.includes('\0') || !path.isAbsolute(workspacePath)) {
-    throw new Error('Percorso workspace non valido.')
-  }
-  return path.resolve(workspacePath)
-}
-
-async function canonicalWorkspacePath(workspacePath) {
-  const requestedPath = validateWorkspacePath(workspacePath)
-  const root = await fs.promises.realpath(requestedPath)
-  const stats = await fs.promises.lstat(root)
-  if (!stats.isDirectory() || stats.isSymbolicLink()) throw new Error('Il workspace non è una directory valida.')
-  return { requestedPath, root: path.resolve(root) }
-}
-
-function isPathInside(root, candidate) {
-  const relative = path.relative(root, candidate)
-  return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`))
-}
-
-function assertPathInside(root, candidate) {
-  if (!isPathInside(root, candidate)) throw new Error('Il percorso indicizzato esce dal workspace.')
-}
-
 function compareText(left, right) {
   if (left < right) return -1
   if (left > right) return 1
   return 0
-}
-
-function toFileId(root, filePath) {
-  assertPathInside(root, filePath)
-  const relativePath = path.relative(root, filePath)
-  if (!relativePath || path.isAbsolute(relativePath)) throw new Error('Percorso file indicizzato non valido.')
-  return relativePath.split(path.sep).join('/')
 }
 
 function createAbortError() {
@@ -158,7 +126,8 @@ function cachedResult(result) {
   return Object.freeze({ ...result, cacheHit: true })
 }
 
-function createProjectFileIndex(options = {}) {
+function createProjectFileIndex(host, options = {}) {
+  const indexHost = assertProjectFileIndexHostPort(host)
   const maxFiles = assertPositiveInteger(options.maxFiles, DEFAULT_MAX_FILES, 'Limite file', MAX_CONFIGURABLE_FILES)
   const progressEvery = assertPositiveInteger(options.progressEvery, DEFAULT_PROGRESS_EVERY, 'Intervallo avanzamento')
   const yieldEvery = assertPositiveInteger(options.yieldEvery, DEFAULT_YIELD_EVERY, 'Intervallo asincrono')
@@ -170,7 +139,7 @@ function createProjectFileIndex(options = {}) {
   const generations = new Map()
 
   function workspaceKey(workspacePath) {
-    const requestedPath = validateWorkspacePath(workspacePath)
+    const requestedPath = indexHost.normalizeWorkspacePath(workspacePath)
     return aliases.get(requestedPath) ?? requestedPath
   }
 
@@ -201,74 +170,49 @@ function createProjectFileIndex(options = {}) {
     job.signalCleanups.push(() => signal.removeEventListener('abort', abort))
   }
 
-  async function readDirectory(job, directory) {
+  async function readDirectory(job, directoryId) {
     throwIfAborted(job.controller.signal)
-    assertPathInside(job.root, directory.absolutePath)
-
-    let stats
-    let realPath
+    let result
     try {
-      stats = await fs.promises.lstat(directory.absolutePath)
-      if (stats.isSymbolicLink()) {
-        job.skipped.symbolicLinks += 1
-        return []
-      }
-      if (!stats.isDirectory()) {
-        job.skipped.unsupportedEntries += 1
-        return []
-      }
-      realPath = path.resolve(await fs.promises.realpath(directory.absolutePath))
+      result = await indexHost.readDirectory(job.root, directoryId)
     } catch (error) {
-      if (directory.relativePath && isSkippableFileSystemError(error)) {
+      if (directoryId && isSkippableFileSystemError(error)) {
         job.skipped.inaccessibleEntries += 1
         return []
       }
       throw error
     }
 
-    assertPathInside(job.root, realPath)
-    if (realPath !== directory.absolutePath) {
+    if (result.kind === 'symbolic-link') {
       job.skipped.symbolicLinks += 1
       return []
     }
-
-    let handle
-    try {
-      handle = await fs.promises.opendir(realPath)
-      const entries = []
-      for await (const entry of handle) entries.push(entry)
-      job.directoriesVisited += 1
-      return entries.sort((left, right) => compareText(left.name, right.name))
-    } catch (error) {
-      if (directory.relativePath && isSkippableFileSystemError(error)) {
-        job.skipped.inaccessibleEntries += 1
-        return []
-      }
-      throw error
+    if (result.kind !== 'directory') {
+      job.skipped.unsupportedEntries += 1
+      return []
     }
+    job.directoriesVisited += 1
+    return [...result.entries].sort((left, right) => compareText(left.name, right.name))
   }
 
   async function scan(job) {
-    const directories = [{ absolutePath: job.root, relativePath: '' }]
+    const directories = ['']
 
     while (directories.length > 0 && !job.truncated) {
       throwIfAborted(job.controller.signal)
-      const directory = directories.pop()
-      const entries = await readDirectory(job, directory)
+      const directoryId = directories.pop()
+      const entries = await readDirectory(job, directoryId)
       const childDirectories = []
 
       for (const entry of entries) {
         throwIfAborted(job.controller.signal)
         job.entriesScanned += 1
-        const entryPath = path.resolve(directory.absolutePath, entry.name)
-        assertPathInside(job.root, entryPath)
-
-        if (entry.isSymbolicLink()) {
+        if (entry.symbolicLink) {
           job.skipped.symbolicLinks += 1
         } else {
-          let stats
+          let inspected
           try {
-            stats = await fs.promises.lstat(entryPath)
+            inspected = await indexHost.inspectEntry(job.root, directoryId, entry.name)
           } catch (error) {
             if (!isSkippableFileSystemError(error)) throw error
             job.skipped.inaccessibleEntries += 1
@@ -276,29 +220,20 @@ function createProjectFileIndex(options = {}) {
             continue
           }
 
-          if (stats.isSymbolicLink()) {
+          if (inspected.kind === 'symbolic-link') {
             job.skipped.symbolicLinks += 1
-          } else if (stats.isDirectory()) {
+          } else if (inspected.kind === 'directory') {
             if (excludedDirectories.has(entry.name.toLowerCase())) {
               job.skipped.excludedDirectories += 1
             } else {
-              const relativePath = path.relative(job.root, entryPath).split(path.sep).join('/')
-              childDirectories.push({ absolutePath: entryPath, relativePath })
+              childDirectories.push(inspected.directoryId)
             }
-          } else if (stats.isFile()) {
+          } else if (inspected.kind === 'file') {
             if (job.files.length >= job.maxFiles) {
               job.truncated = true
               break
             }
-            const id = toFileId(job.root, entryPath)
-            job.files.push({
-              id,
-              name: entry.name,
-              directory: path.posix.dirname(id) === '.' ? '' : path.posix.dirname(id),
-              extension: path.extname(entry.name).slice(1).toLowerCase(),
-              size: stats.size,
-              modifiedAt: stats.mtimeMs,
-            })
+            job.files.push(inspected.file)
           } else {
             job.skipped.unsupportedEntries += 1
           }
@@ -349,7 +284,7 @@ function createProjectFileIndex(options = {}) {
       throw new Error('Callback avanzamento non valida.')
     }
 
-    const { requestedPath, root } = await canonicalWorkspacePath(workspacePath)
+    const { requestedPath, root } = await indexHost.resolveWorkspace(workspacePath)
     aliases.set(requestedPath, root)
     aliases.set(root, root)
 

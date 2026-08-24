@@ -20,6 +20,7 @@ const { createFatalErrorExperience } = require('./app/fatal-error-experience.cjs
 const { installNavigationGuards } = require('./infrastructure/security/ipc-security.adapter.cjs')
 const { createPublicError, toPublicErrorMessage } = require('./domains/errors/public-error.cjs')
 const { environmentForPi, resolvePiExecutable: findPiExecutable } = require('./infrastructure/processes/pi-executable.adapter.cjs')
+const { createProjectFileIndexFilesystemAdapter } = require('./infrastructure/filesystem/project-file-index-filesystem.adapter.cjs')
 const { prepareTerminalAttachment } = require('./infrastructure/filesystem/terminal-attachment.adapter.cjs')
 const { MAX_PASTE_BYTES } = require('./domains/terminal/terminal-input.cjs')
 const { createTerminalDiagnosticsReport, sanitizeRendererMetrics } = require('./domains/terminal/terminal-diagnostics.cjs')
@@ -29,8 +30,7 @@ const { PI_COMMAND_TIMEOUT_MS, createPiSystemUseCases } = require('./domains/ai/
 const { createPiPackageSkillsFilesystemAdapter } = require('./infrastructure/filesystem/pi-package-skills-filesystem.adapter.cjs')
 const { createProjectInstructionsUseCases } = require('./domains/ai/project-instructions.cjs')
 const { createProjectInstructionsFilesystemAdapter } = require('./infrastructure/filesystem/project-instructions-filesystem.adapter.cjs')
-const { createProjectDirectory, createProjectFile, duplicateProjectEntry, listDirectoryEntries, listProjectFiles, openProjectFileWith, prepareProjectFileAttachment, readProjectFile, readProjectPreview, renameProjectEntry, resolveProjectDirectory, resolveProjectFile, saveProjectFile } = require('./domains/filesystem/project-files.cjs')
-const { createProjectFileIndex } = require('./domains/filesystem/project-file-index.cjs')
+const { createProjectDirectory, createProjectFile, createProjectFileIndex, duplicateProjectEntry, listDirectoryEntries, listProjectFiles, openProjectFileWith, prepareProjectFileAttachment, readProjectFile, readProjectPreview, renameProjectEntry, resolveProjectDirectory, resolveProjectFile, saveProjectFile } = require('./domains/filesystem/project-files.cjs')
 const { createProjectSkillsUseCases } = require('./domains/ai/project-skills.cjs')
 const { createProjectSkillsFilesystemAdapter } = require('./infrastructure/filesystem/project-skills-filesystem.adapter.cjs')
 const { createCommandCategory, createWorkspaceCommand, deleteCommandCategory, deleteWorkspaceCommand, getWorkspaceCommand, listWorkspaceCommands, moveWorkspaceCommand, updateCommandCategory, updateWorkspaceCommand } = require('./infrastructure/persistence/workspace-commands.repository.cjs')
@@ -242,7 +242,7 @@ const {
 } = createProjectSkillsUseCases({
   storage: createProjectSkillsFilesystemAdapter(),
 })
-const projectFileIndex = createProjectFileIndex()
+const projectFileIndex = createProjectFileIndex(createProjectFileIndexFilesystemAdapter())
 const databaseOperations = createDatabaseOperationRegistry()
 const redisOperations = createRedisOperationRegistry()
 const githubOperations = createGithubOperationRegistry()

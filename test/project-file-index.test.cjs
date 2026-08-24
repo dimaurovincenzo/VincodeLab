@@ -7,8 +7,13 @@ const test = require('node:test')
 const {
   DEFAULT_EXCLUDED_DIRECTORIES,
   DEFAULT_MAX_FILES,
-  createProjectFileIndex,
+  createProjectFileIndex: createProjectFileIndexUseCase,
 } = require('../electron/domains/filesystem/project-file-index.cjs')
+const { createProjectFileIndexFilesystemAdapter } = require('../electron/infrastructure/filesystem/project-file-index-filesystem.adapter.cjs')
+
+function createProjectFileIndex(options) {
+  return createProjectFileIndexUseCase(createProjectFileIndexFilesystemAdapter(), options)
+}
 
 function temporaryWorkspace(t, prefix = 'vincodelab-file-index-') {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
@@ -128,6 +133,24 @@ test('riusa una cache per workspace finché non viene invalidata', async (t) => 
   const rebuilt = await index.build(workspace)
   assert.equal(rebuilt.cacheHit, false)
   assert.deepEqual(rebuilt.files.map((file) => file.id), ['dopo.ts', 'prima.ts'])
+})
+
+test('mantiene workspace canonico e alias coerenti per cache e invalidazione', async (t) => {
+  const workspace = temporaryWorkspace(t)
+  const aliasDirectory = temporaryWorkspace(t, 'vincodelab-file-index-alias-')
+  const alias = path.join(aliasDirectory, 'workspace-link')
+  writeFiles(workspace, ['src/index.ts'])
+  fs.symlinkSync(workspace, alias, 'dir')
+  const index = createProjectFileIndex()
+
+  const result = await index.build(alias)
+  const canonicalWorkspace = fs.realpathSync(workspace)
+
+  assert.equal(result.workspacePath, canonicalWorkspace)
+  assert.deepEqual(index.getCached(alias).files, index.getCached(canonicalWorkspace).files)
+  assert.equal(index.invalidate(alias), true)
+  assert.equal(index.getCached(alias), null)
+  assert.equal(index.getCached(canonicalWorkspace), null)
 })
 
 test('isola cache e invalidazione tra workspace', async (t) => {
