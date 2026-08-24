@@ -675,7 +675,7 @@ test('le viste operative restano montate dopo la prima apertura', () => {
     }
   }
 
-  const aiTerminalRuntime = sourceRecord(path.join(projectRoot, 'src/app/hooks/use-ai-terminal-instance.ts'))
+  const aiTerminalRuntime = sourceRecord(path.join(projectRoot, 'src/features/ai/hooks/use-ai-terminal-instance.ts'))
   const databaseEditor = sourceRecord(path.join(projectRoot, 'src/features/database/hooks/use-database-sql-editor.ts'))
   const databaseResults = databaseRecords[1]
   const shellXtermLifecycle = sourceRecord(path.join(projectRoot, 'src/features/terminal/hooks/use-shell-xterm-lifecycle.ts'))

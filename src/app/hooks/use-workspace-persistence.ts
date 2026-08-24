@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createWorkspaceSessionClient } from '@/features/workspace'
+import { reportRendererFailure } from '@/lib/renderer-error'
 import type { AppSection, WorkspaceSessionFailure } from '../model/app-controller.types'
-import { reportRendererFailure } from '../services/app-controller-errors'
 
 function primaryFocusTarget(section: AppSection, aiTab: 'terminal' | 'skills' | 'instructions'): WorkspaceSessionFocusTarget {
   if (section === 'ai') return `ai.${aiTab}`

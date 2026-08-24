@@ -2,24 +2,46 @@ import { Suspense } from 'react'
 import { BookOpen, ChevronDown, ChevronUp, RefreshCw, ScrollText, Search, TerminalSquare, X } from 'lucide-react'
 import { Button, Field, IconButton, Spinner, Tabs } from '@/components/ui'
 import { TerminalToolbar } from '@/components/terminal-toolbar'
-import { TerminalAttachments } from '@/features/ai'
 import { TerminalPasteStatus } from '@/components/terminal-paste-status'
 import { ViewErrorBoundary } from '@/components/view-error-boundary'
-import { shouldMountPersistentView } from '@/lib/persistent-view-state'
+import { shouldMountPersistentView, type PersistentViewState } from '@/lib/persistent-view-state'
+import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 import { aiStyles } from '@/theme/styles/ai'
 import { shellStyles } from '@/theme/styles/shell'
 import { terminalStyles } from '@/theme/styles/terminal'
 import { AiSessionErrorNotice } from './ai-session-error-notice'
-import type { AppController } from '../hooks/use-app-controller'
-import { terminalPasteRecoveryLabel } from '../services/app-controller-errors'
-import { ProjectInstructions, ProjectSkills } from './lazy-workbench-views'
+import { ProjectInstructions, ProjectSkills } from './lazy-ai-views'
+import { TerminalAttachments } from './terminal-attachments'
+import type { AiRuntimeController } from '../hooks/use-ai-runtime'
+import type { AiTab, TerminalContextAction } from '../model/ai-runtime.types'
+import { terminalPasteRecoveryLabel } from '../services/ai-error'
 import '@xterm/xterm/css/xterm.css'
 
-export function AiWorkbench({ controller }: { controller: AppController }) {
+type AiWorkbenchProps = {
+  contextActions: TerminalContextAction[]
+  loadedSections: PersistentViewState
+  onInstructionsWorkspaceGuardChange: (guard: WorkspaceChangeGuard | null) => void
+  onOpenSettings: () => void
+  onSelectTab: (tab: AiTab) => void
+  onSkillsWorkspaceGuardChange: (guard: WorkspaceChangeGuard | null) => void
+  runtime: AiRuntimeController
+  aiTab: AiTab
+  workspace: string
+}
+
+export function AiWorkbench({
+  contextActions,
+  loadedSections,
+  onInstructionsWorkspaceGuardChange,
+  onOpenSettings,
+  onSelectTab,
+  onSkillsWorkspaceGuardChange,
+  runtime,
+  aiTab,
+  workspace,
+}: AiWorkbenchProps) {
   const {
-    aiContextActions,
     aiFailure,
-    aiTab,
     cancelTerminalPaste,
     changeFontSize,
     clearTerminal,
@@ -27,11 +49,7 @@ export function AiWorkbench({ controller }: { controller: AppController }) {
     closeTerminalSearch,
     copyTerminalSelection,
     fontSize,
-    handleInstructionsWorkspaceGuardChange,
-    handleSkillsWorkspaceGuardChange,
     hasUnreadTerminalOutput,
-    loadedSections,
-    openAiSettings,
     pasteFailure,
     pasteIntoTerminal,
     pasteProgress,
@@ -43,7 +61,6 @@ export function AiWorkbench({ controller }: { controller: AppController }) {
     retryAiTerminal,
     revealTerminalOutput,
     searchAddon,
-    selectAiTab,
     sendAiInput,
     setTerminalQuery,
     setTerminalSearchOpen,
@@ -53,15 +70,12 @@ export function AiWorkbench({ controller }: { controller: AppController }) {
     terminalQuery,
     terminalSearchOpen,
     terminalStatus,
-    workspace,
-  } = controller
-
-  if (!workspace) return null
+  } = runtime
 
   return (
     <Tabs.Content asChild key="ai" value="ai">
       <section className={`${shellStyles.sectionPage} ${aiStyles.workbench}`} key={workspace}>
-        <Tabs.Root className={aiStyles.tabsRoot} value={aiTab} onValueChange={({ value }) => selectAiTab(value as typeof aiTab)}>
+        <Tabs.Root className={aiStyles.tabsRoot} value={aiTab} onValueChange={({ value }) => onSelectTab(value as AiTab)}>
           <Tabs.List className={aiStyles.tabsList} aria-label="Sezioni AI">
             <Tabs.Trigger value="terminal"><TerminalSquare aria-hidden="true" size={15} /> Terminale AI</Tabs.Trigger>
             <Tabs.Trigger value="skills"><BookOpen aria-hidden="true" size={15} /> Skill progetto</Tabs.Trigger>
@@ -89,7 +103,7 @@ export function AiWorkbench({ controller }: { controller: AppController }) {
                   <IconButton className={terminalStyles.reload} tooltip="Ricarica Pi" onClick={() => void reloadPi()}><RefreshCw aria-hidden="true" size={15} /></IconButton>
                   <TerminalToolbar fontSize={fontSize} statusLabel={terminalStatus} onClear={clearTerminal} onCopy={() => void copyTerminalSelection()} onPaste={() => void pasteIntoTerminal()} onResetZoom={resetTerminalZoom} onRestart={() => void restartPi()} onSearch={() => setTerminalSearchOpen(true)} onZoom={changeFontSize} />
                 </div>
-                <TerminalAttachments contextActions={aiContextActions} onInsert={sendAiInput} />
+                <TerminalAttachments contextActions={contextActions} onInsert={sendAiInput} />
                 <div className={terminalStyles.surface}><div className={terminalStyles.xtermHost} data-xterm-host="ai" key={workspace} ref={terminalElement} /></div>
                 {pasteProgress && <TerminalPasteStatus
                   failure={pasteFailure?.error}
@@ -101,7 +115,7 @@ export function AiWorkbench({ controller }: { controller: AppController }) {
                   onClose={closeTerminalPasteStatus}
                 />}
                 {hasUnreadTerminalOutput && <Button className={terminalStyles.newOutput} size="sm" variant="subtle" onClick={revealTerminalOutput}>Nuovo output</Button>}
-                {aiFailure && <AiSessionErrorNotice failure={aiFailure} onOpenSettings={openAiSettings} onReload={reloadPi} onRestart={restartPi} onResumeOutput={retryAiOutput} onRetryTerminal={retryAiTerminal} />}
+                {aiFailure && <AiSessionErrorNotice failure={aiFailure} onOpenSettings={onOpenSettings} onReload={reloadPi} onRestart={restartPi} onResumeOutput={retryAiOutput} onRetryTerminal={retryAiTerminal} />}
               </div>
             </ViewErrorBoundary>
           </Tabs.Content>
@@ -109,7 +123,7 @@ export function AiWorkbench({ controller }: { controller: AppController }) {
             <Tabs.Content value="skills" className={aiStyles.tabPanel}>
               <ViewErrorBoundary viewName="Skill progetto">
                 <Suspense fallback={<div className={terminalStyles.loading}>Caricamento Skill…</div>}>
-                  <ProjectSkills workspace={workspace} onWorkspaceGuardChange={handleSkillsWorkspaceGuardChange} />
+                  <ProjectSkills workspace={workspace} onWorkspaceGuardChange={onSkillsWorkspaceGuardChange} />
                 </Suspense>
               </ViewErrorBoundary>
             </Tabs.Content>
@@ -118,7 +132,7 @@ export function AiWorkbench({ controller }: { controller: AppController }) {
             <Tabs.Content value="instructions" className={aiStyles.tabPanel}>
               <ViewErrorBoundary viewName="Istruzioni progetto">
                 <Suspense fallback={<div className={terminalStyles.loading}>Caricamento istruzioni…</div>}>
-                  <ProjectInstructions onWorkspaceGuardChange={handleInstructionsWorkspaceGuardChange} />
+                  <ProjectInstructions onWorkspaceGuardChange={onInstructionsWorkspaceGuardChange} />
                 </Suspense>
               </ViewErrorBoundary>
             </Tabs.Content>

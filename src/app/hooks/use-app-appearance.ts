@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { appBridge } from '@/app/api/app.bridge'
-import { reportRendererFailure, reportTransientFailure, showUserErrorToast } from '../services/app-controller-errors'
+import { reportRendererFailure, reportTransientFailure, showUserErrorToast } from '@/lib/renderer-error'
 import type { AppSection } from '../model/app-controller.types'
 
 type AppAppearance = 'system' | 'light' | 'dark'

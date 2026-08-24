@@ -2,15 +2,18 @@ import { Suspense } from 'react'
 import { Tabs } from '@/components/ui'
 import { BenchmarkViewFaultProbe } from '@/components/benchmark-view-fault-probe'
 import { ViewErrorBoundary } from '@/components/view-error-boundary'
+import { AiWorkbench } from '@/features/ai'
 import { shouldMountPersistentView } from '@/lib/persistent-view-state'
 import { shellStyles } from '@/theme/styles/shell'
 import { terminalStyles } from '@/theme/styles/terminal'
 import type { AppController } from '../hooks/use-app-controller'
-import { AiWorkbench } from './ai-workbench'
 import { AppSettings, DatabaseWorkspace, GitHubWorkspace, ProjectEditor, RedisWorkspace, TerminalWorkspace } from './lazy-workbench-views'
 
 export function WorkspaceViews({ controller }: { controller: AppController }) {
   const {
+    aiContextActions,
+    aiRuntime,
+    aiTab,
     appSection,
     appearance,
     databaseFocusRequest,
@@ -18,8 +21,11 @@ export function WorkspaceViews({ controller }: { controller: AppController }) {
     githubWorkbenchRequest,
     handleDatabaseWorkspaceGuardChange,
     handleEditorWorkspaceGuardChange,
+    handleInstructionsWorkspaceGuardChange,
     handleSettingsWorkspaceGuardChange,
+    handleSkillsWorkspaceGuardChange,
     loadedSections,
+    openAiSettings,
     openGitDiffForFile,
     openRemoteFileInEditor,
     openWorkspaceFile,
@@ -27,6 +33,7 @@ export function WorkspaceViews({ controller }: { controller: AppController }) {
     refreshWorkspaceSessionForRecovery,
     remoteOpenRequest,
     sendEditorContextToAi,
+    selectAiTab,
     setDatabaseContext,
     setEditorContext,
     setGitHubContext,
@@ -59,7 +66,17 @@ export function WorkspaceViews({ controller }: { controller: AppController }) {
           </section>
         </Tabs.Content>
       )}
-      <AiWorkbench controller={controller} />
+      <AiWorkbench
+        contextActions={aiContextActions}
+        aiTab={aiTab}
+        loadedSections={loadedSections}
+        runtime={aiRuntime}
+        workspace={workspace}
+        onInstructionsWorkspaceGuardChange={handleInstructionsWorkspaceGuardChange}
+        onOpenSettings={openAiSettings}
+        onSelectTab={selectAiTab}
+        onSkillsWorkspaceGuardChange={handleSkillsWorkspaceGuardChange}
+      />
       {(loadedSections.editor || appSection === 'editor') && (
         <Tabs.Content asChild key="editor" value="editor">
           <section className={shellStyles.sectionPage}>

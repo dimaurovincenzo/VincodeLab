@@ -1,10 +1,11 @@
 import { useCallback, useState, type RefObject } from 'react'
 import type { Terminal } from '@xterm/xterm'
-import { appBridge } from '@/app/api/app.bridge'
 import { toast } from '@/components/ui'
+import { reportRendererFailure } from '@/lib/renderer-error'
 import { createTerminalPasteController, type TerminalPasteProgress } from '@/lib/terminal-paste-controller.js'
-import type { TerminalPasteFailure } from '../model/app-controller.types'
-import { reportRendererFailure, reportTerminalPasteFailure } from '../services/app-controller-errors'
+import { aiBridge } from '../api/ai.bridge'
+import type { TerminalPasteFailure } from '../model/ai-runtime.types'
+import { reportTerminalPasteFailure } from '../services/ai-error'
 
 type UseAiTerminalPasteOptions = {
   restartPi: () => Promise<void>
@@ -15,9 +16,9 @@ export function useAiTerminalPaste({ restartPi, terminal }: UseAiTerminalPasteOp
   const [pasteProgress, setPasteProgress] = useState<TerminalPasteProgress | null>(null)
   const [pasteFailure, setPasteFailure] = useState<TerminalPasteFailure | null>(null)
   const [pasteController] = useState(() => createTerminalPasteController({
-    startPaste: appBridge.terminal.startPaste,
-    writePasteChunk: appBridge.terminal.writePasteChunk,
-    cancelPaste: appBridge.terminal.cancelPaste,
+    startPaste: aiBridge.terminal.startPaste,
+    writePasteChunk: aiBridge.terminal.writePasteChunk,
+    cancelPaste: aiBridge.terminal.cancelPaste,
   }))
 
   const pasteIntoTerminal = useCallback(async function pasteIntoTerminalAction() {

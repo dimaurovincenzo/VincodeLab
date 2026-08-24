@@ -16,6 +16,12 @@ export const legacyDirectBridgeFiles = new Map([
 // location.
 export const removedLegacyModules = new Map([
   ['src/App', 'src/app'],
+  ['src/app/components/ai-session-error-notice', 'src/features/ai'],
+  ['src/app/components/ai-workbench', 'src/features/ai'],
+  ['src/app/hooks/use-ai-failure', 'src/features/ai'],
+  ['src/app/hooks/use-ai-terminal-instance', 'src/features/ai'],
+  ['src/app/hooks/use-ai-terminal-paste', 'src/features/ai'],
+  ['src/app/hooks/use-ai-terminal-runtime', 'src/features/ai'],
   ['src/components/database-workspace', 'src/features/database'],
   ['src/components/free-terminal', 'src/features/terminal'],
   ['src/components/github-workspace', 'src/features/github'],

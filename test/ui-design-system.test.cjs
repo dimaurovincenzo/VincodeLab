@@ -909,12 +909,12 @@ test('il Terminale AI parte a 11 px e le viste terminale ricevono lo stato di at
 })
 
 test('il terminale AI viene rifatto al ritorno nella tab e non eccede orizzontalmente', () => {
-  const app = readAppSource()
+  const runtime = fs.readFileSync(path.join(__dirname, '../src/features/ai/hooks/use-ai-terminal-runtime.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
 
-  assert.match(app, /appSection !== 'ai' \|\| aiTab !== 'terminal'/)
-  assert.match(app, /fitAddon\.current\?\.fit\(\)/)
-  assert.match(app, /const xterm = getTerminal\(\)[\s\S]{0,180}appBridge\.terminal\.resize\(\{ cols: xterm\.cols, rows: xterm\.rows \}\)/)
+  assert.match(runtime, /if \(!workspace \|\| !active \|\| !getTerminal\(\)\) return/)
+  assert.match(runtime, /fitAddon\.current\?\.fit\(\)/)
+  assert.match(runtime, /const xterm = getTerminal\(\)[\s\S]{0,180}aiBridge\.terminal\.resize\(\{ cols: xterm\.cols, rows: xterm\.rows \}\)/)
   assert.match(styles, /workspace:\s*css\(\{[\s\S]*?minW:\s*'0'/)
   assert.match(styles, /surface:\s*css\(\{[\s\S]*?minW:\s*'0'/)
 })
@@ -949,12 +949,12 @@ test('il Terminale AI misura xterm dentro un host flessibile senza tagliare l ul
 })
 
 test('il reload di Pi ripristina la geometria completa di xterm e non espone il viewport nero predefinito', () => {
-  const app = readAppSource()
+  const runtime = fs.readFileSync(path.join(__dirname, '../src/features/ai/hooks/use-ai-terminal-runtime.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
   const bridge = fs.readFileSync(path.join(__dirname, '../src/styles/views/terminal.css'), 'utf8')
 
-  assert.match(app, /await appBridge\.pi\.reload\(\)[\s\S]*scheduleVisibleTerminalRefit/)
-  assert.match(app, /window\.setTimeout\(refitAfterReload, 160\)/)
+  assert.match(runtime, /await aiBridge\.pi\.reload\(\)[\s\S]*scheduleVisibleTerminalRefit/)
+  assert.match(runtime, /window\.setTimeout\(refitAfterReload, 160\)/)
   assert.match(styles, /xtermHost:\s*css\(\{[\s\S]*?h:\s*'full'[\s\S]*?w:\s*'full'/)
   assert.match(bridge, /\[data-xterm-host\] \.xterm\s*\{[^}]*width:\s*100%[^}]*height:\s*100%/)
   assert.match(bridge, /\[data-xterm-host\] \.xterm \.xterm-viewport\s*\{[^}]*background:\s*var\(--code-surface\)/)

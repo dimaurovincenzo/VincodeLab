@@ -1,6 +1,4 @@
-export { aiBridge } from './api/ai.bridge'
-export { TerminalAttachments, type TerminalContextAction } from './components/terminal-attachments'
+export { AiWorkbench } from './components/ai-workbench'
 export { TerminalDiagnostics } from './components/terminal-diagnostics'
-
-export const loadProjectInstructions = () => import('./components/project-instructions')
-export const loadProjectSkills = () => import('./components/project-skills')
+export { useAiRuntime } from './hooks/use-ai-runtime'
+export type { AiSessionFailure, AiTab, LaunchState, TerminalContextAction } from './model/ai-runtime.types'

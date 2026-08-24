@@ -2,16 +2,10 @@ import { Paperclip, Send, X } from 'lucide-react'
 import { useRef, useState, type MouseEvent } from 'react'
 import { Button, ErrorNotice, FileUpload, IconButton, Spinner, toast, type FileUploadFileChangeDetails } from '@/components/ui'
 import { aiBridge } from '../api/ai.bridge'
+import type { TerminalContextAction } from '../model/ai-runtime.types'
 import { normalizeUserError, reportUserError } from '@/lib/user-error'
 import { terminalStyles } from '@/theme/styles/terminal'
 
-export type TerminalContextAction = {
-  id: string
-  label: string
-  description: string
-  disabled?: boolean
-  onSelect: () => void
-}
 type TerminalAttachmentsProps = {
   contextActions?: TerminalContextAction[]
   onInsert: (reference: string) => void | Promise<void>

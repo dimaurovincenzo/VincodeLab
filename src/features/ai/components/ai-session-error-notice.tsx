@@ -1,5 +1,5 @@
 import { ErrorNotice } from '@/components/ui'
-import type { AiFailureAction, AiFailureRecovery, AiSessionFailure } from '../model/app-controller.types'
+import type { AiFailureAction, AiFailureRecovery, AiSessionFailure } from '../model/ai-runtime.types'
 
 export function AiSessionErrorNotice({ failure, onOpenSettings, onReload, onRestart, onResumeOutput, onRetryTerminal }: {
   failure: AiSessionFailure

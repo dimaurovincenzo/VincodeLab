@@ -2,7 +2,6 @@
 /// <reference path="../../src/vincode-lab.d.ts" />
 
 import { act, renderHook, waitFor } from '@testing-library/react'
-import type { Terminal } from '@xterm/xterm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppNavigation } from '@/app/hooks/use-app-navigation'
 import { useWorkspaceCloseGuards } from '@/app/hooks/use-workspace-close-guards'
@@ -63,8 +62,7 @@ describe('hook della shell applicativa', () => {
 
   it('mantiene viste visitate e cronologia file senza rimontare la navigazione', () => {
     const history = new WorkbenchUsageHistory({ storage: createMemoryHistoryStorage(), now: () => 42 })
-    const terminal = { current: null } as React.RefObject<Terminal | null>
-    const { result } = renderHook(() => useAppNavigation({ terminal, usageHistory: history, workspace: '/tmp/demo' }))
+    const { result } = renderHook(() => useAppNavigation({ usageHistory: history, workspace: '/tmp/demo' }))
 
     act(() => {
       result.current.selectAppSection('database')
@@ -80,5 +78,9 @@ describe('hook della shell applicativa', () => {
     act(() => { result.current.openGitDiffForFile('src/main.ts') })
     expect(result.current.appSection).toBe('github')
     expect(result.current.githubWorkbenchRequest).toMatchObject({ kind: 'open-file-diff', filePath: 'src/main.ts' })
+
+    act(() => { result.current.navigateToAppSection('ai', true) })
+    expect(result.current.aiTab).toBe('terminal')
+    expect(result.current.aiFocusRequest).toBeGreaterThan(0)
   })
 })

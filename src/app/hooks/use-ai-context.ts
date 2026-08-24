@@ -2,8 +2,8 @@ import { useCallback, useMemo } from 'react'
 import { appBridge } from '@/app/api/app.bridge'
 import { toast } from '@/components/ui'
 import type { TerminalContextAction } from '@/features/ai'
+import { reportTransientFailure } from '@/lib/renderer-error'
 import type { AiInputFailureContext, AppSection, WorkbenchCommandContext } from '../model/app-controller.types'
-import { reportTransientFailure } from '../services/app-controller-errors'
 
 type UseAiContextOptions = {
   databaseContext: WorkbenchCommandContext['database']

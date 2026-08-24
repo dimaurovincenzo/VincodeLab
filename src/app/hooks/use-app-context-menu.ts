@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { appBridge } from '@/app/api/app.bridge'
+import { reportTransientFailure } from '@/lib/renderer-error'
 import { WorkbenchCommandRegistry } from '@/lib/workbench-command-registry'
 import type { WorkbenchCommandContext } from '../model/app-controller.types'
-import { reportTransientFailure } from '../services/app-controller-errors'
 
 type UseAppContextMenuOptions = {
   commandRegistry: WorkbenchCommandRegistry<WorkbenchCommandContext>

@@ -1,13 +1,13 @@
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { Terminal } from '@xterm/xterm'
-import { appBridge } from '@/app/api/app.bridge'
 import { terminalFontFamily } from '@/lib/app-preferences'
 import { scheduleVisibleTerminalRefit } from '@/lib/terminal-activation.js'
 import { createAnimationFrameResizeScheduler } from '@/lib/terminal-resize.js'
 import { shouldFollowTerminalOutput } from '@/lib/terminal-viewport.js'
 import { createXtermOutputController, type XtermOutputController } from '@/lib/xterm-output-controller.js'
 import { readXtermTheme } from '@/lib/xterm-theme'
-import type { AiSessionFailure, FitAddonInstance, LaunchState, SearchAddonInstance } from '../model/app-controller.types'
+import { aiBridge } from '../api/ai.bridge'
+import type { AiSessionFailure, FitAddonInstance, LaunchState, SearchAddonInstance } from '../model/ai-runtime.types'
 import type { AiFailureController } from './use-ai-failure'
 
 type MutableRef<T> = RefObject<T> & { current: T }
@@ -92,7 +92,7 @@ export function useAiTerminalInstance({
         const nextDimensions = { cols: xterm.cols, rows: xterm.rows }
         if (nextDimensions.cols === dimensions.cols && nextDimensions.rows === dimensions.rows) return
         dimensions = nextDimensions
-        appBridge.terminal.resize(nextDimensions)
+        aiBridge.terminal.resize(nextDimensions)
       }
       const resizeScheduler = createAnimationFrameResizeScheduler(fit)
       const resizeObserver = new ResizeObserver(resizeScheduler.schedule)
@@ -103,8 +103,8 @@ export function useAiTerminalInstance({
 
       const controller = createXtermOutputController({
         write: (data, done) => xterm.write(data, done),
-        ack: appBridge.terminal.ack,
-        ready: appBridge.terminal.ready,
+        ack: aiBridge.terminal.ack,
+        ready: aiBridge.terminal.ready,
         onRendered: () => {
           if (shouldFollowTerminalOutput({ viewportY: xterm.buffer.active.viewportY, baseY: xterm.buffer.active.baseY })) xterm.scrollToBottom()
           else updateHasUnreadTerminalOutput(true)
@@ -118,9 +118,9 @@ export function useAiTerminalInstance({
         }),
       })
       outputController.current = controller
-      const unsubscribeOutput = appBridge.terminal.onOutput((block) => controller.accept(block))
-      const unsubscribeStreamState = appBridge.terminal.onStreamState(updateTerminalStreamState)
-      void appBridge.terminal.resume({}).then((snapshot) => {
+      const unsubscribeOutput = aiBridge.terminal.onOutput((block) => controller.accept(block))
+      const unsubscribeStreamState = aiBridge.terminal.onStreamState(updateTerminalStreamState)
+      void aiBridge.terminal.resume({}).then((snapshot) => {
         controller.restore(snapshot)
         clearAiFailure('restore-ai-output')
       }).catch((nextError) => {
@@ -135,7 +135,7 @@ export function useAiTerminalInstance({
         })
       })
 
-      const inputDisposable = xterm.onData(appBridge.terminal.writeKey)
+      const inputDisposable = xterm.onData(aiBridge.terminal.writeKey)
       const scrollDisposable = xterm.onScroll(() => updateHasUnreadTerminalOutput(!shouldFollowTerminalOutput({ viewportY: xterm.buffer.active.viewportY, baseY: xterm.buffer.active.baseY })))
       xterm.focus()
       cleanup = () => {

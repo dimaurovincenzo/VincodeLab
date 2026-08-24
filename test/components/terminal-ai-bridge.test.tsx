@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { aiBridge } from '@/features/ai'
+import { aiBridge } from '@/features/ai/api/ai.bridge'
 import { terminalBridge } from '@/features/terminal'
 
 const originalBridge = window.vincodeLab

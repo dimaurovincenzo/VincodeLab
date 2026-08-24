@@ -892,6 +892,7 @@ interface Window {
       updateConnection: (id: string, input: DatabaseConnectionInput) => Promise<DatabaseConnection>
       deleteConnection: (id: string) => Promise<{ deleted: true }>
       connect: (id: string) => Promise<{ connected: true }>
+      disconnect: (id: string) => Promise<{ disconnected: true }>
       execute: (id: string, sql: string, options: { operationId: string; confirmed?: boolean; offset?: number; limit?: number; timeoutMs?: number }) => Promise<DatabaseQueryResult>
       cancel: (operationId: string) => Promise<DatabaseCancelResult>
       begin: (id: string) => Promise<{ active: true }>

@@ -12,7 +12,5 @@ export const appBridge = {
   get contextMenu() { return getVincodeLabBridge().contextMenu },
   get files() { return getVincodeLabBridge().files },
   get lifecycle() { return getVincodeLabBridge().lifecycle },
-  get pi() { return getVincodeLabBridge().pi },
-  get terminal() { return getVincodeLabBridge().terminal },
   get workspace() { return getVincodeLabBridge().workspace },
 }

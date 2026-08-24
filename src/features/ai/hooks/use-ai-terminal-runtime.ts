@@ -1,24 +1,24 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { Terminal } from '@xterm/xterm'
-import { appBridge } from '@/app/api/app.bridge'
 import { toast } from '@/components/ui'
 import { terminalFontFamily } from '@/lib/app-preferences'
+import { reportRendererFailure, reportTransientFailure, showUserErrorToast } from '@/lib/renderer-error'
 import { scheduleVisibleTerminalRefit } from '@/lib/terminal-activation.js'
 import { nextTerminalFontSize, readTerminalPreferences, writeTerminalPreferences } from '@/lib/terminal-preferences.js'
 import { suppressGlobalTerminalShortcut } from '@/lib/workbench-shortcuts'
 import type { XtermOutputController } from '@/lib/xterm-output-controller.js'
 import { observeXtermTheme } from '@/lib/xterm-theme'
-import type { AiSessionFailure, AppSection, FitAddonInstance, LaunchState, SearchAddonInstance } from '../model/app-controller.types'
-import { reportRendererFailure, reportTransientFailure, showUserErrorToast } from '../services/app-controller-errors'
+import { aiBridge } from '../api/ai.bridge'
+import type { AiSessionFailure, FitAddonInstance, LaunchState, SearchAddonInstance } from '../model/ai-runtime.types'
 import type { AiFailureController } from './use-ai-failure'
 import { useAiTerminalInstance } from './use-ai-terminal-instance'
 import { useAiTerminalPaste } from './use-ai-terminal-paste'
 
 type UseAiTerminalRuntimeOptions = {
+  active: boolean
   aiFailureRef: RefObject<AiSessionFailure | null>
-  aiTab: 'terminal' | 'skills' | 'instructions'
-  appSection: AppSection
   clearAiFailure: AiFailureController['clearAiFailure']
+  focusRequest: number
   getTerminal: () => Terminal | null
   getTerminalElement: () => HTMLDivElement | null
   paletteOpen: boolean
@@ -35,10 +35,10 @@ type UseAiTerminalRuntimeOptions = {
 }
 
 export function useAiTerminalRuntime({
+  active,
   aiFailureRef,
-  aiTab,
-  appSection,
   clearAiFailure,
+  focusRequest,
   getTerminal,
   getTerminalElement,
   paletteOpen,
@@ -137,12 +137,12 @@ export function useAiTerminalRuntime({
 
   const reloadPi = useCallback(async function reloadPiAction() {
     try {
-      await appBridge.pi.reload()
+      await aiBridge.pi.reload()
       const refitAfterReload = () => {
         const xterm = getTerminal()
         if (!xterm) return
         fitAddon.current?.fit()
-        appBridge.terminal.resize({ cols: xterm.cols, rows: xterm.rows })
+        aiBridge.terminal.resize({ cols: xterm.cols, rows: xterm.rows })
       }
       scheduleVisibleTerminalRefit(refitAfterReload)
       window.setTimeout(refitAfterReload, 160)
@@ -162,7 +162,7 @@ export function useAiTerminalRuntime({
   const restartPi = useCallback(async () => {
     setStatus('launching')
     try {
-      await appBridge.pi.restart()
+      await aiBridge.pi.restart()
     } catch (nextError) {
       publishAiFailure(nextError, {
         operation: 'restart-ai-session',
@@ -188,7 +188,7 @@ export function useAiTerminalRuntime({
       return
     }
     try {
-      await controller.reconnect(() => appBridge.terminal.resume({}))
+      await controller.reconnect(() => aiBridge.terminal.resume({}))
       toast.success('Sessione Pi riavviata')
     } catch (nextError) {
       publishAiFailure(nextError, {
@@ -215,7 +215,7 @@ export function useAiTerminalRuntime({
     }
     const attemptedFailure = aiFailureRef.current
     try {
-      await controller.reconnect(() => appBridge.terminal.resume({}))
+      await controller.reconnect(() => aiBridge.terminal.resume({}))
       if (aiFailureRef.current === attemptedFailure) clearAiFailure()
     } catch (nextError) {
       publishAiFailure(nextError, {
@@ -267,7 +267,7 @@ export function useAiTerminalRuntime({
     updateHasUnreadTerminalOutput(false)
   }, [getTerminal, updateHasUnreadTerminalOutput])
 
-  useEffect(() => appBridge.terminal.onExit(({ exitCode, signal }) => {
+  useEffect(() => aiBridge.terminal.onExit(({ exitCode, signal }) => {
     setStatus(exitCode === 0 && !signal ? 'ended' : 'error')
     if (exitCode === 0 && !signal) {
       showEndedAiSession()
@@ -291,7 +291,7 @@ export function useAiTerminalRuntime({
   }), [publishAiFailure, setStatus, showEndedAiSession])
 
   useEffect(() => {
-    const subscribe = appBridge.terminal.onError
+    const subscribe = aiBridge.terminal.onError
     if (!subscribe) return
     return subscribe((event) => {
       if (event.operation === 'resize') {
@@ -311,7 +311,7 @@ export function useAiTerminalRuntime({
             const xterm = getTerminal()
             if (!xterm) return
             fitAddon.current?.fit()
-            appBridge.terminal.resize({ cols: xterm.cols, rows: xterm.rows })
+            aiBridge.terminal.resize({ cols: xterm.cols, rows: xterm.rows })
           },
         })
         return
@@ -353,29 +353,34 @@ export function useAiTerminalRuntime({
   }, [fontSize, getTerminal])
 
   useEffect(() => {
-    if (!workspace || appSection !== 'ai' || aiTab !== 'terminal' || !getTerminal()) return
+    if (!workspace || !active || !getTerminal()) return
     return scheduleVisibleTerminalRefit(() => {
       fitAddon.current?.fit()
       const xterm = getTerminal()
-      if (xterm) appBridge.terminal.resize({ cols: xterm.cols, rows: xterm.rows })
+      if (xterm) aiBridge.terminal.resize({ cols: xterm.cols, rows: xterm.rows })
     })
-  }, [aiTab, appSection, getTerminal, workspace])
+  }, [active, getTerminal, workspace])
 
   useEffect(() => {
-    if (appSection !== 'ai' || aiTab !== 'terminal') return
+    if (!active) return
     const report = () => {
       const metrics = outputController.current?.metrics()
-      if (metrics) appBridge.terminal.reportRendererMetrics(metrics)
+      if (metrics) aiBridge.terminal.reportRendererMetrics(metrics)
     }
     report()
     const intervalId = window.setInterval(report, 2_000)
     return () => window.clearInterval(intervalId)
-  }, [aiTab, appSection, terminalRendererGeneration])
+  }, [active, terminalRendererGeneration])
+
+  useEffect(() => {
+    if (!active || focusRequest <= 0) return
+    requestAnimationFrame(() => getTerminal()?.focus())
+  }, [active, focusRequest, getTerminal])
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
       const xterm = getTerminal()
-      if (!workspace || appSection !== 'ai' || aiTab !== 'terminal' || paletteOpen || (!event.metaKey && !event.ctrlKey) || suppressGlobalTerminalShortcut(event.target)) return
+      if (!workspace || !active || paletteOpen || (!event.metaKey && !event.ctrlKey) || suppressGlobalTerminalShortcut(event.target)) return
       if (event.key.toLowerCase() === 'f') { event.preventDefault(); setTerminalSearchOpen(true) }
       if (event.key === '+' || event.key === '=') { event.preventDefault(); changeFontSize(1) }
       if (event.key === '-') { event.preventDefault(); changeFontSize(-1) }
@@ -386,7 +391,7 @@ export function useAiTerminalRuntime({
     }
     window.addEventListener('keydown', handleShortcut)
     return () => window.removeEventListener('keydown', handleShortcut)
-  }, [aiTab, appSection, changeFontSize, clearTerminal, copyTerminalSelection, getTerminal, paletteOpen, pasteIntoTerminal, resetTerminalZoom, workspace])
+  }, [active, changeFontSize, clearTerminal, copyTerminalSelection, getTerminal, paletteOpen, pasteIntoTerminal, resetTerminalZoom, workspace])
 
   useAiTerminalInstance({
     aiFailureRef,
@@ -427,7 +432,7 @@ export function useAiTerminalRuntime({
   }, [getTerminal, preferredTerminalCursorStyle, preferredTerminalFontFamily, preferredTerminalFontSize, preferredTerminalScrollback])
 
   const sendAiInput = useCallback(async (data: string) => {
-    await appBridge.terminal.writeInput(data)
+    await aiBridge.terminal.writeInput(data)
     getTerminal()?.focus()
   }, [getTerminal])
 

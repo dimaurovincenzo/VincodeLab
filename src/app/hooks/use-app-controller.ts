@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
-import type { Terminal } from '@xterm/xterm'
 import type { CommandPaletteMode } from '@/components/command-palette'
+import { useAiRuntime } from '@/features/ai'
 import { effectivePreference, useAppPreferences } from '@/lib/app-preferences'
 import { WorkbenchCommandRegistry } from '@/lib/workbench-command-registry'
 import { WorkbenchUsageHistory } from '@/lib/workbench-history'
@@ -17,9 +17,7 @@ import { useWorkspacePersistence } from './use-workspace-persistence'
 import { useWorkspaceCloseGuards } from './use-workspace-close-guards'
 import { useWorkbenchCommands } from './use-workbench-commands'
 import { useWorkspaceLifecycle, useWorkspaceLifecycleState } from './use-workspace-lifecycle'
-import { useAiFailure } from './use-ai-failure'
 import { useAppAppearance } from './use-app-appearance'
-import { useAiTerminalRuntime } from './use-ai-terminal-runtime'
 import { useAiContext } from './use-ai-context'
 
 export function useAppController() {
@@ -38,11 +36,6 @@ export function useAppController() {
   const preferredTerminalFontFamily = effectivePreference(appPreferences, 'terminal.fontFamily', 'system-mono')
   const preferredTerminalCursorStyle = effectivePreference(appPreferences, 'terminal.cursorStyle', 'bar') as 'bar' | 'block' | 'underline'
   const preferredTerminalScrollback = effectivePreference(appPreferences, 'terminal.scrollback', 10_000)
-  const terminalElement = useRef<HTMLDivElement>(null)
-  const terminal = useRef<Terminal | null>(null)
-  const getTerminal = useCallback(() => terminal.current, [])
-  const getTerminalElement = useCallback(() => terminalElement.current, [])
-  const setTerminalInstance = useCallback((instance: Terminal | null) => { terminal.current = instance }, [])
   const lifecycleState = useWorkspaceLifecycleState()
   const {
     homeFailure,
@@ -54,6 +47,7 @@ export function useAppController() {
     workspaceOpenFailure,
   } = lifecycleState
   const {
+    aiFocusRequest,
     aiTab,
     appSection,
     databaseContext,
@@ -88,7 +82,7 @@ export function useAppController() {
     terminalActionRequest,
     terminalFocusRequest,
     view,
-  } = useAppNavigation({ terminal, usageHistory, workspace })
+  } = useAppNavigation({ usageHistory, workspace })
   const {
     flushUntilClean,
     recoverWorkspaceSession,
@@ -105,7 +99,6 @@ export function useAppController() {
     workspaceSessionRecovery,
     workspaceSessionState,
   } = useWorkspacePersistence({ aiTab, appSection, workspace })
-  const { aiFailure, aiFailureRef, clearAiFailure, publishAiFailure, restoreAiFailure, showEndedAiSession } = useAiFailure()
   const { appearance, changeAppearance } = useAppAppearance(selectAppSection)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [paletteMode, setPaletteMode] = useState<CommandPaletteMode>('commands')
@@ -122,52 +115,16 @@ export function useAppController() {
     fileIndexRequest.current += 1
     setPaletteOpen(false)
   }, [])
-  const {
-    cancelTerminalPaste,
-    changeFontSize,
-    clearTerminal,
-    closeTerminalPasteStatus,
-    closeTerminalSearch,
-    copyTerminalSelection,
-    fontSize,
-    hasUnreadTerminalOutput,
-    loadAiTerminalPreferences,
-    pasteFailure,
-    pasteIntoTerminal,
-    pasteProgress,
-    recoverTerminalPaste,
-    reloadPi,
-    resetTerminalZoom,
-    restartPi,
-    retryAiOutput,
-    retryAiTerminal,
-    revealTerminalOutput,
-    searchAddon,
-    sendAiInput,
-    setTerminalQuery,
-    setTerminalSearchOpen,
-    streamState,
-    terminalQuery,
-    terminalSearchOpen,
-    updateHasUnreadTerminalOutput,
-    updateTerminalStreamState,
-  } = useAiTerminalRuntime({
-    aiFailureRef,
-    aiTab,
-    appSection,
-    clearAiFailure,
-    getTerminal,
-    getTerminalElement,
+  const aiRuntime = useAiRuntime({
+    active: appSection === 'ai' && aiTab === 'terminal',
+    focusRequest: aiFocusRequest,
     paletteOpen,
     preferredTerminalCursorStyle,
     preferredTerminalFontFamily,
     preferredTerminalFontSize,
     preferredTerminalScrollback,
-    publishAiFailure,
     setStatus,
-    setTerminalInstance,
-    showEndedAiSession,
-    terminal,
+    status,
     workspace,
   })
 
@@ -179,20 +136,20 @@ export function useAppController() {
     refreshRecents,
     revealWorkspace,
   } = useWorkspaceLifecycle({
-    aiFailure,
-    clearAiFailure,
+    aiFailure: aiRuntime.aiFailure,
+    clearAiFailure: aiRuntime.clearAiFailure,
     lifecycleState,
-    loadAiTerminalPreferences,
-    publishAiFailure,
+    loadAiTerminalPreferences: aiRuntime.loadAiTerminalPreferences,
+    publishAiFailure: aiRuntime.publishAiFailure,
     resetCommandSurfaceForWorkspace,
     resetNavigationForWorkspace,
     resetWorkspaceSession,
-    restoreAiFailure,
+    restoreAiFailure: aiRuntime.restoreAiFailure,
     restoreNavigation,
     restoreWorkspaceSession,
     setWorkspaceSessionRecovery,
-    updateHasUnreadTerminalOutput,
-    updateTerminalStreamState,
+    updateHasUnreadTerminalOutput: aiRuntime.updateHasUnreadTerminalOutput,
+    updateTerminalStreamState: aiRuntime.updateTerminalStreamState,
     workspaceSession,
   })
 
@@ -226,17 +183,17 @@ export function useAppController() {
     editorContext,
     githubContext,
     navigateToAppSection,
-    sendAiInput,
+    sendAiInput: aiRuntime.sendAiInput,
   })
 
 
   const { paletteItems, selectPaletteItem } = useWorkbenchCommands({
     aiTab,
     appSection,
-    changeFontSize,
-    clearTerminal,
+    changeFontSize: aiRuntime.changeFontSize,
+    clearTerminal: aiRuntime.clearTerminal,
     commandRegistry,
-    copyTerminalSelection,
+    copyTerminalSelection: aiRuntime.copyTerminalSelection,
     databaseContext,
     editorContext,
     beginFileIndexRequest,
@@ -250,16 +207,17 @@ export function useAppController() {
     openWorkspaceFile,
     paletteMode,
     paletteOpen,
-    pasteIntoTerminal,
+    pasteIntoTerminal: aiRuntime.pasteIntoTerminal,
     recents,
     redisContext,
-    reloadPi,
+    reloadPi: aiRuntime.reloadPi,
     requestEditorAction,
     requestTerminalAction,
-    resetTerminalZoom,
-    restartPi,
+    resetTerminalZoom: aiRuntime.resetTerminalZoom,
+    restartPi: aiRuntime.restartPi,
     revealWorkspace,
     saveWorkspaceGuardScope,
+    selectAllTerminal: aiRuntime.selectAllTerminal,
     selectAiTab,
     selectAppSection,
     sendEditorContextToAi,
@@ -267,8 +225,7 @@ export function useAppController() {
     setIndexingFiles,
     setPaletteMode,
     setPaletteOpen,
-    setTerminalSearchOpen,
-    terminal,
+    setTerminalSearchOpen: aiRuntime.setTerminalSearchOpen,
     usageHistory,
     workspace,
   })
@@ -276,35 +233,25 @@ export function useAppController() {
 
 
   const filteredRecents = recents.filter((recent) => recent.path.toLocaleLowerCase('it-IT').includes(search.toLocaleLowerCase('it-IT')))
-  const terminalStatus = status === 'running' ? 'Pi pronto' : status === 'launching' ? 'Avvio Pi…' : status === 'ended' ? 'Sessione terminata' : status === 'error' ? 'Errore Pi' : 'In attesa'
-
   return {
     aiContextActions,
-    aiFailure,
+    aiRuntime,
     aiTab,
     appSection,
     appearance,
     cancelLifecycleClose,
-    cancelTerminalPaste,
     changeAppearance,
-    changeFontSize,
-    clearTerminal,
-    closeTerminalPasteStatus,
-    closeTerminalSearch,
     completeLifecycleClose,
-    copyTerminalSelection,
     databaseFocusRequest,
     discardAndChangeWorkspace,
     editorWorkbenchRequest,
     filteredRecents,
-    fontSize,
     githubWorkbenchRequest,
     handleDatabaseWorkspaceGuardChange,
     handleEditorWorkspaceGuardChange,
     handleInstructionsWorkspaceGuardChange,
     handleSettingsWorkspaceGuardChange,
     handleSkillsWorkspaceGuardChange,
-    hasUnreadTerminalOutput,
     homeFailure,
     indexingFiles,
     lifecycleCloseRequest,
@@ -319,31 +266,20 @@ export function useAppController() {
     paletteItems,
     paletteMode,
     paletteOpen,
-    pasteFailure,
-    pasteIntoTerminal,
-    pasteProgress,
     recents,
-    recoverTerminalPaste,
     recoverWorkspaceSession,
     redisFocusRequest,
     refreshRecents,
     refreshWorkspaceSessionForRecovery,
-    reloadPi,
     remoteOpenRequest,
     requestWorkspaceChange,
-    resetTerminalZoom,
-    restartPi,
-    retryAiOutput,
-    retryAiTerminal,
     saveAndChangeWorkspace,
     savingBeforeLifecycleClose,
     savingBeforeWorkspaceChange,
     search,
-    searchAddon,
     selectAiTab,
     selectAppSection,
     selectPaletteItem,
-    sendAiInput,
     sendEditorContextToAi,
     setDatabaseContext,
     setEditorContext,
@@ -351,19 +287,12 @@ export function useAppController() {
     setPaletteOpen,
     setRedisContext,
     setSearch,
-    setTerminalQuery,
-    setTerminalSearchOpen,
     setView,
     setWorkspaceChangeRequest,
     settingsRuntimeRequest,
     status,
-    streamState,
     terminalActionRequest,
-    terminalElement,
     terminalFocusRequest,
-    terminalQuery,
-    terminalSearchOpen,
-    terminalStatus,
     updateDatabaseSession,
     updateEditorSession,
     updateGitHubSession,
@@ -376,7 +305,6 @@ export function useAppController() {
     workspaceSessionRecovery,
     workspaceSessionState,
     openGitDiffForFile,
-    revealTerminalOutput,
   }
 }
 

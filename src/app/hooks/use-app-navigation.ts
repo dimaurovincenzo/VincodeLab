@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
-import type { Terminal } from '@xterm/xterm'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { appBridge } from '@/app/api/app.bridge'
 import type { DatabaseWorkbenchContext } from '@/features/database'
 import type { EditorWorkbenchContext, EditorWorkbenchRequest, RemoteOpenRequest } from '@/features/editor'
@@ -17,12 +16,11 @@ import {
 } from '../model/app-controller.types'
 
 type UseAppNavigationOptions = {
-  terminal: RefObject<Terminal | null>
   usageHistory: WorkbenchUsageHistory
   workspace: string | null
 }
 
-export function useAppNavigation({ terminal, usageHistory, workspace }: UseAppNavigationOptions) {
+export function useAppNavigation({ usageHistory, workspace }: UseAppNavigationOptions) {
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'grid' | 'list'>('list')
   const [aiTab, setAiTab] = useState<'terminal' | 'skills' | 'instructions'>('terminal')
@@ -35,6 +33,7 @@ export function useAppNavigation({ terminal, usageHistory, workspace }: UseAppNa
   const [redisContext, setRedisContext] = useState<RedisWorkbenchContext>(emptyRedisContext)
   const [editorWorkbenchRequest, setEditorWorkbenchRequest] = useState<EditorWorkbenchRequest | null>(null)
   const [githubWorkbenchRequest, setGitHubWorkbenchRequest] = useState<GitHubWorkbenchRequest | null>(null)
+  const [aiFocusRequest, setAiFocusRequest] = useState(0)
   const [terminalFocusRequest, setTerminalFocusRequest] = useState(0)
   const [terminalActionRequest, setTerminalActionRequest] = useState<TerminalWorkspaceActionRequest | undefined>()
   const [databaseFocusRequest, setDatabaseFocusRequest] = useState(0)
@@ -60,14 +59,14 @@ export function useAppNavigation({ terminal, usageHistory, workspace }: UseAppNa
     const nonce = workbenchRequestNonce.current
     if (section === 'ai') {
       selectAiTab('terminal')
-      requestAnimationFrame(() => terminal.current?.focus())
+      setAiFocusRequest(nonce)
     }
     if (section === 'editor') setEditorWorkbenchRequest({ kind: 'focus-editor', nonce })
     if (section === 'terminal') setTerminalFocusRequest(nonce)
     if (section === 'github') setGitHubWorkbenchRequest({ kind: 'focus-primary', nonce })
     if (section === 'database') setDatabaseFocusRequest(nonce)
     if (section === 'redis') setRedisFocusRequest(nonce)
-  }, [selectAiTab, selectAppSection, terminal])
+  }, [selectAiTab, selectAppSection])
 
   const requestEditorAction = useCallback((kind: Exclude<EditorWorkbenchRequest['kind'], 'open-file'>) => {
     selectAppSection('editor')
@@ -140,6 +139,7 @@ export function useAppNavigation({ terminal, usageHistory, workspace }: UseAppNa
   }, [aiTab, appSection, workspace])
 
   return {
+    aiFocusRequest,
     aiTab,
     appSection,
     databaseContext,

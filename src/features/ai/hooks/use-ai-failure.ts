@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { normalizeUserError, reportUserError } from '@/lib/user-error'
-import type { AiFailureContext, AiSessionFailure } from '../model/app-controller.types'
-import { normalizeAiSessionFailure, sameAiSessionFailure } from '../services/app-controller-errors'
+import type { AiFailureContext, AiSessionFailure } from '../model/ai-runtime.types'
+import { normalizeAiSessionFailure, sameAiSessionFailure } from '../services/ai-error'
 
 export function useAiFailure() {
   const aiFailureRef = useRef<AiSessionFailure | null>(null)

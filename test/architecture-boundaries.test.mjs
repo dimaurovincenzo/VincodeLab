@@ -139,6 +139,18 @@ test('impedisce import e ricreazione dei path legacy rimossi', () => {
   })
 })
 
+test('impedisce al runtime AI di tornare nella composition root renderer', () => {
+  withFixture({
+    'src/app/components/ai-workbench.tsx': 'export const AiWorkbench = {}\n',
+    'src/app/hooks/use-ai-failure.ts': 'export const useAiFailure = () => ({})\n',
+    'src/app/hooks/use-ai-terminal-runtime.ts': 'export const useAiTerminalRuntime = () => ({})\n',
+  }, (problems) => {
+    assert.ok(problems.some((problem) => problem.includes('src/app/components/ai-workbench.tsx: path legacy rimosso ricreato; usa "src/features/ai"')))
+    assert.ok(problems.some((problem) => problem.includes('src/app/hooks/use-ai-failure.ts: path legacy rimosso ricreato; usa "src/features/ai"')))
+    assert.ok(problems.some((problem) => problem.includes('src/app/hooks/use-ai-terminal-runtime.ts: path legacy rimosso ricreato; usa "src/features/ai"')))
+  })
+})
+
 test('rileva cicli tra moduli interni', () => {
   withFixture({
     'src/shared/a.ts': "import { b } from './b'\nexport const a = b\n",

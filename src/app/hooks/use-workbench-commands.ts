@@ -1,13 +1,12 @@
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
-import type { Terminal } from '@xterm/xterm'
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { appBridge } from '@/app/api/app.bridge'
 import type { CommandPaletteItem, CommandPaletteMode } from '@/components/command-palette'
 import type { EditorWorkbenchRequest } from '@/features/editor'
 import type { TerminalWorkspaceAction } from '@/features/terminal'
 import { dispatchApplicationMenuCommand } from '@/lib/app-menu-command'
+import { reportRendererFailure, reportTransientFailure } from '@/lib/renderer-error'
 import { WorkbenchCommandRegistry, type WorkbenchCommand } from '@/lib/workbench-command-registry'
 import { WorkbenchUsageHistory } from '@/lib/workbench-history'
-import { reportRendererFailure, reportTransientFailure } from '../services/app-controller-errors'
 import type { AppSection, WorkbenchCommandContext, WorkspaceGuardScope } from '../model/app-controller.types'
 
 type UseWorkbenchCommandsOptions = {
@@ -40,6 +39,7 @@ type UseWorkbenchCommandsOptions = {
   restartPi: () => void | Promise<void>
   revealWorkspace: () => void | Promise<void>
   saveWorkspaceGuardScope: (scope: WorkspaceGuardScope) => Promise<void>
+  selectAllTerminal: () => void
   selectAiTab: (tab: WorkbenchCommandContext['aiTab']) => void
   selectAppSection: (section: AppSection) => void
   sendEditorContextToAi: (includeSelection: boolean) => void
@@ -48,7 +48,6 @@ type UseWorkbenchCommandsOptions = {
   setPaletteMode: Dispatch<SetStateAction<CommandPaletteMode>>
   setPaletteOpen: Dispatch<SetStateAction<boolean>>
   setTerminalSearchOpen: Dispatch<SetStateAction<boolean>>
-  terminal: RefObject<Terminal | null>
   usageHistory: WorkbenchUsageHistory
   workspace: string | null
 }
@@ -87,6 +86,7 @@ export function useWorkbenchCommands({
   restartPi,
   revealWorkspace,
   saveWorkspaceGuardScope,
+  selectAllTerminal,
   selectAiTab,
   selectAppSection,
   sendEditorContextToAi,
@@ -95,7 +95,6 @@ export function useWorkbenchCommands({
   setPaletteMode,
   setPaletteOpen,
   setTerminalSearchOpen,
-  terminal,
   usageHistory,
   workspace,
 }: UseWorkbenchCommandsOptions) {
@@ -204,7 +203,7 @@ export function useWorkbenchCommands({
       { id: 'ai.copy', title: 'Copia selezione Terminale AI', category: 'AI', when: (context) => context.hasWorkspace && context.section === 'ai' && context.aiTab === 'terminal', run: () => copyTerminalSelection() },
       { id: 'ai.paste', title: 'Incolla nel Terminale AI', category: 'AI', when: (context) => context.hasWorkspace && context.section === 'ai' && context.aiTab === 'terminal', run: () => pasteIntoTerminal() },
       { id: 'ai.search', title: 'Cerca nel Terminale AI', category: 'AI', when: (context) => context.hasWorkspace && context.section === 'ai' && context.aiTab === 'terminal', run: () => setTerminalSearchOpen(true) },
-      { id: 'ai.selectAll', title: 'Seleziona tutto nel Terminale AI', category: 'AI', when: (context) => context.hasWorkspace && context.section === 'ai' && context.aiTab === 'terminal', run: () => { terminal.current?.selectAll(); terminal.current?.focus() } },
+      { id: 'ai.selectAll', title: 'Seleziona tutto nel Terminale AI', category: 'AI', when: (context) => context.hasWorkspace && context.section === 'ai' && context.aiTab === 'terminal', run: selectAllTerminal },
       { id: 'ai.clear', title: 'Pulisci vista Terminale AI', category: 'AI', when: (context) => context.hasWorkspace && context.section === 'ai' && context.aiTab === 'terminal', run: clearTerminal },
       { id: 'ai.zoomIn', title: 'Aumenta zoom Terminale AI', category: 'AI', when: (context) => context.hasWorkspace && context.section === 'ai' && context.aiTab === 'terminal', run: () => changeFontSize(1) },
       { id: 'ai.zoomOut', title: 'Riduci zoom Terminale AI', category: 'AI', when: (context) => context.hasWorkspace && context.section === 'ai' && context.aiTab === 'terminal', run: () => changeFontSize(-1) },
@@ -254,7 +253,7 @@ export function useWorkbenchCommands({
       { id: 'settings.refresh', title: 'Aggiorna impostazioni e risorse', category: 'Impostazioni', when: (context) => context.section === 'settings', run: relay('settings.refresh') },
       { id: 'settings.resetWorkspacePreferences', title: 'Rimuovi personalizzazioni del workspace', category: 'Impostazioni', when: (context) => context.section === 'settings', enabled: (context) => context.hasWorkspace, run: relay('settings.resetWorkspacePreferences') },
     ]
-  }, [changeFontSize, clearTerminal, copyTerminalSelection, navigateToAppSection, openCommandPalette, openGitDiffForFile, openQuickOpen, openWorkspace, pasteIntoTerminal, reloadPi, requestEditorAction, requestTerminalAction, resetTerminalZoom, restartPi, saveWorkspaceGuardScope, selectAiTab, selectAppSection, sendEditorContextToAi, setTerminalSearchOpen, terminal])
+  }, [changeFontSize, clearTerminal, copyTerminalSelection, navigateToAppSection, openCommandPalette, openGitDiffForFile, openQuickOpen, openWorkspace, pasteIntoTerminal, reloadPi, requestEditorAction, requestTerminalAction, resetTerminalZoom, restartPi, saveWorkspaceGuardScope, selectAiTab, selectAllTerminal, selectAppSection, sendEditorContextToAi, setTerminalSearchOpen])
 
   useEffect(() => commandRegistry.registerAll(workbenchCommands), [commandRegistry, workbenchCommands])
 
