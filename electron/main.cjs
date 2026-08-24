@@ -1,3 +1,12 @@
+const { installApplicationProcessEnvironment } = require('./infrastructure/processes/application-process-environment.adapter.cjs')
+
+// Le app macOS avviate da Finder non ereditano necessariamente il PATH della
+// shell. Aggiungiamo solo prefissi Homebrew verificati, senza eseguire profili
+// utente o `brew shellenv`; gli smoke “clean machine” restano deliberatamente isolati.
+installApplicationProcessEnvironment(process.env, {
+  discoverHomebrew: !process.argv.includes('--clean-machine-smoke'),
+})
+
 const { IPC_CHANNELS } = require('./ipc/channels.cjs')
 const { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, Notification, safeStorage, shell } = require('electron')
 const { randomUUID } = require('node:crypto')
