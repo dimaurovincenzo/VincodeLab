@@ -17,6 +17,13 @@ const databaseVendorExecutionFactories = new Set([
   'createMssqlRequest',
   'createPostgresQuery',
 ])
+const databaseVendorSessionFactories = new Set([
+  'createMssqlConnection',
+  'createMysqlClient',
+  'createPostgresClient',
+  'openMssqlConnection',
+  'openMssqlConnectionFromFactory',
+])
 const databaseVendorTransactionMethods = new Set([
   'beginTransaction',
   'commitTransaction',
@@ -197,11 +204,11 @@ function isDatabaseDriverSpecifier(specifier) {
   return databaseDriverSpecifiers.some((driver) => specifier === driver || specifier.startsWith(`${driver}/`))
 }
 
-function databaseVendorFactoryReferences(sourceFile) {
+function databaseIdentifierReferences(sourceFile, forbiddenNames) {
   const references = new Set()
   const visit = (node) => {
     const name = ts.isIdentifier(node) || ts.isStringLiteralLike(node) ? node.text : null
-    if (name && databaseVendorExecutionFactories.has(name)) references.add(name)
+    if (name && forbiddenNames.has(name)) references.add(name)
     ts.forEachChild(node, visit)
   }
   visit(sourceFile)
@@ -460,8 +467,11 @@ export function inspectArchitecture({ root }) {
     for (const problem of ipcChannelLiteralProblems(file, sourceFile)) problems.push(`${file}: ${problem}`)
 
     if (file.startsWith('electron/domains/database/')) {
-      for (const factory of databaseVendorFactoryReferences(sourceFile)) {
+      for (const factory of databaseIdentifierReferences(sourceFile, databaseVendorExecutionFactories)) {
         problems.push(`${file}: factory driver "${factory}" non consentita nel dominio Database; usa executeRemote della porta driver`)
+      }
+      for (const factory of databaseIdentifierReferences(sourceFile, databaseVendorSessionFactories)) {
+        problems.push(`${file}: factory apertura driver "${factory}" non consentita nel dominio Database; usa openRemoteSession della porta driver`)
       }
       for (const method of databaseVendorTransactionReferences(sourceFile)) {
         problems.push(`${file}: metodo transazionale vendor "${method}" non consentito nel dominio Database; usa executeTransaction della porta driver`)

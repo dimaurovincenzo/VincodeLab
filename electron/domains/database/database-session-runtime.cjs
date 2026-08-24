@@ -4,41 +4,6 @@ const { sqliteInfrastructurePublicError, toDatabasePublicError } = require('./da
 const { buildDriverConfig, sessionKey } = require('./sql-model.cjs')
 const { createRemoteSessionLifecycleController, remoteSessions } = require('./remote-session-lifecycle.cjs')
 
-function openMssqlConnectionFromFactory(config, createConnection, onInstance = () => undefined) {
-  return new Promise((resolve, reject) => {
-    const instance = createConnection(config)
-    onInstance(instance)
-    const cleanup = () => {
-      instance.removeListener?.('connect', onConnect)
-      instance.removeListener?.('end', onEnd)
-      instance.removeListener?.('error', onError)
-    }
-    const onConnect = (error) => {
-      cleanup()
-      if (error) reject(error)
-      else resolve(instance)
-    }
-    const onError = (error) => {
-      cleanup()
-      reject(error)
-    }
-    const onEnd = () => {
-      cleanup()
-      reject(new Error('Connessione SQL Server chiusa durante l’apertura.'))
-    }
-    instance.once('connect', onConnect)
-    instance.once('end', onEnd)
-    instance.once('error', onError)
-    // tedious costruisce solo l'oggetto Connection: il socket viene aperto
-    // esclusivamente con connect(). Senza questa chiamata l'UI resta in attesa.
-    instance.connect()
-  })
-}
-
-function openMssqlConnection(config, Connection, onInstance = () => undefined) {
-  return openMssqlConnectionFromFactory(config, (connectionConfig) => new Connection(connectionConfig), onInstance)
-}
-
 function createDatabaseSessionRuntime({
   getConnectionWithSecrets,
   invalidateSchema,
@@ -128,30 +93,19 @@ function createDatabaseSessionRuntime({
     try {
       const session = await remoteSessions.acquire(key, async ({ setCandidate }) => {
         const config = buildDriverConfig(connection)
-        if (connection.driver === 'postgres') {
-          // Una sola connessione per sessione preserva la transazione tra le azioni
-          // della griglia; un Pool potrebbe eseguire BEGIN e UPDATE su socket diversi.
-          const client = driverPort.createPostgresClient({ host: config.host, port: config.port, database: config.database, user: config.user, password: config.password, connectionTimeoutMillis: 10_000, query_timeout: 30_000 })
-          const candidate = { driver: 'postgres', connection, client, driverPort }
-          setCandidate(candidate)
-          remoteSessionLifecycle.track(key, candidate)
-          await client.connect()
-          return candidate
-        }
-        if (connection.driver === 'mysql') {
-          const client = await driverPort.createMysqlClient({ host: config.host, port: config.port, database: config.database, user: config.user, password: config.password, connectTimeout: 10_000 })
-          const candidate = { driver: 'mysql', connection, client, driverPort }
-          setCandidate(candidate)
-          remoteSessionLifecycle.track(key, candidate)
-          return candidate
-        }
         let candidate
-        const client = await openMssqlConnectionFromFactory({ server: config.host, authentication: { type: 'default', options: { userName: config.user, password: config.password } }, options: { port: config.port, database: config.database, connectTimeout: 10_000, requestTimeout: 30_000, trustServerCertificate: true } }, driverPort.createMssqlConnection, (instance) => {
-          candidate = { driver: 'mssql', connection, client: instance, driverPort }
-          setCandidate(candidate)
-          remoteSessionLifecycle.track(key, candidate)
+        const client = await driverPort.openRemoteSession(config, {
+          onCandidate: (openingClient) => {
+            if (candidate) throw new TypeError('Candidato database remoto duplicato.')
+            candidate = { driver: connection.driver, connection, client: openingClient, driverPort }
+            // Il registry e il lifecycle devono conoscere il client prima del
+            // connect per poter confinare close o failure durante l'apertura.
+            setCandidate(candidate)
+            remoteSessionLifecycle.track(key, candidate)
+          },
         })
-        return candidate ?? { driver: 'mssql', connection, client, driverPort }
+        if (!candidate || candidate.client !== client) throw new TypeError('Candidato database remoto non pubblicato dalla porta driver.')
+        return candidate
       })
       const openingFailure = remoteSessionLifecycle.consumeFailure(key)
       if (openingFailure) throw openingFailure
@@ -199,4 +153,4 @@ function createDatabaseSessionRuntime({
   }
 }
 
-module.exports = { createDatabaseSessionRuntime, openMssqlConnection }
+module.exports = { createDatabaseSessionRuntime }

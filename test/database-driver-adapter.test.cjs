@@ -9,30 +9,30 @@ test('la porta database rifiuta implementazioni incomplete ed espone solo il con
   assert.throws(() => createDatabaseDriverPort({}), /Porta driver database incompleta/u)
 
   const implementation = {
-    createMssqlConnection() {},
-    createMysqlClient() {},
-    createPostgresClient() {},
     executeRemote() {},
     executeTransaction() {},
+    openRemoteSession() {},
     dettaglioAdapter: 'non pubblico',
   }
   const port = createDatabaseDriverPort(implementation)
 
   assert.equal(Object.isFrozen(port), true)
   assert.deepEqual(Object.keys(port), [
-    'createMssqlConnection',
-    'createMysqlClient',
-    'createPostgresClient',
     'executeRemote',
     'executeTransaction',
+    'openRemoteSession',
   ])
   assert.equal('dettaglioAdapter' in port, false)
 })
 
 test('l adapter Node carica ogni driver solo al primo utilizzo', async () => {
   const loads = { mssql: 0, mysql: 0, postgres: 0 }
+  let postgresCandidate
+  let postgresCandidateCalls = 0
   class FakePostgresClient {
     constructor(config) { this.config = config }
+
+    async connect() { assert.equal(postgresCandidate, this) }
 
     query(query) {
       queueMicrotask(() => {
@@ -48,8 +48,26 @@ test('l adapter Node carica ogni driver solo al primo utilizzo', async () => {
       this.config = config
     }
   }
-  class FakeMssqlConnection {
-    constructor(config) { this.config = config }
+  let mssqlCandidate
+  let mssqlCandidateCalls = 0
+  class FakeMssqlConnection extends EventEmitter {
+    constructor(config) {
+      super()
+      this.config = config
+      this.connectCalls = 0
+    }
+
+    connect() {
+      this.connectCalls += 1
+      assert.equal(mssqlCandidate, this)
+      queueMicrotask(() => this.emit('connect'))
+    }
+
+    execSql(request) {
+      request.emit('row', [{ metadata: { colName: 'id' }, value: 42 }])
+      request.emit('doneInProc', 1)
+      request.callback(undefined, 1)
+    }
   }
   const requests = []
   class FakeMssqlRequest extends EventEmitter {
@@ -81,29 +99,69 @@ test('l adapter Node carica ogni driver solo al primo utilizzo', async () => {
   })
 
   assert.deepEqual(loads, { mssql: 0, mysql: 0, postgres: 0 })
-  const postgresClient = adapter.createPostgresClient({ host: 'postgres.internal' })
-  assert.deepEqual(postgresClient.config, { host: 'postgres.internal' })
+  const postgresClient = await adapter.openRemoteSession({
+    database: 'app',
+    driver: 'postgres',
+    host: 'postgres.internal',
+    password: 'secret',
+    port: 5432,
+    user: 'developer',
+  }, { onCandidate: (client) => {
+    postgresCandidateCalls += 1
+    postgresCandidate = client
+  } })
+  assert.deepEqual(postgresClient.config, {
+    connectionTimeoutMillis: 10_000,
+    database: 'app',
+    host: 'postgres.internal',
+    password: 'secret',
+    port: 5432,
+    query_timeout: 30_000,
+    user: 'developer',
+  })
   const postgresRows = []
   assert.deepEqual(await adapter.executeRemote(
     { driver: 'postgres', client: postgresClient },
     { sql: 'SELECT 1', onRow: (row) => postgresRows.push(row) },
   ), { affectedRows: null })
   assert.deepEqual(postgresRows, [{ id: 1 }])
+  assert.equal(postgresCandidateCalls, 1)
   assert.equal(loads.postgres, 1)
-  assert.deepEqual((await adapter.createMysqlClient({ host: 'mysql.internal' })).config, { host: 'mysql.internal' })
+  const mysqlCandidates = []
+  const mysqlClient = await adapter.openRemoteSession({
+    database: 'app',
+    driver: 'mysql',
+    host: 'mysql.internal',
+    password: 'secret',
+    port: 3306,
+    user: 'developer',
+  }, { onCandidate: (client) => mysqlCandidates.push(client) })
+  assert.deepEqual(mysqlClient.config, {
+    connectTimeout: 10_000,
+    database: 'app',
+    host: 'mysql.internal',
+    password: 'secret',
+    port: 3306,
+    user: 'developer',
+  })
+  assert.deepEqual(mysqlCandidates, [mysqlClient])
   assert.equal(loads.mysql, 1)
 
-  const connection = adapter.createMssqlConnection({ server: 'mssql.internal' })
+  const connection = await adapter.openRemoteSession({
+    database: 'app',
+    driver: 'mssql',
+    host: 'mssql.internal',
+    password: 'secret',
+    port: 1433,
+    user: 'developer',
+  }, { onCandidate: (client) => {
+    mssqlCandidateCalls += 1
+    mssqlCandidate = client
+  } })
   const mssqlRows = []
   const mssqlResult = await adapter.executeRemote({
     driver: 'mssql',
-    client: {
-      execSql(request) {
-        request.emit('row', [{ metadata: { colName: 'id' }, value: 42 }])
-        request.emit('doneInProc', 1)
-        request.callback(undefined, 1)
-      },
-    },
+    client: connection,
   }, {
     sql: 'SELECT @p0',
     parameters: [42, 'testo'],
@@ -111,12 +169,148 @@ test('l adapter Node carica ogni driver solo al primo utilizzo', async () => {
     onRow: (row) => mssqlRows.push(row),
   })
 
-  assert.deepEqual(connection.config, { server: 'mssql.internal' })
+  assert.deepEqual(connection.config, {
+    authentication: { type: 'default', options: { password: 'secret', userName: 'developer' } },
+    options: {
+      connectTimeout: 10_000,
+      database: 'app',
+      port: 1433,
+      requestTimeout: 30_000,
+      trustServerCertificate: true,
+    },
+    server: 'mssql.internal',
+  })
+  assert.equal(connection.connectCalls, 1)
+  assert.equal(mssqlCandidateCalls, 1)
   assert.deepEqual(requests[0].parameters, [['p0', types.Int, 42], ['p1', types.NVarChar, 'testo']])
   assert.equal(requests[0].timeoutMs, 1_000)
   assert.deepEqual(mssqlRows, [{ id: 42 }])
   assert.deepEqual(mssqlResult, { affectedRows: 1 })
   assert.equal(loads.mssql, 1)
+})
+
+test('SQL Server pubblica il candidato prima del connect e pulisce i listener se l apertura termina', async () => {
+  class ClosingConnection extends EventEmitter {
+    constructor() {
+      super()
+      this.connectCalls = 0
+    }
+
+    connect() { this.connectCalls += 1 }
+    close() { this.emit('end') }
+  }
+  const adapter = createNodeDatabaseDriverAdapter({
+    loadMssql: () => ({ Connection: ClosingConnection }),
+  })
+  let candidate
+  const opening = adapter.openRemoteSession({
+    database: 'app',
+    driver: 'mssql',
+    host: 'mssql.internal',
+    password: 'secret',
+    port: 1433,
+    user: 'developer',
+  }, { onCandidate: (client) => {
+    candidate = client
+    client.close()
+  } })
+
+  assert.ok(candidate instanceof ClosingConnection)
+  await assert.rejects(opening, /chiusa durante l’apertura/u)
+  assert.equal(candidate.connectCalls, 0)
+  assert.equal(candidate.listenerCount('connect'), 0)
+  assert.equal(candidate.listenerCount('end'), 0)
+  assert.equal(candidate.listenerCount('error'), 0)
+})
+
+test('il connect SQL Server ignora segnali successivi al primo settlement', async () => {
+  class NoisyConnection extends EventEmitter {
+    constructor() {
+      super()
+      this.removeCalls = 0
+      this.removeCallsAfterConnect = 0
+    }
+
+    connect() {
+      this.emit('connect')
+      this.removeCallsAfterConnect = this.removeCalls
+      throw new Error('late connect failure')
+    }
+
+    removeListener(...args) {
+      this.removeCalls += 1
+      return super.removeListener(...args)
+    }
+  }
+  const adapter = createNodeDatabaseDriverAdapter({
+    loadMssql: () => ({ Connection: NoisyConnection }),
+  })
+  let candidateCalls = 0
+  const client = await adapter.openRemoteSession({
+    database: 'app',
+    driver: 'mssql',
+    host: 'mssql.internal',
+    password: 'secret',
+    port: 1433,
+    user: 'developer',
+  }, { onCandidate: () => { candidateCalls += 1 } })
+
+  assert.equal(candidateCalls, 1)
+  assert.equal(client.removeCalls, client.removeCallsAfterConnect)
+  assert.equal(client.listenerCount('connect'), 0)
+  assert.equal(client.listenerCount('end'), 0)
+  assert.equal(client.listenerCount('error'), 0)
+})
+
+test('un failure di onCandidate chiude il client senza avviare il connect', async () => {
+  const callbackFailure = new Error('candidate callback failed')
+  const postgresClient = {
+    connectCalls: 0,
+    endCalls: 0,
+    async connect() { this.connectCalls += 1 },
+    async end() { this.endCalls += 1 },
+  }
+  const mysqlClient = {
+    endCalls: 0,
+    async end() { this.endCalls += 1 },
+  }
+  class MssqlConnection extends EventEmitter {
+    constructor() {
+      super()
+      this.closeCalls = 0
+      this.connectCalls = 0
+    }
+
+    close() { this.closeCalls += 1 }
+    connect() { this.connectCalls += 1 }
+  }
+  const adapter = createNodeDatabaseDriverAdapter({
+    loadMssql: () => ({ Connection: MssqlConnection }),
+    loadMysql: () => ({ createConnection: async () => mysqlClient }),
+    loadPostgres: () => ({ Client: class { constructor() { return postgresClient } } }),
+  })
+  const config = {
+    database: 'app',
+    host: 'database.internal',
+    password: 'secret',
+    port: 1234,
+    user: 'developer',
+  }
+  const rejectCandidate = () => { throw callbackFailure }
+
+  await assert.rejects(adapter.openRemoteSession({ ...config, driver: 'postgres' }, { onCandidate: rejectCandidate }), (error) => error === callbackFailure)
+  await assert.rejects(adapter.openRemoteSession({ ...config, driver: 'mysql' }, { onCandidate: rejectCandidate }), (error) => error === callbackFailure)
+  let mssqlCandidate
+  await assert.rejects(adapter.openRemoteSession({ ...config, driver: 'mssql' }, {
+    onCandidate: (client) => {
+      mssqlCandidate = client
+      rejectCandidate()
+    },
+  }), (error) => error === callbackFailure)
+
+  assert.deepEqual({ connectCalls: postgresClient.connectCalls, endCalls: postgresClient.endCalls }, { connectCalls: 0, endCalls: 1 })
+  assert.equal(mysqlClient.endCalls, 1)
+  assert.deepEqual({ closeCalls: mssqlCandidate.closeCalls, connectCalls: mssqlCandidate.connectCalls }, { closeCalls: 1, connectCalls: 0 })
 })
 
 test('PostgreSQL interrompe budget e abort invalidando la sessione una sola volta', async () => {

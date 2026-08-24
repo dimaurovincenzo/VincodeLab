@@ -12,6 +12,57 @@ const REMOTE_TRANSACTION_OPERATIONS = Object.freeze({
   rollback: Object.freeze({ mysqlMethod: 'rollback', mssqlMethod: 'rollbackTransaction', postgresSql: 'ROLLBACK' }),
 })
 
+function closeRejectedCandidate(driver, client) {
+  try {
+    const closing = driver === 'mssql' ? client?.close?.() : client?.end?.()
+    if (closing && typeof closing.catch === 'function') closing.catch(() => undefined)
+  } catch {
+    // Il failure che ha impedito la pubblicazione resta la causa primaria.
+  }
+}
+
+function connectMssqlClient(client, beforeConnect) {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const cleanup = () => {
+      client.removeListener?.('connect', onConnect)
+      client.removeListener?.('end', onEnd)
+      client.removeListener?.('error', onError)
+    }
+    const finish = (error) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      if (error) reject(error)
+      else resolve()
+    }
+    const onConnect = (error) => finish(error)
+    const onError = (error) => finish(error)
+    const onEnd = () => finish(new Error('Connessione SQL Server chiusa durante l’apertura.'))
+    client.once('connect', onConnect)
+    client.once('end', onEnd)
+    client.once('error', onError)
+    try {
+      beforeConnect()
+    } catch (error) {
+      finish(error)
+      closeRejectedCandidate('mssql', client)
+      return
+    }
+    if (settled) return
+    try { client.connect() } catch (error) { finish(error) }
+  })
+}
+
+function publishRemoteCandidate(driver, client, onCandidate) {
+  try {
+    onCandidate(client)
+  } catch (error) {
+    closeRejectedCandidate(driver, client)
+    throw error
+  }
+}
+
 function createNodeDatabaseDriverAdapter({
   loadMssql = () => require('tedious'),
   loadMysql = () => require('mysql2/promise'),
@@ -26,17 +77,6 @@ function createNodeDatabaseDriverAdapter({
   const postgresDriver = () => { postgres ??= loadPostgres(); return postgres }
 
   return createDatabaseDriverPort({
-    createMssqlConnection(config) {
-      const { Connection } = mssqlDriver()
-      return new Connection(config)
-    },
-    createMysqlClient(config) {
-      return mysqlDriver().createConnection(config)
-    },
-    createPostgresClient(config) {
-      const { Client } = postgresDriver()
-      return new Client(config)
-    },
     executeRemote(session, {
       sql,
       parameters = [],
@@ -184,6 +224,60 @@ function createNodeDatabaseDriverAdapter({
       return new Promise((resolve, reject) => {
         method.call(session.client, (error) => error ? reject(error) : resolve())
       })
+    },
+    async openRemoteSession(config, { onCandidate = () => undefined } = {}) {
+      if (typeof onCandidate !== 'function') throw new TypeError('Callback candidato database non valida.')
+
+      if (config?.driver === 'postgres') {
+        const { Client } = postgresDriver()
+        const client = new Client({
+          host: config.host,
+          port: config.port,
+          database: config.database,
+          user: config.user,
+          password: config.password,
+          connectionTimeoutMillis: 10_000,
+          query_timeout: 30_000,
+        })
+        publishRemoteCandidate('postgres', client, onCandidate)
+        await client.connect()
+        return client
+      }
+
+      if (config?.driver === 'mysql') {
+        // mysql2/promise rende disponibile il wrapper soltanto dopo l'evento
+        // connect; il candidato viene quindi pubblicato appena createConnection
+        // risolve, mantenendo il comportamento storico del runtime.
+        const client = await mysqlDriver().createConnection({
+          host: config.host,
+          port: config.port,
+          database: config.database,
+          user: config.user,
+          password: config.password,
+          connectTimeout: 10_000,
+        })
+        publishRemoteCandidate('mysql', client, onCandidate)
+        return client
+      }
+
+      if (config?.driver !== 'mssql') throw new TypeError('Driver database remoto non valido.')
+      const { Connection } = mssqlDriver()
+      const client = new Connection({
+        server: config.host,
+        authentication: {
+          type: 'default',
+          options: { userName: config.user, password: config.password },
+        },
+        options: {
+          port: config.port,
+          database: config.database,
+          connectTimeout: 10_000,
+          requestTimeout: 30_000,
+          trustServerCertificate: true,
+        },
+      })
+      await connectMssqlClient(client, () => onCandidate(client))
+      return client
     },
   })
 }

@@ -17,7 +17,7 @@ const {
   sanitizeDatabaseDiagnostic,
   toDatabasePublicError,
 } = require('./database-error-mapper.cjs')
-const { createDatabaseSessionRuntime, openMssqlConnection } = require('./database-session-runtime.cjs')
+const { createDatabaseSessionRuntime } = require('./database-session-runtime.cjs')
 const {
   buildDriverConfig,
   classifySql,
@@ -435,4 +435,4 @@ async function inspectSchema(workspacePath, connectionId, options = {}) {
   return schema
 }
 
-module.exports = { attachRemoteSessionLifecycle, beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, detachRemoteSessionLifecycle, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, invalidateRemoteSession, isEditableColumn, limitRemoteReadSql, makeTableSchema, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, safeQueryErrorMessage, sanitizeDatabaseDiagnostic, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig }
+module.exports = { attachRemoteSessionLifecycle, beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, detachRemoteSessionLifecycle, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, invalidateRemoteSession, isEditableColumn, limitRemoteReadSql, makeTableSchema, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, safeQueryErrorMessage, sanitizeDatabaseDiagnostic, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig }

@@ -1,9 +1,7 @@
 const DATABASE_DRIVER_PORT_METHODS = Object.freeze([
-  'createMssqlConnection',
-  'createMysqlClient',
-  'createPostgresClient',
   'executeRemote',
   'executeTransaction',
+  'openRemoteSession',
 ])
 
 function createDatabaseDriverPort(implementation) {

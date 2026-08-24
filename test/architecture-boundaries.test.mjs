@@ -162,6 +162,23 @@ test('impedisce alle factory streaming dei vendor di rientrare nel dominio Datab
   })
 })
 
+test('impedisce alle factory di apertura vendor di rientrare nel dominio Database', () => {
+  withFixture({
+    'electron/domains/database/runtime.cjs': [
+      'driverPort.createPostgresClient(config)',
+      'driverPort.createMysqlClient(config)',
+      'driverPort.createMssqlConnection(config)',
+      'openMssqlConnection(config)',
+      'openMssqlConnectionFromFactory(config, factory)',
+    ].join('\n'),
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('factory apertura driver')).length, 5)
+    for (const factory of ['createPostgresClient', 'createMysqlClient', 'createMssqlConnection', 'openMssqlConnection', 'openMssqlConnectionFromFactory']) {
+      assert.ok(problems.some((problem) => problem.includes(`factory apertura driver "${factory}"`)))
+    }
+  })
+})
+
 test('impedisce ai callback transazionali dei vendor di rientrare nel dominio Database', () => {
   withFixture({
     'electron/domains/database/runtime.cjs': [

@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict')
+const { EventEmitter } = require('node:events')
 const test = require('node:test')
 
 const { createDatabaseSessionRuntime } = require('../electron/domains/database/database-session-runtime.cjs')
@@ -6,13 +7,21 @@ const { createDatabaseSessionRuntime } = require('../electron/domains/database/d
 function fakeDriverPort(overrides = {}) {
   const unused = () => { throw new Error('Driver non atteso nel test.') }
   return {
-    createMssqlConnection: unused,
-    createMysqlClient: unused,
-    createPostgresClient: unused,
     executeRemote: unused,
     executeTransaction: unused,
+    openRemoteSession: unused,
     ...overrides,
   }
+}
+
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, reject, resolve }
 }
 
 test('il runtime sessioni richiede porte esplicite e ritarda la dipendenza SQLite', () => {
@@ -100,9 +109,14 @@ test('il runtime remoto riceve il driver dalla composition root senza caricarlo 
     removeListener() {},
   }
   const openedConfigs = []
+  const candidates = []
+  let openCalls = 0
   const driverPort = fakeDriverPort({
-    createPostgresClient: (config) => {
+    openRemoteSession: async (config, { onCandidate }) => {
+      openCalls += 1
       openedConfigs.push(config)
+      onCandidate(client)
+      candidates.push(client)
       return client
     },
   })
@@ -124,21 +138,131 @@ test('il runtime remoto riceve il driver dalla composition root senza caricarlo 
     sqliteWorkerDiagnostics: () => ({ activeWorkers: 0, pendingRequests: 0 }),
   })
 
-  const session = await runtime.getSession(workspacePath, connectionId)
+  const [session, sameSession] = await Promise.all([
+    runtime.getSession(workspacePath, connectionId),
+    runtime.getSession(workspacePath, connectionId),
+  ])
 
+  assert.equal(session, sameSession)
   assert.equal(session.client, client)
   assert.equal(session.driverPort, driverPort)
-  assert.equal(client.connectCalls, 1)
+  assert.equal(openCalls, 1)
+  assert.deepEqual(candidates, [client])
   assert.deepEqual(openedConfigs, [{
-    connectionTimeoutMillis: 10_000,
     database: 'app',
+    driver: 'postgres',
     host: 'db.internal',
     password: 'secret',
     port: 5432,
-    query_timeout: 30_000,
     user: 'developer',
   }])
 
   await runtime.closeConnectionSession(workspacePath, connectionId)
   assert.equal(client.endCalls, 1)
+})
+
+test('il candidato remoto consente cleanup mentre openRemoteSession è ancora in corso', async () => {
+  const workspacePath = '/workspace/remote-opening-cleanup'
+  const connectionId = 'postgres-opening'
+  const candidateReady = deferred()
+  const connected = deferred()
+  const closed = deferred()
+  let openCalls = 0
+  const client = {
+    endCalls: 0,
+    async end() {
+      this.endCalls += 1
+      closed.resolve()
+    },
+    on() {},
+    removeListener() {},
+  }
+  const driverPort = fakeDriverPort({
+    openRemoteSession: async (_config, { onCandidate }) => {
+      openCalls += 1
+      onCandidate(client)
+      candidateReady.resolve()
+      await connected.promise
+      return client
+    },
+  })
+  const runtime = createDatabaseSessionRuntime({
+    getConnectionWithSecrets: () => ({
+      database: 'app',
+      driver: 'postgres',
+      host: 'db.internal',
+      password: 'secret',
+      port: 5432,
+      user: 'developer',
+    }),
+    invalidateSchema: () => undefined,
+    invalidateWorkspaceSchema: () => undefined,
+  })
+  runtime.configureRuntime({
+    createSqliteWorkerSession: () => undefined,
+    driverPort,
+    sqliteWorkerDiagnostics: () => ({ activeWorkers: 0, pendingRequests: 0 }),
+  })
+
+  const opening = runtime.getSession(workspacePath, connectionId)
+  await candidateReady.promise
+  const closing = runtime.closeConnectionSession(workspacePath, connectionId)
+  await closed.promise
+
+  assert.equal(openCalls, 1)
+  assert.equal(client.endCalls, 1)
+  connected.resolve()
+  await closing
+  await assert.rejects(opening, (error) => error.publicCode === 'DATABASE_QUERY_CANCELLED')
+})
+
+test('un failure di apertura viene sanitizzato, pulito e consente un nuovo tentativo', async () => {
+  const workspacePath = '/workspace/remote-opening-recovery'
+  const connectionId = 'postgres-recovery'
+  const clients = []
+  let attempts = 0
+  const driverPort = fakeDriverPort({
+    openRemoteSession: async (_config, { onCandidate }) => {
+      attempts += 1
+      const client = new EventEmitter()
+      client.endCalls = 0
+      client.end = async () => { client.endCalls += 1 }
+      clients.push(client)
+      onCandidate(client)
+      if (attempts === 1) {
+        throw Object.assign(new Error('getaddrinfo ENOTFOUND private-db.internal password=opening-secret'), { code: 'ENOTFOUND' })
+      }
+      return client
+    },
+  })
+  const runtime = createDatabaseSessionRuntime({
+    getConnectionWithSecrets: () => ({
+      database: 'app',
+      driver: 'postgres',
+      host: 'db.internal',
+      password: 'secret',
+      port: 5432,
+      user: 'developer',
+    }),
+    invalidateSchema: () => undefined,
+    invalidateWorkspaceSchema: () => undefined,
+  })
+  runtime.configureRuntime({
+    createSqliteWorkerSession: () => undefined,
+    driverPort,
+    sqliteWorkerDiagnostics: () => ({ activeWorkers: 0, pendingRequests: 0 }),
+  })
+
+  await assert.rejects(runtime.getSession(workspacePath, connectionId), (error) => (
+    error.publicCode === 'DATABASE_NETWORK_HOST_UNREACHABLE'
+    && !error.message.includes('private-db.internal')
+    && !error.databaseDiagnostic.includes('opening-secret')
+  ))
+  assert.equal(clients[0].endCalls, 1)
+
+  const recovered = await runtime.getSession(workspacePath, connectionId)
+  assert.equal(recovered.client, clients[1])
+  assert.equal(attempts, 2)
+  await runtime.closeConnectionSession(workspacePath, connectionId)
+  assert.equal(clients[1].endCalls, 1)
 })

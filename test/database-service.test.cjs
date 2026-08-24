@@ -9,7 +9,7 @@ const Database = require('better-sqlite3')
 
 const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const { createConnection, getConnectionWithSecrets, recordHistory } = require('../electron/infrastructure/persistence/database.repository.cjs')
-const { beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
+const { beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
 const { MAX_ROUTINE_DEFINITION_CHARS, normalizeSchemaPageOptions, remotePrimaryKeyQuery, remoteRoutineDefinitionQuery, remoteRoutinePageSql, remoteTableIdentityPageSql } = require('../electron/domains/database/database-schema-model.cjs')
 const { createNodeDatabaseDriverAdapter, nodeDatabaseDriverAdapter } = require('../electron/infrastructure/database/node-database-driver.adapter.cjs')
 const { SqliteWorkerSession, sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics } = require('../electron/infrastructure/database/sqlite-worker-session.adapter.cjs')
@@ -710,45 +710,6 @@ test('valida la configurazione dei driver remoti senza costruire URL', () => {
 test('ordina i parametri della pagina SQL Server come OFFSET e FETCH', () => {
   assert.deepEqual(tablePageParameters('mssql', 100, 0), [0, 101])
   assert.deepEqual(tablePageParameters('postgres', 100, 25), [101, 25])
-})
-
-test('avvia esplicitamente la connessione SQL Server prima di attenderne l esito', async () => {
-  class FakeMssqlConnection extends EventEmitter {
-    constructor(config) {
-      super()
-      this.config = config
-      this.connectCalls = 0
-    }
-
-    connect() {
-      this.connectCalls += 1
-      queueMicrotask(() => this.emit('connect'))
-    }
-  }
-
-  const connection = await openMssqlConnection({
-    server: 'db.internal',
-    authentication: { type: 'default', options: { userName: 'user', password: 'password' } },
-    options: { port: 1433, database: 'app' },
-  }, FakeMssqlConnection)
-
-  assert.equal(connection.connectCalls, 1)
-})
-
-test('l apertura SQL Server termina se il client viene chiuso durante connect', async () => {
-  class FakeMssqlConnection extends EventEmitter {
-    connect() {}
-
-    close() {
-      queueMicrotask(() => this.emit('end'))
-    }
-  }
-
-  let candidate
-  const opening = openMssqlConnection({ server: 'db.internal', options: {} }, FakeMssqlConnection, (instance) => { candidate = instance })
-  candidate.close()
-
-  await assert.rejects(opening, /chiusa durante l’apertura/)
 })
 
 test('serializza le richieste SQL Server sulla stessa sessione e prosegue dopo un errore', async () => {
