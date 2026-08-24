@@ -26,6 +26,7 @@ function installDatabase(overrides: Partial<Window['vincodeLab']['database']> = 
     updateConnection: vi.fn(),
     deleteConnection: vi.fn(),
     connect: vi.fn(async () => ({ connected: true as const })),
+    disconnect: vi.fn(async () => ({ disconnected: true as const })),
     execute: vi.fn(async () => ({ columns: ['risultato'], rows: [{ risultato: 1 }], affectedRows: null, durationMs: 1, hasMore: false, resultBytes: 16 })),
     cancel: vi.fn(async () => ({ cancelled: false, mutative: false })),
     begin: vi.fn(async () => ({ active: true as const })),
@@ -114,19 +115,21 @@ describe('recovery del workspace Database', () => {
     expect(listSavedQueries).toHaveBeenCalledWith('database-b')
   })
 
-  it('non apre il database all’ingresso e concatena le pagine dello schema solo su richiesta', async () => {
+  it('non apre il database all’ingresso e carica automaticamente tutte le pagine dopo Connetti', async () => {
     const inspectSchema = vi.fn()
       .mockResolvedValueOnce({
         tables: [{ name: 'prima_tabella', columns: [], primaryKey: [] }],
         routines: [],
         hasMore: true,
         nextOffset: 40,
+        totalResources: 2,
       })
       .mockResolvedValueOnce({
         tables: [{ name: 'ultima_tabella', columns: [], primaryKey: [] }],
         routines: [],
         hasMore: false,
         nextOffset: null,
+        totalResources: 2,
       })
     installDatabase({ listConnections: vi.fn(async () => [connections[0]]), inspectSchema })
     const user = userEvent.setup()
@@ -137,13 +140,164 @@ describe('recovery del workspace Database', () => {
 
     await user.click(screen.getByRole('button', { name: 'Connetti' }))
     expect(await screen.findByRole('treeitem', { name: 'prima_tabella' })).toBeVisible()
-    expect(inspectSchema).toHaveBeenLastCalledWith('database-a', { force: undefined, offset: 0, limit: 40 })
-
-    await user.click(screen.getByRole('button', { name: 'Carica altre risorse' }))
     expect(await screen.findByRole('treeitem', { name: 'ultima_tabella' })).toBeVisible()
     expect(screen.getByRole('treeitem', { name: 'prima_tabella' })).toBeVisible()
+    expect(inspectSchema).toHaveBeenNthCalledWith(1, 'database-a', { offset: 0, limit: 40 })
     expect(inspectSchema).toHaveBeenLastCalledWith('database-a', { offset: 40, limit: 40 })
+    expect(inspectSchema).toHaveBeenCalledTimes(2)
+    expect(screen.getByText('Schema completo')).toBeVisible()
+    expect(screen.getByText('2 / 2 risorse')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Carica altre risorse' })).not.toBeInTheDocument()
+  })
+
+  it('carica colonne e chiave primaria soltanto quando viene aperta una tabella', async () => {
+    const tableRows = vi.fn(async () => ({
+      table: {
+        name: 'public.wide_table',
+        columns: [{ name: 'payload_marker', type: 'text', nullable: false, primaryKeyPosition: 1, editable: true }],
+        primaryKey: ['payload_marker'],
+      },
+      rows: [{ payload_marker: 'demo' }],
+      offset: 0,
+      hasMore: false,
+      durationMs: 1,
+      resultBytes: 16,
+    }))
+    installDatabase({
+      listConnections: vi.fn(async () => [connections[0]]),
+      inspectSchema: vi.fn(async () => ({
+        tables: [{ name: 'public.wide_table', columns: [], primaryKey: [] }],
+        routines: [],
+        hasMore: false,
+      })),
+      tableRows,
+    })
+    const user = userEvent.setup()
+    render(<DatabaseWorkspace workspace="/tmp/database-lazy-table-columns" />)
+
+    await connectDatabase(user)
+    expect(tableRows).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'public: espandi o comprimi' }))
+    await user.click(await screen.findByRole('treeitem', { name: 'wide_table' }))
+    await waitFor(() => expect(tableRows).toHaveBeenCalledWith('database-a', 'public.wide_table', { filter: '', limit: 500 }))
+
+    await user.type(screen.getByRole('textbox', { name: 'Cerca nello schema' }), 'payload_marker')
+    expect(await screen.findByRole('treeitem', { name: 'wide_table' })).toBeVisible()
+  })
+
+  it('espone Disconnetti dopo la connessione e chiude davvero la sessione mantenendo il profilo selezionato', async () => {
+    const database = installDatabase({ listConnections: vi.fn(async () => [connections[0]]) })
+    const user = userEvent.setup()
+    const { container } = render(<DatabaseWorkspace workspace="/tmp/database-explicit-disconnect" />)
+
+    await connectDatabase(user)
+    const view = sqlEditor(container)
+    const draft = 'SELECT * FROM dati_importanti'
+    act(() => view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: draft } }))
+    await user.click(screen.getByRole('button', { name: 'Disconnetti' }))
+
+    await waitFor(() => expect(database.disconnect).toHaveBeenCalledWith('database-a'))
+    expect(await screen.findByRole('button', { name: 'Connetti' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Esegui' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'Connessione database attiva' })).toBeEnabled()
+    expect(screen.getByText('“Database A” è selezionata ma non connessa.')).toBeVisible()
+    expect(sqlEditor(container).state.doc.toString()).toBe(draft)
+  })
+
+  it('interrompe il caricamento progressivo quando l’utente si disconnette e ignora le pagine tardive', async () => {
+    let resolveSecondPage!: (page: DatabaseSchemaPage) => void
+    const secondPage = new Promise<DatabaseSchemaPage>((resolve) => { resolveSecondPage = resolve })
+    const inspectSchema = vi.fn()
+      .mockResolvedValueOnce({
+        tables: [{ name: 'prima_tabella', columns: [], primaryKey: [] }],
+        routines: [],
+        hasMore: true,
+        nextOffset: 40,
+        totalResources: 2,
+      })
+      .mockReturnValueOnce(secondPage)
+    const database = installDatabase({ listConnections: vi.fn(async () => [connections[0]]), inspectSchema })
+    const user = userEvent.setup()
+    render(<DatabaseWorkspace workspace="/tmp/database-disconnect-during-schema" />)
+
+    await user.click(await screen.findByRole('button', { name: 'Connetti' }))
+    expect(await screen.findByRole('treeitem', { name: 'prima_tabella' })).toBeVisible()
+    expect(screen.queryByText('Connessione al database')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Disconnetti' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Disconnetti' }))
+
+    await waitFor(() => expect(database.disconnect).toHaveBeenCalledWith('database-a'))
+    expect(await screen.findByRole('button', { name: 'Connetti' })).toBeVisible()
+
+    await act(async () => {
+      resolveSecondPage({
+        tables: [{ name: 'pagina_tardiva', columns: [], primaryKey: [] }],
+        routines: [],
+        hasMore: false,
+        nextOffset: null,
+        totalResources: 2,
+      })
+      await secondPage
+    })
+
+    expect(screen.queryByRole('treeitem', { name: 'pagina_tardiva' })).not.toBeInTheDocument()
+    expect(screen.getByText('“Database A” è selezionata ma non connessa.')).toBeVisible()
+  })
+
+  it('mantiene una recovery di disconnessione senza riabilitare query o cambio profilo', async () => {
+    const disconnect = vi.fn()
+      .mockRejectedValueOnce(new Error('cleanup non confermato'))
+      .mockResolvedValueOnce({ disconnected: true as const })
+    installDatabase({ listConnections: vi.fn(async () => [connections[0]]), disconnect })
+    const user = userEvent.setup()
+    render(<DatabaseWorkspace workspace="/tmp/database-disconnect-recovery" />)
+
+    await connectDatabase(user)
+    await user.click(screen.getByRole('button', { name: 'Disconnetti' }))
+
+    expect(await screen.findByRole('heading', { name: 'Disconnessione database non confermata' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Esegui' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'Connessione database attiva' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Disconnetti' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'Riprova disconnessione' }))
+
+    await waitFor(() => expect(disconnect).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('button', { name: 'Connetti' })).toBeVisible()
+    expect(screen.getByRole('combobox', { name: 'Connessione database attiva' })).toBeEnabled()
+  })
+
+  it('riprende dal punto interrotto e completa automaticamente le risorse rimanenti', async () => {
+    const inspectSchema = vi.fn()
+      .mockResolvedValueOnce({
+        tables: [{ name: 'prima_tabella', columns: [], primaryKey: [] }],
+        routines: [],
+        hasMore: true,
+        nextOffset: 40,
+        totalResources: 2,
+      })
+      .mockRejectedValueOnce(new Error('connessione interrotta durante il catalogo'))
+      .mockResolvedValueOnce({
+        tables: [{ name: 'ultima_tabella', columns: [], primaryKey: [] }],
+        routines: [],
+        hasMore: false,
+        nextOffset: null,
+        totalResources: 2,
+      })
+    installDatabase({ listConnections: vi.fn(async () => [connections[0]]), inspectSchema })
+    const user = userEvent.setup()
+    render(<DatabaseWorkspace workspace="/tmp/database-resume-schema" />)
+
+    await user.click(await screen.findByRole('button', { name: 'Connetti' }))
+    expect(await screen.findByRole('heading', { name: 'Caricamento schema interrotto' })).toBeVisible()
+    expect(screen.getByRole('treeitem', { name: 'prima_tabella' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Riprova caricamento' }))
+
+    expect(await screen.findByRole('treeitem', { name: 'ultima_tabella' })).toBeVisible()
+    expect(inspectSchema).toHaveBeenNthCalledWith(3, 'database-a', { offset: 40, limit: 40 })
+    expect(screen.getByText('Schema completo')).toBeVisible()
+    expect(screen.getByText('2 / 2 risorse')).toBeVisible()
   })
 
   it('mantiene la connessione utilizzabile quando il catalogo è troppo grande per essere materializzato', async () => {

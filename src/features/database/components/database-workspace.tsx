@@ -292,7 +292,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
       const refreshed = await resources.connect({ force: true, preserveSchema: resources.connectionReady })
       if (refreshed && connections.getSelectedConnectionId() === connection.id) {
         resources.setTableRevision((current) => current + 1)
-        toast.success('Schema aggiornato. Le prime risorse sono disponibili; puoi caricare progressivamente le successive.')
+        toast.success('Schema aggiornato. Tutte le risorse sono state caricate progressivamente.')
       }
     } finally {
       transactions.publishToolbarAction(null)
@@ -412,14 +412,12 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
       <Splitter.Panel id="database-sidebar">
         <DatabaseExplorer
           activeSavedQueryId={editor.activeSavedQueryId} connectionError={connections.connectionError} connections={connections.connections}
-          connectionReady={resources.connectionReady} expandedSchemas={expandedSchemas} history={resources.history} loadingConnections={connections.loadingConnections}
-          loadingMoreSchema={resources.loadingMoreSchema}
+          connectionLocked={resources.disconnectAvailable} connectionReady={resources.connectionReady} expandedSchemas={expandedSchemas} history={resources.history} loadingConnections={connections.loadingConnections}
           onClearHistory={requestClearHistory} onDeleteConnection={deleteConnection} onDeleteSavedQuery={deleteSavedQuery}
           onEditConnection={connections.editConnection} onExpandedSchemasChange={setExpandedSchemas} onNewConnection={connections.openNewConnection}
-          onLoadMoreSchema={() => { void resources.loadMoreSchema() }}
           onOpenRoutine={(routine) => { void openRoutine(routine) }} onOpenSql={openSql} onOpenTable={openTable} onReloadConnections={() => { void connections.loadConnections() }}
           onSchemaFilterChange={resources.setSchemaFilter} onSelectConnection={selectConnection} onSidebarTabChange={setSidebarTab}
-          savedQueries={resources.savedQueries} schema={resources.schema} schemaFilter={resources.schemaFilter} schemaHasMore={resources.schemaHasMore} selected={connections.selected}
+          savedQueries={resources.savedQueries} schema={resources.schema} schemaFilter={resources.schemaFilter} schemaProgress={resources.schemaProgress} selected={connections.selected}
           selectedTableName={resources.selectedTableName} sidebarTab={sidebarTab}
         />
       </Splitter.Panel>
@@ -428,9 +426,9 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
         <Tabs.Root asChild value={databaseView} onValueChange={({ value }) => setDatabaseView(value as typeof databaseView)}>
           <main className={db.editorPane}>
             <DatabaseToolbar
-              cancelling={query.cancelling} connectionPrepared={resources.connectionPrepared} connectionReady={resources.connectionReady} executing={query.executing} loadingResources={resources.loadingResources}
+              cancelling={query.cancelling} connectionPrepared={resources.connectionPrepared} connectionReady={resources.connectionReady} disconnectAvailable={resources.disconnectAvailable} disconnecting={resources.disconnecting} executing={query.executing} loadingResources={resources.loadingResources}
               onBegin={() => { void transactions.begin() }} onCancel={() => { void query.cancelActiveQuery() }} onFinishTransaction={(action) => { void transactions.finishTransaction(action) }}
-              onConnect={() => { void resources.connect() }} onFormat={() => { void formatSql() }} onRefreshSchema={() => { void refreshSchema() }} onRun={query.requestRun} onSaveQuery={() => { void saveCurrentQuery() }}
+              onConnect={() => { void resources.connect() }} onDisconnect={() => { void resources.disconnect() }} onFormat={() => { void formatSql() }} onRefreshSchema={() => { void refreshSchema() }} onRun={query.requestRun} onSaveQuery={() => { void saveCurrentQuery() }}
               selected={connections.selected} toolbarAction={transactions.toolbarAction} transactionActive={transactions.transactionActive}
             />
             {guard.guardFailure && <ErrorNotice action={{ label: guard.guardFailure.recovery === 'save' ? 'Salva e riprova' : 'Ripristina di nuovo', onClick: () => (guard.guardFailure?.recovery === 'save' ? guard.saveAll() : guard.discardAll()).catch(() => undefined) }} error={guard.guardFailure.error} />}
@@ -453,7 +451,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
           </main>
         </Tabs.Root>
       </Splitter.Panel>
-      {resources.loadingResources && <div aria-live="polite" className={db.loadingOverlay} role="status"><Spinner className={db.loadingIcon} size={20} /><strong>Connessione al database</strong><span className={db.loadingDescription}>Apertura della sessione e lettura della prima pagina dello schema…</span></div>}
+      {resources.loadingResources && !resources.connectionReady && <div aria-live="polite" className={db.loadingOverlay} role="status"><Spinner className={db.loadingIcon} size={20} /><strong>Connessione al database</strong><span className={db.loadingDescription}>Apertura della sessione…</span></div>}
       <ConfirmationDialog request={confirmation} onCancel={() => setConfirmation(null)} />
       <DatabaseConnectionDialog
         draft={connections.connectionDraft} editingConnectionId={connections.editingConnectionId} error={connections.connectionDraftError}

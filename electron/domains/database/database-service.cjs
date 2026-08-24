@@ -8,7 +8,7 @@ const {
   remoteRoutineDefinitionQuery,
   remoteRoutinePageSql,
   remoteTableColumnsExactQuery,
-  remoteTableColumnsPageSql,
+  remoteTableIdentityPageSql,
   schemaPageCacheKey,
   uniqueRemoteTableIdentities,
 } = require('./database-schema-model.cjs')
@@ -440,9 +440,22 @@ function findCachedTable(key, tableName) {
   if (!pages) return null
   for (const page of pages.values()) {
     const table = page.tables.find((item) => item.name === tableName)
-    if (table) return table
+    // Le pagine remote contengono intenzionalmente solo identità. Una tabella
+    // senza colonne è quindi un placeholder e non soddisfa l'ispezione esatta.
+    if (table?.columns.length) return table
   }
   return null
+}
+
+function cacheInspectedTable(key, table) {
+  if (!table) return
+  const pages = schemaCache.get(key)
+  if (!pages) return
+  for (const page of pages.values()) {
+    const index = page.tables.findIndex((item) => item.name === table.name)
+    if (index < 0) continue
+    page.tables = page.tables.with(index, table)
+  }
 }
 
 async function inspectTableSchema(workspacePath, connectionId, session, tableName) {
@@ -460,7 +473,9 @@ async function inspectTableSchema(workspacePath, connectionId, session, tableNam
   const { rows: primaryKeyRows } = primaryKeyQuery
     ? await executeRemote(session, primaryKeyQuery.sql, primaryKeyQuery.parameters)
     : { rows: [] }
-  return mapRemoteTables(columnRows, primaryKeyRows, 1)[0] ?? null
+  const table = mapRemoteTables(columnRows, primaryKeyRows, 1)[0] ?? null
+  cacheInspectedTable(key, table)
+  return table
 }
 
 async function inspectRoutine(workspacePath, connectionId, routineName, kind) {
@@ -477,24 +492,35 @@ async function inspectRoutine(workspacePath, connectionId, routineName, kind) {
   }
 }
 
-async function inspectRemoteSchemaPage(session, { offset, limit }) {
-  // Ogni query carica al massimo una pagina più una risorsa sentinella. In
-  // particolare colonne e definizioni non vengono materializzate per l'intero DB.
-  const { rows: columnRows } = await executeRemote(session, remoteTableColumnsPageSql(session.driver, { offset, limit }))
-  const identities = uniqueRemoteTableIdentities(columnRows, limit)
-  const tableHasMore = uniqueRemoteTableIdentities(columnRows, limit + 1).length > limit
-  const primaryKeyQuery = remotePrimaryKeyQuery(session.driver, identities)
-  const { rows: primaryKeyRows } = primaryKeyQuery
-    ? await executeRemote(session, primaryKeyQuery.sql, primaryKeyQuery.parameters)
-    : { rows: [] }
-  const tables = mapRemoteTables(columnRows, primaryKeyRows, limit)
+async function inspectRemoteSchemaPage(session, { offset, limit }, execute = executeRemote) {
+  // La pagina iniziale contiene soltanto identità bounded. Colonne e chiavi
+  // primarie vengono lette da inspectTableSchema quando l'utente apre la
+  // tabella, quindi una tabella estremamente larga non blocca il catalogo.
+  const { rows: tableRows } = await execute(session, remoteTableIdentityPageSql(session.driver, { offset, limit }))
+  const identities = uniqueRemoteTableIdentities(tableRows, limit)
+  const tableHasMore = uniqueRemoteTableIdentities(tableRows, limit + 1).length > limit
+  const tables = identities.map(({ key }) => makeTableSchema(key, []))
+  const tableTotalValue = tableRows[0]?.total_count ?? tableRows[0]?.TOTAL_COUNT
+  const tableTotal = Number.isSafeInteger(Number(tableTotalValue)) && Number(tableTotalValue) >= 0
+    ? Number(tableTotalValue)
+    : offset === 0 ? 0 : null
 
   const routineSql = remoteRoutinePageSql(session.driver, { offset, limit })
-  const { rows: routineRows } = routineSql ? await executeRemote(session, routineSql) : { rows: [] }
+  const { rows: routineRows } = routineSql ? await execute(session, routineSql) : { rows: [] }
   const routineHasMore = routineRows.length > limit
   const routines = mapRemoteRoutines(routineRows, limit)
+  const routineTotalValue = routineRows[0]?.total_count ?? routineRows[0]?.TOTAL_COUNT
+  const routineTotal = Number.isSafeInteger(Number(routineTotalValue)) && Number(routineTotalValue) >= 0
+    ? Number(routineTotalValue)
+    : offset === 0 ? 0 : null
   const hasMore = tableHasMore || routineHasMore
-  return { tables, routines, hasMore, nextOffset: hasMore ? offset + limit : null }
+  return {
+    tables,
+    routines,
+    hasMore,
+    nextOffset: hasMore ? offset + limit : null,
+    ...(tableTotal !== null && routineTotal !== null ? { totalResources: tableTotal + routineTotal } : {}),
+  }
 }
 
 async function inspectSchema(workspacePath, connectionId, options = {}) {
@@ -514,6 +540,7 @@ async function inspectSchema(workspacePath, connectionId, options = {}) {
       routines: [],
       hasMore: rawSchema.hasMore,
       nextOffset: rawSchema.hasMore ? pageOptions.offset + pageOptions.limit : null,
+      totalResources: rawSchema.totalResources,
     }
   } else {
     schema = await inspectRemoteSchemaPage(session, pageOptions)
@@ -528,4 +555,4 @@ async function inspectSchema(workspacePath, connectionId, options = {}) {
   return schema
 }
 
-module.exports = { attachRemoteSessionLifecycle, beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, detachRemoteSessionLifecycle, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRoutine, inspectSchema, invalidateRemoteSession, isEditableColumn, limitRemoteReadSql, makeTableSchema, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sanitizeDatabaseDiagnostic, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig }
+module.exports = { attachRemoteSessionLifecycle, beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, detachRemoteSessionLifecycle, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, invalidateRemoteSession, isEditableColumn, limitRemoteReadSql, makeTableSchema, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sanitizeDatabaseDiagnostic, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig }

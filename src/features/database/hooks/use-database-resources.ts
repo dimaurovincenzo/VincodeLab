@@ -20,6 +20,12 @@ type UseDatabaseResourcesOptions = {
   workspace: string
 }
 
+type SchemaLoadProgress = {
+  complete: boolean
+  loaded: number
+  total: number | null
+}
+
 function pageNextOffset(page: DatabaseSchemaPage) {
   if (!page.hasMore) return null
   if (typeof page.nextOffset === 'number') return page.nextOffset
@@ -32,6 +38,13 @@ function mergeSchema(current: DatabaseSchema, page: DatabaseSchemaPage): Databas
   for (const table of page.tables) tables.set(table.name, table)
   for (const routine of page.routines) routines.set(`${routine.kind}:${routine.name}`, routine)
   return { tables: [...tables.values()], routines: [...routines.values()] }
+}
+
+function mergeInspectedTable(current: DatabaseSchema, table: DatabaseTableSchema): DatabaseSchema {
+  const tables = current.tables.map((candidate) => candidate.name === table.name ? table : candidate)
+  return tables.some((candidate) => candidate.name === table.name)
+    ? { ...current, tables }
+    : { ...current, tables: [...tables, table] }
 }
 
 export function useDatabaseResources({
@@ -47,15 +60,17 @@ export function useDatabaseResources({
 }: UseDatabaseResourcesOptions) {
   const [loadingResources, setLoadingResources] = useState(false)
   const [loadingMoreSchema, setLoadingMoreSchema] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [disconnectPending, setDisconnectPending] = useState(false)
   const [connectionReady, setConnectionReady] = useState(false)
   const [preparedConnectionId, setPreparedConnectionId] = useState<string | null>(null)
   const [resourceError, setResourceError] = useState<UserError | null>(null)
-  const [resourceRecovery, setResourceRecovery] = useState<'connect' | 'refresh' | 'load-more' | 'local' | null>(null)
+  const [resourceRecovery, setResourceRecovery] = useState<'connect' | 'disconnect' | 'refresh' | 'load-more' | 'local' | null>(null)
   const [localResourceRevision, setLocalResourceRevision] = useState(0)
   const [savedQueries, setSavedQueries] = useState<DatabaseSavedQuery[]>([])
   const [history, setHistory] = useState<DatabaseHistoryEntry[]>([])
   const [schema, setSchema] = useState<DatabaseSchema>({ tables: [], routines: [] })
-  const [schemaNextOffset, setSchemaNextOffset] = useState<number | null>(null)
+  const [schemaProgress, setSchemaProgress] = useState<SchemaLoadProgress | null>(null)
   const [schemaFilter, setSchemaFilter] = useState('')
   const [selectedTableName, setSelectedTableName] = useState<string | null>(null)
   const [tableFilter, setTableFilter] = useState('')
@@ -67,6 +82,9 @@ export function useDatabaseResources({
   const desiredTableName = useRef<string | null>(null)
   const localResourceRequest = useRef(0)
   const schemaRequest = useRef(0)
+  const schemaRef = useRef<DatabaseSchema>({ tables: [], routines: [] })
+  const schemaNextOffsetRef = useRef<number | null>(null)
+  const schemaTotalRef = useRef<number | null>(null)
   const tableRequest = useRef(0)
 
   useEffect(() => {
@@ -80,12 +98,17 @@ export function useDatabaseResources({
       if (!current || request !== localResourceRequest.current) return
       setLoadingResources(false)
       setLoadingMoreSchema(false)
+      setDisconnecting(false)
+      setDisconnectPending(false)
       setConnectionReady(false)
       setPreparedConnectionId(connectionId)
       setResourceError(null)
       setResourceRecovery(null)
-      setSchema({ tables: [], routines: [] })
-      setSchemaNextOffset(null)
+      schemaRef.current = { tables: [], routines: [] }
+      schemaNextOffsetRef.current = null
+      schemaTotalRef.current = null
+      setSchema(schemaRef.current)
+      setSchemaProgress(null)
       publishTransactionActive(false)
       setSelectedTableName(null)
       setTablePage(null)
@@ -129,17 +152,77 @@ export function useDatabaseResources({
     return () => { current = false }
   }, [connectionId, getSelectedConnectionId, invalidateExecutionRequest, localResourceRevision, publishSelectedConnectionId, publishSqlBaseline, publishTransactionActive, restoreSqlDraft, workspace])
 
+  const loadSchemaSequence = useCallback(async ({
+    force = false,
+    request,
+    reset,
+    startOffset,
+    targetConnectionId,
+  }: {
+    force?: boolean
+    request: number
+    reset: boolean
+    startOffset: number
+    targetConnectionId: string
+  }) => {
+    let firstPage = true
+    let offset: number | null = startOffset
+    setLoadingMoreSchema(true)
+    try {
+      while (offset !== null) {
+        const page = await databaseBridge.database.inspectSchema(targetConnectionId, {
+          ...(firstPage && force ? { force: true } : {}),
+          offset,
+          limit: schemaPageSize,
+        }) as DatabaseSchemaPage
+        if (request !== schemaRequest.current || getSelectedConnectionId() !== targetConnectionId) return false
+
+        const nextSchema = reset && firstPage
+          ? { tables: page.tables, routines: page.routines }
+          : mergeSchema(schemaRef.current, page)
+        const nextOffset = pageNextOffset(page)
+        const nextTotal = typeof page.totalResources === 'number' ? page.totalResources : schemaTotalRef.current
+        schemaRef.current = nextSchema
+        schemaNextOffsetRef.current = nextOffset
+        schemaTotalRef.current = nextTotal
+        setSchema(nextSchema)
+        setSchemaProgress({
+          complete: nextOffset === null,
+          loaded: nextSchema.tables.length + nextSchema.routines.length,
+          total: nextOffset === null && nextTotal === null ? nextSchema.tables.length + nextSchema.routines.length : nextTotal,
+        })
+        firstPage = false
+        offset = nextOffset
+      }
+      return true
+    } finally {
+      if (request === schemaRequest.current) setLoadingMoreSchema(false)
+    }
+  }, [getSelectedConnectionId])
+
+  const recoverSchemaSession = useCallback(async (targetConnectionId: string, request: number) => {
+    await databaseBridge.database.connect(targetConnectionId)
+    return request === schemaRequest.current && getSelectedConnectionId() === targetConnectionId
+  }, [getSelectedConnectionId])
+
   const connect = useCallback(async (options: { force?: boolean; preserveSchema?: boolean } = {}) => {
-    if (!connectionId || preparedConnectionId !== connectionId) return false
+    if (!connectionId || preparedConnectionId !== connectionId || disconnectPending) return false
     const preserveReadyState = Boolean(options.preserveSchema && connectionReady)
     const request = ++schemaRequest.current
     setLoadingResources(true)
     setConnectionReady(preserveReadyState)
     setResourceError(null)
     setResourceRecovery(null)
+    setSchemaProgress({
+      complete: false,
+      loaded: options.preserveSchema ? schemaRef.current.tables.length + schemaRef.current.routines.length : 0,
+      total: options.preserveSchema ? schemaTotalRef.current : null,
+    })
     if (!options.preserveSchema) {
-      setSchema({ tables: [], routines: [] })
-      setSchemaNextOffset(null)
+      schemaRef.current = { tables: [], routines: [] }
+      schemaNextOffsetRef.current = null
+      schemaTotalRef.current = null
+      setSchema(schemaRef.current)
     }
     try {
       await databaseBridge.database.connect(connectionId)
@@ -148,6 +231,7 @@ export function useDatabaseResources({
     } catch (error) {
       if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
       setConnectionReady(preserveReadyState)
+      setSchemaProgress(null)
       setResourceRecovery('connect')
       setResourceError(reportDatabaseFailure(
         error,
@@ -155,47 +239,36 @@ export function useDatabaseResources({
         'Connessione database non pronta',
         'Query, bozze e risultati precedenti sono rimasti al sicuro. Verifica la configurazione e riprova la connessione.',
       ))
-      if (request === schemaRequest.current) setLoadingResources(false)
       return false
     }
     try {
-      const page = await databaseBridge.database.inspectSchema(connectionId, {
-        force: options.force,
-        offset: 0,
-        limit: schemaPageSize,
-      }) as DatabaseSchemaPage
-      if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
-      setSchema({ tables: page.tables, routines: page.routines })
-      setSchemaNextOffset(pageNextOffset(page))
+      const completed = await loadSchemaSequence({ force: options.force, request, reset: true, startOffset: 0, targetConnectionId: connectionId })
+      if (!completed || request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
       setConnectionReady(true)
       setResourceError(null)
       setResourceRecovery(null)
       setSchemaFilter('')
       setTableFilter('')
-      const restoredTable = page.tables.some((table) => table.name === desiredTableName.current) ? desiredTableName.current : null
-      if (restoredTable) {
-        desiredTableName.current = null
-        setSelectedTableName(restoredTable)
-      } else if (!page.hasMore) {
-        desiredTableName.current = null
-      }
+      const restoredTable = schemaRef.current.tables.some((table) => table.name === desiredTableName.current) ? desiredTableName.current : null
+      desiredTableName.current = null
+      if (restoredTable) setSelectedTableName(restoredTable)
       return true
     } catch (error) {
       if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
+      const partial = schemaRef.current.tables.length + schemaRef.current.routines.length > 0
       try {
-        // Uno stream interrotto per budget può invalidare il socket del driver.
-        // Verifichiamo/ripristiniamo la sessione prima di dichiararla operativa.
-        await databaseBridge.database.connect(connectionId)
-        if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
+        if (!await recoverSchemaSession(connectionId, request)) return false
         setConnectionReady(true)
-        setResourceRecovery('refresh')
+        setResourceRecovery(partial && schemaNextOffsetRef.current !== null ? 'load-more' : 'refresh')
         setResourceError(reportDatabaseFailure(
           error,
-          options.preserveSchema ? 'refresh-database-schema' : 'load-database-schema',
-          options.preserveSchema ? 'Schema database non aggiornato' : 'Schema database non caricato',
-          options.preserveSchema
-            ? 'La connessione e le risorse già caricate restano disponibili. Riprova l’aggiornamento quando vuoi.'
-            : 'La connessione è attiva: puoi eseguire query anche senza l’elenco delle risorse. Riprova il caricamento dello schema quando vuoi.',
+          partial ? 'continue-database-schema' : options.preserveSchema ? 'refresh-database-schema' : 'load-database-schema',
+          partial ? 'Caricamento schema interrotto' : options.preserveSchema ? 'Schema database non aggiornato' : 'Schema database non caricato',
+          partial
+            ? 'Le risorse già caricate restano disponibili. Riprendi il caricamento progressivo dal punto interrotto.'
+            : options.preserveSchema
+              ? 'La connessione e le risorse già caricate restano disponibili. Riprova l’aggiornamento quando vuoi.'
+              : 'La connessione è attiva: puoi eseguire query anche senza l’elenco delle risorse. Riprova il caricamento dello schema quando vuoi.',
         ))
       } catch (recoveryError) {
         if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
@@ -212,41 +285,78 @@ export function useDatabaseResources({
     } finally {
       if (request === schemaRequest.current) setLoadingResources(false)
     }
-  }, [connectionId, connectionReady, getSelectedConnectionId, preparedConnectionId])
+  }, [connectionId, connectionReady, disconnectPending, getSelectedConnectionId, loadSchemaSequence, preparedConnectionId, recoverSchemaSession])
 
-  const loadMoreSchema = useCallback(async () => {
-    if (!connectionId || !connectionReady || schemaNextOffset === null || loadingMoreSchema) return
-    const request = schemaRequest.current
-    const offset = schemaNextOffset
-    setLoadingMoreSchema(true)
+  const resumeSchema = useCallback(async () => {
+    const offset = schemaNextOffsetRef.current
+    if (!connectionId || !connectionReady || offset === null || loadingMoreSchema) return false
+    const request = ++schemaRequest.current
+    setLoadingResources(true)
     setResourceError(null)
     setResourceRecovery(null)
+    setSchemaProgress((current) => current ? { ...current, complete: false } : current)
     try {
-      const page = await databaseBridge.database.inspectSchema(connectionId, { offset, limit: schemaPageSize }) as DatabaseSchemaPage
-      if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return
-      setSchema((current) => mergeSchema(current, page))
-      setSchemaNextOffset(pageNextOffset(page))
+      const completed = await loadSchemaSequence({ request, reset: false, startOffset: offset, targetConnectionId: connectionId })
+      if (!completed || request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
+      setResourceError(null)
       setResourceRecovery(null)
-      if (page.tables.some((table) => table.name === desiredTableName.current)) {
-        const restoredTable = desiredTableName.current
-        desiredTableName.current = null
-        setSelectedTableName(restoredTable)
-      } else if (!page.hasMore) {
-        desiredTableName.current = null
-      }
+      return true
     } catch (error) {
-      if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return
-      setResourceRecovery('load-more')
-      setResourceError(reportDatabaseFailure(
-        error,
-        'load-more-schema-resources',
-        'Altre risorse dello schema non caricate',
-        'Le tabelle e le routine già disponibili sono rimaste visibili. Riprova il caricamento progressivo.',
-      ))
+      if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
+      try {
+        if (!await recoverSchemaSession(connectionId, request)) return false
+        setConnectionReady(true)
+        setResourceRecovery('load-more')
+        setResourceError(reportDatabaseFailure(error, 'continue-database-schema', 'Caricamento schema interrotto', 'Le risorse già caricate restano disponibili. Riprendi dal punto interrotto.'))
+      } catch (recoveryError) {
+        if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
+        setConnectionReady(false)
+        setResourceRecovery('connect')
+        setResourceError(reportDatabaseFailure(recoveryError, 'recover-database-after-schema', 'Connessione database da ripristinare', 'Le risorse già caricate restano visibili, ma devi riconnetterti per continuare.'))
+      }
+      return false
     } finally {
-      if (request === schemaRequest.current) setLoadingMoreSchema(false)
+      if (request === schemaRequest.current) setLoadingResources(false)
     }
-  }, [connectionId, connectionReady, getSelectedConnectionId, loadingMoreSchema, schemaNextOffset])
+  }, [connectionId, connectionReady, getSelectedConnectionId, loadSchemaSequence, loadingMoreSchema, recoverSchemaSession])
+
+  const disconnect = useCallback(async () => {
+    if (!connectionId || (!connectionReady && !disconnectPending) || disconnecting) return false
+    const request = ++schemaRequest.current
+    ++tableRequest.current
+    setDisconnecting(true)
+    setDisconnectPending(true)
+    setConnectionReady(false)
+    setLoadingResources(false)
+    setLoadingMoreSchema(false)
+    invalidateExecutionRequest()
+    try {
+      await databaseBridge.database.disconnect(connectionId)
+      if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
+      setDisconnectPending(false)
+      schemaRef.current = { tables: [], routines: [] }
+      schemaNextOffsetRef.current = null
+      schemaTotalRef.current = null
+      setSchema(schemaRef.current)
+      setSchemaProgress(null)
+      setResourceError(null)
+      setResourceRecovery(null)
+      setSelectedTableName(null)
+      setTablePage(null)
+      setTableError(null)
+      publishTransactionActive(false)
+      return true
+    } catch (error) {
+      if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
+      setConnectionReady(false)
+      setDisconnectPending(true)
+      setResourceRecovery('disconnect')
+      setResourceError(reportDatabaseFailure(error, 'disconnect-database', 'Disconnessione database non confermata', 'La sessione potrebbe essere ancora attiva. Riprova la disconnessione prima di continuare o cambiare configurazione.'))
+      return false
+    } finally {
+      if (request === schemaRequest.current) setDisconnecting(false)
+    }
+  }, [connectionId, connectionReady, disconnectPending, disconnecting, getSelectedConnectionId, invalidateExecutionRequest, publishTransactionActive])
 
   const retryResources = useCallback(() => {
     if (resourceRecovery === 'local') {
@@ -254,11 +364,15 @@ export function useDatabaseResources({
       return
     }
     if (resourceRecovery === 'load-more') {
-      void loadMoreSchema()
+      void resumeSchema()
+      return
+    }
+    if (resourceRecovery === 'disconnect') {
+      void disconnect()
       return
     }
     void connect({ force: resourceRecovery === 'refresh', preserveSchema: resourceRecovery === 'refresh' })
-  }, [connect, loadMoreSchema, resourceRecovery])
+  }, [connect, disconnect, resourceRecovery, resumeSchema])
 
   useEffect(() => {
     if (!connectionId || !connectionReady || !selectedTableName) return
@@ -269,6 +383,7 @@ export function useDatabaseResources({
       void databaseBridge.database.tableRows(connectionId, selectedTableName, { filter: tableFilter, limit: rowLimit }).then((page) => {
         if (request !== tableRequest.current || getSelectedConnectionId() !== connectionId) return
         setTablePage(page)
+        setSchema((current) => mergeInspectedTable(current, page.table))
       }).catch((error) => {
         if (request !== tableRequest.current || getSelectedConnectionId() !== connectionId) return
         setTablePage(null)
@@ -309,16 +424,19 @@ export function useDatabaseResources({
     connect,
     connectionPrepared: Boolean(connectionId && preparedConnectionId === connectionId),
     connectionReady,
+    disconnectAvailable: connectionReady || disconnectPending,
     desiredSavedQueryId,
     desiredTableName,
+    disconnect,
+    disconnecting,
     history,
-    loadMoreSchema,
     loadMoreTableRows,
-    loadingMoreSchema,
     loadingResources,
     refreshSavedQueries,
     resourceError,
-    resourceRetryLabel: resourceRecovery === 'load-more'
+    resourceRetryLabel: resourceRecovery === 'disconnect'
+      ? 'Riprova disconnessione'
+      : resourceRecovery === 'load-more'
       ? 'Riprova caricamento'
       : resourceRecovery === 'local'
         ? 'Ricarica dati locali'
@@ -329,7 +447,7 @@ export function useDatabaseResources({
     savedQueries,
     schema,
     schemaFilter,
-    schemaHasMore: schemaNextOffset !== null,
+    schemaProgress,
     selectedTableName,
     setHistory,
     setConnectionReady,

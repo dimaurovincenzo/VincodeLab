@@ -21,45 +21,27 @@ function schemaPageCacheKey({ offset, limit }) {
   return `${offset}:${limit}`
 }
 
-function remoteTableColumnsPageSql(driver, { offset, limit }) {
+function remoteTableIdentityPageSql(driver, { offset, limit }) {
   const pageSize = limit + 1
   if (driver === 'postgres') {
-    return `SELECT c.table_schema AS schema_name, c.table_name, c.column_name, c.data_type, c.is_nullable
-FROM information_schema.columns c
-INNER JOIN (
-  SELECT table_schema, table_name
-  FROM information_schema.columns
-  WHERE table_schema NOT IN ('pg_catalog','information_schema')
-  GROUP BY table_schema, table_name
-  ORDER BY table_schema, table_name
-  LIMIT ${pageSize} OFFSET ${offset}
-) selected_tables ON selected_tables.table_schema = c.table_schema AND selected_tables.table_name = c.table_name
-ORDER BY c.table_schema, c.table_name, c.ordinal_position`
+    return `SELECT table_schema AS schema_name, table_name, COUNT(*) OVER() AS total_count
+FROM information_schema.tables
+WHERE table_schema NOT IN ('pg_catalog','information_schema')
+ORDER BY table_schema, table_name
+LIMIT ${pageSize} OFFSET ${offset}`
   }
   if (driver === 'mysql') {
-    return `SELECT c.table_schema AS schema_name, c.table_name, c.column_name, c.data_type, c.is_nullable
-FROM information_schema.columns c
-INNER JOIN (
-  SELECT table_schema, table_name
-  FROM information_schema.columns
-  WHERE table_schema = DATABASE()
-  GROUP BY table_schema, table_name
-  ORDER BY table_schema, table_name
-  LIMIT ${pageSize} OFFSET ${offset}
-) selected_tables ON selected_tables.table_schema = c.table_schema AND selected_tables.table_name = c.table_name
-ORDER BY c.table_name, c.ordinal_position`
+    return `SELECT table_schema AS schema_name, table_name, COUNT(*) OVER() AS total_count
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+ORDER BY table_schema, table_name
+LIMIT ${pageSize} OFFSET ${offset}`
   }
-  return `SELECT c.TABLE_SCHEMA AS schema_name, c.TABLE_NAME AS table_name, c.COLUMN_NAME AS column_name, c.DATA_TYPE AS data_type, c.IS_NULLABLE AS is_nullable
-FROM INFORMATION_SCHEMA.COLUMNS c
-INNER JOIN (
-  SELECT TABLE_SCHEMA, TABLE_NAME
-  FROM INFORMATION_SCHEMA.COLUMNS
-  WHERE TABLE_SCHEMA NOT IN ('sys','INFORMATION_SCHEMA')
-  GROUP BY TABLE_SCHEMA, TABLE_NAME
-  ORDER BY TABLE_SCHEMA, TABLE_NAME
-  OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY
-) selected_tables ON selected_tables.TABLE_SCHEMA = c.TABLE_SCHEMA AND selected_tables.TABLE_NAME = c.TABLE_NAME
-ORDER BY c.TABLE_SCHEMA, c.TABLE_NAME, c.ORDINAL_POSITION`
+  return `SELECT TABLE_SCHEMA AS schema_name, TABLE_NAME AS table_name, COUNT(*) OVER() AS total_count
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA NOT IN ('sys','INFORMATION_SCHEMA')
+ORDER BY TABLE_SCHEMA, TABLE_NAME
+OFFSET ${offset} ROWS FETCH NEXT ${pageSize} ROWS ONLY`
 }
 
 function parseRemoteTableName(tableName) {
@@ -206,7 +188,7 @@ module.exports = {
   remoteRoutineDefinitionQuery,
   remoteRoutinePageSql,
   remoteTableColumnsExactQuery,
-  remoteTableColumnsPageSql,
+  remoteTableIdentityPageSql,
   schemaPageCacheKey,
   uniqueRemoteTableIdentities,
 }

@@ -1,4 +1,4 @@
-import { AlignLeft, PlugZap, Play, RefreshCw, RotateCcw, Save, X } from 'lucide-react'
+import { AlignLeft, PlugZap, Play, RefreshCw, RotateCcw, Save, Unplug, X } from 'lucide-react'
 import { Button, Spinner } from '@/components/ui'
 import type { DatabaseToolbarAction } from '../model/database.types'
 import { databaseStyles as db } from '@/theme/styles/database'
@@ -7,11 +7,14 @@ type DatabaseToolbarProps = {
   cancelling: boolean
   connectionPrepared: boolean
   connectionReady: boolean
+  disconnectAvailable: boolean
+  disconnecting: boolean
   executing: boolean
   loadingResources: boolean
   onBegin: () => void
   onCancel: () => void
   onConnect: () => void
+  onDisconnect: () => void
   onFinishTransaction: (action: 'commit' | 'rollback') => void
   onFormat: () => void
   onRefreshSchema: () => void
@@ -26,11 +29,14 @@ export function DatabaseToolbar({
   cancelling,
   connectionPrepared,
   connectionReady,
+  disconnectAvailable,
+  disconnecting,
   executing,
   loadingResources,
   onBegin,
   onCancel,
   onConnect,
+  onDisconnect,
   onFinishTransaction,
   onFormat,
   onRefreshSchema,
@@ -40,8 +46,12 @@ export function DatabaseToolbar({
   toolbarAction,
   transactionActive,
 }: DatabaseToolbarProps) {
-  const status = executing
+  const status = disconnecting
+    ? 'Disconnessione…'
+    : executing
     ? 'Esecuzione query…'
+    : connectionReady && loadingResources
+      ? 'Caricamento schema…'
     : toolbarAction === 'format'
       ? 'Formattazione SQL…'
       : toolbarAction === 'schema'
@@ -55,7 +65,7 @@ export function DatabaseToolbar({
               : transactionActive
                 ? 'Transazione attiva'
                 : selected && !connectionReady
-                  ? 'Non connesso'
+                  ? disconnectAvailable ? 'Disconnessione da completare' : 'Non connesso'
                   : connectionReady
                     ? 'Connesso'
                     : ''
@@ -64,8 +74,11 @@ export function DatabaseToolbar({
     <strong className={db.toolbarTitle}>{selected?.name ?? 'Seleziona una connessione'}</strong>
     <div className={db.toolbarActions}>
       <span aria-live="polite" className={db.toolbarStatus}>{status}</span>
-      {selected && !connectionReady && <Button size="sm" disabled={!connectionPrepared || loadingResources || toolbarAction !== null} onClick={onConnect}>
+      {selected && !disconnectAvailable && <Button size="sm" disabled={!connectionPrepared || loadingResources || toolbarAction !== null} onClick={onConnect}>
         {loadingResources ? <Spinner size={14} /> : <PlugZap size={14} />} {loadingResources ? 'Connessione…' : 'Connetti'}
+      </Button>}
+      {selected && disconnectAvailable && <Button size="sm" variant="outline" disabled={disconnecting || executing || transactionActive || toolbarAction !== null} onClick={onDisconnect}>
+        {disconnecting ? <Spinner size={14} /> : <Unplug size={14} />} {disconnecting ? 'Disconnessione…' : 'Disconnetti'}
       </Button>}
       <Button size="sm" variant="outline" disabled={!selected || !connectionReady || loadingResources || toolbarAction !== null} onClick={onRefreshSchema}>
         {toolbarAction === 'schema' ? <Spinner size={14} /> : <RefreshCw size={14} />} {toolbarAction === 'schema' ? 'Aggiornamento…' : 'Schema'}

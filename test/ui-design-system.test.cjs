@@ -1371,7 +1371,7 @@ test('Database resta passivo all’ingresso e comunica la connessione esplicita'
 
   assert.match(component, /const \[loadingResources, setLoadingResources\] = useState\(false\)/)
   assert.match(component, /const connect = useCallback/)
-  assert.match(component, /databaseBridge\.database\.inspectSchema\(connectionId/)
+  assert.match(component, /databaseBridge\.database\.inspectSchema\(targetConnectionId/)
   assert.match(component, /setLoadingResources\(true\)/)
   assert.match(component, /className=\{db\.loadingOverlay\}/)
   assert.match(component, /Connessione al database/)

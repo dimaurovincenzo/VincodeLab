@@ -9,8 +9,8 @@ const Database = require('better-sqlite3')
 
 const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const { createConnection, getConnectionWithSecrets, recordHistory } = require('../electron/infrastructure/persistence/database.repository.cjs')
-const { beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRoutine, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
-const { MAX_ROUTINE_DEFINITION_CHARS, normalizeSchemaPageOptions, remotePrimaryKeyQuery, remoteRoutineDefinitionQuery, remoteRoutinePageSql, remoteTableColumnsPageSql } = require('../electron/domains/database/database-schema-model.cjs')
+const { beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
+const { MAX_ROUTINE_DEFINITION_CHARS, normalizeSchemaPageOptions, remotePrimaryKeyQuery, remoteRoutineDefinitionQuery, remoteRoutinePageSql, remoteTableIdentityPageSql } = require('../electron/domains/database/database-schema-model.cjs')
 const { SqliteWorkerSession, sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics } = require('../electron/infrastructure/database/sqlite-worker-session.adapter.cjs')
 
 configureDatabasePersistence({ getConnectionWithSecrets, recordHistory })
@@ -531,7 +531,7 @@ test('il worker SQLite non invia la riga sentinella oltre il proprio IPC', async
   assert.equal(response.result.rows[0].id, 1)
 })
 
-test('lo schema SQLite espone chiave primaria e colonne modificabili', async (t) => {
+test('lo schema SQLite pagina identità e carica chiave primaria e colonne solo all apertura', async (t) => {
   const { workspace, sqlitePath } = withTemporaryDatabase(t)
   const connection = createConnection(workspace, { name: 'Locale', driver: 'sqlite', sqlitePath })
 
@@ -544,8 +544,12 @@ test('lo schema SQLite espone chiave primaria e colonne modificabili', async (t)
   await executeQuery(workspace, connection.id, 'CREATE TABLE logs(message TEXT)', { confirmed: true })
 
   const schema = await inspectSchema(workspace, connection.id, { force: true })
-  const users = schema.tables.find((table) => table.name === 'users')
-  const logs = schema.tables.find((table) => table.name === 'logs')
+  assert.deepEqual(schema.tables.map((table) => ({ name: table.name, columns: table.columns })), [
+    { name: 'logs', columns: [] },
+    { name: 'users', columns: [] },
+  ])
+  const users = (await readTableRows(workspace, connection.id, 'users')).table
+  const logs = (await readTableRows(workspace, connection.id, 'logs')).table
 
   assert.deepEqual(users.primaryKey, ['id'])
   assert.equal(users.columns.find((column) => column.name === 'id').editable, false)
@@ -555,6 +559,7 @@ test('lo schema SQLite espone chiave primaria e colonne modificabili', async (t)
   assert.deepEqual(schema.routines, [])
   assert.equal(schema.hasMore, false)
   assert.equal(schema.nextOffset, null)
+  assert.equal(schema.totalResources, 2)
 })
 
 test('pagina lo schema SQLite e carica una tabella non presente nella pagina senza ispezionare tutto il database', async (t) => {
@@ -585,15 +590,22 @@ test('pagina lo schema SQLite e carica una tabella non presente nella pagina sen
   assert.equal(page.table.name, 'echo')
 })
 
-test('valida la finestra schema e limita le query remote prima di caricare colonne e routine', () => {
+test('valida la finestra schema e pagina solo identità prima di caricare colonne e routine', () => {
   assert.deepEqual(normalizeSchemaPageOptions(), { force: false, offset: 0, limit: 50 })
   assert.deepEqual(normalizeSchemaPageOptions({ force: true, offset: 100, limit: 25 }), { force: true, offset: 100, limit: 25 })
   assert.throws(() => normalizeSchemaPageOptions({ offset: -1 }), /Offset schema database non valido/)
   assert.throws(() => normalizeSchemaPageOptions({ limit: 101 }), /Limite schema database non valido/)
 
-  assert.match(remoteTableColumnsPageSql('postgres', { offset: 100, limit: 25 }), /LIMIT 26 OFFSET 100/)
-  assert.match(remoteTableColumnsPageSql('mysql', { offset: 50, limit: 10 }), /LIMIT 11 OFFSET 50/)
-  assert.match(remoteTableColumnsPageSql('mssql', { offset: 20, limit: 5 }), /OFFSET 20 ROWS FETCH NEXT 6 ROWS ONLY/)
+  const postgresTables = remoteTableIdentityPageSql('postgres', { offset: 100, limit: 25 })
+  const mysqlTables = remoteTableIdentityPageSql('mysql', { offset: 50, limit: 10 })
+  const mssqlTables = remoteTableIdentityPageSql('mssql', { offset: 20, limit: 5 })
+  assert.match(postgresTables, /LIMIT 26 OFFSET 100/)
+  assert.match(mysqlTables, /LIMIT 11 OFFSET 50/)
+  assert.match(mssqlTables, /OFFSET 20 ROWS FETCH NEXT 6 ROWS ONLY/)
+  for (const query of [postgresTables, mysqlTables, mssqlTables]) {
+    assert.match(query, /information_schema\.tables/i)
+    assert.doesNotMatch(query, /column_name|ordinal_position|primary key/i)
+  }
   assert.match(remoteRoutinePageSql('postgres', { offset: 40, limit: 20 }), /LIMIT 21 OFFSET 40$/)
   assert.match(remoteRoutinePageSql('mssql', { offset: 40, limit: 20 }), /OFFSET 40 ROWS FETCH NEXT 21 ROWS ONLY$/)
 
@@ -618,6 +630,35 @@ test('pagina metadati leggeri e carica la definizione di una routine solo su ric
   assert.match(definition.sql, /definition_truncated/i)
   assert.deepEqual(definition.parameters, ['public', 'refresh_cache', 'PROCEDURE'])
   assert.equal(routineMetadataSql('sqlite'), null)
+})
+
+test('lo schema remoto non materializza colonne o chiavi prima dell apertura della tabella', async () => {
+  const queries = []
+  const execute = async (_session, sql) => {
+    queries.push(sql)
+    if (/information_schema\.tables/i.test(sql)) {
+      return {
+        rows: [
+          { schema_name: 'public', table_name: 'wide_one', total_count: 3 },
+          { schema_name: 'public', table_name: 'wide_two', total_count: 3 },
+          { schema_name: 'public', table_name: 'sentinel', total_count: 3 },
+        ],
+      }
+    }
+    return { rows: [{ schema_name: 'public', routine_name: 'refresh_cache', routine_type: 'PROCEDURE', total_count: 1 }] }
+  }
+
+  const page = await inspectRemoteSchemaPage({ driver: 'postgres' }, { offset: 0, limit: 2 }, execute)
+
+  assert.deepEqual(page.tables, [
+    { name: 'public.wide_one', columns: [], primaryKey: [] },
+    { name: 'public.wide_two', columns: [], primaryKey: [] },
+  ])
+  assert.equal(page.hasMore, true)
+  assert.equal(page.nextOffset, 2)
+  assert.equal(page.totalResources, 4)
+  assert.equal(queries.length, 2)
+  assert.ok(queries.every((sql) => !/information_schema\.columns|primary key/i.test(sql)))
 })
 
 test('legge e aggiorna una tabella SQLite solo in transazione', async (t) => {

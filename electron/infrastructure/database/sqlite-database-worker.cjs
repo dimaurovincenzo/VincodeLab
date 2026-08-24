@@ -38,13 +38,11 @@ function executeOperation(database, operation, payload = {}) {
     const limit = payload.limit
     const offset = payload.offset
     if (!Number.isInteger(limit) || limit < 1 || !Number.isInteger(offset) || offset < 0) throw new Error('Paginazione schema SQLite non valida.')
+    const totalResources = database.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").get().count
     const tableRows = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name LIMIT ? OFFSET ?").all(limit + 1, offset)
     const hasMore = tableRows.length > limit
-    const tables = tableRows.slice(0, limit).map(({ name }) => ({
-      name,
-      columns: database.prepare(`PRAGMA table_info(${JSON.stringify(name)})`).all(),
-    }))
-    return { tables, hasMore }
+    const tables = tableRows.slice(0, limit).map(({ name }) => ({ name, columns: [] }))
+    return { tables, hasMore, totalResources }
   }
   if (operation === 'inspectTableSchema') {
     if (typeof payload.tableName !== 'string' || !payload.tableName) throw new Error('Identificatore tabella SQLite non valido.')

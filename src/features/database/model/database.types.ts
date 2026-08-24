@@ -8,6 +8,7 @@ export type DatabaseSchemaPage = DatabaseSchema & {
   offset?: number
   hasMore?: boolean
   nextOffset?: number | null
+  totalResources?: number
 }
 export type DatabaseToolbarAction = 'schema' | 'begin' | 'commit' | 'rollback' | 'format' | null
 

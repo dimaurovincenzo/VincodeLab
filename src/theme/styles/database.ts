@@ -76,6 +76,26 @@ export const databaseStyles = {
   schemaFilter: css({
     m: '2 2.5 1',
   }),
+  schemaControls: css({
+    display: 'grid',
+    minW: '0',
+  }),
+  schemaProgress: css({
+    bg: 'surfaceSubtle',
+    borderBottomColor: 'borderDefault',
+    borderBottomWidth: '1px',
+    display: 'grid',
+    gap: '1.5',
+    p: '1.5 2.5 2',
+  }),
+  schemaProgressHeading: css({
+    alignItems: 'center',
+    color: 'textSecondary',
+    display: 'flex',
+    fontSize: 'graphiteMeta',
+    gap: '2',
+    justifyContent: 'space-between',
+  }),
   schemaTree: css({
     minH: '0',
     minW: '0',

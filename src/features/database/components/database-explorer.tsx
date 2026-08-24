@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { FilePenLine, Plus, Trash2 } from 'lucide-react'
-import { Button, ErrorNotice, Field, IconButton, SelectField, Spinner, Tabs, TreeView, createTreeCollection } from '@/components/ui'
+import { Button, ErrorNotice, Field, IconButton, Progress, SelectField, Spinner, Tabs, TreeView, createTreeCollection } from '@/components/ui'
 import type { UserError } from '@/lib/user-error'
 import { databaseDriverLabel as driverLabel, tableLabel, tableSchemaName } from '../model/database-connections'
 import type { DatabaseSchema, DatabaseSchemaTreeNode as SchemaTreeNode } from '../model/database.types'
@@ -10,18 +10,17 @@ import { DatabaseSchemaTreeNodeView } from './database-schema-tree-node'
 type DatabaseExplorerProps = {
   activeSavedQueryId: string | null
   connectionError: UserError | null
+  connectionLocked: boolean
   connectionReady: boolean
   connections: DatabaseConnection[]
   expandedSchemas: Set<string>
   history: DatabaseHistoryEntry[]
   loadingConnections: boolean
-  loadingMoreSchema: boolean
   onClearHistory: () => void
   onDeleteConnection: (connection: DatabaseConnection) => void
   onDeleteSavedQuery: (query: DatabaseSavedQuery) => void
   onEditConnection: (connection: DatabaseConnection, opener: HTMLElement) => void
   onExpandedSchemasChange: (schemas: Set<string>) => void
-  onLoadMoreSchema: () => void
   onNewConnection: (opener: HTMLElement) => void
   onOpenRoutine: (routine: DatabaseRoutine) => void
   onOpenSql: (sql: string, savedQueryId?: string | null) => void
@@ -33,7 +32,7 @@ type DatabaseExplorerProps = {
   savedQueries: DatabaseSavedQuery[]
   schema: DatabaseSchema
   schemaFilter: string
-  schemaHasMore: boolean
+  schemaProgress: { complete: boolean; loaded: number; total: number | null } | null
   selected: DatabaseConnection | null
   selectedTableName: string | null
   sidebarTab: 'items' | 'queries' | 'history'
@@ -42,18 +41,17 @@ type DatabaseExplorerProps = {
 export function DatabaseExplorer({
   activeSavedQueryId,
   connectionError,
+  connectionLocked,
   connectionReady,
   connections,
   expandedSchemas,
   history,
   loadingConnections,
-  loadingMoreSchema,
   onClearHistory,
   onDeleteConnection,
   onDeleteSavedQuery,
   onEditConnection,
   onExpandedSchemasChange,
-  onLoadMoreSchema,
   onNewConnection,
   onOpenRoutine,
   onOpenSql,
@@ -65,7 +63,7 @@ export function DatabaseExplorer({
   savedQueries,
   schema,
   schemaFilter,
-  schemaHasMore,
+  schemaProgress,
   selected,
   selectedTableName,
   sidebarTab,
@@ -139,6 +137,11 @@ export function DatabaseExplorer({
     const value = `table:${selectedTableName}`
     return schemaTreeCollection.findNode(value) ? [value] : []
   }, [schemaTreeCollection, selectedTableName])
+  const schemaProgressValue = schemaProgress?.complete
+    ? 100
+    : schemaProgress?.total && schemaProgress.total > 0
+      ? Math.min(100, schemaProgress.loaded / schemaProgress.total * 100)
+      : null
 
   return <Tabs.Root asChild value={sidebarTab} onValueChange={({ value }) => onSidebarTabChange(value as typeof sidebarTab)}>
     <aside className={db.sidebar}>
@@ -158,9 +161,20 @@ export function DatabaseExplorer({
                   <p className={db.listEmpty}>Usa “Connetti” nella barra principale. La connessione parte solo su tua richiesta.</p>
                 </div>
               : <>
-                  <Field.Root className={db.schemaFilter}>
-                    <Field.Input aria-label="Cerca nello schema" value={schemaFilter} onChange={(event) => onSchemaFilterChange(event.target.value)} placeholder="Cerca nelle risorse caricate…" />
-                  </Field.Root>
+                  <div className={db.schemaControls}>
+                    <Field.Root className={db.schemaFilter}>
+                      <Field.Input aria-label="Cerca nello schema" value={schemaFilter} onChange={(event) => onSchemaFilterChange(event.target.value)} placeholder="Cerca nelle risorse caricate…" />
+                    </Field.Root>
+                    {schemaProgress && <div aria-live="polite" className={db.schemaProgress} role="status">
+                      <Progress.Root value={schemaProgressValue}>
+                        <div className={db.schemaProgressHeading}>
+                          <Progress.Label>{schemaProgress.complete ? 'Schema completo' : 'Caricamento schema'}</Progress.Label>
+                          <Progress.ValueText>{schemaProgress.loaded}{schemaProgress.total !== null ? ` / ${schemaProgress.total}` : ''} risorse</Progress.ValueText>
+                        </div>
+                        <Progress.Track aria-label="Avanzamento caricamento schema database"><Progress.Range /></Progress.Track>
+                      </Progress.Root>
+                    </div>}
+                  </div>
                   <TreeView.Root
                     collection={schemaTreeCollection}
                     expandedValue={schemaExpandedValue}
@@ -181,9 +195,6 @@ export function DatabaseExplorer({
                       {schemaTreeCollection.getNodeChildren(schemaTreeCollection.rootNode).map((node, index) => <DatabaseSchemaTreeNodeView indexPath={[index]} key={node.value} node={node} />)}
                     </TreeView.Tree>
                   </TreeView.Root>
-                  {schemaHasMore && <Button size="sm" variant="outline" disabled={loadingMoreSchema} onClick={onLoadMoreSchema}>
-                    {loadingMoreSchema && <Spinner size={14} />} {loadingMoreSchema ? 'Caricamento…' : 'Carica altre risorse'}
-                  </Button>}
                 </>}
         </Tabs.Content>
         <Tabs.Content value="queries" className={db.explorerList}>
@@ -216,6 +227,7 @@ export function DatabaseExplorer({
                   aria-label="Connessione database attiva"
                   placeholder="Nessuna connessione"
                   options={connections.map((connection) => ({ value: connection.id, label: `${connection.name} · ${driverLabel(connection.driver)}` }))}
+                  disabled={connectionLocked}
                   value={selected?.id ?? ''}
                   onValueChange={(value) => onSelectConnection(connections.find((connection) => connection.id === value) ?? null)}
                 />

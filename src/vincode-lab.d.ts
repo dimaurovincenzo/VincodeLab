@@ -500,7 +500,7 @@ interface DatabaseCancelResult { cancelled: boolean; mutative: boolean }
 interface DatabaseColumn { name: string; type?: string; nullable: boolean; primaryKeyPosition?: number; editable: boolean }
 interface DatabaseTableSchema { name: string; columns: DatabaseColumn[]; primaryKey: string[] }
 interface DatabaseRoutine { name: string; kind: 'procedure' | 'function'; definition: string | null; definitionTruncated?: boolean }
-interface DatabaseSchemaPage { tables: DatabaseTableSchema[]; routines: DatabaseRoutine[]; hasMore?: boolean; nextOffset?: number | null }
+interface DatabaseSchemaPage { tables: DatabaseTableSchema[]; routines: DatabaseRoutine[]; hasMore?: boolean; nextOffset?: number | null; totalResources?: number }
 interface DatabaseTablePage { table: DatabaseTableSchema; rows: Record<string, unknown>[]; offset: number; hasMore: boolean; durationMs: number; resultBytes: number; readOnlyReason?: string }
 interface DatabaseTableChange { key: Record<string, unknown>; values: Record<string, unknown> }
 interface DatabaseSavedQuery { id: string; connectionId: string; name: string; sql: string; updatedAt?: number }
