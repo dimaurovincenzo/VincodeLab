@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 
-const { createApplicationMenuTemplate, isApplicationMenuCommand } = require('../electron/application-menu.cjs')
+const { createApplicationMenuTemplate, isApplicationMenuCommand } = require('../electron/domains/menu/application-menu.cjs')
 
 function menuByLabel(template, label) {
   return template.find((item) => item.label === label)

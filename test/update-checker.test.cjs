@@ -5,7 +5,7 @@ const path = require('node:path')
 const { execFileSync } = require('node:child_process')
 const test = require('node:test')
 
-const { checkManagedUpdate } = require('../electron/update-checker.cjs')
+const { checkManagedUpdate } = require('../electron/infrastructure/updates/update-checker.adapter.cjs')
 
 const NOW = 1_725_000_000_000
 const githubSkill = {
@@ -46,7 +46,7 @@ test('controlla GitHub anche con il PATH minimale del bundle macOS', (t) => {
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
 
   const script = `
-    const { readGitHubRef } = require(${JSON.stringify(path.join(__dirname, '..', 'electron', 'update-checker.cjs'))})
+    const { readGitHubRef } = require(${JSON.stringify(path.join(__dirname, '..', 'electron', 'infrastructure', 'updates', 'update-checker.adapter.cjs'))})
     readGitHubRef(${JSON.stringify(githubSkill)})
       .then((result) => process.stdout.write(JSON.stringify(result)))
       .catch((error) => { console.error(error.message); process.exitCode = 1 })

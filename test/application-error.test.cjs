@@ -5,12 +5,11 @@ const {
   classifyApplicationError,
   domainFromIpcChannel,
   getApplicationErrorLogMetadata,
-  installIpcMainErrorHandling,
   isApplicationError,
   toApplicationError,
-  wrapIpcHandler,
-} = require('../electron/application-error.cjs')
-const { createPublicError, isPublicError, toPublicError } = require('../electron/public-error.cjs')
+} = require('../electron/domains/errors/application-error.cjs')
+const { installIpcMainErrorHandling, wrapIpcHandler } = require('../electron/infrastructure/ipc/ipc-error-boundary.cjs')
+const { createPublicError, isPublicError, toPublicError } = require('../electron/domains/errors/public-error.cjs')
 
 const PRIVATE_DETAIL = 'EACCES /Users/alice/secret/query.sql token=ghp_private SELECT * FROM customers'
 

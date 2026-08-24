@@ -4,7 +4,7 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { createLogger, parseRendererDiagnosticMessage, sanitizeFields } = require('../electron/logger.cjs')
+const { createLogger, parseRendererDiagnosticMessage, sanitizeFields } = require('../electron/infrastructure/logging/logger.adapter.cjs')
 
 function temporaryLogs(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-logger-'))

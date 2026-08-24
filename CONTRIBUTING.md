@@ -36,10 +36,44 @@ I messaggi di commit dovrebbero essere imperativi e leggibili; il progetto usa c
 
 ## Regole architetturali
 
+### Albero e ownership
+
+| Area | Owner | Contenuto ammesso |
+| --- | --- | --- |
+| `src/app/` | shell renderer | composizione, navigazione, provider e coordinamento tra feature |
+| `src/features/<nome>/` | feature verticale | `api/`, `components/`, `hooks/`, `model/`, `services/` e un solo ingresso pubblico `index.ts` |
+| `src/bridge/` | confine renderer | contratto tipizzato e accesso a `window.vincodeLab`; nessuna UI o logica di feature |
+| `src/components/ui/` | design system | primitive Ark/Park condivise, esportate esclusivamente da `index.ts` |
+| `src/components/` | presentazione condivisa | componenti trasversali privi di dipendenze da app e feature |
+| `src/theme/` | Graphite | token, recipe e stili Panda; nessuna dipendenza da componenti o feature |
+| `electron/app/` e `electron/domains/` | application/domain | orchestrazione testabile e policy indipendenti dagli adapter |
+| `electron/infrastructure/` | adapter | CLI, cache, driver e integrazioni che implementano capacità del dominio |
+| `electron/ipc/domains/` | boundary IPC | manifesti di canale e handler con dipendenze iniettate |
+| `electron/preload/` | boundary preload | sorgenti canoniche dei bridge esposti al renderer |
+| `electron/main.cjs`, `electron/app/bootstrap.cjs` | composition root | wiring, lifecycle Electron e bootstrap protetto |
+
+La radice `electron/` è riservata a `main.cjs` e all'artefatto `preload.cjs` generato. Non aggiungere servizi o facciate compatibili in questa cartella e non ricreare i path rimossi: aggiorna test e import verso l'owner canonico.
+
+Le dipendenze devono puntare verso l'interno:
+
+```text
+src/main.tsx → src/app → ingressi pubblici delle feature
+feature A    → feature B/index.ts, @/bridge, @/components/ui, @/theme/*, @/lib/*
+components  → @/components/ui, @/theme/*, @/lib/*, @/bridge
+
+electron/main.cjs → app, IPC, domini, infrastructure
+infrastructure    → domini
+IPC               → dipendenze iniettate dal main
+preload            → soli moduli electron/preload/ e pacchetto electron
+```
+
+`npm run check:architecture` impedisce import profondi cross-feature, accessi profondi a UI/bridge, dipendenze inverse, path legacy rimossi, accessi diretti a `window.vincodeLab` e cicli interni.
+
 ### Confine Electron
 
 - Il renderer non deve importare moduli Node.js o Electron, né accedere direttamente a filesystem, processi o rete privilegiata.
-- Le capacità native passano attraverso API nominate in `electron/preload.cjs` e dichiarate in `src/vincode-lab.d.ts`.
+- Le capacità native sono definite nelle sorgenti `electron/preload/`, dichiarate in `src/vincode-lab.d.ts` e consumate dal renderer tramite `@/bridge`.
+- `electron/preload.cjs` è un artefatto runtime generato: non modificarlo a mano. `npm run build:preload` lo ricostruisce e `npm run check:preload` rileva drift.
 - Ogni nuovo handler IPC deve validare mittente e argomenti nel processo principale, limitare input/output e restituire soltanto dati necessari.
 - Non inviare al renderer stack trace, errori raw di processi, credenziali, percorsi interni non necessari o output di driver non sanitizzato.
 
@@ -64,8 +98,30 @@ I messaggi di commit dovrebbero essere imperativi e leggibili; il progetto usa c
 
 - Le preferenze globali e quelle del workspace hanno contratti separati: una modifica allo schema richiede default, validazione, recovery e test di migrazione.
 - Le operazioni distruttive o remote devono restare esplicite e, dove previsto, confermate.
+- Navigazione, mount di una vista e ripristino di un identificatore persistito non devono avviare operazioni remote: una selezione salvata non equivale al consenso a connettersi.
 - Non cambiare formati persistiti o contratti IPC senza descrivere la compatibilità nella pull request.
 - Preserva contenuto non salvato, sessioni e stato recuperabile quando una vista fallisce.
+
+## Aggiungere una feature renderer
+
+1. Crea `src/features/<nome>/` e assegna ogni file a `api`, `components`, `hooks`, `model` o `services` in base alla responsabilità; evita cartelle vuote o livelli creati “per il futuro”.
+2. Esponi da `index.ts` soltanto il contratto necessario agli altri moduli. Gli import interni restano relativi; i consumer esterni usano `@/features/<nome>`.
+3. Mantieni stato e trasformazioni pure in `model/`, accessi privilegiati in un adapter `api/*.bridge.ts` e policy non-React in `services/`. Hook e controller presentazionali restano vicino alla feature.
+4. Componi la vista da `src/app/`; non fare dipendere la feature dalla shell. Usa `@/components/ui` e token Graphite per la UI.
+5. Aggiungi test del modello e dei confini, poi test di interazione per tastiera, focus, errori e persistenza rilevanti.
+6. Se stai rimuovendo un vecchio owner, aggiorna nello stesso cambiamento import e test path-based. Una facciata temporanea richiede una motivazione di compatibilità e una data/condizione di rimozione.
+
+## Aggiungere una capacità IPC
+
+1. Definisci prima operazione, input, output, timeout, annullamento ed errore pubblico. La capacità appartiene a `electron/domains/<nome>/`; un driver o una CLI appartiene a `electron/infrastructure/<nome>/`. Applica paginazione e limiti nella query o nel driver prima di accumulare il risultato: caricare tutto e usare `slice()` in seguito non è un controllo di budget accettabile.
+2. Crea o estendi `electron/ipc/domains/<nome>.ipc.cjs`. Esporta manifesti immutabili `*_INVOKE_CHANNELS` e/o `*_SEND_CHANNELS`, costruisci gli handler da dipendenze iniettate e conserva validazione del sender e degli argomenti nel boundary.
+3. Collega registrar, dominio e adapter esclusivamente nella composition root `electron/main.cjs`. Gli handler non devono importare il main né catturare errori che spettano alla boundary IPC centralizzata.
+4. Aggiungi l'API nominata al bridge corretto in `electron/preload/bridges/`. Se crei un nuovo modulo preload, dichiaralo in `scripts/build-preload.mjs`; poi aggiorna `src/vincode-lab.d.ts`.
+5. Nel renderer incapsula l'accesso in `src/features/<nome>/api/*.bridge.ts`, ottenendo il contratto da `@/bridge`; componenti e model non accedono direttamente a `window.vincodeLab`.
+6. Aggiungi test del dominio/adapter, del registrar (guardie, argomenti, return, errori e cancellazione), della parità dei canali e della superficie preload.
+7. Esegui almeno `npm run build:preload`, `npm run check:preload`, i test mirati, `npm run check:architecture` e `git diff --check`. Per capacità native verifica anche il percorso reale in Electron.
+
+Per capacità remote o paginate aggiungi test che provino: zero chiamate remote al mount e alla selezione, anche in StrictMode; una sola chiamata dopo l'azione esplicita; validazione di `offset` e `limit`; coerenza di `hasMore` e `nextOffset`; merge e deduplicazione delle pagine; conservazione dei risultati già caricati se una pagina successiva fallisce.
 
 ## Test e controlli
 

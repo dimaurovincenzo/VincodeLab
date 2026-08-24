@@ -3,7 +3,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 
-const { createExternalMutationRegistry } = require('../electron/external-mutation-registry.cjs')
+const { createExternalMutationRegistry } = require('../electron/domains/workspace/external-mutation-registry.cjs')
 
 function deferred() {
   let resolve
@@ -65,12 +65,18 @@ test('il drain considera conclusa anche una mutazione fallita e non ne nasconde 
 
 test('il main attende le mutazioni ai lifecycle boundary e registra GitHub Pi update e Database', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const startupRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-startup-runtime.cjs'), 'utf8')
+  const shutdownRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-shutdown-runtime.cjs'), 'utf8')
   const domainsDirectory = path.join(__dirname, '../electron/ipc/domains')
   const ipcDomains = fs.readdirSync(domainsDirectory)
     .filter((fileName) => fileName.endsWith('.ipc.cjs'))
     .map((fileName) => fs.readFileSync(path.join(domainsDirectory, fileName), 'utf8'))
     .join('\n')
-  const source = `${main}\n${ipcDomains}`
+  const workspaceCleanup = fs.readFileSync(
+    path.join(__dirname, '../electron/domains/workspace/workspace-runtime-cleanup.cjs'),
+    'utf8',
+  )
+  const source = `${main}\n${startupRuntime}\n${shutdownRuntime}\n${ipcDomains}\n${workspaceCleanup}`
   assert.match(source, /externalMutations\.waitMatching\([\s\S]*?'external-mutations'/u)
   assert.match(source, /externalMutations\.waitAll\(\)[\s\S]*?'external-mutations'/u)
   assert.match(source, /externalMutations\.run\(\{ ownerId: 0, workspacePath: null, type: 'startup:managed-updates' \}/u)

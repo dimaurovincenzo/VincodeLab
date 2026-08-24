@@ -11,7 +11,7 @@ const {
   SESSION_ID_PATTERN,
   createShellSessionManager,
   resolveSystemShell,
-} = require('../electron/shell-session-manager.cjs')
+} = require('../electron/domains/shell/shell-session-manager.cjs')
 
 function temporaryWorkspace(t, prefix = 'vincodelab-shell-sessions-') {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), prefix))

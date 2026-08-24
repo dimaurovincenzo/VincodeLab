@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
-const { getPiSystemStatus, installPiPackage, listPiPackages, removePiPackage, updatePiPackage } = require('../electron/pi-system-service.cjs')
-const { isPublicError } = require('../electron/public-error.cjs')
+const { getPiSystemStatus, installPiPackage, listPiPackages, removePiPackage, updatePiPackage } = require('../electron/domains/ai/pi-system-service.cjs')
+const { isPublicError } = require('../electron/domains/errors/public-error.cjs')
 
 function hasPublicCode(code) {
   return (error) => {

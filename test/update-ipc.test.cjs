@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
-const vm = require('node:vm')
+const { createWorkspaceOperationBoundary } = require('../electron/domains/workspace/workspace-operation-boundary.cjs')
 
 const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
 const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
@@ -13,20 +13,6 @@ function ipcHandlerSource(channel) {
   assert.notEqual(start, -1, `Handler IPC mancante: ${channel}`)
   const nextHandler = updatesIpc.indexOf('\n    [', start + 1)
   return updatesIpc.slice(start, nextHandler === -1 ? updatesIpc.length : nextHandler)
-}
-
-function namedFunctionSource(name) {
-  const start = main.indexOf(`function ${name}(`)
-  assert.notEqual(start, -1, `Funzione mancante: ${name}`)
-  const openingBrace = main.indexOf('{', start)
-  let depth = 0
-  for (let index = openingBrace; index < main.length; index += 1) {
-    if (main[index] === '{') depth += 1
-    if (main[index] !== '}') continue
-    depth -= 1
-    if (depth === 0) return main.slice(start, index + 1)
-  }
-  throw new Error(`Corpo funzione non chiuso: ${name}`)
 }
 
 test('preload espone solo operazioni update per id e policy', () => {
@@ -64,7 +50,7 @@ test('ogni canale aggiornamenti verifica il sender prima del servizio', () => {
 
   const calls = []
   const rejection = new Error('sender rifiutato')
-  const runExternalMutation = vm.runInNewContext(`(${namedFunctionSource('runExternalMutation')})`, {
+  const { runExternalMutation } = createWorkspaceOperationBoundary({
     assertTrustedSender() {
       calls.push('sender')
       throw rejection
@@ -75,6 +61,8 @@ test('ogni canale aggiornamenti verifica il sender prima del servizio', () => {
         return operation()
       },
     },
+    getActiveWorkspacePath: () => '/workspace',
+    githubOperations: {},
   })
 
   assert.throws(

@@ -5,7 +5,7 @@ const path = require('node:path')
 const test = require('node:test')
 const Database = require('better-sqlite3')
 
-const { createInstanceRegistry } = require('../electron/instance-registry.cjs')
+const { createInstanceRegistry } = require('../electron/infrastructure/persistence/instance-registry.adapter.cjs')
 
 function createFixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-instances-'))

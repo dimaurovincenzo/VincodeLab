@@ -4,7 +4,7 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { closeDatabase } = require('../electron/workspace-store.cjs')
+const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const {
   assertRemoteRoot,
   assertSshDestination,
@@ -15,7 +15,7 @@ const {
   listWorkspaceCommands,
   moveWorkspaceCommand,
   updateWorkspaceCommand,
-} = require('../electron/workspace-commands.cjs')
+} = require('../electron/infrastructure/persistence/workspace-commands.repository.cjs')
 
 function withTemporaryDatabase(t) {
   const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-commands-'))

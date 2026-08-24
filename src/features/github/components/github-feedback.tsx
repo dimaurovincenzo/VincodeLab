@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { TriangleAlert } from 'lucide-react'
-import { ErrorNotice } from '@/components/ui'
+import { RefreshCw, TriangleAlert } from 'lucide-react'
+import { Button, ErrorNotice, Spinner } from '@/components/ui'
 import type { UserError } from '@/lib/user-error'
 import { githubStyles as gh } from '@/theme/styles/github'
 import { cx } from '../../../../styled-system/css'
@@ -22,4 +22,8 @@ export function LimitNotice({ children, className }: LimitNoticeProps) {
 
 export function GitHubErrorNotice({ error, label, onClick }: GitHubErrorNoticeProps) {
   return error ? <ErrorNotice action={{ label, onClick }} error={error} /> : null
+}
+
+export function GitHubDataState({ busy, error, onRefresh }: { busy: boolean; error?: UserError; onRefresh: () => void }) {
+  return <section aria-live="polite" className={cx(gh.panel, gh.liveState)}>{busy ? <p className={cx(gh.muted, gh.inlineLoading)}><Spinner size={15} /> Caricamento dati GitHub…</p> : error ? <ErrorNotice action={{ label: 'Riprova caricamento GitHub', onClick: onRefresh }} error={error} /> : <><p className={gh.muted}>I dati GitHub non sono ancora disponibili.</p><Button size="sm" variant="outline" onClick={onRefresh}><RefreshCw size={14} /> Riprova caricamento GitHub</Button></>}</section>
 }

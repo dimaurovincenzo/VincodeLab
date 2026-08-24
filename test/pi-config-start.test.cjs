@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
-const { environmentForPi } = require('../electron/pi-executable.cjs')
+const { environmentForPi } = require('../electron/domains/ai/pi-executable.cjs')
 
 test('Pi eseguito da NVM aggiunge il proprio bin al PATH del processo', () => {
   const executable = '/Users/example/.nvm/versions/node/v24.19.0/bin/pi'
@@ -13,11 +13,11 @@ test('Pi eseguito da NVM aggiunge il proprio bin al PATH del processo', () => {
 })
 
 test('avvia Pi Config senza oscurare il processo Node globale', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const startPiConfig = source.match(/function startPiConfig\(\) \{([\s\S]*?)\n\}/)?.[1]
+  const source = fs.readFileSync(path.join(__dirname, '../electron/domains/ai/pi-runtime.cjs'), 'utf8')
+  const startPiConfig = source.match(/function startConfig\(\) \{([\s\S]*?)\n  \}/)?.[1]
 
-  assert.ok(startPiConfig, 'il gestore startPiConfig deve esistere')
+  assert.ok(startPiConfig, 'il gestore Pi Config deve esistere nel runtime AI')
   assert.doesNotMatch(startPiConfig, /const process\s*=/)
   assert.match(startPiConfig, /const ptyProcess = ptyRuntime\.spawn/)
-  assert.match(startPiConfig, /env: \{ \.\.\.environmentForPi\(executable\), TERM: 'xterm-256color' \}/)
+  assert.match(startPiConfig, /env: \{ \.\.\.environmentForExecutable\(executable\), TERM: 'xterm-256color' \}/)
 })

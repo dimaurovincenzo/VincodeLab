@@ -3,7 +3,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 
-const { createLifecycleCloseController } = require('../electron/lifecycle-close-controller.cjs')
+const { createLifecycleCloseController } = require('../electron/app/lifecycle-close-controller.cjs')
 
 function createFixture() {
   const sent = []
@@ -98,19 +98,24 @@ test('il timeout resta fail-closed finché una scelta nativa esplicita non risol
 
 test('main e preload confinano la handshake e non aprono il workspace direttamente dal menu', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const shutdownRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-shutdown-runtime.cjs'), 'utf8')
+  const menuFeedbackRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-menu-feedback-runtime.cjs'), 'utf8')
+  const windowLifecycle = fs.readFileSync(path.join(__dirname, '../electron/app/window-lifecycle-runtime.cjs'), 'utf8')
   const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
-  const menu = fs.readFileSync(path.join(__dirname, '../electron/application-menu.cjs'), 'utf8')
+  const menu = fs.readFileSync(path.join(__dirname, '../electron/domains/menu/application-menu.cjs'), 'utf8')
+  const lifecycleBenchmarkIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/lifecycle-benchmark.ipc.cjs'), 'utf8')
 
-  assert.match(main, /window\.on\('close'[\s\S]*event\.preventDefault\(\)[\s\S]*windowCloseCoordinator\.isPending\(\)[\s\S]*lifecycleCloseGuard\.request\('window'\)/)
-  assert.match(main, /app\.on\('before-quit'[\s\S]*event\.preventDefault\(\)[\s\S]*lifecycleCloseGuard\.request\('quit'\)/)
-  assert.match(main, /ipcMain\.on\('lifecycle:closeResponse'[\s\S]{0,220}assertTrustedSender\(event\)/)
-  assert.match(main, /buttons: \['Resta aperto', 'Chiudi comunque'\][\s\S]*defaultId: 0[\s\S]*cancelId: 0/)
-  assert.match(main, /createWindowCloseCoordinator\(\{[\s\S]*cleanupWorkspaceRuntime\(workspacePath, 'window-close'\)[\s\S]*allowWindowCloseOnce = true[\s\S]*window\.close\(\)/)
-  assert.match(main, /buttons: \['Resta aperto', 'Riprova chiusura'\][\s\S]*defaultId: 0[\s\S]*cancelId: 0/)
-  assert.match(main, /createRendererRecoveryController\(\{[\s\S]*Ricarica interfaccia[\s\S]*window\.webContents\.reload\(\)/)
+  assert.match(windowLifecycle, /window\.on\('close'[\s\S]*event\.preventDefault\(\)[\s\S]*windowCloseCoordinator\.isPending\(\)[\s\S]*lifecycleCloseGuard\.request\('window'\)/)
+  assert.match(shutdownRuntime, /app\.on\('before-quit'[\s\S]*event\.preventDefault\(\)[\s\S]*lifecycleCloseGuard\.request\('quit'\)/)
+  assert.match(main, /registerLifecycleBenchmarkIpc\(\{/)
+  assert.match(lifecycleBenchmarkIpc, /lifecycle:closeResponse[\s\S]{0,360}assertTrustedSender\(event\)/)
+  assert.match(windowLifecycle, /buttons: \['Resta aperto', 'Chiudi comunque'\][\s\S]*defaultId: 0[\s\S]*cancelId: 0/)
+  assert.match(windowLifecycle, /createWindowCloseCoordinator\(\{[\s\S]*cleanupWorkspaceRuntime\(workspacePath, 'window-close'\)[\s\S]*allowWindowCloseOnce = true[\s\S]*window\.close\(\)/)
+  assert.match(windowLifecycle, /buttons: \['Resta aperto', 'Riprova chiusura'\][\s\S]*defaultId: 0[\s\S]*cancelId: 0/)
+  assert.match(windowLifecycle, /createRendererRecoveryController\(\{[\s\S]*Ricarica interfaccia[\s\S]*window\.webContents\.reload\(\)/)
   assert.match(preload, /respondToClose: \(requestId, decision\) => ipcRenderer\.send\('lifecycle:closeResponse'/)
   assert.match(preload, /ipcRenderer\.on\('lifecycle:closeRequested'/)
   assert.match(menu, /commandItem\(\{ label: 'Apri cartella…', command: 'workspace\.open'[\s\S]*onCommand\)/)
-  const createMenu = main.slice(main.indexOf('function createMenu()'), main.indexOf('function migrateLegacyDatabaseSecretsInBatches'))
-  assert.doesNotMatch(createMenu, /chooseAndOpenWorkspace|openWorkspaceForRenderer|showOpenDialog/)
+  assert.match(main, /createApplicationMenuFeedbackRuntime\(\{/)
+  assert.doesNotMatch(menuFeedbackRuntime, /chooseAndOpenWorkspace|openWorkspaceForRenderer|showOpenDialog/)
 })

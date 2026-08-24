@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { createWindowCloseCoordinator } = require('../electron/window-close-coordinator.cjs')
+const { createWindowCloseCoordinator } = require('../electron/app/window-close-coordinator.cjs')
 
 function deferred() {
   let resolve

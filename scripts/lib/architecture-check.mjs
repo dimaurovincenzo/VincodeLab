@@ -11,6 +11,96 @@ const sourceRoots = ['src', 'electron']
 export const legacyDirectBridgeFiles = new Map([
 ])
 
+// Removed compatibility paths are kept here as a one-way ratchet. Importers
+// must move to the canonical owner instead of recreating a facade in the old
+// location.
+export const removedLegacyModules = new Map([
+  ['src/App', 'src/app'],
+  ['src/components/database-workspace', 'src/features/database'],
+  ['src/components/free-terminal', 'src/features/terminal'],
+  ['src/components/github-workspace', 'src/features/github'],
+  ['src/components/project-editor', 'src/features/editor'],
+  ['src/components/redis-workspace', 'src/features/redis'],
+  ['src/components/remote-files', 'src/features/remote-files'],
+  ['src/components/settings', 'src/features/settings'],
+  ['src/components/terminal-workspace', 'src/features/terminal'],
+  ['src/components/workspace-switcher', 'src/features/workspace'],
+  ['src/lib/workspace-session', 'src/features/workspace'],
+  ['electron/github-service', 'electron/infrastructure/github/github-service.adapter.cjs'],
+  ['electron/github-operation-registry', 'electron/domains/github/github-operation-registry.cjs'],
+  ['electron/github-projects', 'electron/domains/github/github-projects.cjs'],
+  ['electron/github-cli-executable', 'electron/infrastructure/github/github-cli-executable.adapter.cjs'],
+  ['electron/fatal-error-experience', 'electron/app/fatal-error-experience.cjs'],
+  ['electron/application-menu', 'electron/domains/menu/application-menu.cjs'],
+  ['electron/context-menu', 'electron/domains/menu/context-menu.cjs'],
+  ['electron/logger', 'electron/infrastructure/logging/logger.adapter.cjs'],
+  ['electron/lifecycle-close-controller', 'electron/app/lifecycle-close-controller.cjs'],
+  ['electron/ipc-one-way-error', 'electron/infrastructure/ipc/ipc-one-way-error.cjs'],
+  ['electron/ipc-security', 'electron/infrastructure/security/ipc-security.adapter.cjs'],
+  ['electron/instance-launcher', 'electron/infrastructure/processes/instance-launcher.adapter.cjs'],
+  ['electron/instance-registry', 'electron/infrastructure/persistence/instance-registry.adapter.cjs'],
+  ['electron/app-preferences', 'electron/infrastructure/persistence/app-preferences.repository.cjs'],
+  ['electron/bootstrap', 'electron/app/bootstrap.cjs'],
+  ['electron/database-store', 'electron/infrastructure/persistence/database.repository.cjs'],
+  ['electron/redis-store', 'electron/infrastructure/persistence/redis.repository.cjs'],
+  ['electron/update-activation', 'electron/infrastructure/updates/update-activation.adapter.cjs'],
+  ['electron/update-checker', 'electron/infrastructure/updates/update-checker.adapter.cjs'],
+  ['electron/update-discovery', 'electron/infrastructure/updates/update-discovery.adapter.cjs'],
+  ['electron/update-downloader', 'electron/infrastructure/updates/update-downloader.adapter.cjs'],
+  ['electron/update-service', 'electron/domains/updates/update-service.cjs'],
+  ['electron/update-store', 'electron/infrastructure/persistence/update.repository.cjs'],
+  ['electron/workspace-cache', 'electron/infrastructure/persistence/workspace-cache.repository.cjs'],
+  ['electron/workspace-commands', 'electron/infrastructure/persistence/workspace-commands.repository.cjs'],
+  ['electron/workspace-session-store', 'electron/infrastructure/persistence/workspace-session.repository.cjs'],
+  ['electron/workspace-store', 'electron/infrastructure/persistence/workspace.repository.cjs'],
+  ['electron/managed-ssh-service', 'electron/infrastructure/remote/managed-ssh-service.adapter.cjs'],
+  ['electron/external-mutation-registry', 'electron/domains/workspace/external-mutation-registry.cjs'],
+  ['electron/file-utils', 'electron/domains/filesystem/file-utils.cjs'],
+  ['electron/database-service', 'electron/domains/database/database-service.cjs'],
+  ['electron/database-operation-registry', 'electron/domains/database/database-operation-registry.cjs'],
+  ['electron/database-result-budget', 'electron/domains/database/database-result-budget.cjs'],
+  ['electron/database-session-registry', 'electron/domains/database/database-session-registry.cjs'],
+  ['electron/application-error', 'electron/domains/errors/application-error.cjs'],
+  ['electron/project-files', 'electron/domains/filesystem/project-files.cjs'],
+  ['electron/project-file-index', 'electron/domains/filesystem/project-file-index.cjs'],
+  ['electron/project-instructions', 'electron/domains/ai/project-instructions.cjs'],
+  ['electron/project-skills', 'electron/domains/ai/project-skills.cjs'],
+  ['electron/preload-error-experience', 'electron/app/preload-error-experience.cjs'],
+  ['electron/public-error', 'electron/domains/errors/public-error.cjs'],
+  ['electron/redis-service', 'electron/domains/redis/redis-service.cjs'],
+  ['electron/redis-connection-input', 'electron/domains/redis/redis-connection-input.cjs'],
+  ['electron/redis-operation-registry', 'electron/domains/redis/redis-operation-registry.cjs'],
+  ['electron/redis-result-budget', 'electron/domains/redis/redis-result-budget.cjs'],
+  ['electron/redis-session-registry', 'electron/domains/redis/redis-session-registry.cjs'],
+  ['electron/remote-file-service', 'electron/domains/remote-files/remote-file-service.cjs'],
+  ['electron/remote-file-store', 'electron/infrastructure/remote/remote-file-store.adapter.cjs'],
+  ['electron/renderer-recovery-controller', 'electron/app/renderer-recovery-controller.cjs'],
+  ['electron/shell-session-manager', 'electron/domains/shell/shell-session-manager.cjs'],
+  ['electron/shell-session-error-event', 'electron/domains/shell/shell-session-error-event.cjs'],
+  ['electron/sftp-service', 'electron/infrastructure/remote/sftp-service.adapter.cjs'],
+  ['electron/sqlite-database-worker', 'electron/infrastructure/database/sqlite-database-worker.cjs'],
+  ['electron/sqlite-worker-session', 'electron/infrastructure/database/sqlite-worker-session.adapter.cjs'],
+  ['electron/system-skills', 'electron/domains/ai/system-skills.cjs'],
+  ['electron/skill-validation', 'electron/domains/ai/skill-validation.cjs'],
+  ['electron/pi-package-skills', 'electron/domains/ai/pi-package-skills.cjs'],
+  ['electron/pi-executable', 'electron/domains/ai/pi-executable.cjs'],
+  ['electron/pi-session-controller', 'electron/domains/ai/pi-session-controller.cjs'],
+  ['electron/pi-system-service', 'electron/domains/ai/pi-system-service.cjs'],
+  ['electron/pty-lifecycle', 'electron/domains/terminal/pty-lifecycle.cjs'],
+  ['electron/pty-runtime', 'electron/infrastructure/processes/pty-runtime.adapter.cjs'],
+  ['electron/reliability-fault-injection', 'electron/app/reliability-fault-injection.cjs'],
+  ['electron/runtime-capabilities', 'electron/infrastructure/system/runtime-capabilities.adapter.cjs'],
+  ['electron/startup-bootstrap-guard', 'electron/app/startup-bootstrap-guard.cjs'],
+  ['electron/terminal-attachments', 'electron/domains/ai/terminal-attachments.cjs'],
+  ['electron/terminal-diagnostics', 'electron/domains/terminal/terminal-diagnostics.cjs'],
+  ['electron/terminal-history-buffer', 'electron/domains/terminal/terminal-history-buffer.cjs'],
+  ['electron/terminal-input', 'electron/domains/terminal/terminal-input.cjs'],
+  ['electron/terminal-stream-controller', 'electron/domains/terminal/terminal-stream-controller.cjs'],
+  ['electron/window-close-coordinator', 'electron/app/window-close-coordinator.cjs'],
+  ['electron/workspace-reveal', 'electron/domains/workspace/workspace-reveal.cjs'],
+  ['electron/volatile-draft-registry', 'electron/domains/workspace/volatile-draft-registry.cjs'],
+])
+
 function normalize(filePath) {
   return filePath.split(path.sep).join('/')
 }
@@ -84,10 +174,8 @@ function directBridgeAccessCount(sourceFile) {
 }
 
 function resolveModule(root, importer, specifier) {
-  let unresolved
-  if (specifier.startsWith('@/')) unresolved = path.join(root, 'src', specifier.slice(2))
-  else if (specifier.startsWith('.')) unresolved = path.resolve(path.dirname(importer), specifier)
-  else return null
+  const unresolved = unresolvedModule(root, importer, specifier)
+  if (!unresolved) return null
 
   const candidates = [
     unresolved,
@@ -97,12 +185,39 @@ function resolveModule(root, importer, specifier) {
   return candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile()) ?? null
 }
 
+function unresolvedModule(root, importer, specifier) {
+  if (specifier.startsWith('@/')) return path.join(root, 'src', specifier.slice(2))
+  if (specifier.startsWith('.')) return path.resolve(path.dirname(importer), specifier)
+  return null
+}
+
+function extensionlessModule(root, importer, specifier) {
+  const unresolved = unresolvedModule(root, importer, specifier)
+  if (!unresolved) return null
+  const relative = normalize(path.relative(root, unresolved))
+  const extension = sourceExtensions.find((candidate) => relative.endsWith(candidate))
+  return extension ? relative.slice(0, -extension.length) : relative
+}
+
+function extensionlessFile(file) {
+  const extension = sourceExtensions.find((candidate) => file.endsWith(candidate))
+  return extension ? file.slice(0, -extension.length) : file
+}
+
 function featureName(file) {
   return /^src\/features\/([^/]+)\//u.exec(file)?.[1] ?? null
 }
 
 function isFeaturePublicEntry(file, feature) {
   return sourceExtensions.some((extension) => file === `src/features/${feature}/index${extension}`)
+}
+
+function isPublicEntry(file, directory) {
+  return sourceExtensions.some((extension) => file === `${directory}/index${extension}`)
+}
+
+function isElectronCompositionRoot(file) {
+  return file === 'electron/main.cjs' || file === 'electron/app/bootstrap.cjs'
 }
 
 function importBoundaryProblems(importer, imported) {
@@ -114,8 +229,29 @@ function importBoundaryProblems(importer, imported) {
     problems.push(`renderer dipende direttamente dal processo Electron (${imported})`)
   }
 
-  if (ownerFeature && targetFeature && ownerFeature !== targetFeature && !isFeaturePublicEntry(imported, targetFeature)) {
-    problems.push(`import profondo da feature "${ownerFeature}" verso "${targetFeature}" (${imported})`)
+  if (targetFeature && ownerFeature !== targetFeature && !isFeaturePublicEntry(imported, targetFeature)) {
+    const owner = ownerFeature ? `feature "${ownerFeature}"` : `modulo "${importer}"`
+    problems.push(`import profondo da ${owner} verso feature "${targetFeature}" (${imported})`)
+  }
+
+  if (ownerFeature && imported.startsWith('src/app/')) {
+    problems.push(`feature "${ownerFeature}" dipende dalla composition root renderer (${imported})`)
+  }
+
+  if (importer.startsWith('src/components/') && !importer.startsWith('src/components/ui/') && /^(?:src\/(?:app|features)\/)/u.test(imported)) {
+    problems.push(`componente condiviso dipende da app o feature (${imported})`)
+  }
+
+  if (importer.startsWith('src/theme/') && /^(?:src\/(?:app|bridge|components|features)\/)/u.test(imported)) {
+    problems.push(`tema dipende da UI o logica applicativa (${imported})`)
+  }
+
+  if (!importer.startsWith('src/components/ui/') && imported.startsWith('src/components/ui/') && !isPublicEntry(imported, 'src/components/ui')) {
+    problems.push(`import profondo nel design system (${imported}); usa @/components/ui`)
+  }
+
+  if (!importer.startsWith('src/bridge/') && imported.startsWith('src/bridge/') && !isPublicEntry(imported, 'src/bridge')) {
+    problems.push(`import profondo nel bridge renderer (${imported}); usa @/bridge`)
   }
 
   if (importer.startsWith('src/shared/') && /^(?:src\/(?:app|bridge|components|features)\/)/u.test(imported)) {
@@ -130,16 +266,28 @@ function importBoundaryProblems(importer, imported) {
     problems.push(`bridge dipende da UI o feature (${imported})`)
   }
 
+  if (importer.startsWith('electron/app/') && !isElectronCompositionRoot(importer) && /^(?:electron\/(?:infrastructure|ipc|preload)\/)/u.test(imported)) {
+    problems.push(`application layer Electron dipende da un adapter esterno (${imported})`)
+  }
+
   if (importer.startsWith('electron/domains/') && /^(?:electron\/(?:app|infrastructure|ipc|preload)\/)/u.test(imported)) {
     problems.push(`dominio Electron dipende da un adapter esterno (${imported})`)
+  }
+
+  if (importer.startsWith('electron/infrastructure/') && /^(?:electron\/(?:app|ipc|preload)\/)/u.test(imported)) {
+    problems.push(`infrastruttura Electron dipende da application, IPC o preload (${imported})`)
   }
 
   if (importer.startsWith('electron/ipc/') && /^(?:electron\/(?:app|infrastructure|preload)\/)/u.test(imported)) {
     problems.push(`IPC dipende da un adapter esterno (${imported})`)
   }
 
-  if (importer.startsWith('electron/preload/') && /^(?:electron\/(?:app|domains|infrastructure)\/)/u.test(imported)) {
-    problems.push(`preload dipende da implementazioni applicative (${imported})`)
+  if (importer.startsWith('electron/preload/') && imported.startsWith('electron/') && !imported.startsWith('electron/preload/')) {
+    problems.push(`preload esce dal proprio confine isolato (${imported})`)
+  }
+
+  if (!isElectronCompositionRoot(importer) && isElectronCompositionRoot(imported)) {
+    problems.push(`modulo interno dipende dalla composition root Electron (${imported})`)
   }
 
   return problems
@@ -186,6 +334,8 @@ export function inspectArchitecture({ root }) {
 
   for (const absoluteFile of files) {
     const file = normalize(path.relative(absoluteRoot, absoluteFile))
+    const removedOwner = removedLegacyModules.get(extensionlessFile(file))
+    if (removedOwner) problems.push(`${file}: path legacy rimosso ricreato; usa "${removedOwner}"`)
     const source = readFileSync(absoluteFile, 'utf8')
     const sourceFile = sourceFileFor(file, source)
     const dependencies = []
@@ -201,6 +351,12 @@ export function inspectArchitecture({ root }) {
     }
 
     for (const specifier of moduleSpecifiers(sourceFile)) {
+      const requested = extensionlessModule(absoluteRoot, absoluteFile, specifier)
+      const canonicalOwner = requested ? removedLegacyModules.get(requested) : null
+      if (canonicalOwner) {
+        problems.push(`${file}: path legacy "${requested}" rimosso; usa "${canonicalOwner}"`)
+        continue
+      }
       const resolved = resolveModule(absoluteRoot, absoluteFile, specifier)
       if (!resolved) continue
       const imported = normalize(path.relative(absoluteRoot, resolved))

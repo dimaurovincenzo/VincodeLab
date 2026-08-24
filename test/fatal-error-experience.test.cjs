@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { createFatalErrorExperience } = require('../electron/fatal-error-experience.cjs')
+const { createFatalErrorExperience } = require('../electron/app/fatal-error-experience.cjs')
 
 function harness(responses = [0]) {
   const calls = { clipboard: [], dialogs: [], exits: [], logs: [], relaunches: 0, flushes: 0 }

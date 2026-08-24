@@ -3,6 +3,9 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 
+const { readAppSource } = require('./helpers/app-source.cjs')
+const { readCanonicalPreloadSource } = require('./helpers/preload-source.cjs')
+
 function ipcRegistrationModules() {
   const root = path.join(__dirname, '../electron/ipc')
   const walk = (directory) => fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -20,7 +23,7 @@ function declaredIpcInvokeChannels() {
 }
 
 test('preload espone soltanto le API impostazioni previste', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const source = readCanonicalPreloadSource()
   assert.match(source, /systemSkills:/)
   assert.match(source, /piSystem:/)
   assert.match(source, /piConfig:/)
@@ -28,8 +31,10 @@ test('preload espone soltanto le API impostazioni previste', () => {
 })
 
 test('il bridge benchmark esiste soltanto con flag e accetta due comandi allowlisted', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const windowLifecycle = fs.readFileSync(path.join(__dirname, '../electron/app/window-lifecycle-runtime.cjs'), 'utf8')
+  const lifecycleBenchmarkIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/lifecycle-benchmark.ipc.cjs'), 'utf8')
 
   assert.match(preload, /benchmarkMode\s*=\s*process\.argv\.includes\('--vincodelab-reliability-benchmark'\)[\s\S]*benchmark: \{[\s\S]{0,160}dispatchCommand: \(command\) => ipcRenderer\.invoke\('benchmark:dispatchCommand', command\)/)
   assert.match(preload, /benchmarkFaultInjectionMode\s*=\s*benchmarkMode\s*&&\s*process\.argv\.includes\('--vincodelab-reliability-fault-injection'\)/)
@@ -37,17 +42,18 @@ test('il bridge benchmark esiste soltanto con flag e accetta due comandi allowli
   assert.match(preload, /screenshotCaptureMode \? \{[\s\S]{0,180}captureWindowBounds: \(\) => ipcRenderer\.invoke\('benchmark:captureWindowBounds'\)/)
   assert.match(preload, /benchmarkFaultInjectionMode \? \{[\s\S]{0,220}injectFault: \(fault\) => ipcRenderer\.invoke\('benchmark:injectFault', fault\)/)
   assert.match(preload, /shutdown: \(\) => ipcRenderer\.invoke\('benchmark:shutdown'\)/)
-  assert.match(main, /additionalArguments: RELIABILITY_BENCHMARK_MODE[\s\S]{0,180}--vincodelab-reliability-benchmark[\s\S]{0,180}--vincodelab-reliability-fault-injection/)
+  assert.match(windowLifecycle, /additionalArguments: benchmarkMode[\s\S]{0,180}--vincodelab-reliability-benchmark[\s\S]{0,180}--vincodelab-reliability-fault-injection/)
   assert.match(main, /RELIABILITY_BENCHMARK_COMMANDS = new Set\(\['workbench\.commandPalette', 'workbench\.quickOpen'\]\)/)
-  assert.match(main, /if \(RELIABILITY_BENCHMARK_MODE\) \{[\s\S]{0,360}ipcMain\.handle\('benchmark:dispatchCommand'[\s\S]{0,220}assertTrustedSender\(event\)/)
-  assert.match(main, /RELIABILITY_BENCHMARK_COMMANDS\.has\(command\)[\s\S]{0,140}dispatchApplicationMenuCommand\(command\)/)
-  assert.match(main, /ipcMain\.handle\('benchmark:shutdown'[\s\S]{0,180}assertTrustedSender\(event\)[\s\S]{0,260}shutdownApplication\(\)/)
-  assert.match(main, /if \(SCREENSHOT_CAPTURE_MODE\) \{[\s\S]{0,180}ipcMain\.handle\('benchmark:captureWindowBounds'[\s\S]{0,160}assertTrustedSender\(event\)/)
-  assert.match(main, /if \(RELIABILITY_FAULT_INJECTION_MODE\) \{[\s\S]{0,220}ipcMain\.handle\('benchmark:injectFault'[\s\S]{0,160}assertTrustedSender\(event\)/)
+  assert.match(main, /registerLifecycleBenchmarkIpc\(\{[\s\S]{0,900}reliabilityBenchmarkCommands: RELIABILITY_BENCHMARK_COMMANDS/)
+  assert.match(lifecycleBenchmarkIpc, /if \(!reliabilityBenchmarkMode\) return handlers[\s\S]{0,160}handlers\.set\('benchmark:dispatchCommand'[\s\S]{0,220}assertTrustedSender\(event\)/)
+  assert.match(lifecycleBenchmarkIpc, /reliabilityBenchmarkCommands\.has\(command\)[\s\S]{0,140}dispatchApplicationMenuCommand\(command\)/)
+  assert.match(lifecycleBenchmarkIpc, /handlers\.set\('benchmark:shutdown'[\s\S]{0,180}assertTrustedSender\(event\)[\s\S]{0,420}shutdownApplication\(\)/)
+  assert.match(lifecycleBenchmarkIpc, /if \(screenshotCaptureMode\) \{[\s\S]{0,180}handlers\.set\('benchmark:captureWindowBounds'[\s\S]{0,160}assertTrustedSender\(event\)/)
+  assert.match(lifecycleBenchmarkIpc, /if \(reliabilityFaultInjectionMode\) \{[\s\S]{0,220}handlers\.set\('benchmark:injectFault'[\s\S]{0,160}assertTrustedSender\(event\)/)
 })
 
 test('il Terminale AI separa tasti interattivi, input programmatici con ack e paste controllati', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const aiTerminalIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8')
 
@@ -64,7 +70,7 @@ test('il Terminale AI separa tasti interattivi, input programmatici con ack e pa
 })
 
 test('il Terminale AI e piConfig espongono failure one-way classificati', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preload = readCanonicalPreloadSource()
   const aiTerminalIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8')
   const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
 
@@ -80,7 +86,7 @@ test('il Terminale AI e piConfig espongono failure one-way classificati', () => 
 })
 
 test('il Terminale AI espone diagnostica numerica senza percorso di esportazione dal renderer', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preload = readCanonicalPreloadSource()
   const aiTerminalIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8')
 
   assert.match(preload, /reportRendererMetrics: \(metrics\) => ipcRenderer\.send\('terminal:rendererMetrics', metrics\)/)
@@ -93,16 +99,18 @@ test('il Terminale AI espone diagnostica numerica senza percorso di esportazione
 })
 
 test('preload espone il menu contestuale senza accettare template o callback dal renderer', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const menuContextIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/menu-context.ipc.cjs'), 'utf8')
 
   assert.match(preload, /contextMenu: \{[\s\S]*open: \(request\) => ipcRenderer\.invoke\('contextMenu:open', request\)/)
   assert.doesNotMatch(preload, /buildFromTemplate|Menu\.popup/)
-  assert.match(main, /contextMenu:open[\s\S]*request\?\.kind === 'terminal' \? 'terminal' : 'default'/)
+  assert.match(main, /registerMenuContextIpc\(\{/)
+  assert.match(menuContextIpc, /contextMenu:open[\s\S]*request\?\.kind === 'terminal' \? 'terminal' : 'default'/)
 })
 
 test('preload espone preferenze tipizzate senza accettare percorsi workspace', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const source = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const preferencesIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/preferences.ipc.cjs'), 'utf8')
   const start = source.indexOf('preferences: {')
@@ -122,7 +130,7 @@ test('preload espone preferenze tipizzate senza accettare percorsi workspace', (
 })
 
 test('le bozze volatili usano invoke con ack per rendere osservabili write e discard', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const workspaceStateIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace-state.ipc.cjs'), 'utf8')
   const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
@@ -139,43 +147,46 @@ test('le bozze volatili usano invoke con ack per rendere osservabili write e dis
 })
 
 test('preload espone il catalogo read-only delle skill dai pacchetti Pi', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const source = readCanonicalPreloadSource()
   assert.match(source, /listSkills: \(\) => ipcRenderer\.invoke\('piSystem:listSkills'\)/)
 })
 
 test('il renderer ripristina il workspace attivo dopo un rimontaggio', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const workspaceIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace.ipc.cjs'), 'utf8')
+  const app = readAppSource()
 
   assert.match(preload, /getActive: \(\) => ipcRenderer\.invoke\('workspace:getActive'\)/)
-  assert.match(main, /ipcMain\.handle\('workspace:getActive'/)
-  assert.match(main, /return activeWorkspacePath \? \{ path: activeWorkspacePath, error: activeWorkspaceError, errorIncident: activeWorkspaceIncident \} : null/)
+  assert.match(main, /registerWorkspaceIpc\(\{/)
+  assert.match(workspaceIpc, /workspace:getActive[\s\S]{0,260}return workspacePath \? \{ path: workspacePath, error: getActiveWorkspaceError\(\), errorIncident: getActiveWorkspaceIncident\(\) \} : null/)
   assert.match(app, /appBridge\.workspace\.getActive\(\)\.then\(\(result\) =>/)
   assert.match(app, /handleWorkspaceResult\(result, false\)/)
 })
 
 test('Mostra nel Finder attraversa invoke e il menu delega ownership e recovery al renderer', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const menuFeedbackRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-menu-feedback-runtime.cjs'), 'utf8')
+  const workspaceIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace.ipc.cjs'), 'utf8')
+  const app = readAppSource()
   const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
-  const dispatch = main.slice(main.indexOf('function dispatchApplicationMenuCommand'), main.indexOf('function notifyWhenBackground'))
-  const listRecent = main.slice(main.indexOf("ipcMain.handle('workspace:listRecent'"), main.indexOf("ipcMain.handle('workspace:reveal'"))
+  const dispatch = menuFeedbackRuntime.slice(menuFeedbackRuntime.indexOf('function dispatchApplicationMenuCommand'), menuFeedbackRuntime.indexOf('function notifyWhenBackground'))
 
   assert.match(preload, /reveal: \(\) => ipcRenderer\.invoke\('workspace:reveal'\)/)
-  assert.match(main, /ipcMain\.handle\('workspace:reveal'[\s\S]{0,260}assertTrustedSender\(event\)[\s\S]{0,260}revealWorkspace\(requireActiveWorkspace\(\)/)
+  assert.match(workspaceIpc, /workspace:reveal[\s\S]{0,180}assertTrustedSender\(event\)[\s\S]{0,180}revealWorkspace\(requireActiveWorkspace\(\)/)
   assert.match(types, /reveal: \(\) => Promise<\{ revealed: true \}>/)
   assert.match(dispatch, /sendToRenderer\('appMenu:command', command\)/)
   assert.doesNotMatch(dispatch, /shell\.openPath|workspace_reveal_failed/)
   assert.match(app, /command === 'workspace\.reveal'[\s\S]{0,100}revealWorkspace\(\)/)
   assert.match(app, /title: 'Workspace non mostrato nel Finder'[\s\S]{0,320}label: 'Riprova'/)
-  assert.match(listRecent, /return listRecentWorkspaces\(\)/)
-  assert.doesNotMatch(listRecent, /catch|new Error/)
+  assert.match(workspaceIpc, /workspace:listRecent[\s\S]{0,180}return listRecentWorkspaces\(\)/)
+  assert.doesNotMatch(workspaceIpc, /workspace:listRecent[\s\S]{0,120}catch/)
+  assert.match(main, /createApplicationMenuFeedbackRuntime\(\{/)
 })
 
 test('la sessione workspace usa soltanto il workspace attivo e un sender trusted', () => {
-  const preloadSource = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preloadSource = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
   const workspaceStateIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace-state.ipc.cjs'), 'utf8')
@@ -194,7 +205,7 @@ test('la sessione workspace usa soltanto il workspace attivo e un sender trusted
 })
 
 test('preload espone refresh cache-aware senza API Node nel renderer', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const source = readCanonicalPreloadSource()
   assert.match(source, /gitStatus: \(options\) => ipcRenderer\.invoke\('github:gitStatus', options\)/)
   assert.match(source, /data: \(options\) => ipcRenderer\.invoke\('github:data', options\)/)
   assert.match(source, /projectBoard: \(projectNumber, options\) => ipcRenderer\.invoke\('github:projectBoard', projectNumber, options\)/)
@@ -202,7 +213,7 @@ test('preload espone refresh cache-aware senza API Node nel renderer', () => {
 })
 
 test('preload espone il workspace Database senza accesso Node dal renderer', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const databaseIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/database.ipc.cjs'), 'utf8')
   const database = preload.slice(preload.indexOf('database:'), preload.indexOf('\n  shell:'))
@@ -224,7 +235,7 @@ test('preload espone il workspace Database senza accesso Node dal renderer', () 
 })
 
 test('ogni API invoke esposta dal preload ha un handler nel main process', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const channels = [...preload.matchAll(/ipcRenderer\.invoke\('([^']+)'/g)].map((match) => match[1])
   const handlers = [...main.matchAll(/ipcMain\.handle\('([^']+)'/g)]
@@ -236,7 +247,7 @@ test('ogni API invoke esposta dal preload ha un handler nel main process', () =>
 })
 
 test('preload espone i comandi workspace senza scrivere direttamente nella shell', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const workspaceCommandsIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace-commands.ipc.cjs'), 'utf8')
   const workspaceCommands = preload.slice(preload.indexOf('workspaceCommands:'), preload.indexOf('\n  shell:'))
@@ -251,7 +262,7 @@ test('preload espone i comandi workspace senza scrivere direttamente nella shell
 })
 
 test('preload espone allegati Pi senza accesso filesystem nel renderer', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preload = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const aiTerminalIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8')
 
@@ -266,10 +277,11 @@ test('preload espone allegati Pi senza accesso filesystem nel renderer', () => {
 })
 
 test('preload espone file remoti con ID opachi e handler confinati', () => {
-  const preloadSource = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+  const preloadSource = readCanonicalPreloadSource()
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const managedSshIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/managed-ssh.ipc.cjs'), 'utf8')
   const remoteFilesIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/remote-files.ipc.cjs'), 'utf8')
+  const remoteRuntime = fs.readFileSync(path.join(__dirname, '../electron/domains/remote/remote-runtime.cjs'), 'utf8')
   const remoteIpc = `${managedSshIpc}\n${remoteFilesIpc}`
   const start = preloadSource.indexOf('managedSsh:')
   const end = preloadSource.indexOf('\n  database:', start)
@@ -278,7 +290,8 @@ test('preload espone file remoti con ID opachi e handler confinati', () => {
   assert.match(remotePreload, /managedSsh:[\s\S]*onStatus/)
   assert.match(remotePreload, /remoteFiles:[\s\S]*downloadAndTrack[\s\S]*revealLocal[\s\S]*onTransfer/)
   assert.doesNotMatch(remotePreload, /workspacePath|localPath|node:|require\(/)
-  assert.match(main, /function requireManagedConnectionForWorkspace[\s\S]*connection\.workspacePath !== workspacePath/)
+  assert.match(main, /const requireManagedConnectionForWorkspace = remoteRuntime\.requireManagedConnection/)
+  assert.match(remoteRuntime, /function requireManagedConnection[\s\S]*connection\.workspacePath !== workspacePath/)
   for (const channel of [
     'managedSsh:list', 'managedSsh:check', 'managedSsh:disconnect',
     'remoteFiles:browse', 'remoteFiles:downloadAndTrack', 'remoteFiles:read',

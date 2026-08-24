@@ -5,7 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { closeDatabase, getDatabase } = require('../electron/workspace-store.cjs')
+const { closeDatabase, getDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const {
   clearHistory,
   configureDatabaseSecretStorage,
@@ -20,7 +20,7 @@ const {
   recordHistory,
   saveQuery,
   updateConnection,
-} = require('../electron/database-store.cjs')
+} = require('../electron/infrastructure/persistence/database.repository.cjs')
 
 function testSecretStorage({ available = true } = {}) {
   return {

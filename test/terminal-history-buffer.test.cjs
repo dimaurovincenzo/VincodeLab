@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
-const { createTerminalHistoryBuffer } = require('../electron/terminal-history-buffer.cjs')
+const { createTerminalHistoryBuffer } = require('../electron/domains/terminal/terminal-history-buffer.cjs')
 
 test('espelle blocchi interi e conserva ordine e watermark', () => {
   const history = createTerminalHistoryBuffer({ maxBytes: 6 })

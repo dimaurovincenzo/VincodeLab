@@ -1,12 +1,12 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { isApplicationError } = require('../electron/application-error.cjs')
+const { isApplicationError } = require('../electron/domains/errors/application-error.cjs')
 const {
   SHELL_SESSION_ERROR_CHANNEL,
   createShellSessionErrorEvent,
   reportShellSessionOneWayFailure,
-} = require('../electron/shell-session-error-event.cjs')
+} = require('../electron/domains/shell/shell-session-error-event.cjs')
 
 const PRIVATE_DETAIL = '/Users/alice/private-workspace token=ghp_secret command="sudo deploy"'
 const SESSION_ID = 'session-0001'

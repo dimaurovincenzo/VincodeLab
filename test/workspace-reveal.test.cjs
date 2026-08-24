@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { revealWorkspace } = require('../electron/workspace-reveal.cjs')
+const { revealWorkspace } = require('../electron/domains/workspace/workspace-reveal.cjs')
 
 test('mostra il workspace nel Finder e conferma soltanto un openPath riuscito', async () => {
   const opened = []

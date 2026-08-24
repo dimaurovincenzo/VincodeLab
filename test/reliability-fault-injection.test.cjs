@@ -2,12 +2,12 @@ const assert = require('node:assert/strict')
 const test = require('node:test')
 const Database = require('better-sqlite3')
 
-const { wrapIpcHandler } = require('../electron/application-error.cjs')
+const { wrapIpcHandler } = require('../electron/infrastructure/ipc/ipc-error-boundary.cjs')
 const {
   CONTROLLED_FAILURES,
   CORRUPTED_WORKSPACE_SESSION_PAYLOAD,
   createReliabilityFaultInjection,
-} = require('../electron/reliability-fault-injection.cjs')
+} = require('../electron/app/reliability-fault-injection.cjs')
 
 test('la rejection IPC benchmark è classificata, correlata, sanitizzata e lascia funzionare il probe', async () => {
   const logs = []

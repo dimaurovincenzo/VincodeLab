@@ -8,7 +8,7 @@
 - Git;
 - strumenti da riga di comando Xcode se i moduli nativi devono essere compilati localmente.
 
-Pi Coding Agent, GitHub CLI, OpenSSH e server database sono opzionali: servono soltanto per sviluppare o collaudare le relative integrazioni.
+Pi Coding Agent, GitHub CLI, OpenSSH, server database e server Redis sono opzionali: servono soltanto per sviluppare o collaudare le relative integrazioni. Il pacchetto include il client Redis applicativo e non richiede `redis-cli` sulla macchina dell'utente.
 
 Verifica l'ambiente prima dell'installazione:
 
@@ -49,6 +49,8 @@ Chiudendo uno dei due processi, `concurrently` arresta anche l'altro. `npm start
 | `npm run check` | Gate completo: repository, architettura, lint, CSS, test e build |
 | `npm run check:repo` | Percorsi locali, artefatti, segreti evidenti e link Markdown |
 | `npm run check:architecture` | Confini dei moduli, accessi al bridge e dipendenze circolari |
+| `npm run build:preload` | Genera l'artefatto runtime dalle sorgenti preload canoniche |
+| `npm run check:preload` | Verifica che sorgenti e artefatto preload siano allineati |
 | `npm run demo:create` | Crea il workspace dimostrativo locale e riproducibile |
 | `npm run screenshots:capture` | Rigenera gli screenshot pubblici dal bundle Electron |
 | `npm run build` | Type-check TypeScript e build renderer di produzione |
@@ -62,18 +64,38 @@ Chiudendo uno dei due processi, `concurrently` arresta anche l'altro. `npm start
 
 Benchmark e stress test sono descritti in [testing.md](testing.md).
 
+## Collaudo Database e Redis
+
+Quando modifichi una delle due aree, verifica anche il lifecycle di rete:
+
+1. entrando nella sezione e cambiando profilo non deve partire traffico remoto;
+2. **Connetti** deve aprire una sola sessione, anche con React StrictMode;
+3. uno schema grande deve mostrare la prima pagina bounded e permettere **Carica altre risorse**;
+4. se una pagina successiva fallisce, le risorse già caricate devono rimanere disponibili;
+5. cambiando sezione e tornando indietro non deve partire una nuova connessione implicita.
+
 ## Struttura del repository
 
 ```text
-electron/                 processo principale, preload e servizi nativi
+electron/
+  app/                    bootstrap protetto, lifecycle e orchestrazione applicativa
+  domains/                policy, modelli e use case del processo principale
+  infrastructure/         adapter CLI, cache, driver e boundary tecniche
   ipc/domains/            registratori IPC per dominio con dipendenze iniettate
+  preload/                sorgenti canoniche dei bridge context-isolated
+  preload.cjs             artefatto runtime generato; non modificare
+  main.cjs                composition root e wiring Electron
 src/
   app/                    composizione, provider, layout e stato della shell
-  features/               capacità verticali con API pubblica per feature
+  features/<nome>/        capacità verticali con API pubblica index.ts
+    api/                   adapter al bridge Electron della feature
+    components/            UI posseduta dalla feature
+    hooks/                 lifecycle e controller React
+    model/                 tipi, stato e funzioni pure
+    services/              policy non presentazionali
   bridge/                 unico accesso renderer al preload Electron
-  components/             componenti condivisi e facciate legacy temporanee
+  components/             componenti presentazionali realmente condivisi
     ui/                    unico ingresso per le primitive condivise
-  shared/                 moduli neutrali realmente condivisi
   lib/                    stato e logica renderer riutilizzabile
   styles/                 CSS tecnico per shell, CodeMirror e xterm
   theme/                  token, recipe e stili Panda Graphite
@@ -86,11 +108,15 @@ vite.config.ts            build e Content Security Policy del renderer
 
 Artefatti locali come `node_modules/`, `styled-system/`, `dist/` e `release/` sono ignorati da Git.
 
-La struttura modulare viene introdotta progressivamente. Un componente nel percorso legacy può fungere da facciata temporanea, ma la nuova logica di dominio deve entrare nella feature proprietaria. Non importare file interni di un'altra feature: usa il relativo `index.ts`.
+La radice `electron/` contiene soltanto la composition root e l'artefatto preload generato; servizi, repository e adapter devono entrare nel dominio o livello proprietario. Gli owner renderer non mantengono path alternativi. Non importare file interni di un'altra feature: usa il relativo `index.ts`; importa design system e bridge soltanto da `@/components/ui` e `@/bridge`.
 
-Le eccezioni esistenti agli accessi diretti a `window.vincodeLab` sono registrate con un conteggio massimo nel controllo architetturale. Non aumentare tali soglie; quando migri un accesso, riduci o rimuovi esplicitamente la relativa eccezione.
+Gli accessi diretti a `window.vincodeLab` sono confinati a `src/bridge/`. Il controllo architetturale blocca anche dipendenze inverse, deep import, path legacy rimossi e cicli; non aggirarlo con facciate o re-export fuori dall'owner.
 
-Ogni registratore in `electron/ipc/domains/` deve esportare il manifesto `*_INVOKE_CHANNELS`, verificare il sender prima di invocare il servizio e non intercettare gli errori destinati alla boundary IPC globale. Il test di parità confronta questi manifesti con le API esposte dal preload. Non spezzare fisicamente `electron/preload.cjs` senza introdurre prima un bundler compatibile con il sandbox.
+Ogni registratore in `electron/ipc/domains/` deve esportare i manifesti `*_INVOKE_CHANNELS` e/o `*_SEND_CHANNELS`, verificare il sender prima di invocare il servizio e non intercettare gli errori destinati alla boundary IPC globale. Il test di parità confronta questi manifesti con le API esposte dal preload.
+
+Le sorgenti modificabili del preload vivono in `electron/preload/`. `scripts/build-preload.mjs` le combina deterministicamente nell'unico `electron/preload.cjs` caricato dal `BrowserWindow`, così `sandbox: true` e `contextIsolation` restano invariati. Il bundle viene generato da installazione, dev e build; `npm run check:preload` fallisce se l'artefatto è stato modificato a mano o non è aggiornato.
+
+Per la procedura completa di aggiunta di una feature o di una capacità IPC consulta [CONTRIBUTING.md](../CONTRIBUTING.md). La mappa dei livelli e delle dipendenze è in [architecture.md](architecture.md).
 
 ## Override locali utili
 

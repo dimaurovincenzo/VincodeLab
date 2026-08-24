@@ -4,14 +4,14 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { closeDatabase, getDatabase } = require('../electron/workspace-store.cjs')
+const { closeDatabase, getDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const {
   clearAllWorkspacePreferences,
   clearWorkspacePreference,
   getPreferences,
   setGlobalPreference,
   setWorkspacePreference,
-} = require('../electron/app-preferences.cjs')
+} = require('../electron/infrastructure/persistence/app-preferences.repository.cjs')
 
 function withTemporaryDatabase(t) {
   const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-preferences-'))

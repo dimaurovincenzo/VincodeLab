@@ -3,7 +3,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
-const { listPiPackageSkills, parsePiPackageList } = require('../electron/pi-package-skills.cjs')
+const { listPiPackageSkills, parsePiPackageList } = require('../electron/domains/ai/pi-package-skills.cjs')
 
 test('parsePiPackageList associa ogni sorgente Pi alla radice installata', () => {
   const output = 'User packages:\n  npm:@scope/skill\n    /tmp/pi/npm/node_modules/@scope/skill\n  git:github.com/acme/workflow@v1\n    /tmp/pi/git/github.com/acme/workflow\n'

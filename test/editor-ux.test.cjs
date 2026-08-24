@@ -2,9 +2,11 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
+const { readDatabaseSource } = require('./helpers/database-source.cjs')
+const { readEditorSource } = require('./helpers/editor-source.cjs')
 
 test('l’editor espone comandi chiari per esplorare e controllare i file aperti', () => {
-  const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
+  const editor = readEditorSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/editor.ts'), 'utf8')
   const bridge = fs.readFileSync(path.join(__dirname, '../src/styles/views/editor.css'), 'utf8')
 
@@ -27,7 +29,7 @@ test('l’editor espone comandi chiari per esplorare e controllare i file aperti
 })
 
 test('l’explorer rende leggibile lo stato Git dei file senza confonderlo con le modifiche non salvate', () => {
-  const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
+  const editor = readEditorSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/editor.ts'), 'utf8')
 
   assert.match(editor, /editorBridge\.github\.gitStatus\(\{ force: true \}\)/)
@@ -50,7 +52,7 @@ test('l’explorer rende leggibile lo stato Git dei file senza confonderlo con l
 })
 
 test('l’explorer è ridimensionabile senza compromettere la navigazione da tastiera', () => {
-  const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
+  const editor = readEditorSource()
   const splitter = fs.readFileSync(path.join(__dirname, '../src/components/ui/splitter.tsx'), 'utf8')
   const recipes = fs.readFileSync(path.join(__dirname, '../src/theme/recipes.ts'), 'utf8')
 
@@ -62,7 +64,7 @@ test('l’explorer è ridimensionabile senza compromettere la navigazione da tas
 })
 
 test('l’explorer delega gerarchia, espansione, selezione e tastiera al TreeView Ark', () => {
-  const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
+  const editor = readEditorSource()
 
   assert.match(editor, /createTreeCollection<EditorTreeNode>/)
   assert.match(editor, /<TreeView\.Root/)
@@ -83,7 +85,7 @@ test('l’explorer delega gerarchia, espansione, selezione e tastiera al TreeVie
 })
 
 test('l’editor usa estensioni CodeMirror per le anteprime di media e CSV', () => {
-  const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
+  const editor = readEditorSource()
 
   assert.match(editor, /WidgetType/)
   assert.match(editor, /Decoration\.replace/)
@@ -94,21 +96,21 @@ test('l’editor usa estensioni CodeMirror per le anteprime di media e CSV', () 
 })
 
 test('l’editor CodeMirror visualizza i numeri di riga', () => {
-  const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
+  const editor = readEditorSource()
 
   assert.match(editor, /lineNumbers/)
   assert.match(editor, /lineNumbers\(\)/)
 })
 
 test('l’editor riconosce YAML, Shell, SQL e Python con i rispettivi linguaggi CodeMirror', () => {
-  const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
+  const editor = readEditorSource()
 
   for (const extension of ['yml', 'yaml', 'sh', 'bash', 'zsh', 'sql', 'py']) assert.match(editor, new RegExp(`'${extension}'`))
   for (const language of ['yaml()', 'sql()', 'python()', 'StreamLanguage.define(shell)']) assert.match(editor, new RegExp(language.replace(/[()]/g, '\\$&')))
 })
 
 test('l’editor rende Markdown in sicurezza tramite una widget extension CodeMirror', () => {
-  const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
+  const editor = readEditorSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/styles/views/editor.css'), 'utf8')
 
   assert.match(editor, /renderMarkdownPreview/)
@@ -119,8 +121,8 @@ test('l’editor rende Markdown in sicurezza tramite una widget extension CodeMi
 })
 
 test('l’editor usa Graphite e conserva stato e viewport per file in una sola EditorView', () => {
-  const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
-  const database = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
+  const editor = readEditorSource()
+  const database = readDatabaseSource()
   const packageJson = fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8')
   const packageLock = fs.readFileSync(path.join(__dirname, '../package-lock.json'), 'utf8')
 
@@ -131,7 +133,7 @@ test('l’editor usa Graphite e conserva stato e viewport per file in una sola E
   assert.match(editor, /new Map<string, EditorState>/)
   assert.match(editor, /editorStateKey\(tab\)/)
   assert.match(editor, /view\.setState\(nextState\)/)
-  assert.match(editor, /editorScrollPositions/)
+  assert.match(editor, /scrollPositionsRef/)
   assert.match(editor, /view\.requestMeasure/)
   assert.match(editor, /foldGutter\(\)/)
   assert.match(editor, /editorHistory\(\)/)

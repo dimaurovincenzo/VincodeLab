@@ -665,8 +665,8 @@ async function prepareFixture(root, dataDirectory) {
 
   const previousDataDirectory = process.env.VINCODELAB_DATA_DIR
   process.env.VINCODELAB_DATA_DIR = dataDirectory
-  const { createConnection } = require('../electron/database-store.cjs')
-  const { closeDatabase } = require('../electron/workspace-store.cjs')
+  const { createConnection } = require('../electron/infrastructure/persistence/database.repository.cjs')
+  const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
   try {
     createConnection(workspace, { name: 'Profilo SQLite locale', driver: 'sqlite', sqlitePath })
   } finally {

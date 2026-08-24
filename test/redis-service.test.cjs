@@ -7,7 +7,7 @@ const {
   keyBytes,
   normalizeRedisError,
   toRedisPublicError,
-} = require('../electron/redis-service.cjs')
+} = require('../electron/domains/redis/redis-service.cjs')
 
 function fakeRedisClient() {
   const values = new Map([

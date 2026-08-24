@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { getRuntimeCapabilities, probeBundledModule, resolveSystemExecutable } = require('../electron/runtime-capabilities.cjs')
+const { getRuntimeCapabilities, probeBundledModule, resolveSystemExecutable } = require('../electron/infrastructure/system/runtime-capabilities.adapter.cjs')
 
 test('una macchina senza Node, npm, Pi o tool esterni resta uno stato supportato', () => {
   const snapshot = getRuntimeCapabilities({

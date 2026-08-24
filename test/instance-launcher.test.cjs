@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const { EventEmitter } = require('node:events')
 const test = require('node:test')
 
-const { launchWorkspaceInstance, readWorkspaceArgument } = require('../electron/instance-launcher.cjs')
+const { launchWorkspaceInstance, readWorkspaceArgument } = require('../electron/infrastructure/processes/instance-launcher.adapter.cjs')
 
 test('legge un unico argomento workspace assoluto', () => {
   assert.equal(readWorkspaceArgument(['electron', '.', '--workspace', '/tmp/a']), '/tmp/a')

@@ -3,7 +3,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 
-const { createGithubOperationRegistry } = require('../electron/github-operation-registry.cjs')
+const { createGithubOperationRegistry } = require('../electron/domains/github/github-operation-registry.cjs')
 
 test('latest wins annulla il refresh precedente e attende il suo cleanup', async () => {
   const registry = createGithubOperationRegistry()
@@ -74,6 +74,10 @@ test('rifiuta contesti non validi', () => {
 
 test('il main applica latest wins soltanto alle letture e le cancella nei lifecycle boundary', () => {
   const source = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const shutdownRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-shutdown-runtime.cjs'), 'utf8')
+  const cleanup = fs.readFileSync(path.join(__dirname, '../electron/domains/workspace/workspace-runtime-cleanup.cjs'), 'utf8')
+  const opener = fs.readFileSync(path.join(__dirname, '../electron/domains/workspace/workspace-opener.cjs'), 'utf8')
+  const windowLifecycle = fs.readFileSync(path.join(__dirname, '../electron/app/window-lifecycle-runtime.cjs'), 'utf8')
   const gitIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/git.ipc.cjs'), 'utf8')
   const githubIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/github.ipc.cjs'), 'utf8')
   const domainSource = `${gitIpc}\n${githubIpc}`
@@ -104,9 +108,10 @@ test('il main applica latest wins soltanto alle letture e le cancella nei lifecy
   assert.match(source, /registerGithubIpc\(\{/)
   assert.doesNotMatch(source, /ipcMain\.handle\('github:/)
 
-  assert.match(source, /async function cleanupWorkspaceRuntime\(workspacePath, reason\)[\s\S]*?await stopTerminal\(reason\)[\s\S]*?githubOperations\.abortAndWaitMatching\(\(operation\) => !workspacePath \|\| operation\.workspacePath === workspacePath\)/)
-  assert.match(source, /previousWorkspacePath !== normalizedWorkspacePath[\s\S]{0,180}await cleanupWorkspaceRuntime\(previousWorkspacePath, 'workspace-change'\)/)
-  assert.match(source, /cleanup: \(\{ workspacePath \}\) => cleanupWorkspaceRuntime\(workspacePath, 'window-close'\)/)
-  assert.match(source, /window\.on\('closed',[\s\S]{0,500}cleanupWorkspaceRuntime\(workspacePath, 'window-destroyed'\)/)
-  assert.match(source, /async function shutdownApplication[\s\S]*?await stopTerminal\('shutdown'\)[\s\S]*?withCleanupDeadline\(githubOperations\.abortAndWaitMatching\(\), 4_000, 'github-operations'\)/)
+  assert.match(source, /const cleanupWorkspaceRuntime = createWorkspaceRuntimeCleanup\(\{/)
+  assert.match(cleanup, /cleanupWorkspaceRuntime\(workspacePath, reason\)[\s\S]*?await stopTerminal\(reason\)[\s\S]*?githubOperations\.abortAndWaitMatching\(\(operation\) => !workspacePath \|\| operation\.workspacePath === workspacePath\)/)
+  assert.match(opener, /previousWorkspacePath !== normalizedWorkspacePath[\s\S]{0,180}await cleanupWorkspaceRuntime\(previousWorkspacePath, 'workspace-change'\)/)
+  assert.match(windowLifecycle, /cleanup: \(\{ workspacePath \}\) => cleanupWorkspaceRuntime\(workspacePath, 'window-close'\)/)
+  assert.match(windowLifecycle, /window\.on\('closed',[\s\S]{0,500}cleanupWorkspaceRuntime\(workspacePath, 'window-destroyed'\)/)
+  assert.match(shutdownRuntime, /async function shutdownApplication[\s\S]*?await stopTerminal\('shutdown'\)[\s\S]*?withDeadline\(githubOperations\.abortAndWaitMatching\(\), 4_000, 'github-operations'\)/)
 })

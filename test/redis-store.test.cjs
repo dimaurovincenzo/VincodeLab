@@ -4,7 +4,7 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { closeDatabase, getDatabase } = require('../electron/workspace-store.cjs')
+const { closeDatabase, getDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const {
   configureRedisSecretStorage,
   createConnection,
@@ -13,7 +13,7 @@ const {
   getConnectionWithSecrets,
   listConnections,
   updateConnection,
-} = require('../electron/redis-store.cjs')
+} = require('../electron/infrastructure/persistence/redis.repository.cjs')
 
 function secretStorage({ available = true } = {}) {
   return {

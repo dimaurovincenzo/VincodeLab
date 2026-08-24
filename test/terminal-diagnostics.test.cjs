@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { createTerminalDiagnosticsReport, sanitizeRendererMetrics } = require('../electron/terminal-diagnostics.cjs')
+const { createTerminalDiagnosticsReport, sanitizeRendererMetrics } = require('../electron/domains/terminal/terminal-diagnostics.cjs')
 
 test('esporta solo metriche numeriche consentite', () => {
   const report = createTerminalDiagnosticsReport({

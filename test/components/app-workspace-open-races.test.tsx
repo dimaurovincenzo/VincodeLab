@@ -76,7 +76,7 @@ vi.mock('@/features/settings', () => ({
   Settings: () => <section aria-label="Impostazioni"><h1>Impostazioni VincodeLab</h1></section>,
 }))
 
-vi.mock('@/components/project-editor', async () => {
+vi.mock('@/features/editor', async () => {
   const React = await import('react')
   return {
     ProjectEditor({ onWorkspaceGuardChange }: { onWorkspaceGuardChange?: (guard: WorkspaceChangeGuard | null) => void }) {
@@ -148,7 +148,7 @@ vi.mock('@/features/database', async () => {
   }
 })
 
-import App from '@/App'
+import App from '@/app/App'
 import { toast } from '@/components/ui'
 import { toastStore } from '@/components/ui/toast-store'
 

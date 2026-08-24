@@ -1,16 +1,7 @@
 const assert = require('node:assert/strict')
-const fs = require('node:fs')
-const path = require('node:path')
 const test = require('node:test')
-const vm = require('node:vm')
 
-const preloadSource = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
-const start = preloadSource.indexOf('// BEGIN PRELOAD_PUBLIC_ERROR_RESTORER')
-const end = preloadSource.indexOf('// END PRELOAD_PUBLIC_ERROR_RESTORER')
-assert.ok(start >= 0 && end > start, 'Restorer preload non trovato.')
-const context = {}
-vm.runInNewContext(`${preloadSource.slice(start, end)}; this.restorePublicInvokeError = restorePublicInvokeError`, context)
-const { restorePublicInvokeError } = context
+const { restorePublicInvokeError } = require('../electron/preload/public-error-restorer.cjs')
 
 function plain(value) {
   return JSON.parse(JSON.stringify(value))

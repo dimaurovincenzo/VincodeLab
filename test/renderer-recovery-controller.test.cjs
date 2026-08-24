@@ -3,7 +3,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 
-const { ERR_ABORTED, createRendererRecoveryController } = require('../electron/renderer-recovery-controller.cjs')
+const { ERR_ABORTED, createRendererRecoveryController } = require('../electron/app/renderer-recovery-controller.cjs')
 
 function deferred() {
   let resolve
@@ -252,10 +252,10 @@ test('dispose rende no-op il controller; un errore della scelta viene segnalato 
 })
 
 test('il main inoltra successi e failure del caricamento allo stesso controller locale', () => {
-  const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  assert.match(main, /reload: \(\) => window\.webContents\.reload\(\)/)
-  assert.match(main, /webContents\.on\('did-fail-load',[\s\S]{0,300}recoveryController\.handleLoadFailure\(\{ errorCode, isMainFrame \}\)/)
-  assert.match(main, /webContents\.on\('did-finish-load',[\s\S]{0,160}recoveryController\.handleLoadFinished\(\)/)
-  assert.match(main, /webContents\.on\('preload-error',[\s\S]{0,260}reportPreloadFailure\(error,[\s\S]{0,160}recoveryController\.handlePreloadFailure\(details\)/)
-  assert.match(main, /onError: \(\) => log\('error', 'renderer_recovery_failed'\)/)
+  const windowLifecycle = fs.readFileSync(path.join(__dirname, '../electron/app/window-lifecycle-runtime.cjs'), 'utf8')
+  assert.match(windowLifecycle, /reload: \(\) => window\.webContents\.reload\(\)/)
+  assert.match(windowLifecycle, /webContents\.on\('did-fail-load',[\s\S]{0,300}recoveryController\.handleLoadFailure\(\{ errorCode, isMainFrame \}\)/)
+  assert.match(windowLifecycle, /webContents\.on\('did-finish-load',[\s\S]{0,160}recoveryController\.handleLoadFinished\(\)/)
+  assert.match(windowLifecycle, /webContents\.on\('preload-error',[\s\S]{0,260}reportPreloadFailure\(error,[\s\S]{0,160}recoveryController\.handlePreloadFailure\(details\)/)
+  assert.match(windowLifecycle, /onError: \(\) => log\('error', 'renderer_recovery_failed'\)/)
 })

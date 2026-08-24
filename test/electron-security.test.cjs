@@ -4,8 +4,8 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 
-const { installNavigationGuards, isTrustedIpcEvent } = require('../electron/ipc-security.cjs')
-const { safeKillPty } = require('../electron/pty-lifecycle.cjs')
+const { installNavigationGuards, isTrustedIpcEvent } = require('../electron/infrastructure/security/ipc-security.adapter.cjs')
+const { safeKillPty } = require('../electron/domains/terminal/pty-lifecycle.cjs')
 
 test('accetta IPC soltanto dal main frame della finestra applicativa', () => {
   const mainFrame = {}
@@ -41,14 +41,15 @@ test('un kill PTY già terminato non interrompe il coordinatore di cleanup', () 
 
 test('i DTO workspace redigono gli errori interni prima di raggiungere il renderer', () => {
   const source = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  const openWorkspace = source.slice(source.indexOf('function openWorkspace('), source.indexOf('async function chooseAndOpenWorkspace'))
-  const launchWorkspace = source.slice(source.indexOf("ipcMain.handle('workspace:openInNewInstance'"), source.indexOf("ipcMain.on('appMenu:setContext'"))
+  const workspaceIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace.ipc.cjs'), 'utf8')
+  const openWorkspace = fs.readFileSync(path.join(__dirname, '../electron/domains/workspace/workspace-opener.cjs'), 'utf8')
 
-  assert.match(source, /require\('\.\/public-error\.cjs'\)/)
+  assert.match(source, /require\('\.\/domains\/errors\/public-error\.cjs'\)/)
+  assert.match(source, /const openWorkspace = workspaceOpener\.open/)
   assert.match(openWorkspace, /PI_START_FAILED/)
   assert.match(openWorkspace, /WORKSPACE_OPEN_FAILED/)
   assert.match(openWorkspace, /errorIncident/)
-  assert.match(launchWorkspace, /WORKSPACE_INSTANCE_LAUNCH_FAILED/)
+  assert.match(workspaceIpc, /WORKSPACE_INSTANCE_LAUNCH_FAILED/)
   assert.doesNotMatch(openWorkspace, /error instanceof Error \? error\.message/)
-  assert.doesNotMatch(launchWorkspace, /error instanceof Error \? error\.message/)
+  assert.doesNotMatch(workspaceIpc, /error instanceof Error \? error\.message/)
 })

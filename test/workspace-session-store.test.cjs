@@ -4,14 +4,14 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { closeDatabase, getDatabase } = require('../electron/workspace-store.cjs')
+const { closeDatabase, getDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const {
   MAX_WORKSPACE_SESSION_BYTES,
   WORKSPACE_SESSION_VERSION,
   createDefaultWorkspaceSessionState,
   getWorkspaceSession,
   saveWorkspaceSession,
-} = require('../electron/workspace-session-store.cjs')
+} = require('../electron/infrastructure/persistence/workspace-session.repository.cjs')
 
 function withTemporaryDatabase(t) {
   const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-workspace-session-'))

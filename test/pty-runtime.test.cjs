@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { createPtyRuntime } = require('../electron/pty-runtime.cjs')
+const { createPtyRuntime } = require('../electron/infrastructure/processes/pty-runtime.adapter.cjs')
 
 test('il runtime PTY inoltra spawn quando il modulo incluso è pronto', () => {
   const calls = []

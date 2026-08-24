@@ -8,6 +8,7 @@ import { redisStyles as rs, redisTypeBadge } from '@/theme/styles/redis'
 
 type Props = {
   cursorDepth: number
+  disabled?: boolean
   error: UserError | null
   filter: string
   hasMore: boolean
@@ -34,21 +35,21 @@ function ttlLabel(ttlMs: number | null, ttlState?: RedisKeySummary['ttlState']) 
   return `${Math.ceil(ttlMs / 3_600_000)} h`
 }
 
-export const RedisKeyBrowser = memo(function RedisKeyBrowser({ cursorDepth, error, filter, hasMore, keys, loading, selectedKey, typeFilter, onFilter, onNext, onPrevious, onRefresh, onSelect }: Props) {
+export const RedisKeyBrowser = memo(function RedisKeyBrowser({ cursorDepth, disabled = false, error, filter, hasMore, keys, loading, selectedKey, typeFilter, onFilter, onNext, onPrevious, onRefresh, onSelect }: Props) {
   const [draftFilter, setDraftFilter] = useState(filter)
   const [draftType, setDraftType] = useState<RedisKeyTypeFilter>(typeFilter)
 
-  return <aside aria-label="Browser chiavi Redis" className={rs.browser}>
+  return <aside aria-disabled={disabled || undefined} aria-label="Browser chiavi Redis" className={rs.browser}>
     <header className={rs.browserHeader}>
       <strong className={rs.browserTitle}>Chiavi</strong>
       <span className={rs.meta}>{loading ? 'SCAN…' : `${keys.length} in questa pagina`}</span>
     </header>
     <form className={rs.filters} onSubmit={(event) => { event.preventDefault(); onFilter(draftFilter, draftType) }}>
-      <Field.Root><Field.Input aria-label="Pattern chiavi Redis" placeholder="Pattern, es. user:*" value={draftFilter} onChange={(event) => setDraftFilter(event.target.value)} /></Field.Root>
-      <SelectField aria-label="Tipo chiave Redis" options={redisTypeOptions} value={draftType} onValueChange={(value) => setDraftType(value as RedisKeyTypeFilter)} />
-      <IconButton aria-label="Applica filtri chiavi" tooltip="Applica filtri" type="submit"><Filter aria-hidden="true" size={14} /></IconButton>
+      <Field.Root disabled={disabled}><Field.Input aria-label="Pattern chiavi Redis" placeholder="Pattern, es. user:*" value={draftFilter} onChange={(event) => setDraftFilter(event.target.value)} /></Field.Root>
+      <SelectField aria-label="Tipo chiave Redis" disabled={disabled} options={redisTypeOptions} value={draftType} onValueChange={(value) => setDraftType(value as RedisKeyTypeFilter)} />
+      <IconButton aria-label="Applica filtri chiavi" disabled={disabled} tooltip="Applica filtri" type="submit"><Filter aria-hidden="true" size={14} /></IconButton>
     </form>
-    {error ? <ErrorNotice action={{ label: 'Riprova SCAN', onClick: onRefresh }} className={rs.notice} error={error} /> : loading ? <div className={rs.browserStatus} role="status"><Spinner size={18} /> Caricamento chiavi…</div> : keys.length ? <ul aria-label="Chiavi Redis" className={rs.keyList}>{keys.map((item) => <li className={rs.keyItem} data-context-menu-id={item.keyRef} data-context-menu-kind="redis-key" key={item.keyRef}>
+    {disabled ? <div className={rs.browserStatus}><Database aria-hidden="true" size={22} /><p>Connetti la configurazione selezionata per caricare le chiavi.</p></div> : error ? <ErrorNotice action={{ label: 'Riprova SCAN', onClick: onRefresh }} className={rs.notice} error={error} /> : loading ? <div className={rs.browserStatus} role="status"><Spinner size={18} /> Caricamento chiavi…</div> : keys.length ? <ul aria-label="Chiavi Redis" className={rs.keyList}>{keys.map((item) => <li className={rs.keyItem} data-context-menu-id={item.keyRef} data-context-menu-kind="redis-key" key={item.keyRef}>
       <Button aria-current={selectedKey === item.keyRef ? 'true' : undefined} className={rs.keyButton} title={item.key} variant="plain" onClick={() => onSelect(item)}>
         <span className={redisTypeBadge({ type: item.type })}>{redisTypeLabel(item.type)}</span>
         <span className={rs.keyName}>{item.key}{item.binary ? ' · binaria' : ''}</span>
@@ -56,9 +57,9 @@ export const RedisKeyBrowser = memo(function RedisKeyBrowser({ cursorDepth, erro
       </Button>
     </li>)}</ul> : <div className={rs.browserStatus}><Database aria-hidden="true" size={22} /><p>Nessuna chiave corrisponde ai filtri.</p></div>}
     <footer className={rs.pager}>
-      <Button aria-label="Pagina precedente chiavi" disabled={loading || cursorDepth === 0} size="xs" variant="plain" onClick={onPrevious}><ChevronLeft aria-hidden="true" size={14} /> Indietro</Button>
-      <IconButton disabled={loading} tooltip="Aggiorna chiavi" onClick={onRefresh}>{loading ? <Spinner size={14} /> : <RefreshCw aria-hidden="true" size={14} />}</IconButton>
-      <Button aria-label="Pagina successiva chiavi" disabled={loading || !hasMore} size="xs" variant="plain" onClick={onNext}>Avanti <ChevronRight aria-hidden="true" size={14} /></Button>
+      <Button aria-label="Pagina precedente chiavi" disabled={disabled || loading || cursorDepth === 0} size="xs" variant="plain" onClick={onPrevious}><ChevronLeft aria-hidden="true" size={14} /> Indietro</Button>
+      <IconButton disabled={disabled || loading} tooltip="Aggiorna chiavi" onClick={onRefresh}>{loading ? <Spinner size={14} /> : <RefreshCw aria-hidden="true" size={14} />}</IconButton>
+      <Button aria-label="Pagina successiva chiavi" disabled={disabled || loading || !hasMore} size="xs" variant="plain" onClick={onNext}>Avanti <ChevronRight aria-hidden="true" size={14} /></Button>
     </footer>
   </aside>
 })

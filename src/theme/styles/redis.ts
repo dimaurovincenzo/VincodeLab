@@ -164,6 +164,9 @@ export const redisStyles = {
   content: css({ display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)', minH: '0', overflow: 'hidden' }),
   notice: css({ borderBottomWidth: '1px', borderRadius: '0', boxShadow: 'none' }),
   centerState: css({ alignItems: 'center', display: 'grid', gap: '2', justifyItems: 'center', minH: '44', p: '6' }),
+  connectionGate: css({ alignContent: 'center', display: 'grid', minH: 'full', overflow: 'auto', pb: '8' }),
+  connectionGateActions: css({ display: 'flex', justifyContent: 'center', px: '6' }),
+  connectionGateHint: css({ color: 'textTertiary', fontSize: 'graphiteMeta', m: '3 auto 0', maxW: '112', px: '6', textAlign: 'center' }),
   inspector: css({ display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr) auto', h: 'full', minH: '0' }),
   inspectorHeader: css({
     alignItems: 'start',

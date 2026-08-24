@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles/index.css'
-import App from './App.tsx'
+import App from './app/App.tsx'
 import { AppErrorBoundary } from './components/app-error-boundary.tsx'
 import { BootstrapHydrationNotice } from './components/bootstrap-hydration-notice.tsx'
 import { installGlobalErrorHandlers } from './lib/global-error-handlers.ts'

@@ -6,10 +6,10 @@ const { spawn } = require('node:child_process')
 const { setTimeout: delay } = require('node:timers/promises')
 const test = require('node:test')
 
-const { closeDatabase } = require('../electron/workspace-store.cjs')
-const { activatePendingUpdates, rollbackManagedUpdate } = require('../electron/update-activation.cjs')
-const { downloadGitHub, stageManagedUpdate } = require('../electron/update-downloader.cjs')
-const { getManagedUpdate, recordAvailableUpdate, upsertManagedUpdate } = require('../electron/update-store.cjs')
+const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
+const { activatePendingUpdates, rollbackManagedUpdate } = require('../electron/infrastructure/updates/update-activation.adapter.cjs')
+const { downloadGitHub, stageManagedUpdate } = require('../electron/infrastructure/updates/update-downloader.adapter.cjs')
+const { getManagedUpdate, recordAvailableUpdate, upsertManagedUpdate } = require('../electron/infrastructure/persistence/update.repository.cjs')
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-update-lifecycle-'))
@@ -32,7 +32,7 @@ async function waitForPath(filePath, timeoutMs = 5_000) {
 }
 
 function startActivationWorker(t, { dataDirectory, enteredPath, releasePath }) {
-  const activationModule = path.join(__dirname, '..', 'electron', 'update-activation.cjs')
+  const activationModule = path.join(__dirname, '..', 'electron', 'infrastructure', 'updates', 'update-activation.adapter.cjs')
   const source = `
     const fs = require('node:fs')
     const { setTimeout: delay } = require('node:timers/promises')

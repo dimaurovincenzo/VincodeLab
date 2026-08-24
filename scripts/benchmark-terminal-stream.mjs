@@ -2,7 +2,7 @@ import { createRequire } from 'node:module'
 import { performance } from 'node:perf_hooks'
 
 const require = createRequire(import.meta.url)
-const { createTerminalStreamController, TERMINAL_STREAM_LIMITS } = require('../electron/terminal-stream-controller.cjs')
+const { createTerminalStreamController, TERMINAL_STREAM_LIMITS } = require('../electron/domains/terminal/terminal-stream-controller.cjs')
 
 async function runTerminalStreamBenchmark(totalBytes) {
   const sent = []

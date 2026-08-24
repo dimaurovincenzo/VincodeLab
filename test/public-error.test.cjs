@@ -8,7 +8,7 @@ const {
   isPublicError,
   toPublicError,
   toPublicErrorMessage,
-} = require('../electron/public-error.cjs')
+} = require('../electron/domains/errors/public-error.cjs')
 
 const PRIVATE_DETAIL = 'fallito in /Users/demo/Segreti/progetto.db?token=ghp_supersegreto con Authorization=Bearer abc.def.ghi'
 

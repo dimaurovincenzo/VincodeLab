@@ -3,9 +3,10 @@ const { EventEmitter } = require('node:events')
 const { PassThrough } = require('node:stream')
 const test = require('node:test')
 
-const { isApplicationError } = require('../electron/application-error.cjs')
-const { isPublicError } = require('../electron/public-error.cjs')
-const { createSftpService, getSftpErrorMetadata, parseSftpList, quoteSftpPath } = require('../electron/sftp-service.cjs')
+const { isApplicationError } = require('../electron/domains/errors/application-error.cjs')
+const { isPublicError } = require('../electron/domains/errors/public-error.cjs')
+const { getSftpErrorMetadata, parseSftpList, quoteSftpPath } = require('../electron/domains/remote/sftp-protocol.cjs')
+const { createSftpService } = require('../electron/infrastructure/remote/sftp-service.adapter.cjs')
 
 function connection() {
   return { id: 'connection-a', workspacePath: '/tmp/workspace-a', sftpPath: '/usr/bin/sftp', socketPath: '/tmp/vl/socket', destination: 'api-test' }
@@ -465,9 +466,10 @@ test('il main chiude SFTP prima del disconnect e durante lo shutdown', () => {
   const path = require('node:path')
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const managedSshIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/managed-ssh.ipc.cjs'), 'utf8')
+  const runtime = fs.readFileSync(path.join(__dirname, '../electron/domains/remote/remote-runtime.cjs'), 'utf8')
   assert.match(managedSshIpc, /sftpService\.closeConnection\(connectionId\)/)
   assert.match(main, /registerManagedSshIpc\(\{/)
-  assert.match(main, /remoteFileService\.closeWorkspace\(workspacePath\)/)
-  assert.match(main, /remoteFileService\.closeAll\(\)/)
-  assert.match(main, /sftpService\.closeAll\(\)/)
+  assert.match(runtime, /remoteFileService\.closeWorkspace\(workspacePath\)/)
+  assert.match(runtime, /remoteFileService\.closeAll\(\)/)
+  assert.match(runtime, /sftpService\.closeAll\(\)/)
 })

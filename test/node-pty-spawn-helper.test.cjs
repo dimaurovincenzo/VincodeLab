@@ -82,7 +82,8 @@ test('il manifest applica il controllo dopo i rebuild e al bundle afterPack', ()
   const command = 'node scripts/ensure-node-pty-spawn-helper.cjs'
 
   assert.match(manifest.scripts.postinstall, new RegExp(`install-app-deps && ${command}`))
-  assert.equal(manifest.scripts.prebuild, command)
+  assert.match(manifest.scripts.prebuild, /node scripts\/build-preload\.mjs/)
+  assert.match(manifest.scripts.prebuild, new RegExp(`&& ${command}$`))
   assert.match(manifest.scripts['rebuild:native'], new RegExp(`install-app-deps && ${command}`))
   assert.equal(manifest.build.afterPack, './scripts/ensure-node-pty-spawn-helper.cjs')
 })

@@ -4,7 +4,7 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { closeDatabase, getDatabase } = require('../electron/workspace-store.cjs')
+const { closeDatabase, getDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const {
   claimManagedUpdateActivation,
   getManagedUpdate,
@@ -16,7 +16,7 @@ const {
   releaseManagedUpdateActivation,
   setManagedUpdatePolicy,
   upsertManagedUpdate,
-} = require('../electron/update-store.cjs')
+} = require('../electron/infrastructure/persistence/update.repository.cjs')
 
 function withTemporaryDatabase(t) {
   const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-updates-'))

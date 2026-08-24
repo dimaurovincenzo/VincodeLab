@@ -2,13 +2,14 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
+const { readGitHubSource } = require('./helpers/github-source.cjs')
 
-const workspace = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+const workspace = readGitHubSource()
 const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
 test('GitHub usa primitive accessibili per azioni icon-only e selezione branch', () => {
-  assert.match(workspace, /tooltip=\{file\.sensitive \?[\s\S]*?\} onClick=\{\(\) => void stage\(file\)\}><Plus aria-hidden="true" size=\{13\} \/><\/IconButton>/)
-  assert.match(workspace, /tooltip="Rimuovi dallo staging" onClick=\{\(\) => void unstage\(file\)\}><Minus aria-hidden="true" size=\{13\} \/><\/IconButton>/)
+  assert.match(workspace, /tooltip=\{file\.sensitive \?[\s\S]*?\} onClick=\{\(\) => void actions\.stage\(file\)\}><Plus aria-hidden="true" size=\{13\} \/><\/IconButton>/)
+  assert.match(workspace, /tooltip="Rimuovi dallo staging" onClick=\{\(\) => void actions\.unstage\(file\)\}><Minus aria-hidden="true" size=\{13\} \/><\/IconButton>/)
   for (const tooltip of ['Chiudi creazione issue', 'Chiudi dettaglio issue', 'Chiudi dettaglio attività']) {
     assert.match(workspace, new RegExp(`<Dialog\\.CloseTrigger asChild><IconButton tooltip="${tooltip}"`))
   }
@@ -35,27 +36,28 @@ test('il select visibilità non eredita l’id del campo nome repository', () =>
 test('i dialog GitHub delegano focus iniziale e ritorno all opener ad Ark', () => {
   assert.match(workspace, /const issueComposerTrigger = useRef<HTMLButtonElement>\(null\)/)
   assert.match(workspace, /const issueTitleInput = useRef<HTMLInputElement>\(null\)/)
-  assert.match(workspace, /<Button ref=\{issueComposerTrigger\} onClick=\{\(\) => setIssueComposerOpen\(true\)\}>Nuova issue<\/Button>/)
-  assert.match(workspace, /<Dialog\.Root[^>]*finalFocusEl=\{\(\) => issueComposerTrigger\.current\}[^>]*initialFocusEl=\{\(\) => issueTitleInput\.current\}[^>]*lazyMount[^>]*open=\{issueComposerOpen\}/)
+  assert.match(workspace, /<Button ref=\{issueComposerTrigger\} onClick=\{\(\) => state\.setIssueComposerOpen\(true\)\}>Nuova issue<\/Button>/)
+  assert.match(workspace, /<Dialog\.Root[^>]*finalFocusEl=\{\(\) => issueComposerTrigger\.current\}[^>]*initialFocusEl=\{\(\) => issueTitleInput\.current\}[^>]*lazyMount[^>]*open=\{state\.issueComposerOpen\}/)
   assert.match(workspace, /ids=\{\{ title: 'github-issue-create-title' \}\}/)
   assert.match(workspace, /<Field\.Input ref=\{issueTitleInput\} id="github-new-issue-title"/)
   assert.doesNotMatch(workspace, /<Field\.Input autoFocus/)
 
-  assert.match(workspace, /issueDetailTrigger\.current = event\.currentTarget; setSelectedIssue\(issue\)/)
-  assert.match(workspace, /<Dialog\.Root[^>]*finalFocusEl=\{\(\) => issueDetailTrigger\.current\}[^>]*open=\{issueDetailOpen\}/)
-  assert.match(workspace, /boardItemDialogTrigger\.current = trigger/)
-  assert.match(workspace, /selectBoardItem\(item, event\.currentTarget\)/)
+  assert.match(workspace, /issueDetailTrigger\.current = event\.currentTarget; state\.setSelectedIssue\(issue\)/)
+  assert.match(workspace, /<Dialog\.Root[^>]*finalFocusEl=\{\(\) => issueDetailTrigger\.current\}[^>]*open=\{state\.issueDetailOpen\}/)
+  assert.match(workspace, /setBoardItemDialogTrigger = useCallback\([\s\S]*?boardItemDialogTrigger\.current = element/)
+  assert.match(workspace, /setBoardItemDialogTrigger\(trigger\)/)
+  assert.match(workspace, /actions\.selectBoardItem\(item, event\.currentTarget\)/)
   assert.match(workspace, /finalFocusEl=\{\(\) => boardItemDialogTrigger\.current\?\.isConnected \? boardItemDialogTrigger\.current : boardSearchInput\.current\}/)
 })
 
 test('gli stati vuoti GitHub restano informativi e la board conserva la semantica tabellare', () => {
   assert.match(workspace, /import \{ EmptyState \} from '@\/components\/empty-state'/)
-  assert.match(workspace, /<EmptyState className=\{gh\.issueEmpty\}.*?title=\{\(data\?\.issues\.length \?\? 0\) > 0 \? 'Nessun risultato' : 'Nessuna issue'\}/)
+  assert.match(workspace, /<EmptyState className=\{gh\.issueEmpty\}.*?title=\{state\.data\.issues\.length > 0 \? 'Nessun risultato' : 'Nessuna issue'\}/)
   assert.match(workspace, /<EmptyState className=\{gh\.projectListEmpty\}.*?title="Nessun Project collegato"/)
   assert.match(workspace, /<EmptyState className=\{gh\.boardPlaceholder\}.*?title="Seleziona un Project"/)
 
   assert.match(workspace, /<div className=\{gh\.projectTable\} role="table" aria-colcount=/)
-  assert.match(workspace, /<div role="rowgroup"><div role="row"><div aria-colspan=\{boardPriorityField \? 4 : 3\} className=\{gh\.boardEmpty\} role="cell"><EmptyState className=\{gh\.boardEmptyState\}/)
+  assert.match(workspace, /<div role="rowgroup"><div role="row"><div aria-colspan=\{derived\.boardPriorityField \? 4 : 3\} className=\{gh\.boardEmpty\} role="cell"><EmptyState className=\{gh\.boardEmptyState\}/)
   assert.match(workspace, /role="columnheader">Titolo/)
   assert.match(styles, /issueEmpty:\s*css\(/)
   assert.match(styles, /projectListEmpty:\s*css\(/)

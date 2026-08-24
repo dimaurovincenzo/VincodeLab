@@ -4,7 +4,7 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { deleteSystemSkill, listSystemSkills } = require('../electron/system-skills.cjs')
+const { deleteSystemSkill, listSystemSkills } = require('../electron/domains/ai/system-skills.cjs')
 
 test('il catalogo skill Pi riconosce anche file markdown diretti', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-pi-skills-'))

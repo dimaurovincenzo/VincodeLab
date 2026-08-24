@@ -25,7 +25,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 
 const require = createRequire(import.meta.url)
-const { createSftpService } = require('../electron/sftp-service.cjs')
+const { createSftpService } = require('../electron/infrastructure/remote/sftp-service.adapter.cjs')
 
 const LOOPBACK_HOST = '127.0.0.1'
 const SSH_PATH = '/usr/bin/ssh'

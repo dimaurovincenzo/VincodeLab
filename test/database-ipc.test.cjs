@@ -182,7 +182,7 @@ test('inoltra letture, query salvate e history preservando workspace, argomenti 
   const handlers = createDatabaseHandlers(fixture.dependencies)
   const event = { sender: { id: 11 } }
   const connectionInput = { name: 'Local', driver: 'sqlite' }
-  const schemaOptions = { force: true }
+  const schemaOptions = { force: true, offset: 50, limit: 50 }
   const queryInput = { connectionId: 'connection-1', name: 'Lista', sql: 'SELECT 1' }
   const queryUpdate = { name: 'Lista aggiornata' }
 

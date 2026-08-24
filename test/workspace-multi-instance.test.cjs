@@ -4,7 +4,10 @@ const path = require('node:path')
 const test = require('node:test')
 
 const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+const startupRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-startup-runtime.cjs'), 'utf8')
+const shutdownRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-shutdown-runtime.cjs'), 'utf8')
 const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
+const workspaceIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace.ipc.cjs'), 'utf8')
 
 test('il preload espone solo stato e avvio confinato della nuova istanza', () => {
   assert.match(preload, /instanceStatus: \(workspacePath\) => ipcRenderer\.invoke\('workspace:instanceStatus', workspacePath\)/)
@@ -13,31 +16,32 @@ test('il preload espone solo stato e avvio confinato della nuova istanza', () =>
 })
 
 test('il main mantiene SQLite aperto finché tutte le finestre sono chiuse', () => {
-  assert.match(main, /createInstanceRegistry\(\{ database: getDatabase\(\)/)
-  assert.match(main, /instanceRegistry\.register\(\{ instanceId, pid: process\.pid \}\)/)
-  assert.match(main, /setInterval\([^]*instanceRegistry\.heartbeat\(instanceId\)/)
-  assert.match(main, /before-quit[^]*instanceRegistry\?\.unregister\(instanceId\)/)
-  assert.doesNotMatch(main, /before-quit[^]*closeDatabase\(\)/)
-  assert.match(main, /app\.on\('will-quit', closeDatabase\)/)
+  assert.match(main, /createApplicationStartupRuntime\(\{[\s\S]*createInstanceRegistry/)
+  assert.match(startupRuntime, /createInstanceRegistry\(\{ database: getDatabase\(\) \}\)/)
+  assert.match(main, /processId: process\.pid/)
+  assert.match(startupRuntime, /instanceRegistry\.register\(\{ instanceId, pid: processId \}\)/)
+  assert.match(startupRuntime, /scheduleInterval\([^]*instanceRegistry\.heartbeat\(instanceId\)/)
+  assert.match(startupRuntime, /releaseInstanceRegistration[^]*instanceRegistry\?\.unregister\(instanceId\)/)
+  assert.match(shutdownRuntime, /shutdownApplication[^]*releaseInstanceRegistration\(\)/)
+  assert.doesNotMatch(shutdownRuntime, /before-quit[^]*closeDatabase\(\)/)
+  assert.match(shutdownRuntime, /app\.on\('will-quit', closeDatabase\)/)
 })
 
 test('apertura in nuova istanza valida directory, limite e duplicati prima dello spawn', () => {
-  const launchHandler = main.slice(
-    main.indexOf("ipcMain.handle('workspace:openInNewInstance'"),
-    main.indexOf("ipcMain.on('appMenu:setContext'"),
-  )
-
-  assert.match(main, /ipcMain\.handle\('workspace:instanceStatus'[^]*assertTrustedSender/)
-  assert.match(launchHandler, /ipcMain\.handle\('workspace:openInNewInstance', async/)
-  assert.match(launchHandler, /assertTrustedSender/)
-  assert.match(launchHandler, /isDirectory\(workspacePath\)/)
-  assert.match(launchHandler, /instanceRegistry\.status\(workspacePath\)/)
-  assert.match(launchHandler, /return await launchWorkspaceInstance/)
-  assert.match(launchHandler, /onPostLaunchError/)
-  assert.match(launchHandler, /reason: 'launch-failed'/)
+  assert.match(main, /registerWorkspaceIpc\(\{/)
+  assert.doesNotMatch(main, /ipcMain\.handle\('workspace:/)
+  assert.match(workspaceIpc, /workspace:instanceStatus[^]*assertTrustedSender\(event\)/)
+  assert.match(workspaceIpc, /\['workspace:openInNewInstance', async/)
+  assert.match(workspaceIpc, /assertTrustedSender\(event\)/)
+  assert.match(workspaceIpc, /isDirectory\(workspacePath\)/)
+  assert.match(workspaceIpc, /instanceRegistry\.status\(workspacePath\)/)
+  assert.match(workspaceIpc, /return await launchWorkspaceInstance/)
+  assert.match(workspaceIpc, /onPostLaunchError/)
+  assert.match(workspaceIpc, /reason: 'launch-failed'/)
 })
 
 test('un workspace passato da riga di comando viene aperto nel processo dedicato', () => {
-  assert.match(main, /readWorkspaceArgument\(process\.argv\)/)
-  assert.match(main, /startupWorkspacePath[^]*openWorkspace\(startupWorkspacePath\)/)
+  assert.match(main, /processArguments: process\.argv/)
+  assert.match(startupRuntime, /readWorkspaceArgument\(processArguments\)/)
+  assert.match(startupRuntime, /startupWorkspacePath[^]*openWorkspace\(startupWorkspacePath\)/)
 })

@@ -35,6 +35,38 @@ test('blocca import profondi tra feature', () => {
   }, (problems) => assert.ok(problems.some((problem) => problem.includes('import profondo'))))
 })
 
+test('obbliga ogni consumer esterno a usare gli ingressi pubblici di feature, UI e bridge', () => {
+  withFixture({
+    'src/app/shell.ts': [
+      "import { query } from '@/features/database/model/query'",
+      "import { Button } from '@/components/ui/button'",
+      "import { getBridge } from '@/bridge/electron/get-bridge'",
+      'export { Button, getBridge, query }',
+    ].join('\n'),
+    'src/features/database/model/query.ts': 'export const query = {}\n',
+    'src/components/ui/button.tsx': 'export const Button = {}\n',
+    'src/bridge/electron/get-bridge.ts': 'export const getBridge = () => ({})\n',
+  }, (problems) => {
+    assert.ok(problems.some((problem) => problem.includes('verso feature "database"')))
+    assert.ok(problems.some((problem) => problem.includes('import profondo nel design system')))
+    assert.ok(problems.some((problem) => problem.includes('import profondo nel bridge renderer')))
+  })
+})
+
+test('mantiene feature, componenti condivisi e tema indipendenti dalla composition root', () => {
+  withFixture({
+    'src/app/index.ts': 'export const app = {}\n',
+    'src/features/database/index.ts': 'export const database = {}\n',
+    'src/features/editor/model/open.ts': "import { app } from '@/app'\nexport const open = app\n",
+    'src/components/shared-panel.tsx': "import { database } from '@/features/database'\nexport const panel = database\n",
+    'src/theme/tokens.ts': "import { database } from '@/features/database'\nexport const tokens = database\n",
+  }, (problems) => {
+    assert.ok(problems.some((problem) => problem.includes('composition root renderer')))
+    assert.ok(problems.some((problem) => problem.includes('componente condiviso dipende')))
+    assert.ok(problems.some((problem) => problem.includes('tema dipende')))
+  })
+})
+
 test('blocca dipendenze applicative in shared e accessi diretti al preload', () => {
   withFixture({
     'src/features/editor/index.ts': 'export const editor = {}\n',
@@ -66,7 +98,44 @@ test('blocca dipendenze renderer verso Electron e adapter backend verso livelli 
   }, (problems) => {
     assert.ok(problems.some((problem) => problem.includes('renderer dipende direttamente')))
     assert.ok(problems.some((problem) => problem.includes('dominio Electron dipende')))
-    assert.ok(problems.some((problem) => problem.includes('preload dipende')))
+    assert.ok(problems.some((problem) => problem.includes('preload esce dal proprio confine')))
+  })
+})
+
+test('isola application, infrastructure, IPC e preload nel backend', () => {
+  withFixture({
+    'electron/app/runtime.cjs': "require('../infrastructure/filesystem/read.cjs')\n",
+    'electron/infrastructure/filesystem/read.cjs': "require('../../ipc/domains/filesystem.ipc.cjs')\n",
+    'electron/ipc/domains/filesystem.ipc.cjs': 'module.exports = {}\n',
+    'electron/preload/index.cjs': "require('../domains/errors/public-error.cjs')\n",
+    'electron/domains/errors/public-error.cjs': 'module.exports = {}\n',
+    'electron/domains/files/read.cjs': "require('../../main.cjs')\n",
+    'electron/main.cjs': 'module.exports = {}\n',
+  }, (problems) => {
+    assert.ok(problems.some((problem) => problem.includes('application layer Electron dipende')))
+    assert.ok(problems.some((problem) => problem.includes('infrastruttura Electron dipende')))
+    assert.ok(problems.some((problem) => problem.includes('preload esce dal proprio confine')))
+    assert.ok(problems.some((problem) => problem.includes('composition root Electron')))
+  })
+})
+
+test('impedisce import e ricreazione dei path legacy rimossi', () => {
+  withFixture({
+    'src/main.tsx': "import App from './App'\nexport { App }\n",
+    'src/components/project-editor.tsx': 'export const ProjectEditor = {}\n',
+    'electron/domains/github/service.cjs': "module.exports = require('../../github-service.cjs')\n",
+    'electron/managed-ssh-service.cjs': 'module.exports = {}\n',
+    'electron/remote-file-store.cjs': 'module.exports = {}\n',
+    'electron/runtime.cjs': "module.exports = require('./shell-session-manager.cjs')\n",
+    'electron/sftp-service.cjs': 'module.exports = {}\n',
+  }, (problems) => {
+    assert.ok(problems.some((problem) => problem.includes('path legacy "src/App" rimosso; usa "src/app"')))
+    assert.ok(problems.some((problem) => problem.includes('path legacy "electron/github-service" rimosso')))
+    assert.ok(problems.some((problem) => problem.includes('path legacy "electron/shell-session-manager" rimosso')))
+    assert.ok(problems.some((problem) => problem.includes('electron/managed-ssh-service.cjs: path legacy rimosso ricreato')))
+    assert.ok(problems.some((problem) => problem.includes('electron/remote-file-store.cjs: path legacy rimosso ricreato')))
+    assert.ok(problems.some((problem) => problem.includes('electron/sftp-service.cjs: path legacy rimosso ricreato')))
+    assert.ok(problems.some((problem) => problem.includes('src/components/project-editor.tsx: path legacy rimosso ricreato')))
   })
 })
 

@@ -4,19 +4,19 @@ const path = require('node:path')
 const test = require('node:test')
 const vm = require('node:vm')
 
-const { classifyStartupLoadFailure } = require('../electron/startup-bootstrap-guard.cjs')
+const { classifyStartupLoadFailure } = require('../electron/app/startup-bootstrap-guard.cjs')
 
 test('il bootstrap installa la gestione fatal prima di caricare il main applicativo', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'))
-  const source = fs.readFileSync(path.join(__dirname, '..', 'electron', 'bootstrap.cjs'), 'utf8')
-  assert.equal(manifest.main, 'electron/bootstrap.cjs')
+  const source = fs.readFileSync(path.join(__dirname, '..', 'electron', 'app', 'bootstrap.cjs'), 'utf8')
+  assert.equal(manifest.main, 'electron/app/bootstrap.cjs')
   const uncaughtHandler = source.indexOf("process.on('uncaughtException'")
   const rejectionHandler = source.indexOf("process.on('unhandledRejection'")
-  assert.ok(uncaughtHandler < source.indexOf("require('./main.cjs')"))
-  assert.ok(rejectionHandler < source.indexOf("require('./main.cjs')"))
+  assert.ok(uncaughtHandler < source.indexOf("require('../main.cjs')"))
+  assert.ok(rejectionHandler < source.indexOf("require('../main.cjs')"))
   for (const protectedModule of [
     "require('./fatal-error-experience.cjs')",
-    "require('./logger.cjs')",
+    "require('../infrastructure/logging/logger.adapter.cjs')",
     "require('./startup-bootstrap-guard.cjs')",
   ]) {
     assert.ok(uncaughtHandler < source.indexOf(protectedModule), `${protectedModule} deve essere caricato dopo gli handler di emergenza`)
@@ -25,6 +25,16 @@ test('il bootstrap installa la gestione fatal prima di caricare il main applicat
   assert.match(source, /createEmergencyFatalExperience/u)
   assert.match(source, /Node, npm e i client database di sistema non possono riparare/u)
   assert.doesNotMatch(source, /node-pty|better-sqlite3/u)
+})
+
+test('il main inizializza le dipendenze di cleanup prima di comporre i runtime', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'electron', 'main.cjs'), 'utf8')
+  const shellCleanup = source.indexOf('const closeShellSessions = shellSessionRuntime.closeSessions')
+  const workspaceCleanup = source.indexOf('createWorkspaceRuntimeCleanup({')
+
+  assert.ok(shellCleanup >= 0)
+  assert.ok(workspaceCleanup >= 0)
+  assert.ok(shellCleanup < workspaceCleanup, 'closeShellSessions non deve essere letto nella temporal dead zone')
 })
 
 test('un bundle incompleto o dell’architettura errata produce messaggi reinstallabili e sanitizzati', () => {
@@ -44,7 +54,7 @@ test('un bundle incompleto o dell’architettura errata produce messaggi reinsta
 })
 
 test('un modulo di supporto mancante viene confinato dal bootstrap di emergenza', async () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'electron', 'bootstrap.cjs'), 'utf8')
+  const source = fs.readFileSync(path.join(__dirname, '..', 'electron', 'app', 'bootstrap.cjs'), 'utf8')
   const events = []
   let dialogOptions
   const app = {

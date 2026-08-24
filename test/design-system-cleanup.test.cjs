@@ -2,6 +2,9 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
+const { readAppSource } = require('./helpers/app-source.cjs')
+const { readSettingsSource } = require('./helpers/settings-source.cjs')
+const { readTerminalSource } = require('./helpers/terminal-source.cjs')
 
 const projectRoot = path.join(__dirname, '..')
 const read = (file) => fs.readFileSync(path.join(projectRoot, file), 'utf8')
@@ -15,7 +18,7 @@ function sourceFiles(directory) {
 }
 
 test('la shell usa solo classi Panda e conserva il marker tecnico Electron', () => {
-  const app = read('src/App.tsx')
+  const app = [read('src/app/components/app-shell.tsx'), read('src/app/components/home-view.tsx')].join('\n')
 
   assert.doesNotMatch(app, /\bapp-shell\b|\bapp-section-tabs(?:-root)?\b|\bapp-section-page\b/)
   assert.match(app, /className=\{`window-toolbar \$\{shellStyles\.toolbar\}`\}/)
@@ -23,8 +26,8 @@ test('la shell usa solo classi Panda e conserva il marker tecnico Electron', () 
 })
 
 test('i SegmentGroup visivamente orizzontali dichiarano la stessa semantica ad Ark', () => {
-  const roots = ['src/App.tsx', 'src/features/settings/components/settings.tsx', 'src/features/terminal/components/free-terminal.tsx']
-    .flatMap((file) => read(file).split('\n').filter((line) => line.includes('<SegmentGroup.Root')))
+  const roots = [readAppSource(), readSettingsSource(), readTerminalSource()]
+    .flatMap((source) => source.split('\n').filter((line) => line.includes('<SegmentGroup.Root')))
 
   assert.equal(roots.length, 4)
   for (const root of roots) assert.match(root, /orientation="horizontal"/)

@@ -4,8 +4,8 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 
-const { createPiSessionController } = require('../electron/pi-session-controller.cjs')
-const { isPublicError } = require('../electron/public-error.cjs')
+const { createPiSessionController } = require('../electron/domains/ai/pi-session-controller.cjs')
+const { isPublicError } = require('../electron/domains/errors/public-error.cjs')
 
 function hasPublicCode(code) {
   return (error) => {
@@ -272,11 +272,17 @@ test('lo shutdown attende exit e rilascia tutte le risorse della sessione', asyn
 
 test('il main attende controller Pi su restart, cambio workspace e shutdown', () => {
   const source = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const shutdownRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-shutdown-runtime.cjs'), 'utf8')
+  const runtime = fs.readFileSync(path.join(__dirname, '../electron/domains/ai/pi-runtime.cjs'), 'utf8')
+  const cleanup = fs.readFileSync(path.join(__dirname, '../electron/domains/workspace/workspace-runtime-cleanup.cjs'), 'utf8')
+  const opener = fs.readFileSync(path.join(__dirname, '../electron/domains/workspace/workspace-opener.cjs'), 'utf8')
 
-  assert.match(source, /const piSessionController = createPiSessionController\(/)
-  assert.match(source, /async function restartPi\(\)[\s\S]*?await startPi\(workspacePath\)/)
-  assert.match(source, /async function cleanupWorkspaceRuntime\(workspacePath, reason\)[\s\S]*?await stopTerminal\(reason\)/)
-  assert.match(source, /async function openWorkspace\(workspacePath\)[\s\S]*?await cleanupWorkspaceRuntime\(previousWorkspacePath, 'workspace-change'\)[\s\S]*?await stopTerminal\('workspace-change'\)[\s\S]*?await startPi\(normalizedWorkspacePath\)/)
-  assert.match(source, /async function shutdownApplication\(\)[\s\S]*?await stopTerminal\('shutdown'\)[\s\S]*?await withCleanupDeadline\(githubOperations\.abortAndWaitMatching\(\), 4_000, 'github-operations'\)/)
+  assert.match(source, /const piRuntime = createPiRuntime\(\{/)
+  assert.match(source, /const piSessionController = piRuntime\.controller/)
+  assert.match(runtime, /async function restart\(\)[\s\S]*?await start\(requireActiveWorkspace\(\)\)/)
+  assert.match(cleanup, /cleanupWorkspaceRuntime\(workspacePath, reason\)[\s\S]*?await stopTerminal\(reason\)/)
+  assert.match(source, /const openWorkspace = workspaceOpener\.open/)
+  assert.match(opener, /async function open\(workspacePath\)[\s\S]*?await cleanupWorkspaceRuntime\(previousWorkspacePath, 'workspace-change'\)[\s\S]*?await stopTerminal\('workspace-change'\)[\s\S]*?await startPi\(normalizedWorkspacePath\)/)
+  assert.match(shutdownRuntime, /async function shutdownApplication\(\)[\s\S]*?await stopTerminal\('shutdown'\)[\s\S]*?await withDeadline\(githubOperations\.abortAndWaitMatching\(\), 4_000, 'github-operations'\)/)
   assert.doesNotMatch(source, /let terminalProcess|let terminalStream|let terminalInput/)
 })

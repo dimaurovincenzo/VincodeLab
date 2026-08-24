@@ -9,9 +9,9 @@ const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-github-c
 const previousDataDirectory = process.env.VINCODELAB_DATA_DIR
 process.env.VINCODELAB_DATA_DIR = dataDirectory
 
-const { closeDatabase } = require('../electron/workspace-store.cjs')
-const { readCache, writeCache } = require('../electron/workspace-cache.cjs')
-const { commandLifecycleError, createCommandRunner, getCachedResource, isCommandCancellation } = require('../electron/github-service.cjs')
+const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
+const { readCache, writeCache } = require('../electron/infrastructure/persistence/workspace-cache.repository.cjs')
+const { commandLifecycleError, createCommandRunner, getCachedResource, isCommandCancellation } = require('../electron/infrastructure/github/github-service.adapter.cjs')
 
 test.after(() => {
   closeDatabase()

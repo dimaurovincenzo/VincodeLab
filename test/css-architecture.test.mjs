@@ -8,8 +8,12 @@ import {
   auditWithinBudget,
   formatCssAuditSummary,
 } from "../scripts/lib/css-audit.mjs";
+import appSourceHelper from "./helpers/app-source.cjs";
+import settingsSourceHelper from "./helpers/settings-source.cjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
+const { readAppSource } = appSourceHelper;
+const { readSettingsSource } = settingsSourceHelper;
 
 export const readWorkspaceFile = (file) =>
   fs.readFileSync(path.join(repoRoot, file), "utf8");
@@ -111,7 +115,7 @@ test("temi e token sono separati dalle viste", () => {
   const tokens = readWorkspaceFile("src/theme/tokens.ts");
   const globalCss = readWorkspaceFile("src/theme/global-css.ts");
   const styleEntry = readWorkspaceFile("src/styles/index.css");
-  const app = readWorkspaceFile("src/App.tsx");
+  const app = readAppSource();
   const main = readWorkspaceFile("src/main.tsx");
 
   for (const token of [
@@ -222,7 +226,7 @@ test("GitHub usa layout operativi continui e stati semantici", () => {
 });
 
 test("entrypoint CSS non dipende dai fogli legacy", () => {
-  const app = readWorkspaceFile("src/App.tsx");
+  const app = readAppSource();
   const main = readWorkspaceFile("src/main.tsx");
   const entrypoint = readWorkspaceFile("src/styles/index.css");
   const legacy = [
@@ -248,8 +252,8 @@ test("entrypoint CSS non dipende dai fogli legacy", () => {
 });
 
 test("Home e Impostazioni riusano la shell operativa e le tab condivise", () => {
-  const app = readWorkspaceFile("src/App.tsx");
-  const settings = readWorkspaceFile("src/features/settings/components/settings.tsx");
+  const app = readAppSource();
+  const settings = readSettingsSource();
   const tabs = readWorkspaceFile("src/components/ui/tabs.tsx");
   const recipes = readWorkspaceFile("src/theme/recipes.ts");
   const homeStyles = readWorkspaceFile("src/theme/styles/home.ts");

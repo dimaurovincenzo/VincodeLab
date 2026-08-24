@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { MAX_PASTE_BYTES, createTerminalInputController, writeTerminalKey } = require('../electron/terminal-input.cjs')
+const { MAX_PASTE_BYTES, createTerminalInputController, writeTerminalKey } = require('../electron/domains/terminal/terminal-input.cjs')
 
 test('accetta una sequenza interattiva breve senza round-trip', () => {
   const writes = []

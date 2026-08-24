@@ -6,7 +6,8 @@ const path = require('node:path')
 const test = require('node:test')
 const Database = require('better-sqlite3')
 
-const { createRemoteFileStore, toPublicTrackedFile } = require('../electron/remote-file-store.cjs')
+const { toPublicTrackedFile } = require('../electron/domains/remote-files/remote-file-model.cjs')
+const { createRemoteFileStore } = require('../electron/infrastructure/remote/remote-file-store.adapter.cjs')
 
 function hash(value) {
   return crypto.createHash('sha256').update(value).digest('hex')
@@ -72,7 +73,7 @@ test('non espone il percorso della cache nei DTO pubblici', async (t) => {
     size: 5, modifiedAt: 10, mode: 0o600, baselineHash: hash('testo'),
   })
 
-  const dto = await toPublicTrackedFile(item)
+  const dto = await toPublicTrackedFile(item, { stat: fs.promises.stat })
   assert.equal('localPath' in dto, false)
   assert.equal(dto.remotePath, '/srv/app/readme.txt')
   assert.equal(dto.cacheSize, 5)

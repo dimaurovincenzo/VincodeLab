@@ -8,21 +8,21 @@ import { setImmediate as yieldImmediate } from 'node:timers/promises'
 
 const require = createRequire(import.meta.url)
 const Database = require('better-sqlite3')
-const { measureResultRows, RESULT_BYTE_LIMIT } = require('../electron/database-result-budget.cjs')
-const { createShellSessionManager } = require('../electron/shell-session-manager.cjs')
-const { SqliteWorkerSession, sqliteWorkerDiagnostics } = require('../electron/sqlite-worker-session.cjs')
-const { TERMINAL_STREAM_LIMITS, createTerminalStreamController } = require('../electron/terminal-stream-controller.cjs')
-const { activatePendingUpdates } = require('../electron/update-activation.cjs')
-const { stageManagedUpdate } = require('../electron/update-downloader.cjs')
-const { getManagedUpdate, recordAvailableUpdate, upsertManagedUpdate } = require('../electron/update-store.cjs')
-const { closeDatabase, getDatabase } = require('../electron/workspace-store.cjs')
+const { measureResultRows, RESULT_BYTE_LIMIT } = require('../electron/domains/database/database-result-budget.cjs')
+const { createShellSessionManager } = require('../electron/domains/shell/shell-session-manager.cjs')
+const { SqliteWorkerSession, sqliteWorkerDiagnostics } = require('../electron/infrastructure/database/sqlite-worker-session.adapter.cjs')
+const { TERMINAL_STREAM_LIMITS, createTerminalStreamController } = require('../electron/domains/terminal/terminal-stream-controller.cjs')
+const { activatePendingUpdates } = require('../electron/infrastructure/updates/update-activation.adapter.cjs')
+const { stageManagedUpdate } = require('../electron/infrastructure/updates/update-downloader.adapter.cjs')
+const { getManagedUpdate, recordAvailableUpdate, upsertManagedUpdate } = require('../electron/infrastructure/persistence/update.repository.cjs')
+const { closeDatabase, getDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const {
   MAX_WORKSPACE_SESSION_BYTES,
   WORKSPACE_SESSION_VERSION,
   createDefaultWorkspaceSessionState,
   getWorkspaceSession,
   saveWorkspaceSession,
-} = require('../electron/workspace-session-store.cjs')
+} = require('../electron/infrastructure/persistence/workspace-session.repository.cjs')
 
 const UNICODE_PATTERN = 'A🙂é中'
 const UNICODE_PATTERN_BYTES = Buffer.byteLength(UNICODE_PATTERN, 'utf8')

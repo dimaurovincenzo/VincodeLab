@@ -59,6 +59,11 @@ function sqlEditor(container: HTMLElement) {
   return view
 }
 
+async function connectDatabase(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: 'Connetti' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Esegui' })).toBeEnabled())
+}
+
 describe('recovery del workspace Database', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
@@ -69,13 +74,12 @@ describe('recovery del workspace Database', () => {
     let databaseBAvailable = false
     const listSavedQueries = vi.fn(async (connectionId: string) => {
       if (connectionId === 'database-a') return [{ id: 'query-a', connectionId, name: 'Query A', sql: 'DELETE FROM production', updatedAt: Date.now() }]
-      if (!databaseBAvailable) throw new Error('database B non raggiungibile')
       return []
     })
     installDatabase({
       listSavedQueries,
       listHistory: vi.fn(async (connectionId: string) => {
-        if (connectionId === 'database-b' && !databaseBAvailable) throw new Error('database B non raggiungibile')
+        void connectionId
         return []
       }),
       inspectSchema: vi.fn(async (connectionId: string) => {
@@ -86,6 +90,9 @@ describe('recovery del workspace Database', () => {
     const user = userEvent.setup()
     render(<DatabaseWorkspace workspace="/tmp/database-recovery" />)
 
+    await screen.findByRole('button', { name: 'Connetti' })
+    expect(window.vincodeLab.database.inspectSchema).not.toHaveBeenCalled()
+
     await user.click(await screen.findByRole('tab', { name: /Query/ }))
     expect(await screen.findByRole('button', { name: 'Query A' })).toBeVisible()
     const selector = screen.getByRole('combobox', { name: 'Connessione database attiva' })
@@ -93,13 +100,48 @@ describe('recovery del workspace Database', () => {
     await user.click(await screen.findByRole('option', { name: /Database B/ }))
 
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Query A' })).not.toBeInTheDocument())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(window.vincodeLab.database.inspectSchema).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Connetti' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Connessione database non pronta')
     expect(screen.getByRole('button', { name: 'Esegui' })).toBeDisabled()
 
     databaseBAvailable = true
-    await user.click(screen.getByRole('button', { name: 'Riprova' }))
+    await user.click(screen.getByRole('button', { name: 'Riprova connessione' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Esegui' })).toBeEnabled())
     expect(listSavedQueries).toHaveBeenCalledWith('database-b')
+  })
+
+  it('non apre il database all’ingresso e concatena le pagine dello schema solo su richiesta', async () => {
+    const inspectSchema = vi.fn()
+      .mockResolvedValueOnce({
+        tables: [{ name: 'prima_tabella', columns: [], primaryKey: [] }],
+        routines: [],
+        hasMore: true,
+        nextOffset: 40,
+      })
+      .mockResolvedValueOnce({
+        tables: [{ name: 'ultima_tabella', columns: [], primaryKey: [] }],
+        routines: [],
+        hasMore: false,
+        nextOffset: null,
+      })
+    installDatabase({ listConnections: vi.fn(async () => [connections[0]]), inspectSchema })
+    const user = userEvent.setup()
+    render(<DatabaseWorkspace workspace="/tmp/database-progressive-schema" />)
+
+    await screen.findByRole('button', { name: 'Connetti' })
+    expect(inspectSchema).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Connetti' }))
+    expect(await screen.findByRole('treeitem', { name: 'prima_tabella' })).toBeVisible()
+    expect(inspectSchema).toHaveBeenLastCalledWith('database-a', { force: undefined, offset: 0, limit: 40 })
+
+    await user.click(screen.getByRole('button', { name: 'Carica altre risorse' }))
+    expect(await screen.findByRole('treeitem', { name: 'ultima_tabella' })).toBeVisible()
+    expect(screen.getByRole('treeitem', { name: 'prima_tabella' })).toBeVisible()
+    expect(inspectSchema).toHaveBeenLastCalledWith('database-a', { offset: 40, limit: 40 })
+    expect(screen.queryByRole('button', { name: 'Carica altre risorse' })).not.toBeInTheDocument()
   })
 
   it('propaga cancel al backend e consente una nuova query senza rimontare la vista', async () => {
@@ -116,6 +158,7 @@ describe('recovery del workspace Database', () => {
     const user = userEvent.setup()
     render(<DatabaseWorkspace workspace="/tmp/database-cancel" />)
 
+    await connectDatabase(user)
     const run = await screen.findByRole('button', { name: 'Esegui' })
     await waitFor(() => expect(run).toBeEnabled())
     await user.click(run)
@@ -148,6 +191,7 @@ describe('recovery del workspace Database', () => {
     const user = userEvent.setup()
     render(<DatabaseWorkspace workspace="/tmp/database-cancel-retry" />)
 
+    await connectDatabase(user)
     const run = await screen.findByRole('button', { name: 'Esegui' })
     await waitFor(() => expect(run).toBeEnabled())
     await user.click(run)
@@ -174,6 +218,7 @@ describe('recovery del workspace Database', () => {
     const user = userEvent.setup()
     const { unmount } = render(<DatabaseWorkspace workspace="/tmp/database-cancel-cleanup" />)
 
+    await connectDatabase(user)
     const run = await screen.findByRole('button', { name: 'Esegui' })
     await waitFor(() => expect(run).toBeEnabled())
     await user.click(run)
@@ -206,6 +251,7 @@ describe('recovery del workspace Database', () => {
     const user = userEvent.setup()
     const { container } = render(<DatabaseWorkspace workspace="/tmp/database-history-recovery" />)
 
+    await connectDatabase(user)
     const run = await screen.findByRole('button', { name: 'Esegui' })
     await waitFor(() => expect(run).toBeEnabled())
     act(() => {
@@ -240,6 +286,7 @@ describe('recovery del workspace Database', () => {
     const user = userEvent.setup()
     const { container } = render(<DatabaseWorkspace workspace="/tmp/database-history-write" />)
 
+    await connectDatabase(user)
     const run = await screen.findByRole('button', { name: 'Esegui' })
     await waitFor(() => expect(run).toBeEnabled())
     act(() => {

@@ -12,6 +12,7 @@ const {
 } = require('../electron/ipc/domains/shell-sessions.ipc.cjs')
 
 const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+const applicationShutdownRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-shutdown-runtime.cjs'), 'utf8')
 const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
 const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
 
@@ -157,16 +158,19 @@ test('il preload espone sessioni tipizzate senza accettare un workspace path', (
 })
 
 test('main registra il dominio sessioni una volta e conserva il confine one-way', () => {
+  const runtime = fs.readFileSync(path.join(__dirname, '../electron/domains/shell/shell-session-runtime.cjs'), 'utf8')
   assert.match(main, /registerShellSessionsIpc\(\{/)
   assert.doesNotMatch(main, /ipcMain\.(?:handle|on)\('shellSessions:/)
-  assert.match(main, /function handleShellSessionOneWay\(event, sessionId, operation, perform\)/)
-  assert.match(main, /reportShellSessionOneWayFailure\(\{[\s\S]*sessionId,[\s\S]*send:/)
+  assert.match(main, /const handleShellSessionOneWay = shellSessionRuntime\.handleOneWay/)
+  assert.match(runtime, /function handleOneWay\(event, sessionId, operation, perform\)/)
+  assert.match(runtime, /reportShellSessionOneWayFailure\(\{[\s\S]*sessionId,[\s\S]*send:/)
   assert.doesNotMatch(main, /shell_session_(?:ready|ack|disconnect|input|resize)_rejected/)
 })
 
 test('ogni chunk terminale attraversa un solo canale IPC tipizzato', () => {
-  assert.match(main, /sendToRenderer\('shellSessions:data', \{[\s\S]*sessionId: event\.sessionId,[\s\S]*attachmentId: event\.attachmentId,[\s\S]*generation: event\.generation,[\s\S]*sequence: event\.sequence,[\s\S]*data: event\.data/)
-  assert.match(main, /sendToRenderer\('shellSessions:exit', payload\)/)
+  const runtime = fs.readFileSync(path.join(__dirname, '../electron/domains/shell/shell-session-runtime.cjs'), 'utf8')
+  assert.match(runtime, /sendToRenderer\('shellSessions:data', \{[\s\S]*sessionId: event\.sessionId,[\s\S]*attachmentId: event\.attachmentId,[\s\S]*generation: event\.generation,[\s\S]*sequence: event\.sequence,[\s\S]*data: event\.data/)
+  assert.match(runtime, /sendToRenderer\('shellSessions:exit', \{/)
   assert.doesNotMatch(main, /let shellProcess|let shellWorkspacePath/)
   assert.doesNotMatch(main, /['"]shell:(?:start|restart|input|resize|data|exit)['"]/)
   assert.doesNotMatch(preload, /\bshell: \{/)
@@ -174,8 +178,14 @@ test('ogni chunk terminale attraversa un solo canale IPC tipizzato', () => {
 })
 
 test('il cambio workspace chiude tutte le sessioni del workspace precedente', () => {
-  assert.match(main, /previousWorkspacePath !== normalizedWorkspacePath[\s\S]*await cleanupWorkspaceRuntime\(previousWorkspacePath, 'workspace-change'\)/)
-  assert.match(main, /async function cleanupWorkspaceRuntime\(workspacePath, reason\)[\s\S]*remoteFileService\.closeWorkspace\(workspacePath\)[\s\S]*managedSsh\.closeWorkspace\(workspacePath\)[\s\S]*await closeShellSessions\(workspacePath\)/)
-  assert.match(main, /async function closeShellSessions\(workspacePath = activeWorkspacePath\)[\s\S]*await shellSessionManager\.closeAll\(workspacePath\)/)
-  assert.match(main, /async function shutdownApplication\(\)[\s\S]*await shellSessionManager\.dispose\(\)/)
+  const runtime = fs.readFileSync(path.join(__dirname, '../electron/domains/shell/shell-session-runtime.cjs'), 'utf8')
+  const remoteRuntime = fs.readFileSync(path.join(__dirname, '../electron/domains/remote/remote-runtime.cjs'), 'utf8')
+  const workspaceCleanup = fs.readFileSync(path.join(__dirname, '../electron/domains/workspace/workspace-runtime-cleanup.cjs'), 'utf8')
+  const workspaceOpener = fs.readFileSync(path.join(__dirname, '../electron/domains/workspace/workspace-opener.cjs'), 'utf8')
+  assert.match(workspaceOpener, /previousWorkspacePath !== normalizedWorkspacePath[\s\S]*await cleanupWorkspaceRuntime\(previousWorkspacePath, 'workspace-change'\)/)
+  assert.match(workspaceCleanup, /cleanupWorkspaceRuntime\(workspacePath, reason\)[\s\S]*remoteRuntime\.closeWorkspace\(workspacePath, withCleanupDeadline\)[\s\S]*await closeShellSessions\(workspacePath\)/)
+  assert.match(remoteRuntime, /remoteFileService\.closeWorkspace\(workspacePath\)[\s\S]*managedSsh\.closeWorkspace\(workspacePath\)/)
+  assert.match(main, /const closeShellSessions = shellSessionRuntime\.closeSessions/)
+  assert.match(runtime, /async function closeSessions\(workspacePath = getActiveWorkspacePath\(\)\)[\s\S]*await manager\.closeAll\(workspacePath\)/)
+  assert.match(applicationShutdownRuntime, /async function shutdownApplication\(\)[\s\S]*await shellSessionManager\.dispose\(\)/)
 })

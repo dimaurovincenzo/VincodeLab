@@ -4,8 +4,8 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { createProjectSkill, deleteProjectSkill, getProjectSkill, listProjectSkills } = require('../electron/project-skills.cjs')
-const { validateSkill } = require('../electron/skill-validation.cjs')
+const { createProjectSkill, deleteProjectSkill, getProjectSkill, listProjectSkills } = require('../electron/domains/ai/project-skills.cjs')
+const { validateSkill } = require('../electron/domains/ai/skill-validation.cjs')
 
 test('validateSkill segnala frontmatter mancante e accetta una skill valida', () => {
   assert.equal(validateSkill('contenuto', 'demo').valid, false)

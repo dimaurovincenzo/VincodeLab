@@ -1,8 +1,8 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { createRedisService } = require('../electron/redis-service.cjs')
-const { valueByteLength } = require('../electron/redis-result-budget.cjs')
+const { createRedisService } = require('../electron/domains/redis/redis-service.cjs')
+const { valueByteLength } = require('../electron/domains/redis/redis-result-budget.cjs')
 
 const operationId = '11111111-1111-4111-8111-111111111111'
 

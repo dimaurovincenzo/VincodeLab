@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { mergeRedisTestConnectionSecrets } = require('../electron/redis-connection-input.cjs')
+const { mergeRedisTestConnectionSecrets } = require('../electron/domains/redis/redis-connection-input.cjs')
 
 test('il test Sentinel preserva separatamente i segreti salvati quando i campi restano vuoti', () => {
   const merged = mergeRedisTestConnectionSecrets(

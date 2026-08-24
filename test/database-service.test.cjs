@@ -7,9 +7,17 @@ const path = require('node:path')
 const test = require('node:test')
 const Database = require('better-sqlite3')
 
-const { closeDatabase } = require('../electron/workspace-store.cjs')
-const { createConnection } = require('../electron/database-store.cjs')
-const { beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/database-service.cjs')
+const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
+const { createConnection, getConnectionWithSecrets, recordHistory } = require('../electron/infrastructure/persistence/database.repository.cjs')
+const { beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
+const { normalizeSchemaPageOptions, remotePrimaryKeyQuery, remoteRoutinePageSql, remoteTableColumnsPageSql } = require('../electron/domains/database/database-schema-model.cjs')
+const { SqliteWorkerSession, sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics } = require('../electron/infrastructure/database/sqlite-worker-session.adapter.cjs')
+
+configureDatabasePersistence({ getConnectionWithSecrets, recordHistory })
+configureDatabaseRuntime({
+  createSqliteWorkerSession: (sqlitePath, onClosed) => new SqliteWorkerSession(sqlitePath, onClosed),
+  sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics,
+})
 
 function withTemporaryDatabase(t) {
   const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-query-'))
@@ -481,7 +489,7 @@ test('il worker SQLite non invia la riga sentinella oltre il proprio IPC', async
   database.exec("CREATE TABLE items(id INTEGER, content BLOB); INSERT INTO items VALUES (1, X'01'); INSERT INTO items VALUES (2, zeroblob(2097152));")
   database.close()
 
-  const worker = fork(path.join(__dirname, '../electron/sqlite-database-worker.cjs'), [], {
+  const worker = fork(path.join(__dirname, '../electron/infrastructure/database/sqlite-database-worker.cjs'), [], {
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
     execArgv: [],
     serialization: 'advanced',
@@ -520,6 +528,57 @@ test('lo schema SQLite espone chiave primaria e colonne modificabili', async (t)
   assert.deepEqual(logs.primaryKey, [])
   assert.equal(logs.columns.every((column) => column.editable === false), true)
   assert.deepEqual(schema.routines, [])
+  assert.equal(schema.hasMore, false)
+  assert.equal(schema.nextOffset, null)
+})
+
+test('pagina lo schema SQLite e carica una tabella non presente nella pagina senza ispezionare tutto il database', async (t) => {
+  const { workspace, sqlitePath } = withTemporaryDatabase(t)
+  const connection = createConnection(workspace, { name: 'Locale', driver: 'sqlite', sqlitePath })
+
+  for (const table of ['alpha', 'bravo', 'charlie', 'delta', 'echo']) {
+    await executeQuery(workspace, connection.id, `CREATE TABLE ${table}(id INTEGER PRIMARY KEY, value TEXT)`, { confirmed: true })
+  }
+  await executeQuery(workspace, connection.id, "INSERT INTO echo VALUES (1, 'ultima')", { confirmed: true })
+
+  const first = await inspectSchema(workspace, connection.id, { force: true, offset: 0, limit: 2 })
+  const second = await inspectSchema(workspace, connection.id, { offset: first.nextOffset, limit: 2 })
+  const last = await inspectSchema(workspace, connection.id, { offset: second.nextOffset, limit: 2 })
+
+  assert.deepEqual(first.tables.map(({ name }) => name), ['alpha', 'bravo'])
+  assert.deepEqual({ hasMore: first.hasMore, nextOffset: first.nextOffset }, { hasMore: true, nextOffset: 2 })
+  assert.deepEqual(second.tables.map(({ name }) => name), ['charlie', 'delta'])
+  assert.deepEqual({ hasMore: second.hasMore, nextOffset: second.nextOffset }, { hasMore: true, nextOffset: 4 })
+  assert.deepEqual(last.tables.map(({ name }) => name), ['echo'])
+  assert.deepEqual({ hasMore: last.hasMore, nextOffset: last.nextOffset }, { hasMore: false, nextOffset: null })
+
+  // Una nuova pagina iniziale espelle intenzionalmente le altre dal cache lookup:
+  // la lettura diretta deve comunque recuperare solo i metadati della tabella.
+  await inspectSchema(workspace, connection.id, { force: true, offset: 0, limit: 2 })
+  const page = await readTableRows(workspace, connection.id, 'echo')
+  assert.deepEqual(page.rows, [{ id: 1, value: 'ultima' }])
+  assert.equal(page.table.name, 'echo')
+})
+
+test('valida la finestra schema e limita le query remote prima di caricare colonne e routine', () => {
+  assert.deepEqual(normalizeSchemaPageOptions(), { force: false, offset: 0, limit: 50 })
+  assert.deepEqual(normalizeSchemaPageOptions({ force: true, offset: 100, limit: 25 }), { force: true, offset: 100, limit: 25 })
+  assert.throws(() => normalizeSchemaPageOptions({ offset: -1 }), /Offset schema database non valido/)
+  assert.throws(() => normalizeSchemaPageOptions({ limit: 101 }), /Limite schema database non valido/)
+
+  assert.match(remoteTableColumnsPageSql('postgres', { offset: 100, limit: 25 }), /LIMIT 26 OFFSET 100/)
+  assert.match(remoteTableColumnsPageSql('mysql', { offset: 50, limit: 10 }), /LIMIT 11 OFFSET 50/)
+  assert.match(remoteTableColumnsPageSql('mssql', { offset: 20, limit: 5 }), /OFFSET 20 ROWS FETCH NEXT 6 ROWS ONLY/)
+  assert.match(remoteRoutinePageSql('postgres', { offset: 40, limit: 20 }), /LIMIT 21 OFFSET 40$/)
+  assert.match(remoteRoutinePageSql('mssql', { offset: 40, limit: 20 }), /OFFSET 40 ROWS FETCH NEXT 21 ROWS ONLY$/)
+
+  const postgresPrimaryKeys = remotePrimaryKeyQuery('postgres', [
+    { schemaName: 'public', tableName: 'users' },
+    { schemaName: 'audit', tableName: 'events' },
+  ])
+  assert.match(postgresPrimaryKeys.sql, /tc\.table_schema = \$1 AND tc\.table_name = \$2/)
+  assert.match(postgresPrimaryKeys.sql, /tc\.table_schema = \$3 AND tc\.table_name = \$4/)
+  assert.deepEqual(postgresPrimaryKeys.parameters, ['public', 'users', 'audit', 'events'])
 })
 
 test('legge i metadati delle procedure e funzioni SQL Server senza eseguirle', () => {

@@ -1,8 +1,8 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { createRedisOperationRegistry } = require('../electron/redis-operation-registry.cjs')
-const { RedisSessionInvalidatedError, createRedisSessionRegistry } = require('../electron/redis-session-registry.cjs')
+const { createRedisOperationRegistry } = require('../electron/domains/redis/redis-operation-registry.cjs')
+const { RedisSessionInvalidatedError, createRedisSessionRegistry } = require('../electron/domains/redis/redis-session-registry.cjs')
 
 const operationId = '11111111-1111-4111-8111-111111111111'
 

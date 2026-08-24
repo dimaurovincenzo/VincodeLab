@@ -5,10 +5,13 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import { normalizeUserError, reportUserError } from '../src/lib/user-error.js'
+import appSourceHelper from './helpers/app-source.cjs'
+import settingsSourceHelper from './helpers/settings-source.cjs'
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url))
+const { readAppSource } = appSourceHelper
+const { readSettingsSource } = settingsSourceHelper
 const components = [
-  'features/settings/components/settings.tsx',
   'features/ai/components/project-skills.tsx',
   'features/ai/components/project-instructions.tsx',
   'features/ai/components/terminal-diagnostics.tsx',
@@ -20,18 +23,21 @@ function componentSource(fileName) {
 }
 
 test('le superfici renderer selezionate non mostrano proprieta message grezze', () => {
-  for (const fileName of components) {
-    const source = componentSource(fileName)
-    assert.match(source, /import \{[^}]*normalizeUserError[^}]*reportUserError[^}]*\} from '@\/lib\/user-error'/su, `${fileName} deve usare il contratto errori centrale`)
-    assert.match(source, /normalizeUserError\(/u, `${fileName} deve normalizzare gli errori`)
-    assert.match(source, /reportUserError\(/u, `${fileName} deve collegare correlation ID e diagnostica`)
-    assert.doesNotMatch(source, /\.message\b/u, `${fileName} non deve renderizzare dettagli tecnici diretti`)
-    assert.doesNotMatch(source, /error instanceof Error/u, `${fileName} non deve interpretare autonomamente gli errori IPC`)
+  const surfaces = [
+    ['features/settings', readSettingsSource()],
+    ...components.map((fileName) => [fileName, componentSource(fileName)]),
+  ]
+  for (const [surface, source] of surfaces) {
+    assert.match(source, /import \{[^}]*normalizeUserError[^}]*reportUserError[^}]*\} from '@\/lib\/user-error'/su, `${surface} deve usare il contratto errori centrale`)
+    assert.match(source, /normalizeUserError\(/u, `${surface} deve normalizzare gli errori`)
+    assert.match(source, /reportUserError\(/u, `${surface} deve collegare correlation ID e diagnostica`)
+    assert.doesNotMatch(source, /\.message\b/u, `${surface} non deve renderizzare dettagli tecnici diretti`)
+    assert.doesNotMatch(source, /error instanceof Error/u, `${surface} non deve interpretare autonomamente gli errori IPC`)
   }
 })
 
 test('Settings possiede localmente gli errori e non duplica la superficie con toast', () => {
-  const settings = componentSource('features/settings/components/settings.tsx')
+  const settings = readSettingsSource()
   assert.match(settings, /normalizeUserError\(update\.lastError, \{/u)
   assert.match(settings, /error=\{managedUpdateFailures\.get\(update\.id\)!\}/u)
   assert.match(settings, /<ErrorNotice/u)
@@ -42,8 +48,8 @@ test('Settings possiede localmente gli errori e non duplica la superficie con to
 })
 
 test('Pi assente usa copy specifica e apre direttamente il recovery Runtime Pi', () => {
-  const app = fs.readFileSync(path.join(testDirectory, '../src/App.tsx'), 'utf8')
-  const settings = componentSource('features/settings/components/settings.tsx')
+  const app = readAppSource()
+  const settings = readSettingsSource()
   assert.match(app, /classified\.code === 'PI_NOT_INSTALLED'/u)
   assert.match(app, /title: 'Pi Coding Agent non installato'/u)
   assert.match(app, /Editor, Terminale locale, GitHub, Database e Redis restano disponibili/u)

@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { MAX_CONTENT_BYTES, createVolatileDraftRegistry } = require('../electron/volatile-draft-registry.cjs')
+const { MAX_CONTENT_BYTES, createVolatileDraftRegistry } = require('../electron/domains/workspace/volatile-draft-registry.cjs')
 
 function draft(resource, content = 'modifica', baseline = 'base') {
   return { scope: 'project-editor', workspace: '/workspace/a', resource, content, baseline }

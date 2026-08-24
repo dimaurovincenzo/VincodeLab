@@ -4,7 +4,7 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { environmentForGitHubCli, resolveGitHubCliExecutable } = require('../electron/github-cli-executable.cjs')
+const { environmentForGitHubCli, resolveGitHubCliExecutable } = require('../electron/infrastructure/github/github-cli-executable.adapter.cjs')
 
 test('trova GitHub CLI fuori dal PATH minimale delle applicazioni macOS', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-gh-'))

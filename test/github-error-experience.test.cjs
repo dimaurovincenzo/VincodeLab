@@ -1,14 +1,14 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { getApplicationErrorLogMetadata, isApplicationError } = require('../electron/application-error.cjs')
+const { getApplicationErrorLogMetadata, isApplicationError } = require('../electron/domains/errors/application-error.cjs')
 const {
   commandFailure,
   githubAccessDiagnostic,
   githubUnavailableData,
   isGitRepository,
-} = require('../electron/github-service.cjs')
-const { createPublicError, isPublicError } = require('../electron/public-error.cjs')
+} = require('../electron/infrastructure/github/github-service.adapter.cjs')
+const { createPublicError, isPublicError } = require('../electron/domains/errors/public-error.cjs')
 
 const PRIVATE_MARKER = 'SENSITIVE_MARKER_7K9'
 

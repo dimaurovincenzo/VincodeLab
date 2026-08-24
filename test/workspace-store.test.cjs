@@ -4,7 +4,7 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { closeDatabase, getAppearance, getDatabase, getDataDirectory, isDirectory, listRecentWorkspaces, recordWorkspace, setAppearance } = require('../electron/workspace-store.cjs')
+const { closeDatabase, getAppearance, getDatabase, getDataDirectory, isDirectory, listRecentWorkspaces, recordWorkspace, setAppearance } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 
 test('espone la directory dati privata condivisa dai servizi main', (t) => {
   const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-store-root-'))

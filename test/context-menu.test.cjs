@@ -3,8 +3,12 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 
-const { createContextMenuTemplate } = require('../electron/context-menu.cjs')
-const { isApplicationMenuCommand } = require('../electron/application-menu.cjs')
+const { readAppSource } = require('./helpers/app-source.cjs')
+const { readGitHubSource } = require('./helpers/github-source.cjs')
+const { readRemoteFilesSource } = require('./helpers/remote-files-source.cjs')
+
+const { createContextMenuTemplate } = require('../electron/domains/menu/context-menu.cjs')
+const { isApplicationMenuCommand } = require('../electron/domains/menu/application-menu.cjs')
 
 function labels(template) {
   return template.map((item) => item.label ?? item.role ?? item.type)
@@ -170,23 +174,26 @@ test('file Git e tab terminale operano sull’elemento cliccato con gating espli
 
 test('la finestra Electron valida kind, ID, comandi abilitati e flags prima del menu', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const menuContextIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/menu-context.ipc.cjs'), 'utf8')
 
-  assert.equal((main.match(/ipcMain\.handle\('contextMenu:open'/g) ?? []).length, 1)
-  assert.match(main, /ipcMain\.handle\('contextMenu:open'[\s\S]*assertTrustedSender\(event\)/)
-  assert.match(main, /REMOTE_CONTEXT_KINDS/)
-  assert.match(main, /WORKSPACE_FILE_CONTEXT_KINDS/)
-  assert.match(main, /request\?\.enabledCommands[\s\S]*isApplicationMenuCommand/)
-  assert.doesNotMatch(main, /relative\.startsWith\('\.\.'\)/)
-  assert.match(main, /relative === '\.\.' \|\| relative\.startsWith\(`\.\.\$\{path\.sep\}`\)/)
-  assert.match(main, /surfaceKind = request\?\.kind === 'terminal'/)
-  assert.match(main, /activeSection: activeAppSection/)
-  assert.match(main, /onCommand: dispatchApplicationMenuCommand/)
-  assert.match(main, /onContextCommand: dispatchContextMenuCommand/)
-  assert.match(main, /Menu\.buildFromTemplate\(template\)\.popup\(\{ window: mainWindow \}\)/)
+  assert.equal((menuContextIpc.match(/\['contextMenu:open', \(event, request\)/g) ?? []).length, 1)
+  assert.match(main, /registerMenuContextIpc\(\{/)
+  assert.doesNotMatch(main, /ipcMain\.handle\('contextMenu:open'/)
+  assert.match(menuContextIpc, /contextMenu:open[\s\S]*assertTrustedSender\(event\)/)
+  assert.match(menuContextIpc, /REMOTE_CONTEXT_KINDS/)
+  assert.match(menuContextIpc, /WORKSPACE_FILE_CONTEXT_KINDS/)
+  assert.match(menuContextIpc, /request\?\.enabledCommands[\s\S]*isApplicationMenuCommand/)
+  assert.doesNotMatch(menuContextIpc, /relative\.startsWith\('\.\.'\)/)
+  assert.match(menuContextIpc, /relative === '\.\.'[\s\S]{0,80}relative\.startsWith\(`\.\.\$\{path\.sep\}`\)/)
+  assert.match(menuContextIpc, /surfaceKind = request\?\.kind === 'terminal'/)
+  assert.match(menuContextIpc, /activeSection: getActiveAppSection\(\)/)
+  assert.match(menuContextIpc, /onCommand: dispatchApplicationMenuCommand/)
+  assert.match(menuContextIpc, /onContextCommand: dispatchContextMenuCommand/)
+  assert.match(menuContextIpc, /buildMenuFromTemplate\(template\)\.popup\(\{ window: getMainWindow\(\) \}\)/)
 })
 
 test('tutti i comandi inviati come stato del menu sono accettati dal bridge nativo', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const start = app.indexOf('const workbenchCommands')
   const end = app.indexOf('useEffect(() => commandRegistry.registerAll', start)
   const commandIds = [...app.slice(start, end).matchAll(/\{ id: '([^']+)'/g)].map((match) => match[1])
@@ -213,10 +220,10 @@ test('main e preload espongono mutazioni filesystem confinate e Cestino macOS', 
 })
 
 test('DOM renderer identifica Explorer, cartelle, tab, recenti, copie e trasferimenti', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
-  const remote = fs.readFileSync(path.join(__dirname, '../src/features/remote-files/components/remote-files.tsx'), 'utf8')
+  const app = readAppSource()
+  const editor = fs.readFileSync(path.join(__dirname, '../src/features/editor/components/project-editor.tsx'), 'utf8')
+  const github = readGitHubSource()
+  const remote = readRemoteFilesSource()
   const terminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/terminal-workspace.tsx'), 'utf8')
 
   assert.match(app, /closest<HTMLElement>\('\[data-context-menu-kind\]'\)/)

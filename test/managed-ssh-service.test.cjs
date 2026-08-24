@@ -6,7 +6,8 @@ const { EventEmitter } = require('node:events')
 const { PassThrough } = require('node:stream')
 const test = require('node:test')
 
-const { createManagedSshService, quoteShellArg } = require('../electron/managed-ssh-service.cjs')
+const { quoteShellArg } = require('../electron/domains/remote/managed-ssh-model.cjs')
+const { createManagedSshService } = require('../electron/infrastructure/remote/managed-ssh-service.adapter.cjs')
 
 function createCommand(destination = 'api-prod') {
   return {
@@ -345,7 +346,8 @@ test('quota argomenti shell senza consentire espansioni', () => {
 
 test('il main chiude i master SSH con shell workspace e applicazione', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
-  assert.match(main, /createManagedSshService/)
-  assert.match(main, /managedSsh\.closeWorkspace\(workspacePath\)/)
-  assert.match(main, /managedSsh\.closeAll\(\)/)
+  const runtime = fs.readFileSync(path.join(__dirname, '../electron/domains/remote/remote-runtime.cjs'), 'utf8')
+  assert.match(main, /createRemoteRuntime\(\{/)
+  assert.match(runtime, /managedSsh\.closeWorkspace\(workspacePath\)/)
+  assert.match(runtime, /managedSsh\.closeAll\(\)/)
 })

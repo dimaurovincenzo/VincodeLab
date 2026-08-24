@@ -73,6 +73,8 @@ function installDatabase(overrides: Partial<Window['vincodeLab']['database']> = 
 
 async function renderGuardedDatabase(capture = captureGuard()) {
   const result = render(<DatabaseWorkspace workspace="/tmp/database-guard" onWorkspaceGuardChange={capture.onChange} />)
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: 'Connetti' }))
   await waitFor(() => expect(screen.getByRole('button', { name: 'Esegui' })).toBeEnabled())
   await waitFor(() => expect(capture.onChange).toHaveBeenCalledWith(expect.objectContaining({ hasUnsavedChanges: expect.any(Function) })))
   return { capture, ...result }

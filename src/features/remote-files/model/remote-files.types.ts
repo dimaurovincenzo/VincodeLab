@@ -12,6 +12,10 @@ export type RemoteDirectoryLocation = {
   path: string
 }
 
+export type RemoteFilesView = 'server' | 'local'
+
+export type RemoteLocalFilter = 'all' | RemoteTrackedFile['localState']
+
 export type RemoteFilesContextAction = {
   command:
     | 'remote.downloadOpen'

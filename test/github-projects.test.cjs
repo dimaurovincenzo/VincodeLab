@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { MAX_PROJECT_ITEMS, PROJECT_FIELD_LIST_JQ, applyIssueParents, assertProjectDetails, assertProjectNumber, assertNodeId, buildItemEditArgs, buildProjectItemListJq, getProjectBoard, limitProjectItems, parseIssueParents, parseLinkedProjects, parseLinkedProjectsPage, parseProjectBoardList, parseProjectBoardItems, parseProjectItemFieldValues } = require('../electron/github-projects.cjs')
+const { MAX_PROJECT_ITEMS, PROJECT_FIELD_LIST_JQ, applyIssueParents, assertProjectDetails, assertProjectNumber, assertNodeId, buildItemEditArgs, buildProjectItemListJq, getProjectBoard, limitProjectItems, parseIssueParents, parseLinkedProjects, parseLinkedProjectsPage, parseProjectBoardList, parseProjectBoardItems, parseProjectItemFieldValues } = require('../electron/domains/github/github-projects.cjs')
 
 test('keeps only the Projects linked to the repository returned by GraphQL', () => {
   const projects = parseLinkedProjects(JSON.stringify({

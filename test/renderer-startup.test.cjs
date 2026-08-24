@@ -4,11 +4,12 @@ const os = require('node:os')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
 const test = require('node:test')
+const { readAppSource } = require('./helpers/app-source.cjs')
 
 const projectRoot = path.join(__dirname, '..')
 
 test('Settings Skill e Istruzioni sono chunk differiti e conservano il mount dopo la prima visita', () => {
-  const app = fs.readFileSync(path.join(projectRoot, 'src/App.tsx'), 'utf8')
+  const app = readAppSource()
 
   assert.match(app, /const AppSettings = lazy\(\(\) => import\('@\/features\/settings'\)/)
   assert.match(app, /const ProjectSkills = lazy\(\(\) => loadProjectSkills\(\)/)
@@ -26,10 +27,10 @@ test('Settings Skill e Istruzioni sono chunk differiti e conservano il mount dop
 })
 
 test('la finestra precede i controlli aggiornamento e l’indice workspace non blocca l’apertura', () => {
-  const main = fs.readFileSync(path.join(projectRoot, 'electron/main.cjs'), 'utf8')
-  const readyBlock = main.slice(main.indexOf('app.whenReady().then(() => {'))
-  assert.ok(readyBlock.indexOf('createWindow()') < readyBlock.indexOf('reconcileManagedPiPackages('))
-  assert.match(main, /void projectFileIndex\.build\(normalizedWorkspacePath\)\.catch/)
+  const startupRuntime = fs.readFileSync(path.join(projectRoot, 'electron/app/application-startup-runtime.cjs'), 'utf8')
+  const workspaceOpener = fs.readFileSync(path.join(projectRoot, 'electron/domains/workspace/workspace-opener.cjs'), 'utf8')
+  assert.ok(startupRuntime.indexOf('createWindow()') < startupRuntime.indexOf('reconcileManagedPiPackages('))
+  assert.match(workspaceOpener, /void projectFileIndex\.build\(normalizedWorkspacePath\)\.catch/)
 })
 
 test('la misura startup include import statici e preload ma esclude i chunk dinamici', async (t) => {

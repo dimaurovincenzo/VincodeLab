@@ -2,6 +2,12 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
+const { readAppSource } = require('./helpers/app-source.cjs')
+const { readDatabaseModule, readDatabaseSource } = require('./helpers/database-source.cjs')
+const { readGitHubModule, readGitHubSource } = require('./helpers/github-source.cjs')
+const { readRemoteFilesSource } = require('./helpers/remote-files-source.cjs')
+const { readSettingsSource } = require('./helpers/settings-source.cjs')
+const { readTerminalSource } = require('./helpers/terminal-source.cjs')
 
 test('design system definisce token e focus condivisi', () => {
   const tokens = fs.readFileSync(path.join(__dirname, '../src/theme/tokens.ts'), 'utf8')
@@ -158,7 +164,7 @@ test('logo nome e workspace sono centrati sulla fascia dei controlli finestra ma
 })
 
 test('il selettore workspace è centrato e consente una seconda finestra controllata', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const switcher = fs.readFileSync(
     path.join(__dirname, '../src/features/workspace/components/workspace-switcher.tsx'),
     'utf8',
@@ -215,7 +221,7 @@ test('Ark Toast usa direttamente i ruoli Graphite senza alias shadcn o Sonner', 
   const styleEntry = fs.readFileSync(path.join(__dirname, '../src/styles/index.css'), 'utf8')
   const toast = fs.readFileSync(path.join(__dirname, '../src/components/ui/toast.tsx'), 'utf8')
   const toastStore = fs.readFileSync(path.join(__dirname, '../src/components/ui/toast-store.ts'), 'utf8')
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const recipes = fs.readFileSync(path.join(__dirname, '../src/theme/recipes.ts'), 'utf8')
   const packageManifest = fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8')
   const rendererSources = fs.readdirSync(path.join(__dirname, '../src'), { recursive: true })
@@ -252,8 +258,8 @@ test('le superfici Graphite non mantengono override cromatici legacy', () => {
 })
 
 test('xterm riceve il tema dal design system senza colori duplicati nei componenti', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const freeTerminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const app = readAppSource()
+  const freeTerminal = readTerminalSource()
   const xtermThemePath = path.join(__dirname, '../src/lib/xterm-theme.ts')
   const xtermTheme = fs.existsSync(xtermThemePath) ? fs.readFileSync(xtermThemePath, 'utf8') : ''
 
@@ -299,10 +305,13 @@ test('i dialog usano la Presence Ark mentre Motion 13 resta confinato alla prese
 })
 
 test('la Presence Ark e WorkbenchPresence non avvolgono le viste operative persistenti', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const confirmation = fs.readFileSync(path.join(__dirname, '../src/components/confirmation-dialog.tsx'), 'utf8')
-  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const settings = readSettingsSource()
+  const github = [
+    readGitHubModule('components/github-issue-dialogs.tsx'),
+    readGitHubModule('components/github-project-item-dialog.tsx'),
+  ].join('\n')
 
   assert.match(confirmation, /const renderedRequest = request \?\? lastRequest/)
   assert.match(confirmation, /onExitComplete=\{\(\) => \{/)
@@ -311,14 +320,14 @@ test('la Presence Ark e WorkbenchPresence non avvolgono le viste operative persi
   for (const tab of ['general', 'updates', 'runtime', 'packages', 'skills']) {
     assert.match(settings, new RegExp(`<Tabs\\.Content asChild value="${tab}">`))
   }
-  assert.match(github, /\{selectedIssue && <Dialog\.Root[^\n]* open=/)
-  assert.match(github, /\{selectedBoardItem && <Dialog\.Root[^\n]* open=/)
+  assert.match(github, /\{state\.selectedIssue && <Dialog\.Root[^\n]* open=/)
+  assert.match(github, /if \(!item\) return null[\s\S]*?return <Dialog\.Root[^\n]* open=/)
   assert.doesNotMatch([app, settings, github].join('\n'), /MotionPresence/)
 })
 
 test('la griglia Database reimposta le bozze al remount senza aggiornamenti sincroni in effect', () => {
   const grid = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-table-grid.tsx'), 'utf8')
-  const workspace = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
+  const workspace = readDatabaseSource()
 
   assert.doesNotMatch(grid, /useEffect\(\(\) => \{\s*setDrafts\(\{\}\)/)
   assert.match(grid, /useEffect\(\(\) => \{[\s\S]*onDraftGuardChange\(guard\)[\s\S]*onDraftGuardChange\(null\)/)
@@ -327,7 +336,7 @@ test('la griglia Database reimposta le bozze al remount senza aggiornamenti sinc
 
 test('la griglia Database usa ruoli semantici Graphite e viste locali accessibili', () => {
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
-  const workspace = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
+  const workspace = readDatabaseSource()
 
   assert.match(styles, /stateSuccess/)
   assert.match(styles, /stateWarning/)
@@ -349,12 +358,12 @@ test('la navigazione principale conserva tutte le tab senza overflow nei viewpor
 })
 
 test('il caricamento della tabella Database parte nel task asincrono senza render a cascata', () => {
-  const workspace = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
-  assert.match(workspace, /if \(!currentConnectionId \|\| !selectedTableName\)[\s\S]*?const timer = window\.setTimeout\([\s\S]*?\(\) => \{[\s\S]*?setTableLoading\(true\)/)
+  const resources = readDatabaseModule('hooks/use-database-resources.ts')
+  assert.match(resources, /if \(!connectionId \|\| !connectionReady \|\| !selectedTableName\)[\s\S]*?const timer = window\.setTimeout\([\s\S]*?\(\) => \{[\s\S]*?setTableLoading\(true\)/)
 })
 
 test('un errore di vista non sostituisce toolbar e navigazione globali', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
 
   assert.doesNotMatch(app, /return\s*<AppErrorBoundary>/)
   assert.match(app, /<ViewErrorBoundary viewName="GitHub"[^>]*>/)
@@ -363,10 +372,13 @@ test('un errore di vista non sostituisce toolbar e navigazione globali', () => {
 })
 
 test('le sezioni operative consumano le preferenze effettive globali o del workspace', () => {
-  const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
-  const terminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
-  const database = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
+  const editor = [
+    '../src/features/editor/components/project-editor.tsx',
+    '../src/features/editor/hooks/use-editor-preferences.ts',
+  ].map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8')).join('\n')
+  const terminal = readTerminalSource()
+  const github = readGitHubSource()
+  const database = readDatabaseSource()
 
   for (const key of ['editor.fontSize', 'editor.tabSize', 'editor.wordWrap', 'editor.autoSave', 'editor.explorerWidth']) assert.match(editor, new RegExp(key.replace('.', '\\.')))
   for (const key of ['terminal.fontSize', 'terminal.fontFamily', 'terminal.cursorStyle', 'terminal.scrollback', 'terminal.commandsWidth']) assert.match(terminal, new RegExp(key.replace('.', '\\.')))
@@ -416,10 +428,10 @@ test('Terminale e Istruzioni usano solo ruoli Graphite', () => {
 })
 
 test('impostazioni usa un unico scorrimento della pagina e una superficie operativa', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const source = fs.readFileSync(path.join(__dirname, '../src/theme/styles/settings.ts'), 'utf8')
   const layout = fs.readFileSync(path.join(__dirname, '../src/theme/styles/shell.ts'), 'utf8')
-  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
+  const settings = readSettingsSource()
   const tabs = fs.readFileSync(path.join(__dirname, '../src/components/ui/tabs.tsx'), 'utf8')
   const recipes = fs.readFileSync(path.join(__dirname, '../src/theme/recipes.ts'), 'utf8')
   assert.match(settings, /<Tabs\.List className=\{settingsStyles\.tabs\}/)
@@ -429,13 +441,13 @@ test('impostazioni usa un unico scorrimento della pagina e una superficie operat
   assert.match(source, /page:\s*css\(\{[\s\S]*?overflowY:\s*'auto'/)
   assert.doesNotMatch(source, /list:\s*css\(\{[^}]*maxH:/)
   assert.match(layout, /standalonePage:\s*css\(\{[\s\S]*?display:\s*'flex'[\s\S]*?flex:\s*'1'[\s\S]*?overflow:\s*'hidden'/)
-  assert.match(app, /<section className=\{shellStyles\.standalonePage\}><ViewErrorBoundary viewName="Impostazioni">/)
+  assert.match(app, /<section className=\{shellStyles\.standalonePage\}>\s*<ViewErrorBoundary viewName="Impostazioni">/)
   assert.doesNotMatch(app, /className=\{`\$\{shellStyles\.sectionPage\} \$\{shellStyles\.standalonePage\}`\}/)
 })
 
 test('i messaggi di sistema usano una terminologia italiana coerente', () => {
   const instructions = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/project-instructions.tsx'), 'utf8')
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = readGitHubSource()
   assert.doesNotMatch(instructions, /project-local/)
   assert.match(github, /Progetti GitHub del workspace/)
   assert.match(github, /'Board del Project'/)
@@ -446,10 +458,10 @@ test('i controlli icon-only espongono un tooltip operativo', () => {
   const iconButton = fs.readFileSync(path.join(__dirname, '../src/components/ui/icon-button.tsx'), 'utf8')
   const tooltip = fs.readFileSync(path.join(__dirname, '../src/components/ui/tooltip.tsx'), 'utf8')
   const skills = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/project-skills.tsx'), 'utf8')
-  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const settings = readSettingsSource()
+  const app = readAppSource()
   const attachments = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/terminal-attachments.tsx'), 'utf8')
-  const terminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const terminal = readTerminalSource()
   assert.match(tooltip, /@ark-ui\/react\/tooltip/)
   assert.match(iconButton, /<Tooltip\.Root/)
   assert.match(iconButton, /const button = <Button/)
@@ -471,12 +483,12 @@ test('i controlli icon-only espongono un tooltip operativo', () => {
 })
 
 test('GitHub esplicita il prerequisito per le azioni remote disabilitate', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = readGitHubSource()
   assert.match(github, /Collega o crea un repository GitHub dalla scheda Modifiche per pubblicare e sincronizzare il branch\./)
 })
 
 test('GitHub distingue il branch del workspace dall’identità del repository', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = readGitHubSource()
 
   assert.match(github, /<h1 className=\{gh\.pageTitle\}><GitFork size=\{18\} \/> Git del workspace<\/h1>/)
   assert.match(github, /<strong>Branch attivo<\/strong> \{status\.branch\}/)
@@ -484,26 +496,33 @@ test('GitHub distingue il branch del workspace dall’identità del repository',
 })
 
 test('GitHub separa il grafo e presenta i Projects del workspace in una tabella raggruppata', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = [
+    readGitHubModule('model/github-workspace.types.ts'),
+    readGitHubModule('components/github-workspace.tsx'),
+    readGitHubModule('components/github-graph-panel.tsx'),
+    readGitHubModule('components/github-projects-panel.tsx'),
+    readGitHubModule('components/github-project-board.tsx'),
+    readGitHubModule('components/github-project-picker.tsx'),
+  ].join('\n')
 
   assert.match(github, /type GitHubTab = 'changes' \| 'graph' \| 'issues' \| 'projects'/)
-  assert.match(github, /<Tabs\.Root asChild value=\{tab\}[^>]*onValueChange=/)
+  assert.match(github, /<Tabs\.Root asChild value=\{state\.tab\}[^>]*onValueChange=/)
   assert.match(github, /<Tabs\.List[^>]*aria-label="Sezioni GitHub"/)
   assert.match(github, /<Tabs\.Trigger value="graph">Grafo/)
   assert.match(github, /<Tabs\.Content value="graph"/)
   assert.match(github, /<Tabs\.Content value="projects"/)
   assert.doesNotMatch(github, /id="github-tab-|role="(?:tablist|tab)"/)
   assert.match(github, /className=\{gh\.projectTable\} role="table"/)
-  assert.match(github, /<Listbox\.Root[^>]*collection=\{projectCollection\}[^>]*selectionMode="single"/)
+  assert.match(github, /<Listbox\.Root[^>]*collection=\{derived\.projectCollection\}[^>]*selectionMode="single"/)
   assert.match(github, /<Listbox\.Item className=\{gh\.projectItem\}[^>]*item=\{project\}/)
   assert.doesNotMatch(github, /github-project-selected/)
   assert.match(github, /aria-label="Raggruppa per"/)
   for (const column of ['Titolo', 'Assegnatari', 'Stato', 'Priorità']) assert.match(github, new RegExp(`>${column}<`))
-  assert.match(github, /Solo progetti collegati a <strong>\{data\.repository\.nameWithOwner\}<\/strong>/)
+  assert.match(github, /Solo progetti collegati a <strong>\{state\.data\.repository\.nameWithOwner\}<\/strong>/)
 })
 
 test('la board Project rende le sub-issue nella gerarchia del rispettivo padre', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const component = readGitHubSource()
   const projectsModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-projects.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
@@ -515,21 +534,24 @@ test('la board Project rende le sub-issue nella gerarchia del rispettivo padre',
 })
 
 test('Project GitHub comunica il caricamento e cerca le attività per numero issue', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const component = [
+    readGitHubModule('hooks/use-github-workspace-state.ts'),
+    readGitHubModule('components/github-project-board.tsx'),
+  ].join('\n')
   const projectsModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-projects.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
   assert.match(projectsModel, /function matchesProjectItemSearch\(item: GitHubProjectItem, query: string\)/)
   assert.match(projectsModel, /item\.content\?\.number === Number\(numeric\)/)
   assert.match(component, /const \[loadingBoard, setLoadingBoard\] = useState\(false\)/)
-  assert.match(component, /aria-busy=\{loadingBoard\}/)
+  assert.match(component, /aria-busy=\{state\.loadingBoard\}/)
   assert.match(component, /Caricamento Project…/)
   assert.match(component, /placeholder="Cerca per numero, titolo o campo"/)
   assert.match(styles, /boardLoading:\s*css\(\{[\s\S]*?position:\s*'absolute'/)
 })
 
 test('i gruppi Project sono intestazioni comprimibili e riconoscibili', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = readGitHubSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
   assert.match(github, /const \[collapsedBoardGroups, setCollapsedBoardGroups\] = useState<Set<string>>\(new Set\(\)\)/)
@@ -543,7 +565,7 @@ test('i gruppi Project sono intestazioni comprimibili e riconoscibili', () => {
 })
 
 test('la board Project espone una tabella ARIA completa senza mascherare i controlli interattivi', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = readGitHubSource()
 
   assert.match(github, /role="table" aria-colcount=/)
   assert.match(github, /role="rowgroup"/)
@@ -578,7 +600,7 @@ test('GitHub applica ruoli Graphite alle superfici operative e agli stati delle 
 })
 
 test('le tab GitHub usano un indicatore Graphite rettilineo senza arrotondare la selezione', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = readGitHubSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
   const recipes = fs.readFileSync(path.join(__dirname, '../src/theme/recipes.ts'), 'utf8')
 
@@ -599,57 +621,75 @@ test('GitHub non conserva una palette locale fuori dal design system', () => {
 })
 
 test('la board Project apre il dettaglio dell’attività in un modal e non mostra azioni di aggiunta', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = readGitHubModule('components/github-project-item-dialog.tsx')
 
   assert.doesNotMatch(github, /Nuova bozza/)
   assert.doesNotMatch(github, /Aggiungi una issue del workspace/)
-  assert.match(github, /\{selectedBoardItem && <Dialog\.Root[^\n]* open=/)
+  assert.match(github, /if \(!item\) return null[\s\S]*?return <Dialog\.Root[^\n]* open=/)
   assert.match(github, /<Dialog\.Content className=\{cx\(gh\.modalContent, gh\.itemModal\)\}>/)
   assert.match(github, /<Dialog\.Title asChild><h3 className=\{gh\.modalTitle\} id="github-item-modal-title"/)
   assert.match(github, /<Dialog\.CloseTrigger asChild><IconButton tooltip="Chiudi dettaglio attività"/)
   assert.doesNotMatch(github, /aria-modal="true"|role="dialog"/)
-  assert.match(github, /issueDetail\?\.body/)
+  assert.match(github, /derived\.issueDetail\?\.body/)
 })
 
 test('la lista Issue apre un dettaglio consultabile senza esporre azioni remote', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = [
+    readGitHubModule('hooks/use-github-workspace-state.ts'),
+    readGitHubModule('components/github-issues-panel.tsx'),
+    readGitHubModule('components/github-issue-dialogs.tsx'),
+  ].join('\n')
 
   assert.match(github, /const \[selectedIssue, setSelectedIssue\] = useState<GitHubIssue \| null>\(null\)/)
-  assert.match(github, /onClick=\{\(event\) => \{ issueDetailTrigger\.current = event\.currentTarget; setSelectedIssue\(issue\); setIssueDetailOpen\(true\) \}\}/)
-  assert.match(github, /\{selectedIssue && <Dialog\.Root[^\n]*open=\{issueDetailOpen\}[^\n]*onOpenChange=/)
-  assert.match(github, /onExitComplete=\{\(\) => \{ if \(!issueDetailOpen\) setSelectedIssue\(null\) \}\}/)
+  assert.match(github, /onClick=\{\(event\) => \{ issueDetailTrigger\.current = event\.currentTarget; state\.setSelectedIssue\(issue\); state\.setIssueDetailOpen\(true\) \}\}/)
+  assert.match(github, /\{state\.selectedIssue && <Dialog\.Root[^\n]*open=\{state\.issueDetailOpen\}[^\n]*onOpenChange=/)
+  assert.match(github, /onExitComplete=\{\(\) => \{ if \(!state\.issueDetailOpen\) state\.setSelectedIssue\(null\) \}\}/)
   assert.match(github, /<Dialog\.CloseTrigger asChild><IconButton tooltip="Chiudi dettaglio issue"/)
-  assert.match(github, /selectedIssue\.body/)
+  assert.match(github, /state\.selectedIssue\.body/)
 })
 
 test('il dettaglio Issue rende la descrizione come anteprima Markdown', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = [
+    readGitHubModule('components/github-issue-dialogs.tsx'),
+    readGitHubModule('components/github-project-item-dialog.tsx'),
+  ].join('\n')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
-  assert.match(github, /<MarkdownPreview source=\{selectedIssue\.body\}/)
-  assert.match(github, /<MarkdownPreview source=\{issueDetail\.body\}/)
-  assert.doesNotMatch(github, /<p>\{selectedIssue\.body\}<\/p>/)
+  assert.match(github, /<MarkdownPreview source=\{state\.selectedIssue\.body\}/)
+  assert.match(github, /<MarkdownPreview source=\{derived\.issueDetail\.body\}/)
+  assert.doesNotMatch(github, /<p>\{state\.selectedIssue\.body\}<\/p>/)
   assert.match(styles, /export const githubMarkdownStyles/)
 })
 
 test('il selettore Project si richiude e gli assegnatari restano compatti nella tabella', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = [
+    readGitHubModule('hooks/use-github-workspace-state.ts'),
+    readGitHubModule('components/github-project-picker.tsx'),
+    readGitHubModule('components/github-project-board.tsx'),
+  ].join('\n')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
   assert.match(github, /const \[projectPickerCollapsed, setProjectPickerCollapsed\] = useState\(false\)/)
-  assert.match(github, /className=\{gh\.projectPickerContent\(\{ hidden: projectPickerCollapsed \}\)\}/)
+  assert.match(github, /className=\{gh\.projectPickerContent\(\{ hidden: state\.projectPickerCollapsed \}\)\}/)
   assert.match(github, /className=\{gh\.projectAssignee\}/)
   assert.match(styles, /projectPickerContent:\s*cva\(\{[\s\S]*?variants:\s*\{\s*hidden:\s*\{\s*true:\s*\{\s*display:\s*'none'/)
   assert.match(styles, /projectAssignees:\s*css\(\{[^}]*overflow:\s*'hidden'/)
 })
 
 test('le superfici laterali condividono resize accessibile e persistente', () => {
-  const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
+  const editor = [
+    '../src/features/editor/components/project-editor.tsx',
+    '../src/features/editor/hooks/use-editor-preferences.ts',
+  ].map((file) => fs.readFileSync(path.join(__dirname, file), 'utf8')).join('\n')
   const skills = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/project-skills.tsx'), 'utf8')
-  const database = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
-  const terminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
-  const remote = fs.readFileSync(path.join(__dirname, '../src/features/remote-files/components/remote-files.tsx'), 'utf8')
+  const database = readDatabaseModule('components/database-workspace.tsx')
+  const terminal = readTerminalSource()
+  const github = [
+    readGitHubModule('components/github-projects-panel.tsx'),
+    readGitHubModule('components/github-project-picker.tsx'),
+    readGitHubModule('components/github-project-board.tsx'),
+  ].join('\n')
+  const remote = readRemoteFilesSource()
   const splitter = fs.readFileSync(path.join(__dirname, '../src/components/ui/splitter.tsx'), 'utf8')
 
   for (const component of [editor, skills, database, terminal, github, remote]) {
@@ -675,7 +715,11 @@ test('la board GitHub tollera campi restituiti senza metadati testuali', () => {
 })
 
 test('GitHub espone la freschezza cache e aggiorna senza bloccare dati disponibili', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = [
+    readGitHubModule('hooks/use-github-data.ts'),
+    readGitHubModule('hooks/use-github-workspace-controller.ts'),
+    readGitHubModule('components/github-header.tsx'),
+  ].join('\n')
   const displayModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-display.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
@@ -688,7 +732,7 @@ test('GitHub espone la freschezza cache e aggiorna senza bloccare dati disponibi
 })
 
 test('GitHub comunica ogni limite bounded e riferisce le azioni di gruppo ai file visibili', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = readGitHubSource()
   const feedback = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-feedback.tsx'), 'utf8')
   const projectsModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-projects.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
@@ -701,8 +745,8 @@ test('GitHub comunica ogni limite bounded e riferisce le azioni di gruppo ai fil
     'projectsHasMore', 'projectsTruncated', 'fieldsHasMore', 'fieldsTruncated',
     'fieldOptionsTruncated', 'itemsHasMore', 'itemsTruncated', 'itemValuesTruncated',
   ]) assert.match(boundedSources, new RegExp(flag))
-  assert.match(github, /Aggiungi i \{stageable\.length\} file visibili consentiti/)
-  assert.match(github, /Rimuovi i \{staged\.length\} file visibili/)
+  assert.match(github, /Aggiungi i \{derived\.stageable\.length\} file visibili consentiti/)
+  assert.match(github, /Rimuovi i \{derived\.staged\.length\} file visibili/)
   assert.match(github, /Le azioni di gruppo agiscono solo sui file mostrati/)
   assert.match(feedback, /function LimitNotice/)
   assert.match(styles, /limitNotice:\s*css\(\{[\s\S]*?bg:\s*'stateWarningSoft'[\s\S]*?borderColor:\s*'stateWarning'/)
@@ -711,7 +755,7 @@ test('GitHub comunica ogni limite bounded e riferisce le azioni di gruppo ai fil
 })
 
 test('l’apertura di una board Project riusa la cache fino al refresh esplicito', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = readGitHubSource()
   const loadBoard = github.slice(github.indexOf('  const loadBoard ='), github.indexOf('  const createProject ='))
 
   assert.match(loadBoard, /githubBridge\.projectBoard\(projectNumber\)/)
@@ -728,14 +772,14 @@ test('GitHub non conserva stili della precedente board a colonne', () => {
 })
 
 test('Impostazioni blocca il refresh ripetuto e mostra lo stato in corso', () => {
-  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
+  const settings = readSettingsSource()
   assert.match(settings, /const \[refreshing, setRefreshing\] = useState\(false\)/)
   assert.match(settings, /disabled=\{refreshing\}/)
   assert.match(settings, /Aggiornamento…/)
 })
 
 test('Impostazioni mantiene un’uscita verso l’apertura workspace anche senza workspace attivo', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   assert.doesNotMatch(app, /\{workspace && <Button variant="outline" size="sm" onClick=\{openWorkspace\}/)
   assert.match(app, /<Button variant="outline" size="sm" onClick=\{openWorkspace\} disabled=\{status === 'launching'\}>/)
   assert.match(app, /!workspace && <Tabs\.Trigger value="home"/)
@@ -743,7 +787,7 @@ test('Impostazioni mantiene un’uscita verso l’apertura workspace anche senza
 
 test('Ark UI gestisce tab e dialoghi critici mentre Park e Panda possiedono lo stile', () => {
   const packageJson = fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8')
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const button = fs.readFileSync(path.join(__dirname, '../src/components/ui/button.tsx'), 'utf8')
   const confirmation = fs.readFileSync(path.join(__dirname, '../src/components/confirmation-dialog.tsx'), 'utf8')
   const panda = fs.readFileSync(path.join(__dirname, '../panda.config.ts'), 'utf8')
@@ -758,7 +802,7 @@ test('Ark UI gestisce tab e dialoghi critici mentre Park e Panda possiedono lo s
 })
 
 test('il terminale AI espone copia e incolla anche senza scorciatoie da tastiera', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const toolbar = fs.readFileSync(path.join(__dirname, '../src/components/terminal-toolbar.tsx'), 'utf8')
   assert.match(toolbar, /<IconButton tooltip="Copia selezione" onClick=\{onCopy\}>/)
   assert.match(toolbar, /<IconButton tooltip="Incolla nel terminale" onClick=\{onPaste\}>/)
@@ -766,7 +810,7 @@ test('il terminale AI espone copia e incolla anche senza scorciatoie da tastiera
 })
 
 test('l’incolla nel Terminale AI segnala esplicitamente un contenuto rifiutato', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const dialog = fs.readFileSync(path.join(__dirname, '../src/components/terminal-paste-status.tsx'), 'utf8')
 
   assert.match(app, /pasteController\.send\(text, setPasteProgress\)/)
@@ -780,8 +824,8 @@ test('l’incolla nel Terminale AI segnala esplicitamente un contenuto rifiutato
 })
 
 test('i terminali riusano una toolbar con reset zoom e riavvio', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const shell = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const app = readAppSource()
+  const shell = readTerminalSource()
   const toolbar = fs.readFileSync(path.join(__dirname, '../src/components/terminal-toolbar.tsx'), 'utf8')
 
   assert.match(app, /<TerminalToolbar/)
@@ -816,7 +860,7 @@ test('la barra del Terminale AI resta piatta ma lascia respiro a testo e control
 })
 
 test('il terminale libero offre ricerca xterm senza condividere la sessione Pi', () => {
-  const shell = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const shell = readTerminalSource()
 
   assert.match(shell, /@xterm\/addon-search/)
   assert.match(shell, /new SearchAddon\(\)/)
@@ -825,8 +869,8 @@ test('il terminale libero offre ricerca xterm senza condividere la sessione Pi',
 })
 
 test('i terminali non forzano lo scroll durante la lettura dello storico', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const shell = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const app = readAppSource()
+  const shell = readTerminalSource()
 
   assert.match(app, /shouldFollowTerminalOutput/)
   assert.match(shell, /shouldFollowTerminalOutput/)
@@ -839,9 +883,9 @@ test('i terminali non forzano lo scroll durante la lettura dello storico', () =>
 })
 
 test('gli allegati sono esclusivi di Pi e non inviano Invio', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const attachments = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/terminal-attachments.tsx'), 'utf8')
-  const shell = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const shell = readTerminalSource()
 
   assert.match(app, /<TerminalAttachments/)
   assert.match(attachments, /prepareDroppedAttachments/)
@@ -851,8 +895,8 @@ test('gli allegati sono esclusivi di Pi e non inviano Invio', () => {
 })
 
 test('il Terminale AI parte a 11 px e le viste terminale ricevono lo stato di attivazione', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const freeTerminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const app = readAppSource()
+  const freeTerminal = readTerminalSource()
   const terminalWorkspace = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/terminal-workspace.tsx'), 'utf8')
 
   assert.match(app, /const \[fontSize, setFontSize\] = useState\(11\)/)
@@ -865,18 +909,18 @@ test('il Terminale AI parte a 11 px e le viste terminale ricevono lo stato di at
 })
 
 test('il terminale AI viene rifatto al ritorno nella tab e non eccede orizzontalmente', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
 
   assert.match(app, /appSection !== 'ai' \|\| aiTab !== 'terminal'/)
   assert.match(app, /fitAddon\.current\?\.fit\(\)/)
-  assert.match(app, /appBridge\.terminal\.resize\(\{ cols: terminal\.current\.cols, rows: terminal\.current\.rows \}\)/)
+  assert.match(app, /const xterm = getTerminal\(\)[\s\S]{0,180}appBridge\.terminal\.resize\(\{ cols: xterm\.cols, rows: xterm\.rows \}\)/)
   assert.match(styles, /workspace:\s*css\(\{[\s\S]*?minW:\s*'0'/)
   assert.match(styles, /surface:\s*css\(\{[\s\S]*?minW:\s*'0'/)
 })
 
 test('la Home usa una transizione breve solo per risultati ed empty state', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/home.ts'), 'utf8')
 
   assert.match(app, /<section className=\{homeStyles\.root\}[^>]*>\s*<div className=\{homeStyles\.content\}>/)
@@ -892,7 +936,7 @@ test('la Home usa una transizione breve solo per risultati ed empty state', () =
 })
 
 test('il Terminale AI misura xterm dentro un host flessibile senza tagliare l ultima riga', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const aiStyles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/ai.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
   const bridge = fs.readFileSync(path.join(__dirname, '../src/styles/views/terminal.css'), 'utf8')
@@ -905,7 +949,7 @@ test('il Terminale AI misura xterm dentro un host flessibile senza tagliare l ul
 })
 
 test('il reload di Pi ripristina la geometria completa di xterm e non espone il viewport nero predefinito', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
   const bridge = fs.readFileSync(path.join(__dirname, '../src/styles/views/terminal.css'), 'utf8')
 
@@ -935,7 +979,7 @@ test('il Terminale libero non espone una cornice chiara attorno al canvas', () =
 })
 
 test('il terminale libero apre una sidebar comandi senza ridimensionare il PTY', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const component = readTerminalSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
 
   assert.match(component, /aria-label="Apri comandi workspace"/)
@@ -944,7 +988,7 @@ test('il terminale libero apre una sidebar comandi senza ridimensionare il PTY',
   assert.match(component, /workspaceCommands\.run\(commandId\)/)
   assert.match(component, /ConfirmationDialog/)
   assert.match(component, /<Splitter\.Root[^>]*className=\{terminalStyles\.commandSplitter\}[^>]*fixedPanel="end"/)
-  assert.match(component, /hidden=\{!commandsOpen\}/)
+  assert.match(component, /hidden=\{!state\.commandsOpen\}/)
   assert.match(component, /<Splitter\.Panel id="workspace-commands"><Dialog\.Content asChild unstyled><aside/)
   assert.match(styles, /commandSplitter:\s*css\(\{[\s\S]*?pointerEvents:\s*'none'/)
   assert.match(component, /requestAnimationFrame\(\(\) => commandsTrigger\.current\?\.focus\(\)\)/)
@@ -956,7 +1000,7 @@ test('il terminale libero apre una sidebar comandi senza ridimensionare il PTY',
 })
 
 test('i comandi workspace usano primitive Field Select Collapsible e IconButton senza fallback HTML', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const component = readTerminalSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
 
   for (const primitive of ['Field', 'SelectField', 'Collapsible', 'IconButton']) assert.match(component, new RegExp(`<${primitive}`))
@@ -966,15 +1010,15 @@ test('i comandi workspace usano primitive Field Select Collapsible e IconButton 
 })
 
 test('la sidebar invoca le azioni di salvataggio al click', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const component = readTerminalSource()
 
-  assert.match(component, /onClick=\{\(\) => void createCategory\(\)\}/)
-  assert.match(component, /onClick=\{\(\) => void saveCommand\(\)\}/)
-  assert.match(component, /onClick=\{\(\) => void saveCategory\(\)\}/)
+  assert.match(component, /onClick=\{\(\) => void actions\.createCategory\(\)\}/)
+  assert.match(component, /onClick=\{\(\) => void actions\.saveCommand\(\)\}/)
+  assert.match(component, /onClick=\{\(\) => void actions\.saveCategory\(\)\}/)
 })
 
 test('la libreria comandi mostra categorie collassabili e feedback di caricamento', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const component = readTerminalSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
 
   assert.match(component, /workspaceCommandLibraryView\(categories, commandSearch\)/)
@@ -994,8 +1038,8 @@ test('la libreria comandi mostra categorie collassabili e feedback di caricament
 })
 
 test('Impostazioni e Home usano una navigazione orizzontale senza sidebar locale', () => {
-  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const settings = readSettingsSource()
+  const app = readAppSource()
   assert.match(settings, /aria-label="Sezioni Impostazioni"/)
   for (const tab of ['Generali', 'Runtime Pi', 'Pacchetti Pi', 'Skill Pi']) assert.match(settings, new RegExp(`>${tab}<`))
   assert.match(settings, /settingsBridge\.piSystem\.listSkills\(\)/)
@@ -1020,15 +1064,15 @@ test('le tab Impostazioni usano tutta la larghezza disponibile', () => {
 })
 
 test('Database offre tutti i driver, CRUD e paginazione nel layout dell’app', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
+  const component = readDatabaseSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
 
   assert.match(component, /databaseStyles as db/)
   assert.match(component, /<Splitter\.Root asChild[^>]*storageKey=\{`vincodelab\.database\.sidebar-width:\$\{workspace\}`\}/)
   assert.match(component, /className=\{db\.workspace\}/)
   assert.match(component, /schema: sqlSchema/)
-  assert.match(component, /<SelectField label="Driver database"/)
-  assert.match(component, /value=\{connectionDraft\.driver\}/)
+  assert.match(component, /<SelectField[\s\S]*?label="Driver database"/)
+  assert.match(component, /value=\{draft\.driver\}/)
   for (const [driver, label] of [['sqlite', 'SQLite'], ['postgres', 'PostgreSQL'], ['mysql', 'MySQL'], ['mssql', 'SQL Server']]) {
     assert.match(component, new RegExp(`value: '${driver}', label: '${label}'`))
   }
@@ -1043,15 +1087,15 @@ test('Database offre tutti i driver, CRUD e paginazione nel layout dell’app', 
 })
 
 test('Database usa un explorer con tab, albero schema e modifica della connessione in modal', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
+  const component = readDatabaseSource()
   const dialog = fs.readFileSync(path.join(__dirname, '../src/components/ui/dialog.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
 
   assert.match(component, /const \[connectionModalOpen, setConnectionModalOpen\] = useState\(false\)/)
   assert.match(component, /Nuova connessione/)
-  assert.match(component, /<Dialog\.Root[\s\S]*?finalFocusEl=\{\(\) => connectionDialogOpener\.current\}[\s\S]*?initialFocusEl=\{\(\) => connectionNameInput\.current\}[\s\S]*?open=\{connectionModalOpen\}[\s\S]*?unmountOnExit/)
+  assert.match(component, /<Dialog\.Root[\s\S]*?finalFocusEl=\{\(\) => openerRef\.current\}[\s\S]*?initialFocusEl=\{\(\) => nameInputRef\.current\}[\s\S]*?open=\{open\}[\s\S]*?unmountOnExit/)
   assert.doesNotMatch(component, /\{connectionModalOpen && <Dialog\.Root/)
-  assert.match(component, /<Dialog\.Backdrop \/><Dialog\.Positioner><Dialog\.Content className=\{db\.dialogContent\}/)
+  assert.match(component, /<Dialog\.Backdrop \/>[\s\S]*?<Dialog\.Positioner>[\s\S]*?<Dialog\.Content className=\{db\.dialogContent\}/)
   assert.match(component, /<Dialog\.Title className=\{db\.dialogTitle\}>/)
   assert.match(component, /<Dialog\.CloseTrigger asChild><IconButton tooltip="Chiudi connessione">/)
   assert.match(dialog, /@ark-ui\/react\/dialog/)
@@ -1069,7 +1113,7 @@ test('Database usa un explorer con tab, albero schema e modifica della connessio
 
 test('Database mantiene compatta la connessione e il pannello comandi mostra il form solo su richiesta', () => {
   const databaseStyles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
-  const terminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const terminal = readTerminalSource()
   const terminalStyles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
 
   assert.match(databaseStyles, /sidebar:\s*css\(\{[\s\S]*?gridTemplateRows:\s*'auto minmax\(0, 1fr\) auto'/)
@@ -1078,14 +1122,14 @@ test('Database mantiene compatta la connessione e il pannello comandi mostra il 
   assert.match(databaseStyles, /explorerList:\s*css\(\{[\s\S]*?overflow:\s*'auto'/)
   assert.match(terminal, /const \[commandFormOpen, setCommandFormOpen\] = useState\(false\)/)
   assert.match(terminal, /Nuovo comando/)
-  assert.match(terminal, /\{commandFormOpen && <div className=\{terminalStyles\.commandForm\}/)
+  assert.match(terminal, /\{state\.commandFormOpen && <div className=\{terminalStyles\.commandForm\}/)
   assert.match(terminalStyles, /commandForm:\s*css\(\{[\s\S]*?display:\s*'grid'/)
   assert.match(terminalStyles, /commandFormTop:\s*css\(\{[\s\S]*?gridTemplateColumns:\s*'repeat\(2, minmax\(0, 1fr\)\)'/)
   assert.match(terminalStyles, /commandSidebar:\s*css\(\{[\s\S]*?display:\s*'flex'[\s\S]*?flexDirection:\s*'column'/)
 })
 
 test('Database distingue procedure e funzioni dalle tabelle nell explorer', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
+  const component = readDatabaseSource()
 
   assert.match(component, /schema\.routines/)
   assert.match(component, /Array\.isArray\(schema\.routines\) \? schema\.routines : \[\]/)
@@ -1094,7 +1138,7 @@ test('Database distingue procedure e funzioni dalle tabelle nell explorer', () =
 })
 
 test('Database apre una griglia dati ricercabile e salva solo nella transazione', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
+  const component = readDatabaseSource()
   const grid = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-table-grid.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
 
@@ -1119,7 +1163,9 @@ test('Database apre una griglia dati ricercabile e salva solo nella transazione'
 })
 
 test('Database separa SQL e dati in sotto-tab locali e apre i dati dopo una query riuscita', () => {
-  const workspace = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
+  const workspace = readDatabaseModule('components/database-workspace.tsx')
+  const query = readDatabaseModule('hooks/use-database-query.ts')
+  const results = readDatabaseModule('components/database-results-panel.tsx')
   const grid = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-table-grid.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
 
@@ -1128,18 +1174,18 @@ test('Database separa SQL e dati in sotto-tab locali e apre i dati dopo una quer
   assert.match(workspace, /<Tabs\.Trigger value="data">Dati<\/Tabs\.Trigger>/)
   assert.match(workspace, /<Tabs\.Indicator\s*\/>/)
   assert.match(workspace, /<Tabs\.Content value="sql"[^>]*>[\s\S]*?aria-label="Editor SQL"/)
-  assert.match(workspace, /<Tabs\.Content value="data"[^>]*>[\s\S]*?<DatabaseTableGrid/)
+  assert.match(results, /<Tabs\.Content value="data"[^>]*>[\s\S]*?<DatabaseTableGrid/)
   assert.doesNotMatch(workspace, /role="(?:tablist|tab)"|aria-controls="database-(?:sql|data)-panel"/)
-  assert.match(workspace, /const execute =[\s\S]*?setDatabaseView\('sql'\)[\s\S]*?await databaseBridge\.database\.execute[\s\S]*?setSelectedTableName\(null\)[\s\S]*?setDatabaseView\('data'\)/)
-  assert.match(workspace, /const pendingResultsFocus = useRef\(false\)/)
-  assert.match(workspace, /pendingResultsFocus\.current = true[\s\S]*?setDatabaseView\('data'\)/)
-  assert.match(workspace, /databaseView !== 'data'[\s\S]*?resultsRegion\.current[\s\S]*?region\.focus\(\)[\s\S]*?document\.activeElement === region/)
-  assert.match(workspace, /const openSql =[\s\S]*?executionRequest\.current \+= 1[\s\S]*?setDatabaseView\('sql'\)/)
-  assert.match(workspace, /const openTable =[^{]*\{ executionRequest\.current \+= 1;/)
-  assert.match(workspace, /catch \(error\) \{\s*if \(request !== executionRequest\.current \|\| selectedConnectionId\.current !== connectionId\) return/)
-  assert.match(workspace, /setQueryError\(reportDatabaseFailure\(error, 'execute-query', 'Query non eseguita'/)
-  assert.match(workspace, /queryError && <ErrorNotice action=/)
-  assert.doesNotMatch(workspace, /toast\.error\('Query non eseguita\.'/)
+  assert.match(query, /async function execute[\s\S]*?setDatabaseView\('sql'\)[\s\S]*?await databaseBridge\.database\.execute[\s\S]*?setSelectedTableName\(null\)[\s\S]*?setDatabaseView\('data'\)/)
+  assert.match(query, /const pendingResultsFocus = useRef\(false\)/)
+  assert.match(query, /pendingResultsFocus\.current = true[\s\S]*?setDatabaseView\('data'\)/)
+  assert.match(query, /databaseView !== 'data'[\s\S]*?resultsRegion\.current[\s\S]*?region\.focus\(\)[\s\S]*?document\.activeElement === region/)
+  assert.match(workspace, /function openSql[\s\S]*?executionGate\.invalidate\(\)[\s\S]*?setDatabaseView\('sql'\)/)
+  assert.match(workspace, /function openTable[\s\S]*?executionGate\.invalidate\(\)/)
+  assert.match(query, /catch \(error\) \{\s*if \(!isExecutionRequestCurrent\(request\) \|\| getSelectedConnectionId\(\) !== connectionId\) return/)
+  assert.match(query, /setQueryError\(reportDatabaseFailure\(error, 'execute-query', 'Query non eseguita'/)
+  assert.match(workspace, /query\.queryError && <ErrorNotice action=/)
+  assert.doesNotMatch(query, /toast\.error\('Query non eseguita\.'/)
   assert.doesNotMatch(workspace, /database-splitter/)
   assert.match(styles, /viewTabs:\s*css\(\{[\s\S]*?borderBottomColor:\s*'borderDefault'/)
   assert.match(styles, /viewPanel:\s*css\(\{[\s\S]*?overflow:\s*'hidden'/)
@@ -1161,7 +1207,7 @@ test('il workbench Modifiche GitHub riempie la vista e dimensiona correttamente 
 })
 
 test('Modifiche GitHub usa un workbench master detail senza cronologia duplicata', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = readGitHubSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
   assert.match(github, /className=\{gh\.changesWorkbench\}/)
@@ -1177,7 +1223,7 @@ test('Modifiche GitHub usa un workbench master detail senza cronologia duplicata
 })
 
 test('Issue GitHub usa ricerca numerica e compositore modale', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = readGitHubSource()
   const issuesModel = fs.readFileSync(path.join(__dirname, '../src/features/github/model/github-issues.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
@@ -1204,7 +1250,7 @@ test('la schermata di recupero può ritentare la vista senza ricaricare l’inte
 })
 
 test('un errore di sezione mantiene disponibile la toolbar principale', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const boundary = fs.readFileSync(path.join(__dirname, '../src/components/view-error-boundary.tsx'), 'utf8')
 
   const toolbar = app.indexOf('shellStyles.toolbar')
@@ -1230,7 +1276,7 @@ test('l’editor Skill ignora una risposta IPC superata da una selezione più re
 })
 
 test('la configurazione Pi viene chiusa quando si lascia la relativa tab', () => {
-  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
+  const settings = readSettingsSource()
 
   assert.match(settings, /const closeConfig = useCallback\(async \(\) =>/)
   assert.match(settings, /await settingsBridge\.piConfig\.close\(\)/)
@@ -1238,8 +1284,8 @@ test('la configurazione Pi viene chiusa quando si lascia la relativa tab', () =>
 })
 
 test('la configurazione Pi viene chiusa anche quando Impostazioni resta montata ma nascosta', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
+  const app = readAppSource()
+  const settings = readSettingsSource()
 
   assert.match(app, /<AppSettings active=\{appSection === 'settings'\}/)
   assert.match(settings, /if \(!active\) void closeConfig\(\)/)
@@ -1248,20 +1294,22 @@ test('la configurazione Pi viene chiusa anche quando Impostazioni resta montata 
 })
 
 test('la board Project ignora un caricamento superato da una selezione più recente', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
-  assert.match(github, /const boardRequest = useRef\(0\)/)
-  assert.match(github, /const requestId = \+\+boardRequest\.current/)
-  assert.match(github, /if \(requestId !== boardRequest\.current\) return/)
+  const coordinator = readGitHubModule('hooks/use-request-coordinator.ts')
+  const projectActions = readGitHubModule('hooks/use-github-project-actions.ts')
+  assert.match(coordinator, /const sequence = useRef\(0\)/)
+  assert.match(projectActions, /const requestId = boardRequests\.begin\(\)/)
+  assert.match(projectActions, /if \(!boardRequests\.isCurrent\(requestId\)\) return/)
+  assert.match(projectActions, /if \(getSelectedProject\(\) !== projectNumber\) return/)
 })
 
 test('le Impostazioni non smontano le sezioni persistenti del workspace', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
 
-  assert.match(app, /\{workspace \? \(\n        <div className=\{shellStyles\.sectionStack\}>/)
-  assert.match(app, /shouldMountPersistentView\(loadedSections, 'settings', appSection === 'settings'\) && <Tabs\.Content asChild[^>]*key="settings"[^>]*value="settings">/)
+  assert.match(app, /workspace \? <WorkspaceViews controller=\{controller\} \/> : <StandaloneViews controller=\{controller\} \/>/)
+  assert.match(app, /shouldMountPersistentView\(loadedSections, 'settings', appSection === 'settings'\) && \(\s*<Tabs\.Content asChild[^>]*key="settings"[^>]*value="settings">/)
   assert.match(app, /<AppSettings active=\{appSection === 'settings'\} appearance=\{appearance\} openRuntimeRequest=\{settingsRuntimeRequest\} onAppearanceChange=\{changeAppearance\} onWorkspaceGuardChange=\{handleSettingsWorkspaceGuardChange\} \/>/)
   for (const section of ['editor', 'terminal', 'github', 'database']) {
-    assert.match(app, new RegExp(`\\{\\(loadedSections\\.${section} \\|\\| appSection === '${section}'\\) && <Tabs\\.Content asChild[^>]*key="${section}"[^>]*value="${section}">`))
+    assert.match(app, new RegExp(`\\{\\(loadedSections\\.${section} \\|\\| appSection === '${section}'\\) && \\(\\s*<Tabs\\.Content asChild[^>]*key="${section}"[^>]*value="${section}">`))
   }
   assert.doesNotMatch(app, /\{appSection === 'settings' \? <section[^]*?\) : workspace \? \(/)
 })
@@ -1273,7 +1321,7 @@ test('il grafo Git sfrutta tutta la larghezza della sezione GitHub', () => {
 })
 
 test('il grafo Git mantiene continui i rami e differenzia le corsie', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const component = readGitHubSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
   const pathStyles = styles.slice(styles.indexOf('export const gitGraphPathStyles'), styles.indexOf('export const gitGraphNodeStyles'))
   const nodeStyles = styles.slice(styles.indexOf('export const gitGraphNodeStyles'), styles.indexOf('export const githubMarkdownStyles'))
@@ -1298,47 +1346,53 @@ test('il grafo Git mantiene continui i rami e differenzia le corsie', () => {
 })
 
 test('Database ignora il risultato di una query conclusa dopo il cambio connessione', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
+  const connections = readDatabaseModule('hooks/use-database-connections.ts')
+  const gate = readDatabaseModule('hooks/use-database-execution-gate.ts')
+  const query = readDatabaseModule('hooks/use-database-query.ts')
 
-  assert.match(component, /const executionRequest = useRef\(0\)/)
-  assert.match(component, /const selectedConnectionId = useRef<string \| null>\(null\)/)
-  assert.match(component, /executionRequest\.current \+= 1/)
-  assert.match(component, /if \([\s\S]*?request !== executionRequest\.current[\s\S]*?selectedConnectionId\.current !== connectionId[\s\S]*?\)\s*return/)
+  assert.match(gate, /const revision = useRef\(0\)/)
+  assert.match(connections, /const selectedConnectionId = useRef<string \| null>\(null\)/)
+  assert.match(gate, /const invalidate = useCallback\(\(\) => \{ revision\.current \+= 1 \}/)
+  assert.match(query, /const request = beginExecutionRequest\(\)/)
+  assert.match(query, /if \(!isExecutionRequestCurrent\(request\) \|\| getSelectedConnectionId\(\) !== connectionId\) return/)
 })
 
 test('Database mostra un recupero inline se non riesce a leggere le connessioni', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
+  const component = readDatabaseSource()
 
   assert.match(component, /const \[connectionError, setConnectionError\] = useState<UserError \| null>\(null\)/)
-  assert.match(component, /connectionError \? <ErrorNotice/)
-  assert.match(component, /action=\{\{ label: 'Riprova', onClick: loadConnections \}\}/)
+  assert.match(component, /connectionError[\s\S]{0,120}\? <ErrorNotice/)
+  assert.match(component, /action=\{\{ label: 'Riprova', onClick: onReloadConnections \}\}/)
 })
 
-test('Database comunica il caricamento iniziale di connessioni e risorse', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
+test('Database resta passivo all’ingresso e comunica la connessione esplicita', () => {
+  const component = readDatabaseSource()
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
 
   assert.match(component, /const \[loadingResources, setLoadingResources\] = useState\(false\)/)
+  assert.match(component, /const connect = useCallback/)
+  assert.match(component, /databaseBridge\.database\.inspectSchema\(connectionId/)
   assert.match(component, /setLoadingResources\(true\)/)
   assert.match(component, /className=\{db\.loadingOverlay\}/)
-  assert.match(component, /Caricamento risorse database/)
+  assert.match(component, /Connessione al database/)
+  assert.match(component, /Nessun database viene aperto automaticamente/)
   assert.match(component, /role="status"/)
   assert.match(styles, /loadingOverlay:\s*css\(\{[\s\S]*?position:\s*'absolute'/)
 })
 
 test('Database mostra avanzamento e conferma per Schema e Inizia', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
+  const component = readDatabaseSource()
 
   assert.match(component, /const \[toolbarAction, setToolbarAction\]\s*=\s*useState<DatabaseToolbarAction>\(null\)/)
   assert.match(component, /toolbarAction === ["']schema["']\s*\? ["']Aggiornamento…["']\s*: ["']Schema["']/)
   assert.match(component, /toolbarAction === ["']begin["']\s*\? ["']Avvio…["']\s*: ["']Inizia["']/)
-  assert.match(component, /toast\.success\([\s\S]*?`Schema aggiornato:/)
+  assert.match(component, /toast\.success\(['"]Schema aggiornato\./)
   assert.match(component, /toast\.success\(["']Transazione avviata\.["']/)
   assert.match(component, /aria-live="polite" className=\{db\.toolbarStatus\}/)
 })
 
 test('Database consente di pulire la cronologia della connessione attiva', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
+  const component = readDatabaseSource()
 
   assert.match(component, /aria-label="Pulisci cronologia query"/)
   assert.match(component, /database\s*\.\s*clearHistory\(connectionId\)/)
@@ -1364,18 +1418,18 @@ test('Istruzioni progetto non consente modifiche prima della lettura iniziale e 
 })
 
 test('GitHub non confonde il caricamento remoto con un workspace non configurato', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
-  assert.match(github, /const githubDataState = !data \?/)
+  const github = readGitHubModule('components/github-feedback.tsx')
+  assert.match(github, /function GitHubDataState/)
   assert.match(github, /Caricamento dati GitHub…/)
   assert.match(github, /Riprova caricamento GitHub/)
 })
 
 test('il modal attività GitHub trattiene e ripristina il focus da tastiera', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const github = readGitHubModule('components/github-project-item-dialog.tsx')
   const dialog = fs.readFileSync(path.join(__dirname, '../src/components/ui/dialog.tsx'), 'utf8')
   assert.match(dialog, /Root:\s*withRootProvider\(ArkDialog\.Root\)/)
   assert.match(dialog, /Content:\s*withContext\(ArkDialog\.Content, 'content'\)/)
-  assert.match(github, /\{selectedBoardItem && <Dialog\.Root[^\n]*open=\{boardItemDialogOpen\}[^\n]*onOpenChange=/)
+  assert.match(github, /if \(!item\) return null[\s\S]*?return <Dialog\.Root[^\n]*open=\{state\.boardItemDialogOpen\}[^\n]*onOpenChange=/)
   assert.match(github, /<Dialog\.Content className=\{cx\(gh\.modalContent, gh\.itemModal\)\}>/)
   assert.match(github, /<Dialog\.CloseTrigger asChild>/)
   assert.doesNotMatch(github, /boardItemModal|previousBoardItemFocus|event\.key !== 'Tab'/)

@@ -1,9 +1,8 @@
 const assert = require('node:assert/strict')
-const fs = require('node:fs')
-const path = require('node:path')
 const test = require('node:test')
+const { readAppSource } = require('./helpers/app-source.cjs')
 
-const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+const app = readAppSource()
 
 test('command palette integration keeps registry execution and modal shortcuts coherent', () => {
   assert.match(app, /commandRegistry\.execute\(commandId,\s*\{\s*source:\s*['"]palette['"]\s*\}\)/)

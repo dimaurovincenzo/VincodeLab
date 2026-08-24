@@ -8,7 +8,7 @@ const {
   DEFAULT_EXCLUDED_DIRECTORIES,
   DEFAULT_MAX_FILES,
   createProjectFileIndex,
-} = require('../electron/project-file-index.cjs')
+} = require('../electron/domains/filesystem/project-file-index.cjs')
 
 function temporaryWorkspace(t, prefix = 'vincodelab-file-index-') {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), prefix))

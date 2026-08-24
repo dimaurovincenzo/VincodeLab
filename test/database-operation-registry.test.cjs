@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { createDatabaseOperationRegistry } = require('../electron/database-operation-registry.cjs')
+const { createDatabaseOperationRegistry } = require('../electron/domains/database/database-operation-registry.cjs')
 
 const firstId = '11111111-1111-4111-8111-111111111111'
 const secondId = '22222222-2222-4222-8222-222222222222'
@@ -104,11 +104,15 @@ test('il main attende il drain database nei lifecycle boundary e prima di update
   const fs = require('node:fs')
   const path = require('node:path')
   const main = fs.readFileSync(path.join(__dirname, '..', 'electron', 'main.cjs'), 'utf8')
+  const shutdownRuntime = fs.readFileSync(path.join(__dirname, '..', 'electron', 'app', 'application-shutdown-runtime.cjs'), 'utf8')
+  const windowLifecycle = fs.readFileSync(path.join(__dirname, '..', 'electron', 'app', 'window-lifecycle-runtime.cjs'), 'utf8')
   const databaseIpc = fs.readFileSync(path.join(__dirname, '..', 'electron', 'ipc', 'domains', 'database.ipc.cjs'), 'utf8')
+  const cleanup = fs.readFileSync(path.join(__dirname, '..', 'electron', 'domains', 'workspace', 'workspace-runtime-cleanup.cjs'), 'utf8')
 
-  assert.match(main, /cleanupWorkspaceRuntime[\s\S]*databaseDrain = databaseOperations\.abortAndWaitMatching[\s\S]{0,360}Promise\.all\(\[databaseDrain, databaseSessionCleanup\]\)/)
-  assert.match(main, /shutdownApplication[\s\S]*databaseDrain = databaseOperations\.abortAll\(\)[\s\S]{0,360}Promise\.all\(\[databaseDrain, databaseSessionCleanup\]\)/)
-  assert.match(main, /render-process-gone[\s\S]{0,620}databaseOperations\.abortOwner\(window\.webContents\.id\)[\s\S]*Promise\.all\(\[databaseOwnerDrain, databaseSessionCleanup\]\)/)
+  assert.match(main, /createWorkspaceRuntimeCleanup\(\{/)
+  assert.match(cleanup, /databaseDrain = databaseOperations\.abortAndWaitMatching[\s\S]{0,420}Promise\.all\(\[databaseDrain, databaseSessionCleanup\]\)/)
+  assert.match(shutdownRuntime, /shutdownApplication[\s\S]*databaseDrain = databaseOperations\.abortAll\(\)[\s\S]{0,420}Promise\.all\(\[databaseDrain, databaseSessionCleanup\]\)/)
+  assert.match(windowLifecycle, /render-process-gone[\s\S]{0,620}databaseOperations\.abortOwner\(window\.webContents\.id\)[\s\S]*Promise\.all\(\[databaseOwnerDrain, databaseSessionCleanup\]\)/)
   assert.match(databaseIpc, /database:updateConnection'[\s\S]{0,760}databaseOperations\.abortAndWaitMatching[\s\S]{0,300}Promise\.all\(\[drain, closeConnectionSession/)
   assert.match(databaseIpc, /database:deleteConnection'[\s\S]{0,760}databaseOperations\.abortAndWaitMatching[\s\S]{0,300}Promise\.all\(\[drain, closeConnectionSession/)
   assert.match(main, /registerDatabaseIpc\(\{/)

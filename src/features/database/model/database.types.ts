@@ -4,6 +4,11 @@ import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 export type DatabaseDriver = DatabaseConnection['driver']
 export type DatabaseConnectionDraft = DatabaseConnectionInput & { hasPassword?: boolean }
 export type DatabaseSchema = { tables: DatabaseTableSchema[]; routines: DatabaseRoutine[] }
+export type DatabaseSchemaPage = DatabaseSchema & {
+  offset?: number
+  hasMore?: boolean
+  nextOffset?: number | null
+}
 export type DatabaseToolbarAction = 'schema' | 'begin' | 'commit' | 'rollback' | 'format' | null
 
 export type DatabaseWorkbenchContext = {

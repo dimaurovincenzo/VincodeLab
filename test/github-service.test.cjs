@@ -17,9 +17,9 @@ test.after(() => {
   }
 })
 
-const { closeDatabase } = require('../electron/workspace-store.cjs')
-const { readCache, writeCache } = require('../electron/workspace-cache.cjs')
-const { MAX_GIT_GRAPH_COMMITS, MAX_GIT_STATUS_FILES, MAX_GITHUB_ISSUES, addGitHubRemote, assertBranchName, assertFilePaths, assertGitHubRemoteUrl, assertGitHubRepositoryName, chunkGitFilePaths, commit, getCachedGitStatus, getCachedProjectBoard, getCachedResource, getFileDiff, getGitHubData, getGitStatus, getLinkedProjectBoard, githubAccessDiagnostic, githubProjectsDiagnostic, githubUnavailableData, initializeGitRepository, invalidateGitCache, invalidateGitHubDataCache, invalidateProjectBoardCache, listBranches, parseBranches, parseGraph, parseGraphPage, parseHistory, parseIssuesPage, parseStatus, parseStatusPage, push, stageFiles, unstageFiles } = require('../electron/github-service.cjs')
+const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
+const { readCache, writeCache } = require('../electron/infrastructure/persistence/workspace-cache.repository.cjs')
+const { MAX_GIT_GRAPH_COMMITS, MAX_GIT_STATUS_FILES, MAX_GITHUB_ISSUES, addGitHubRemote, assertBranchName, assertFilePaths, assertGitHubRemoteUrl, assertGitHubRepositoryName, chunkGitFilePaths, commit, getCachedGitStatus, getCachedProjectBoard, getCachedResource, getFileDiff, getGitHubData, getGitStatus, getLinkedProjectBoard, githubAccessDiagnostic, githubProjectsDiagnostic, githubUnavailableData, initializeGitRepository, invalidateGitCache, invalidateGitHubDataCache, invalidateProjectBoardCache, listBranches, parseBranches, parseGraph, parseGraphPage, parseHistory, parseIssuesPage, parseStatus, parseStatusPage, push, stageFiles, unstageFiles } = require('../electron/infrastructure/github/github-service.adapter.cjs')
 
 function withTemporaryCache(t) {
   const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-service-cache-'))
@@ -588,7 +588,10 @@ fi
 })
 
 test('richiede una riga sentinella e limita i campi voluminosi delle issue', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../electron/github-service.cjs'), 'utf8')
+  const source = [
+    fs.readFileSync(path.join(__dirname, '../electron/domains/github/github-model.cjs'), 'utf8'),
+    fs.readFileSync(path.join(__dirname, '../electron/domains/github/github-issue-use-cases.cjs'), 'utf8'),
+  ].join('\n')
   assert.match(source, /const MAX_GITHUB_ISSUES = 500/)
   assert.match(source, /'--limit', String\(MAX_GITHUB_ISSUES \+ 1\)/)
   assert.match(source, /'--jq', ISSUE_LIST_JQ/)
@@ -599,7 +602,7 @@ test('applica le proiezioni bounded Project nel processo GitHub CLI reale', (t) 
   const fakeGh = path.join(root, 'gh')
   const workspace = path.join(root, 'workspace')
   const logPath = path.join(root, 'gh.log')
-  const servicePath = path.join(__dirname, '../electron/github-service.cjs')
+  const servicePath = path.join(__dirname, '../electron/infrastructure/github/github-service.adapter.cjs')
   fs.mkdirSync(workspace)
   fs.writeFileSync(fakeGh, `#!/bin/sh
 has_jq=0

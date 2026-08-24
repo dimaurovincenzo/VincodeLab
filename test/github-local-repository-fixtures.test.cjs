@@ -18,7 +18,7 @@ const previousEnvironment = Object.fromEntries(
 process.env.VINCODELAB_DATA_DIR = dataDirectory
 Object.assign(process.env, isolatedGitEnvironment)
 
-const { closeDatabase } = require('../electron/workspace-store.cjs')
+const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const {
   commit,
   createBranch,
@@ -29,7 +29,7 @@ const {
   push,
   stageFiles,
   switchBranch,
-} = require('../electron/github-service.cjs')
+} = require('../electron/infrastructure/github/github-service.adapter.cjs')
 
 function git(cwd, args, options = {}) {
   return execFileSync('git', args, {

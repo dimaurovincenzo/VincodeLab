@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
-const { createTerminalStreamController } = require('../electron/terminal-stream-controller.cjs')
+const { createTerminalStreamController } = require('../electron/domains/terminal/terminal-stream-controller.cjs')
 
 function harness(overrides = {}) {
   const sent = []

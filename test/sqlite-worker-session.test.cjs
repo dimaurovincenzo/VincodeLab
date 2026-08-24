@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const { EventEmitter } = require('node:events')
 const test = require('node:test')
 
-const { SqliteWorkerSession, terminateWorker } = require('../electron/sqlite-worker-session.cjs')
+const { SqliteWorkerSession, terminateWorker } = require('../electron/infrastructure/database/sqlite-worker-session.adapter.cjs')
 
 function fakeWorker({ exits }) {
   const worker = new EventEmitter()

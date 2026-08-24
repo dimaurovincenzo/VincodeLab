@@ -19,10 +19,13 @@ const {
   revealProjectDirectory,
   revealProjectFile,
   saveProjectFile,
-} = require('../electron/project-files.cjs')
+} = require('../electron/domains/filesystem/project-files.cjs')
 
 test('il percorso IPC del file explorer usa soltanto scansione e letture asincrone', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../electron/project-files.cjs'), 'utf8')
+  const source = [
+    'project-directory-listing.cjs',
+    'project-file-content.cjs',
+  ].map((file) => fs.readFileSync(path.join(__dirname, '../electron/domains/filesystem', file), 'utf8')).join('\n')
   assert.doesNotMatch(source, /readdirSync/)
   assert.doesNotMatch(source, /readFileSync/)
   assert.match(source, /fs\.promises\.opendir/)

@@ -3,9 +3,20 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 const ts = require('typescript')
+const { appSourceFiles, readAppSource } = require('./helpers/app-source.cjs')
+const { readGitHubSource } = require('./helpers/github-source.cjs')
+const { readRemoteFilesSource } = require('./helpers/remote-files-source.cjs')
+const { readSettingsSource, settingsSourceFiles } = require('./helpers/settings-source.cjs')
+const { readTerminalSource } = require('./helpers/terminal-source.cjs')
 
 const projectRoot = path.join(__dirname, '..')
-const read = (file) => fs.readFileSync(path.join(projectRoot, file), 'utf8')
+const read = (file) => file === 'src/features/github/components/github-workspace.tsx'
+  ? readGitHubSource()
+  : file === 'src/features/remote-files/components/remote-files.tsx'
+    ? readRemoteFilesSource()
+  : file === 'src/features/terminal/components/free-terminal.tsx'
+    ? readTerminalSource()
+  : fs.readFileSync(path.join(projectRoot, file), 'utf8')
 
 function filesUnder(directory, predicate) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -23,7 +34,7 @@ function sourceRecord(absolutePath) {
     absolutePath,
     file: path.relative(projectRoot, absolutePath),
     source,
-    ast: ts.createSourceFile(absolutePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX),
+    ast: ts.createSourceFile(absolutePath, source, ts.ScriptTarget.Latest, true, absolutePath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS),
   }
 }
 
@@ -207,10 +218,11 @@ test('le primitive interattive sono centralizzate su Ark con recipe Park e Panda
 })
 
 test('system light e dark attraversano preferenza Electron, DOM e token senza rimontare le superfici tecniche', () => {
-  const app = read('src/App.tsx')
-  const settings = read('src/features/settings/components/settings.tsx')
+  const app = readAppSource()
+  const settings = readSettingsSource()
   const tokens = read('src/theme/tokens.ts')
   const electron = read('electron/main.cjs')
+  const startupRuntime = read('electron/app/application-startup-runtime.cjs')
   const appearanceIpc = read('electron/ipc/domains/appearance.ipc.cjs')
   const xtermTheme = read('src/lib/xterm-theme.ts')
   const freeTerminal = read('src/features/terminal/components/free-terminal.tsx')
@@ -230,15 +242,14 @@ test('system light e dark attraversano preferenza Electron, DOM e token senza ri
   assert.match(tokens, /explicitDark:\s*':root\[data-theme="dark"\] &'/)
   assert.match(tokens, /systemTheme:\s*':where\(:root:not\(\[data-theme\]\), :root\[data-theme="system"\]\) &'/)
 
-  assert.match(electron, /nativeTheme\.themeSource = getAppearance\(\)/)
+  assert.match(startupRuntime, /nativeTheme\.themeSource = getAppearance\(\)/)
   assert.match(appearanceIpc, /\['appearance:set', \(event, appearance\)[\s\S]*?applyAppearance\(value\)/)
   assert.match(electron, /registerAppearanceIpc\(\{[\s\S]*?nativeTheme\.themeSource = value/)
   assert.match(xtermTheme, /MutationObserver\(updateTheme\)/)
   assert.match(xtermTheme, /attributeFilter:\s*\['data-theme'\]/)
   assert.match(xtermTheme, /matchMedia\('\(prefers-color-scheme: dark\)'\)/)
-  for (const source of [app, freeTerminal]) {
-    assert.match(source, /observeXtermTheme\(\(theme\) => \{[\s\S]*?terminal\.current\.options\.theme = theme/)
-  }
+  assert.match(app, /observeXtermTheme\(\(theme\) => \{[\s\S]*?const xterm = getTerminal\(\)[\s\S]*?xterm\.options\.theme = theme/)
+  assert.match(freeTerminal, /observeXtermTheme\(\(theme\) => \{[\s\S]*?terminal\.current\.options\.theme = theme/)
 })
 
 test('prefers-reduced-motion limita globalmente animazioni scroll e transizioni tramite la condition Panda', () => {
@@ -267,7 +278,7 @@ test('le liste selezionabili delegano focus composito tastiera e selezione a Lis
   const recipes = read('src/theme/recipes.ts')
   const projectSkills = read('src/features/ai/components/project-skills.tsx')
   const remoteFiles = read('src/features/remote-files/components/remote-files.tsx')
-  const settings = read('src/features/settings/components/settings.tsx')
+  const settings = readSettingsSource()
 
   assert.match(primitive, /Listbox as ArkListbox[^\n]*from '@ark-ui\/react\/listbox'/)
   assert.match(index, /createListCollection[^\n]*from '@ark-ui\/react\/collection'/)
@@ -355,7 +366,7 @@ test('Splitter centralizza persistenza, reset e dimensioni controllate senza sep
     'src/features/database/components/database-workspace.tsx',
     'src/features/remote-files/components/remote-files.tsx',
     'src/features/github/components/github-workspace.tsx',
-    'src/components/project-editor.tsx',
+    'src/features/editor/components/project-editor.tsx',
     'src/features/terminal/components/free-terminal.tsx',
   ]
 
@@ -386,7 +397,7 @@ test('Splitter centralizza persistenza, reset e dimensioni controllate senza sep
 test('l’explorer Database delega al TreeView Ark espansione selezione e tastiera', () => {
   const treeView = read('src/components/ui/tree-view.tsx')
   const index = read('src/components/ui/index.ts')
-  const database = read('src/features/database/components/database-workspace.tsx')
+  const database = read('src/features/database/components/database-explorer.tsx')
   const databaseSchemaTreeNode = read('src/features/database/components/database-schema-tree-node.tsx')
   const recipes = read('src/theme/recipes.ts')
 
@@ -398,10 +409,10 @@ test('l’explorer Database delega al TreeView Ark espansione selezione e tastie
   assert.match(recipes, /export const treeViewRecipe = defineSlotRecipe/)
   assert.match(recipes, /tree:\s*\{[^}]*alignContent:\s*'start'/)
   assert.match(database, /createTreeCollection<SchemaTreeNode>/)
-  assert.match(database, /<TreeView\.Root collection=\{schemaTreeCollection\} expandedValue=\{schemaExpandedValue\} selectedValue=\{schemaSelectedValue\} selectionMode="single"/)
+  assert.match(database, /<TreeView\.Root[\s\S]*?collection=\{schemaTreeCollection\}[\s\S]*?expandedValue=\{schemaExpandedValue\}[\s\S]*?selectedValue=\{schemaSelectedValue\}[\s\S]*?selectionMode="single"/)
   assert.match(databaseSchemaTreeNode, /<TreeView\.BranchTrigger aria-label=\{`\$\{node\.label\}: espandi o comprimi`\}>/)
-  assert.match(database, /onExpandedChange=\{\(\{ expandedNodes \}\) => \{[\s\S]*?setExpandedSchemas\(new Set\(expandedNodes/)
-  assert.match(database, /onSelectionChange=\{\(\{ selectedNodes \}\) => \{[\s\S]*?openTable\(node\.tableName\)[\s\S]*?openRoutine\(node\.routine\)/)
+  assert.match(database, /onExpandedChange=\{\(\{ expandedNodes \}\) => \{[\s\S]*?onExpandedSchemasChange\(new Set\(expandedNodes/)
+  assert.match(database, /onSelectionChange=\{\(\{ selectedNodes \}\) => \{[\s\S]*?onOpenTable\(node\.tableName\)[\s\S]*?onOpenRoutine\(node\.routine\)/)
   assert.doesNotMatch(database, /role="(?:tree|treeitem)"|event\.key === ['"](?:ArrowUp|ArrowDown|ArrowLeft|ArrowRight)['"]/)
 })
 
@@ -435,7 +446,7 @@ test('Dialog delega focus trap, Escape e semantica modale ad Ark senza ruoli man
     'src/components/confirmation-dialog.tsx',
     'src/components/workspace-change-dialog.tsx',
     'src/components/remote-diff-dialog.tsx',
-    'src/features/database/components/database-workspace.tsx',
+    'src/features/database/components/database-connection-dialog.tsx',
     'src/features/remote-files/components/remote-files.tsx',
     'src/features/github/components/github-workspace.tsx',
     'src/components/terminal-paste-status.tsx',
@@ -460,7 +471,7 @@ test('Dialog delega focus trap, Escape e semantica modale ad Ark senza ruoli man
     ['src/components/confirmation-dialog.tsx', 'cancelButton', /finalFocusEl=\{\(\) => focusState\.opener\}/],
     ['src/components/workspace-change-dialog.tsx', 'cancelButton', /finalFocusEl=\{\(\) => focusState\.opener\}/],
     ['src/components/remote-diff-dialog.tsx', 'closeButton', /finalFocusEl=\{\(\) => opener\.current\}/],
-    ['src/features/database/components/database-workspace.tsx', 'connectionNameInput', /finalFocusEl=\{\(\) => connectionDialogOpener\.current\}/],
+    ['src/features/database/components/database-connection-dialog.tsx', 'nameInputRef', /finalFocusEl=\{\(\) => openerRef\.current\}/],
     ['src/features/remote-files/components/remote-files.tsx', 'renameInput', /finalFocusEl=\{\(\) => renameDialogOpener\.current\}/],
     ['src/components/terminal-paste-status.tsx', 'primaryAction', /finalFocusEl=\{\(\) => opener\.current\}/],
   ]
@@ -470,13 +481,13 @@ test('Dialog delega focus trap, Escape e semantica modale ad Ark senza ruoli man
     assert.match(source, finalFocusPattern, `${file} deve affidare ad Ark il ritorno all'opener`)
   }
 
-  for (const file of ['src/features/database/components/database-workspace.tsx', 'src/components/terminal-paste-status.tsx', 'src/features/remote-files/components/remote-files.tsx', 'src/components/remote-diff-dialog.tsx']) {
+  for (const file of ['src/features/database/components/database-connection-dialog.tsx', 'src/components/terminal-paste-status.tsx', 'src/features/remote-files/components/remote-files.tsx', 'src/components/remote-diff-dialog.tsx']) {
     const source = read(file)
     assert.match(source, /<Dialog\.CloseTrigger asChild><IconButton[^>]*tooltip=/, `${file} deve usare IconButton con tooltip per la chiusura icon-only`)
     assert.doesNotMatch(source, /<Dialog\.CloseTrigger asChild><Button[^>]*(?:size="icon|aria-label="Chiudi)/, `${file} non deve ricreare un icon button con Button`)
   }
 
-  const database = read('src/features/database/components/database-workspace.tsx')
+  const database = read('src/features/database/components/database-connection-dialog.tsx')
   const remoteFiles = read('src/features/remote-files/components/remote-files.tsx')
   const workspaceChange = read('src/components/workspace-change-dialog.tsx')
   assert.doesNotMatch(database, /\{connectionModalOpen && <Dialog\.Root/)
@@ -488,7 +499,7 @@ test('Dialog delega focus trap, Escape e semantica modale ad Ark senza ruoli man
   assert.match(terminal, /<Dialog\.Root[\s\S]*?finalFocusEl=\{\(\) => commandsTrigger\.current\}/)
   assert.match(terminal, /<Dialog\.Root[\s\S]*?initialFocusEl=\{\(\) => commandSearchInput\.current\}/)
   assert.match(terminal, /modal=\{false\}[\s\S]*?trapFocus=\{false\}/)
-  assert.match(terminal, /const closeCommands = \(\) => \{[\s\S]*?requestAnimationFrame\(\(\) => commandsTrigger\.current\?\.focus\(\)\)/)
+  assert.match(terminal, /function closeCommands\(\) \{[\s\S]*?requestAnimationFrame\(\(\) => commandsTrigger\.current\?\.focus\(\)\)/)
 })
 
 test('tutti i TSX delegano controlli e semantica interattiva alle primitive Ark/Park', () => {
@@ -595,13 +606,11 @@ test('i vecchi helper di resize e navigazione sono eliminati, non solo inutilizz
 
 test('lo stato delle tab Ark non viene duplicato da classi attive legacy', () => {
   const tabSurfaces = [
-    'src/App.tsx',
-    'src/features/settings/components/settings.tsx',
     'src/features/terminal/components/terminal-workspace.tsx',
     'src/features/remote-files/components/remote-files.tsx',
     'src/features/database/components/database-workspace.tsx',
     'src/features/github/components/github-workspace.tsx',
-  ].map(read).join('\n')
+  ].map(read).concat(readAppSource(), readSettingsSource()).join('\n')
   const styles = [
     ...filesUnder(path.join(projectRoot, 'src/styles'), (file) => file.endsWith('.css')),
     ...filesUnder(path.join(projectRoot, 'src/theme/styles'), (file) => file.endsWith('.ts')),
@@ -614,32 +623,38 @@ test('lo stato delle tab Ark non viene duplicato da classi attive legacy', () =>
 
 test('le viste operative restano montate dopo la prima apertura', () => {
   const record = (file) => rendererRecords.find((candidate) => candidate.file === file)
-  const app = record('src/App.tsx')
+  const appRecords = rendererRecords.filter((candidate) => appSourceFiles.includes(candidate.file))
+  const appSource = readAppSource()
   const terminal = record('src/features/terminal/components/terminal-workspace.tsx')
-  const database = record('src/features/database/components/database-workspace.tsx')
-  const settings = record('src/features/settings/components/settings.tsx')
-  const editor = record('src/components/project-editor.tsx')
+  const databaseRecords = [
+    record('src/features/database/components/database-workspace.tsx'),
+    record('src/features/database/components/database-results-panel.tsx'),
+  ]
+  const settingsRecords = rendererRecords.filter((candidate) => settingsSourceFiles.includes(candidate.file))
+  const editor = record('src/features/editor/components/project-editor.tsx')
+  const editorLifecycle = sourceRecord(path.join(projectRoot, 'src/features/editor/hooks/use-persistent-code-mirror.ts'))
   const freeTerminal = record('src/features/terminal/components/free-terminal.tsx')
-  assert.ok(app && terminal && database && settings && editor && freeTerminal)
+  assert.ok(appRecords.length === appSourceFiles.filter((file) => file.endsWith('.tsx')).length && settingsRecords.length === settingsSourceFiles.filter((file) => file.endsWith('.tsx')).length && terminal && databaseRecords.every(Boolean) && editor && freeTerminal)
 
-  const appContents = jsxElements(app, 'Tabs.Content')
+  const appContents = appRecords.flatMap((app) => jsxElements(app, 'Tabs.Content'))
   for (const section of ['settings', 'ai', 'editor', 'terminal', 'github', 'database']) {
     assert.ok(
       appContents.some((element) => staticJsxAttributeValue(element, 'value') === section && staticJsxAttributeValue(element, 'key') === section),
       `Tabs.Content ${section} deve avere una key stabile omonima indipendentemente dall'ordine delle prop`,
     )
   }
-  assert.match(app.source, /setLoadedSections\(\(current\) => visitPersistentView\(current, section\)\)/)
+  assert.match(appSource, /setLoadedSections\(\(current\) => visitPersistentView\(current, section\)\)/)
   for (const section of ['editor', 'terminal', 'github', 'database']) {
-    assert.match(app.source, new RegExp(`loadedSections\\.${section}\\s*\\|\\|\\s*appSection\\s*===\\s*['"]${section}['"]`))
+    assert.match(appSource, new RegExp(`loadedSections\\.${section}\\s*\\|\\|\\s*appSection\\s*===\\s*['"]${section}['"]`))
   }
   for (const [view, active] of [['settings', 'appSection'], ['skills', 'aiTab'], ['instructions', 'aiTab']]) {
-    assert.match(app.source, new RegExp(`shouldMountPersistentView\\(loadedSections, '${view}', ${active} === '${view}'\\)`))
+    assert.match(appSource, new RegExp(`shouldMountPersistentView\\(loadedSections, '${view}', ${active} === '${view}'\\)`))
   }
   for (const [tag, expectedKey] of [['ProjectEditor', 'workspace'], ['TerminalWorkspace', 'workspace'], ['GitHubWorkspace', 'workspace'], ['DatabaseWorkspace', 'workspace']]) {
-    const element = jsxElements(app, tag)[0]
+    const owner = appRecords.find((app) => jsxElements(app, tag).length > 0)
+    const element = owner && jsxElements(owner, tag)[0]
     assert.ok(element, `manca ${tag}`)
-    assert.equal(jsxAttributeExpressionText(element, 'key', app.ast), expectedKey, `${tag} deve cambiare istanza soltanto quando cambia workspace`)
+    assert.equal(jsxAttributeExpressionText(element, 'key', owner.ast), expectedKey, `${tag} deve cambiare istanza soltanto quando cambia workspace`)
   }
 
   const terminalContents = jsxElements(terminal, 'Tabs.Content')
@@ -650,35 +665,40 @@ test('le viste operative restano montate dopo la prima apertura', () => {
   }
   assert.doesNotMatch(terminal.source, /tab === '(?:shell|remote)'\s*&&\s*<(?:FreeTerminal|RemoteFiles)/)
 
-  const databaseValues = new Set(jsxElements(database, 'Tabs.Content').map((element) => staticJsxAttributeValue(element, 'value')))
+  const databaseValues = new Set(databaseRecords.flatMap((database) => jsxElements(database, 'Tabs.Content')).map((element) => staticJsxAttributeValue(element, 'value')))
   for (const value of ['sql', 'data']) assert.equal(databaseValues.has(value), true, `manca il pannello Database ${value}`)
 
-  for (const tabsRecord of [app, terminal, database]) {
+  for (const tabsRecord of [...appRecords, ...settingsRecords, terminal, ...databaseRecords]) {
     for (const root of jsxElements(tabsRecord, 'Tabs.Root')) {
       assert.notEqual(staticJsxAttributeValue(root, 'lazyMount'), true, `${tabsRecord.file}: le tab operative non devono montare pigramente i pannelli`)
       assert.notEqual(staticJsxAttributeValue(root, 'unmountOnExit'), true, `${tabsRecord.file}: le tab operative non devono smontare i pannelli nascosti`)
     }
   }
 
-  const aiXtermDependencies = useEffectDependenciesContaining(app, 'new xtermModule.Terminal')
-  const shellXtermDependencies = useEffectDependenciesContaining(freeTerminal, 'new Terminal')
-  const editorViewDependencies = useEffectDependenciesContaining(editor, 'new EditorView')
-  const databaseEditorDependencies = useEffectDependenciesContaining(database, 'new EditorView')
+  const aiTerminalRuntime = sourceRecord(path.join(projectRoot, 'src/app/hooks/use-ai-terminal-instance.ts'))
+  const databaseEditor = sourceRecord(path.join(projectRoot, 'src/features/database/hooks/use-database-sql-editor.ts'))
+  const databaseResults = databaseRecords[1]
+  const shellXtermLifecycle = sourceRecord(path.join(projectRoot, 'src/features/terminal/hooks/use-shell-xterm-lifecycle.ts'))
+  const aiXtermDependencies = useEffectDependenciesContaining(aiTerminalRuntime, 'new xtermModule.Terminal')
+  const shellXtermDependencies = useEffectDependenciesContaining(shellXtermLifecycle, 'new Terminal')
+  const editorViewDependencies = useEffectDependenciesContaining(editorLifecycle, 'new EditorView')
+  const databaseEditorDependencies = useEffectDependenciesContaining(databaseEditor, 'new EditorView')
   assert.ok(aiXtermDependencies && shellXtermDependencies !== undefined && editorViewDependencies !== undefined && databaseEditorDependencies !== undefined)
   assert.match(aiXtermDependencies, /workspace/)
   assert.doesNotMatch(aiXtermDependencies, /appSection|aiTab/)
   assert.doesNotMatch(shellXtermDependencies, /active|\btab\b/)
   assert.equal(editorViewDependencies, '[]', 'CodeMirror Editor deve vivere quanto ProjectEditor')
-  assert.equal(databaseEditorDependencies, '[]', 'CodeMirror Database deve vivere quanto DatabaseWorkspace')
-  assert.match(database.source, /<DatabaseTableGrid[\s\S]*?key=\{`\$\{selectedTableName\}:\$\{tableRevision\}`\}/)
-  assert.doesNotMatch(database.source, /<DatabaseTableGrid[^>]*key=\{[^}]*databaseView/)
+  assert.equal(databaseEditorDependencies, '[connectionIdRef]', 'CodeMirror Database deve dipendere solo dal ref stabile della connessione')
+  assert.match(databaseResults.source, /<DatabaseTableGrid[\s\S]*?key=\{`\$\{selectedTableName\}:\$\{tableRevision\}`\}/)
+  assert.doesNotMatch(databaseResults.source, /<DatabaseTableGrid[^>]*key=\{[^}]*databaseView/)
 
-  const settingsContents = jsxElements(settings, 'Tabs.Content')
+  const settingsContents = settingsRecords.flatMap((settings) => jsxElements(settings, 'Tabs.Content'))
+  const settingsSource = readSettingsSource()
   for (const value of ['general', 'updates', 'runtime', 'packages', 'skills']) {
     const content = settingsContents.find((element) => staticJsxAttributeValue(element, 'value') === value)
     assert.ok(content, `manca il pannello Impostazioni ${value}`)
     assert.equal(staticJsxAttributeValue(content, 'asChild'), true, `il pannello ${value} deve conservare il nodo sezione`)
-    assert.doesNotMatch(settings.source, new RegExp(`tab === ['"]${value}['"]\\s*&&\\s*<`))
+    assert.doesNotMatch(settingsSource, new RegExp(`tab === ['"]${value}['"]\\s*&&\\s*<`))
   }
 })
 

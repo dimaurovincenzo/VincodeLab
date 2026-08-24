@@ -144,15 +144,20 @@ function rendererScenario() {
       || [...document.querySelectorAll('h2')].find((item) => item.textContent?.trim() === 'Nessun repository Git'))
     const databaseMs = await clickTab('Database', () => {
       const root = document.querySelector('[aria-label="Database workspace"]')
-      const execute = [...document.querySelectorAll('button')].find((item) => item.textContent?.trim() === 'Esegui')
-      return root && root.getAttribute('aria-busy') !== 'true' && execute && !execute.disabled ? execute : null
+      const connect = [...document.querySelectorAll('button')].find((item) => item.textContent?.trim() === 'Connetti' && !item.disabled)
+      return root && root.getAttribute('aria-busy') !== 'true' && connect ? connect : null
     })
+    const connectionStarted = performance.now()
+    const connect = [...document.querySelectorAll('button')].find((item) => item.textContent?.trim() === 'Connetti' && !item.disabled)
+    connect.click()
+    await waitFor(() => [...document.querySelectorAll('button')].find((item) => item.textContent?.trim() === 'Esegui' && !item.disabled), 'connessione Database')
+    const databaseConnectMs = performance.now() - connectionStarted
     const queryStarted = performance.now()
     const execute = [...document.querySelectorAll('button')].find((item) => item.textContent?.trim() === 'Esegui' && !item.disabled)
     execute.click()
     await waitFor(() => [...document.querySelectorAll('td')].some((cell) => cell.textContent === '1'), 'query SQLite')
     const sqliteQueryMs = performance.now() - queryStarted
-    return { startupReadyAt, commandPaletteMs, quickOpenMs, editorMs, terminalMs, githubMs, databaseMs, sqliteQueryMs, navigationConnected: navigation.isConnected }
+    return { startupReadyAt, commandPaletteMs, quickOpenMs, editorMs, terminalMs, githubMs, databaseMs, databaseConnectMs, sqliteQueryMs, navigationConnected: navigation.isConnected }
   })()`
 }
 
@@ -192,8 +197,8 @@ async function prepareFixture(root, dataDirectory) {
   await chmod(fakePi, 0o700)
   const previousDataDirectory = process.env.VINCODELAB_DATA_DIR
   process.env.VINCODELAB_DATA_DIR = dataDirectory
-  const { createConnection, listConnections } = require('../electron/database-store.cjs')
-  const { closeDatabase } = require('../electron/workspace-store.cjs')
+  const { createConnection, listConnections } = require('../electron/infrastructure/persistence/database.repository.cjs')
+  const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
   if (!listConnections(workspace).length) createConnection(workspace, { name: 'Benchmark SQLite', driver: 'sqlite', sqlitePath })
   closeDatabase()
   if (previousDataDirectory === undefined) delete process.env.VINCODELAB_DATA_DIR
@@ -277,7 +282,7 @@ function summarizeValues(values) {
 }
 
 function summarize(samples) {
-  const keys = ['startupMs', 'commandPaletteMs', 'quickOpenMs', 'editorMs', 'terminalMs', 'githubMs', 'databaseMs', 'sqliteQueryMs', 'shutdownMs', 'rendererHeapBytes']
+  const keys = ['startupMs', 'commandPaletteMs', 'quickOpenMs', 'editorMs', 'terminalMs', 'githubMs', 'databaseMs', 'databaseConnectMs', 'sqliteQueryMs', 'shutdownMs', 'rendererHeapBytes']
   return {
     ...Object.fromEntries(keys.map((key) => [key, summarizeValues(samples.map((sample) => sample[key]))])),
     idle: {

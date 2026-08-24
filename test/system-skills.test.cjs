@@ -4,12 +4,12 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { toApplicationError } = require('../electron/application-error.cjs')
+const { toApplicationError } = require('../electron/domains/errors/application-error.cjs')
 const {
   createSystemSkill,
   getSystemSkill,
   listSystemSkills,
-} = require('../electron/system-skills.cjs')
+} = require('../electron/domains/ai/system-skills.cjs')
 
 const SKILL_CONTENT = '---\nname: available\ndescription: Skill disponibile.\n---\n'
 

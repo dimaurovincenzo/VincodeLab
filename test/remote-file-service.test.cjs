@@ -5,8 +5,9 @@ const path = require('node:path')
 const test = require('node:test')
 const Database = require('better-sqlite3')
 
-const { createRemoteFileService } = require('../electron/remote-file-service.cjs')
-const { createRemoteFileStore } = require('../electron/remote-file-store.cjs')
+const { createRemoteFileService } = require('../electron/domains/remote-files/remote-file-service.cjs')
+const { createRemoteFileIo } = require('../electron/infrastructure/remote/remote-file-io.adapter.cjs')
+const { createRemoteFileStore } = require('../electron/infrastructure/remote/remote-file-store.adapter.cjs')
 
 function createFixture(t, initialRemote = 'prima', downloadDestination = null, options = {}) {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-remote-service-'))
@@ -39,7 +40,7 @@ function createFixture(t, initialRemote = 'prima', downloadDestination = null, o
   const revealed = []
   const logs = []
   const service = createRemoteFileService({
-    ssh, sftp, store, tempRoot: dataRoot,
+    ssh, sftp, store, tempRoot: dataRoot, createFileIo: createRemoteFileIo,
     chooseFiles: async () => options.selectedFiles ?? [], chooseDestination: async () => downloadDestination,
     showItemInFolder: (localPath) => revealed.push(localPath),
     log: (...entry) => logs.push(entry), notify: (transfer) => transfers.push(transfer),
@@ -499,7 +500,11 @@ test('mostra una copia locale nel Finder senza esporre il percorso al renderer',
 })
 
 test('il percorso runtime dei file remoti non usa API filesystem sincrone', () => {
-  for (const fileName of ['remote-file-service.cjs', 'remote-file-store.cjs']) {
+  for (const fileName of [
+    'domains/remote-files/remote-file-service.cjs',
+    'infrastructure/remote/remote-file-io.adapter.cjs',
+    'infrastructure/remote/remote-file-store.adapter.cjs',
+  ]) {
     const source = fs.readFileSync(path.join(__dirname, '..', 'electron', fileName), 'utf8')
     assert.doesNotMatch(source, /\bfs\.[A-Za-z]+Sync\s*\(/, `${fileName} contiene ancora I/O filesystem sincrono`)
   }

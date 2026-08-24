@@ -2,6 +2,9 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
+const { readAppSource } = require('./helpers/app-source.cjs')
+const { readRemoteFilesModule, readRemoteFilesSource } = require('./helpers/remote-files-source.cjs')
+const { readTerminalSource } = require('./helpers/terminal-source.cjs')
 
 const projectRoot = path.join(__dirname, '..')
 
@@ -24,7 +27,7 @@ test('il terminale separa shell e file remoti senza smontare le viste', () => {
 })
 
 test('il form dei comandi distingue shell e connessioni SSH gestite', () => {
-  const freeTerminal = fs.readFileSync(path.join(projectRoot, 'src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const freeTerminal = readTerminalSource()
 
   assert.match(freeTerminal, /commandKind/)
   assert.match(freeTerminal, /sshDestination/)
@@ -36,8 +39,8 @@ test('il form dei comandi distingue shell e connessioni SSH gestite', () => {
 
 test('File remoti espone profili SSH salvati e guida creazione e connessione', () => {
   const workspace = fs.readFileSync(path.join(projectRoot, 'src/features/terminal/components/terminal-workspace.tsx'), 'utf8')
-  const remoteFiles = fs.readFileSync(path.join(projectRoot, 'src/features/remote-files/components/remote-files.tsx'), 'utf8')
-  const freeTerminal = fs.readFileSync(path.join(projectRoot, 'src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const remoteFiles = readRemoteFilesSource()
+  const freeTerminal = readTerminalSource()
 
   assert.match(remoteFiles, /remoteFilesBridge\.workspaceCommands\.list\(\)/)
   assert.match(remoteFiles, /command\.kind === 'ssh'/)
@@ -58,7 +61,7 @@ test('le tab e la toolbar dei file remoti restano coerenti e contenute', () => {
   const terminalStyles = fs.readFileSync(path.join(projectRoot, 'src/theme/styles/terminal.ts'), 'utf8')
   const recipes = fs.readFileSync(path.join(projectRoot, 'src/theme/recipes.ts'), 'utf8')
   const terminalWorkspace = fs.readFileSync(path.join(projectRoot, 'src/features/terminal/components/terminal-workspace.tsx'), 'utf8')
-  const remoteFiles = fs.readFileSync(path.join(projectRoot, 'src/features/remote-files/components/remote-files.tsx'), 'utf8')
+  const remoteFiles = readRemoteFilesSource()
 
   assert.match(terminalWorkspace, /<Tabs\.List className=\{terminalStyles\.secondaryTabs\}/)
   assert.match(terminalWorkspace, /<Tabs\.Indicator\s*\/>/)
@@ -73,7 +76,7 @@ test('le tab e la toolbar dei file remoti restano coerenti e contenute', () => {
 })
 
 test('App usa il workspace Terminale persistente', () => {
-  const app = fs.readFileSync(path.join(projectRoot, 'src/App.tsx'), 'utf8')
+  const app = readAppSource()
 
   assert.match(app, /TerminalWorkspace/)
   assert.match(app, /<TerminalWorkspace\b[^>]*active=\{appSection === 'terminal'\}/)
@@ -81,10 +84,14 @@ test('App usa il workspace Terminale persistente', () => {
 })
 
 test('l Explorer remoto gestisce resize, caricamento, vuoto e trasferimenti', () => {
-  const remoteFiles = fs.readFileSync(path.join(projectRoot, 'src/features/remote-files/components/remote-files.tsx'), 'utf8')
+  const entry = readRemoteFilesModule('components/remote-files.tsx')
+  const serverPanel = readRemoteFilesModule('components/remote-server-panel.tsx')
+  const controller = readRemoteFilesModule('hooks/use-remote-files-controller.ts')
+  const contextMenu = readRemoteFilesModule('hooks/use-remote-files-context-menu.ts')
+  const remoteFiles = [entry, serverPanel, controller, contextMenu].join('\n')
 
-  assert.match(remoteFiles, /<Splitter\.Root[^>]*storageKey=\{`vincodelab\.remote\.connection-width:\$\{workspace\}`\}/)
-  assert.match(remoteFiles, /<Splitter\.ResizeTrigger aria-label="Ridimensiona Explorer remoto"/)
+  assert.match(entry, /<Splitter\.Root[^>]*storageKey=\{`vincodelab\.remote\.connection-width:\$\{props\.workspace\}`\}/)
+  assert.match(entry, /<Splitter\.ResizeTrigger aria-label="Ridimensiona Explorer remoto"/)
   assert.doesNotMatch(remoteFiles, /useResizablePanel|role="separator"|onPointerDown=/)
   assert.match(remoteFiles, /Caricamento file remoti/)
   assert.match(remoteFiles, /Nessun file nella cartella/)
@@ -97,22 +104,24 @@ test('l Explorer remoto gestisce resize, caricamento, vuoto e trasferimenti', ()
 })
 
 test('Riprova un transfer fallito riesegue una sola volta la stessa operazione remota', () => {
-  const remoteFiles = fs.readFileSync(path.join(projectRoot, 'src/features/remote-files/components/remote-files.tsx'), 'utf8')
+  const stateOwner = readRemoteFilesModule('hooks/use-remote-files-state.ts')
+  const controller = readRemoteFilesModule('hooks/use-remote-files-controller.ts')
+  const serverPanel = readRemoteFilesModule('components/remote-server-panel.tsx')
   const retryController = fs.readFileSync(path.join(projectRoot, 'src/lib/remote-transfer-retry.ts'), 'utf8')
 
-  assert.match(remoteFiles, /createRemoteTransferRetryController/)
-  assert.match(remoteFiles, /retryController\.run\(\{/)
-  assert.match(remoteFiles, /retryController\.observe\(transfer\)/)
-  assert.match(remoteFiles, /retryController\.retry\(transferId\)/)
-  assert.match(remoteFiles, /onClick=\{\(\) => void retryTransfer\(transfer\.id\)\}/)
-  assert.match(remoteFiles, /aria-label=\{`Riprova trasferimento \$\{transfer\.name\}`\}/)
-  assert.doesNotMatch(remoteFiles, /transfer\.state === 'error'[^\n]*setRefreshToken/)
+  assert.match(stateOwner, /createRemoteTransferRetryController/)
+  assert.match(controller, /retryController\.run\(\{/)
+  assert.match(controller, /retryController\.observe\(transfer\)/)
+  assert.match(controller, /retryController\.retry\(transferId\)/)
+  assert.match(serverPanel, /onClick=\{\(\) => void actions\.retryTransfer\(transfer\.id\)\}/)
+  assert.match(serverPanel, /aria-label=\{`Riprova trasferimento \$\{transfer\.name\}`\}/)
+  assert.doesNotMatch(controller, /transfer\.state === 'error'[^\n]*setRefreshToken/)
   assert.match(retryController, /retryableByTransferId\.delete\(candidateId\)/)
   assert.match(retryController, /await run\(operation\)/)
 })
 
 test('l Explorer remoto gestisce copie locali, spazio cache e pulizia selettiva', () => {
-  const remoteFiles = fs.readFileSync(path.join(projectRoot, 'src/features/remote-files/components/remote-files.tsx'), 'utf8')
+  const remoteFiles = readRemoteFilesSource()
 
   assert.match(remoteFiles, /Copie locali/)
   assert.match(remoteFiles, /remoteFilesBridge\.remoteFiles\.listTracked/)

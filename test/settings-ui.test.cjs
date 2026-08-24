@@ -2,15 +2,18 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
+const { readAppSource } = require('./helpers/app-source.cjs')
+const { readGitHubSource } = require('./helpers/github-source.cjs')
+const { readSettingsSource } = require('./helpers/settings-source.cjs')
 
 test('la navigazione principale dichiara la sezione Impostazioni', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const source = readAppSource()
   assert.match(source, /Impostazioni/)
   assert.match(source, /<Settings/)
 })
 
 test('le tab Impostazioni etichettano i rispettivi pannelli', () => {
-  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
+  const settings = readSettingsSource()
 
   assert.match(settings, /<Tabs\.Root asChild value=\{tab\}[^>]*onValueChange=/)
   assert.match(settings, /<Tabs\.List[^>]*aria-label="Sezioni Impostazioni"/)
@@ -23,8 +26,8 @@ test('le tab Impostazioni etichettano i rispettivi pannelli', () => {
 })
 
 test('la toolbar globale non duplica l apertura workspace e l aspetto vive nelle impostazioni', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
+  const app = readAppSource()
+  const settings = readSettingsSource()
   const toolbar = app.match(/<header className=\{`window-toolbar \$\{shellStyles\.toolbar\}`\}>([\s\S]*?)<\/header>/)?.[1]
 
   assert.ok(toolbar, 'la toolbar applicativa deve usare il modulo Panda della shell')
@@ -39,8 +42,8 @@ test('la toolbar globale non duplica l apertura workspace e l aspetto vive nelle
 })
 
 test('le tab AI adottano il medesimo indicatore di selezione delle tab GitHub', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const app = readAppSource()
+  const github = readGitHubSource()
   const aiStyles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/ai.ts'), 'utf8')
   const recipes = fs.readFileSync(path.join(__dirname, '../src/theme/recipes.ts'), 'utf8')
 
@@ -52,7 +55,7 @@ test('le tab AI adottano il medesimo indicatore di selezione delle tab GitHub', 
 })
 
 test('Generali gestisce valori globali e personalizzazioni del workspace', () => {
-  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
+  const settings = readSettingsSource()
   const model = fs.readFileSync(path.join(__dirname, '../src/features/settings/model/settings-model.ts'), 'utf8')
   const numberInput = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/number-preference-input.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/settings.ts'), 'utf8')
@@ -77,7 +80,7 @@ test('Generali gestisce valori globali e personalizzazioni del workspace', () =>
 })
 
 test('Generali espone diagnostica Terminale AI privacy-safe e solo su richiesta', () => {
-  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
+  const settings = readSettingsSource()
   const diagnostics = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/terminal-diagnostics.tsx'), 'utf8')
 
   assert.match(settings, /<TerminalDiagnostics/)
@@ -88,7 +91,7 @@ test('Generali espone diagnostica Terminale AI privacy-safe e solo su richiesta'
 })
 
 test('Impostazioni presenta aggiornamenti con filtri stato pronto e rollback confermato', () => {
-  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
+  const settings = readSettingsSource()
   const types = fs.readFileSync(path.join(__dirname, '../src/features/settings/model/settings.types.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/settings.ts'), 'utf8')
 

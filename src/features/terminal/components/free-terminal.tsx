@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FitAddon } from '@xterm/addon-fit'
-import { SearchAddon } from '@xterm/addon-search'
-import { Terminal } from '@xterm/xterm'
-import { ChevronDown, ChevronRight, ChevronUp, PanelRightOpen, Pencil, Play, Plus, RefreshCw, TerminalSquare, Trash2, X } from 'lucide-react'
-import { Button, Collapsible, Dialog, ErrorNotice, Field, IconButton, SegmentGroup, SelectField, Spinner, Splitter, toast, type SplitterPanelData, type ToastAction } from '@/components/ui'
-import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { SearchAddon } from '@xterm/addon-search'
+import type { Terminal } from '@xterm/xterm'
+import { ChevronDown, ChevronUp, PanelRightOpen, RefreshCw, TerminalSquare, X } from 'lucide-react'
+import { Button, Dialog, ErrorNotice, Field, IconButton, Spinner } from '@/components/ui'
+import { ConfirmationDialog } from '@/components/confirmation-dialog'
 import { TerminalToolbar } from '@/components/terminal-toolbar'
 import { terminalBridge } from '../api/terminal.bridge'
 import {
@@ -19,27 +18,18 @@ import {
   reportTerminalClipboardFailure,
   reportTerminalFailure,
   reportTerminalPreferenceFailure,
-  terminalFailureFromEvent,
 } from '../services/terminal-error'
+import { useShellXtermLifecycle } from '../hooks/use-shell-xterm-lifecycle'
+import { useWorkspaceCommandLibrary } from '../hooks/use-workspace-command-library'
 import { scheduleVisibleTerminalRefit } from '@/lib/terminal-activation.js'
-import { createAnimationFrameResizeScheduler } from '@/lib/terminal-resize.js'
 import { nextTerminalFontSize, readTerminalPreferences, writeTerminalPreferences } from '@/lib/terminal-preferences.js'
-import { shouldFollowTerminalOutput } from '@/lib/terminal-viewport.js'
-import { observeXtermTheme, readXtermTheme } from '@/lib/xterm-theme'
 import { effectivePreference, terminalFontFamily, useAppPreferences } from '@/lib/app-preferences'
 import { useApplicationMenuCommand } from '@/lib/app-menu-command'
-import { createShellXtermOutputController } from '@/lib/shell-xterm-output-controller'
 import { suppressGlobalTerminalShortcut } from '@/lib/workbench-shortcuts'
-import { workspaceCommandLibraryView } from '@/lib/workspace-command-library.js'
-import type { UserError } from '@/lib/user-error'
 import { terminalStyles } from '@/theme/styles/terminal'
+import { WorkspaceCommandPanel } from './workspace-command-panel'
 
 export type { TerminalSessionUiStatus } from '../model/terminal-session'
-
-const workspaceCommandPanels: SplitterPanelData[] = [
-  { id: 'terminal-space', minSize: '420px' },
-  { id: 'workspace-commands', minSize: '300px', maxSize: '720px', resizeBehavior: 'preserve-pixel-size' },
-]
 
 type Props = {
   active: boolean
@@ -65,8 +55,6 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
   const terminal = useRef<Terminal | null>(null)
   const searchAddon = useRef<SearchAddon | null>(null)
   const refitTerminal = useRef<(() => void) | null>(null)
-  const managedConnectionId = useRef<string | null>(null)
-  const managedConnectionCommandId = useRef<string | null>(null)
   const synchronizeOutput = useRef<((reset?: boolean) => Promise<void>) | null>(null)
   const statusListener = useRef(onStatusChange)
   const [status, setStatus] = useState<TerminalSessionUiStatus>(() => terminalSessionUiStatus(initialStatus))
@@ -87,32 +75,10 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
   const [terminalSearchOpen, setTerminalSearchOpen] = useState(false)
   const [terminalQuery, setTerminalQuery] = useState('')
   const [hasUnreadOutput, setHasUnreadOutput] = useState(false)
-  const [commandsOpen, setCommandsOpen] = useState(false)
-  const [categories, setCategories] = useState<WorkspaceCommandCategory[]>([])
-  const [expandedCategoryIds, setExpandedCategoryIds] = useState<Set<string>>(() => new Set())
-  const [commandsLoading, setCommandsLoading] = useState(false)
-  const [commandsLoadError, setCommandsLoadError] = useState<UserError | null>(null)
   const [terminalFailure, setTerminalFailure] = useState<TerminalFailure | null>(null)
   const [terminalPreferenceFailure, setTerminalPreferenceFailure] = useState<TerminalPreferenceFailure | null>(initialTerminalPreferenceFailure)
-  const [sshFailure, setSshFailure] = useState<UserError | null>(null)
   const [clipboardFailure, setClipboardFailure] = useState<TerminalClipboardFailure | null>(null)
-  const [commandSearch, setCommandSearch] = useState('')
-  const [categoryName, setCategoryName] = useState('')
-  const [commandTitle, setCommandTitle] = useState('')
-  const [commandKind, setCommandKind] = useState<WorkspaceCommandKind>('shell')
-  const [commandText, setCommandText] = useState('')
-  const [commandNote, setCommandNote] = useState('')
-  const [sshDestination, setSshDestination] = useState('')
-  const [remoteRoot, setRemoteRoot] = useState('')
-  const [commandCategoryId, setCommandCategoryId] = useState('')
-  const [commandFormOpen, setCommandFormOpen] = useState(false)
-  const [editingCommandId, setEditingCommandId] = useState<string | null>(null)
-  const [editingCategory, setEditingCategory] = useState<{ id: string; name: string } | null>(null)
-  const [commandsBusy, setCommandsBusy] = useState(false)
-  const [sshLaunchState, setSshLaunchState] = useState<ManagedSshConnection | null>(null)
-  const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null)
-  const commandLibraryView = useMemo(() => workspaceCommandLibraryView(categories, commandSearch), [categories, commandSearch])
-  const autoExpandedCategoryIds = useMemo(() => new Set(commandLibraryView.autoExpandedIds), [commandLibraryView.autoExpandedIds])
+  const commandLibrary = useWorkspaceCommandLibrary({ commandsTrigger, onManagedConnection, profileComposerRequest, sessionId })
   const statusLabel = terminalSessionStatusLabel(status)
 
   useEffect(() => {
@@ -132,6 +98,28 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     setStatus(nextStatus)
     statusListener.current?.(sessionId, nextStatus)
   }, [sessionId])
+  const publishTerminal = useCallback((next: Terminal | null) => { terminal.current = next }, [])
+  const publishSearchAddon = useCallback((next: SearchAddon | null) => { searchAddon.current = next }, [])
+  const publishRefitTerminal = useCallback((next: (() => void) | null) => { refitTerminal.current = next }, [])
+  const publishSynchronizeOutput = useCallback((next: ((reset?: boolean) => Promise<void>) | null) => { synchronizeOutput.current = next }, [])
+
+  useShellXtermLifecycle({
+    container,
+    fontSizeRef,
+    isActiveRef,
+    publishRefitTerminal,
+    publishSearchAddon,
+    publishSynchronizeOutput,
+    publishTerminal,
+    sessionId,
+    setHasUnreadOutput,
+    setTerminalFailure,
+    statusRef,
+    synchronizeOutput,
+    terminal,
+    terminalPreferences,
+    updateStatus,
+  })
 
   const persistTerminalFontSize = useCallback((next: number) => {
     const saved = writeTerminalPreferences(workspace, { fontSize: next, followOutput: true }, {
@@ -175,7 +163,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     else persistTerminalFontSize(fontSizeRef.current)
   }, [loadTerminalFontSize, persistTerminalFontSize, terminalPreferenceFailure])
 
-  const restart = async () => {
+  async function restart() {
     const previousStatus = statusRef.current
     updateStatus('starting')
     setHasUnreadOutput(false)
@@ -195,448 +183,6 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
       })
     }
   }
-
-  const loadCommands = useCallback(async () => {
-    setCommandsLoading(true)
-    setCommandsLoadError(null)
-    try {
-      const result = await terminalBridge.workspaceCommands.list()
-      setCategories(result.categories)
-      setCommandCategoryId((current) => current || result.categories[0]?.id || '')
-      return result
-    } catch (error) {
-      setCommandsLoadError(reportTerminalFailure(
-        error,
-        'load-workspace-commands',
-        'Comandi del workspace non caricati',
-        'La shell resta utilizzabile. Riprova a caricare la libreria dei comandi.',
-        'persistence',
-      ))
-      throw error
-    } finally {
-      setCommandsLoading(false)
-    }
-  }, [])
-
-  const expandCategory = useCallback((categoryId: string) => {
-    setExpandedCategoryIds((current) => new Set(current).add(categoryId))
-  }, [])
-
-  const setCategoryExpanded = (categoryId: string, open: boolean) => {
-    setExpandedCategoryIds((current) => {
-      const next = new Set(current)
-      if (open) next.add(categoryId)
-      else next.delete(categoryId)
-      return next
-    })
-  }
-
-  const closeCommands = () => {
-    setCommandsOpen(false)
-    requestAnimationFrame(() => commandsTrigger.current?.focus())
-  }
-
-  const handleCommandsOpenChange = ({ open }: { open: boolean }) => {
-    if (!open) {
-      closeCommands()
-      return
-    }
-    setCommandsOpen(true)
-    void loadCommands().catch(() => {
-      // `loadCommands` registra l'incidente e il callout della libreria ne è l'unico owner visivo.
-    })
-  }
-
-  const showCommandFailure = (error: unknown, operation: string, title: string, description: string, recoveryAction?: ToastAction) => {
-    const incident = reportTerminalFailure(error, operation, title, description, 'persistence')
-    toast.error(incident.title, {
-      description: `${incident.description} Riferimento ${incident.correlationId}.`,
-      dedupeKey: operation,
-      recoveryAction,
-    })
-  }
-
-  const refreshCommandsRecoveryAction: ToastAction = {
-    label: 'Aggiorna elenco',
-    onClick: () => {
-      void loadCommands().catch(() => {
-        // Il retry passa al callout locale della libreria senza aprire un secondo toast.
-      })
-    },
-  }
-
-  const refreshCommandsOwned = async () => {
-    try {
-      await loadCommands()
-    } catch {
-      // La mutazione precedente è già conclusa: `loadCommands` registra il refresh e aggiorna l'ErrorNotice locale.
-    }
-  }
-
-  const createCategory = async () => {
-    if (!categoryName.trim()) return
-    setCommandsBusy(true)
-    try {
-      const category = await terminalBridge.workspaceCommands.createCategory(categoryName)
-      setCategoryName('')
-      expandCategory(category.id)
-      await refreshCommandsOwned()
-    } catch (error) {
-      showCommandFailure(error, 'create-command-category', 'Categoria non creata', 'I comandi esistenti non sono stati modificati. Riprova.', refreshCommandsRecoveryAction)
-    } finally { setCommandsBusy(false) }
-  }
-
-  const resetCommandForm = () => {
-    setCommandTitle('')
-    setCommandKind('shell')
-    setCommandText('')
-    setCommandNote('')
-    setSshDestination('')
-    setRemoteRoot('')
-    setEditingCommandId(null)
-    setCommandFormOpen(false)
-  }
-
-  const openNewCommand = useCallback((kind: WorkspaceCommandKind) => {
-    setCommandTitle('')
-    setCommandKind(kind)
-    setCommandText('')
-    setCommandNote('')
-    setSshDestination('')
-    setRemoteRoot('')
-    setEditingCommandId(null)
-    setCommandsOpen(true)
-    setCommandFormOpen(true)
-    void loadCommands().catch(() => {
-      // Il form resta aperto e il callout della libreria offre il retry locale.
-    })
-  }, [loadCommands])
-
-  useEffect(() => {
-    if (profileComposerRequest <= 0) return
-    let cancelled = false
-    queueMicrotask(() => { if (!cancelled) openNewCommand('ssh') })
-    return () => { cancelled = true }
-  }, [openNewCommand, profileComposerRequest])
-
-  const commandFormValid = Boolean(commandCategoryId && commandTitle.trim() && (
-    commandKind === 'shell' ? commandText.trim() : sshDestination.trim() && remoteRoot.trim()
-  ))
-
-  const saveCommand = async () => {
-    if (!commandFormValid) return
-    setCommandsBusy(true)
-    try {
-      const input: WorkspaceCommandInput = {
-        categoryId: commandCategoryId,
-        title: commandTitle,
-        kind: commandKind,
-        command: commandKind === 'shell' ? commandText : '',
-        note: commandNote,
-        sshDestination: commandKind === 'ssh' ? sshDestination : '',
-        remoteRoot: commandKind === 'ssh' ? remoteRoot : '',
-      }
-      if (editingCommandId) await terminalBridge.workspaceCommands.update(editingCommandId, input)
-      else await terminalBridge.workspaceCommands.create(input)
-      expandCategory(commandCategoryId)
-      resetCommandForm()
-      await refreshCommandsOwned()
-    } catch (error) {
-      showCommandFailure(error, editingCommandId ? 'update-workspace-command' : 'create-workspace-command', 'Comando non salvato', 'Il form è rimasto aperto con i dati inseriti. Correggi il problema e riprova.', refreshCommandsRecoveryAction)
-    } finally { setCommandsBusy(false) }
-  }
-
-  const startEditCommand = (command: WorkspaceCommand) => {
-    setEditingCommandId(command.id)
-    setCommandCategoryId(command.categoryId)
-    setCommandTitle(command.title)
-    setCommandKind(command.kind)
-    setCommandText(command.command)
-    setCommandNote(command.note)
-    setSshDestination(command.sshDestination)
-    setRemoteRoot(command.remoteRoot)
-    expandCategory(command.categoryId)
-    setCommandFormOpen(true)
-  }
-
-  const moveCommand = async (command: WorkspaceCommand, categoryId: string): Promise<void> => {
-    if (categoryId === command.categoryId) return
-    setCommandsBusy(true)
-    try {
-      await terminalBridge.workspaceCommands.move(command.id, categoryId)
-      expandCategory(categoryId)
-      await refreshCommandsOwned()
-    } catch (error) {
-      showCommandFailure(error, 'move-workspace-command', 'Comando non spostato', 'Il comando è rimasto nella categoria precedente. Riprova.', {
-        label: 'Riprova',
-        onClick: () => { void moveCommand(command, categoryId) },
-      })
-    } finally { setCommandsBusy(false) }
-  }
-
-  const deleteCommand = (command: WorkspaceCommand): void => setConfirmation({
-    title: `Elimina “${command.title}”`, detail: 'Il comando verrà eliminato solo dalla libreria di questo workspace.', confirmLabel: 'Elimina comando', destructive: true,
-    onConfirm: () => void (async () => {
-      setCommandsBusy(true)
-      try {
-        await terminalBridge.workspaceCommands.delete(command.id)
-        await refreshCommandsOwned()
-      } catch (error) {
-        showCommandFailure(error, 'delete-workspace-command', 'Comando non eliminato', 'Il comando è rimasto nella libreria. Riprova.', {
-          label: 'Riapri conferma',
-          onClick: () => deleteCommand(command),
-        })
-      } finally { setCommandsBusy(false) }
-    })(),
-  })
-
-  const saveCategory = async (category = editingCategory): Promise<void> => {
-    if (!category?.name.trim()) return
-    setCommandsBusy(true)
-    try {
-      await terminalBridge.workspaceCommands.updateCategory(category.id, category.name)
-      setEditingCategory(null)
-      await refreshCommandsOwned()
-    } catch (error) {
-      showCommandFailure(error, 'rename-command-category', 'Categoria non rinominata', 'Il nome precedente è rimasto invariato. Riprova.', {
-        label: 'Riprova',
-        onClick: () => { void saveCategory(category) },
-      })
-    } finally { setCommandsBusy(false) }
-  }
-
-  const deleteCategory = (category: WorkspaceCommandCategory): void => setConfirmation({
-    title: `Elimina categoria “${category.name}”`, detail: `Saranno eliminati anche i ${category.commands.length} comandi contenuti in questa categoria.`, confirmLabel: 'Elimina categoria', destructive: true,
-    onConfirm: () => void (async () => {
-      setCommandsBusy(true)
-      try {
-        await terminalBridge.workspaceCommands.deleteCategory(category.id)
-        await refreshCommandsOwned()
-      } catch (error) {
-        showCommandFailure(error, 'delete-command-category', 'Categoria non eliminata', 'La categoria e i suoi comandi sono rimasti disponibili. Riprova.', {
-          label: 'Riapri conferma',
-          onClick: () => deleteCategory(category),
-        })
-      } finally { setCommandsBusy(false) }
-    })(),
-  })
-
-  const requestRun = (command: WorkspaceCommand): void => {
-    const detail = command.kind === 'ssh' ? `ssh ${command.sshDestination}\nCartella iniziale: ${command.remoteRoot}` : command.command
-    setConfirmation({ title: `Esegui “${command.title}”`, detail, confirmLabel: command.kind === 'ssh' ? 'Connetti' : 'Esegui nel terminale', onConfirm: () => void runCommand(command.id) })
-  }
-
-  const runCommand = async (commandId: string): Promise<void> => {
-    setCommandsBusy(true)
-    try {
-      managedConnectionCommandId.current = commandId
-      await terminalBridge.shellSessions.focus(sessionId)
-      const result = await terminalBridge.workspaceCommands.run(commandId)
-      if (result.managedConnectionId) {
-        managedConnectionId.current = result.managedConnectionId
-        const connection = (await terminalBridge.managedSsh.list()).find((item) => item.id === result.managedConnectionId) ?? null
-        setSshLaunchState(connection)
-        setSshFailure(null)
-        onManagedConnection(result.managedConnectionId)
-      } else {
-        toast.success('Comando inviato al terminale.')
-      }
-    } catch (error) {
-      const incident = reportTerminalFailure(error, 'run-workspace-command', 'Comando non eseguito', 'La shell è rimasta attiva e il comando non è stato reinviato. Riprova quando sei pronto.')
-      const command = categories.flatMap((category) => category.commands).find((candidate) => candidate.id === commandId)
-      toast.error(incident.title, {
-        description: `${incident.description} Riferimento ${incident.correlationId}.`,
-        dedupeKey: incident.operation,
-        recoveryAction: command ? { label: 'Riapri conferma', onClick: () => requestRun(command) } : undefined,
-      })
-    } finally { setCommandsBusy(false) }
-  }
-
-  useEffect(() => terminalBridge.managedSsh.onStatus((connection) => {
-    if (managedConnectionId.current !== connection.id) return
-    setSshLaunchState(connection)
-    if (connection.state === 'connected') setSshFailure(null)
-    if (connection.state === 'error') {
-      setSshFailure(reportTerminalFailure(
-        connection.error ? new Error(connection.error) : new Error('Managed SSH connection failed'),
-        'connect-ssh-profile',
-        'Connessione SSH non disponibile',
-        'La shell e il profilo sono rimasti disponibili. Verifica rete o credenziali e riprova.',
-        'remote',
-      ))
-    }
-  }), [])
-
-  useEffect(() => {
-    if (!container.current) return
-
-    const initialPreferences = terminalPreferences.current
-    const xterm = new Terminal({
-      cursorBlink: true,
-      cursorStyle: initialPreferences.preferredCursorStyle,
-      fontFamily: terminalFontFamily(initialPreferences.preferredFontFamily),
-      fontSize: fontSizeRef.current,
-      lineHeight: 1.35,
-      scrollback: initialPreferences.preferredScrollback,
-      theme: readXtermTheme(),
-    })
-    const fitAddon = new FitAddon()
-    const nextSearchAddon = new SearchAddon()
-    xterm.loadAddon(fitAddon)
-    xterm.loadAddon(nextSearchAddon)
-    xterm.open(container.current)
-    terminal.current = xterm
-    searchAddon.current = nextSearchAddon
-
-    let disposed = false
-    let synchronizationRequest = 0
-    let outputErrorReported = false
-    let automaticOutputRecoveryUsed = false
-    let dimensions = { cols: 0, rows: 0 }
-    const fit = () => {
-      if (!isActiveRef.current || statusRef.current === 'exited' || statusRef.current === 'error') return
-      fitAddon.fit()
-      const nextDimensions = { cols: xterm.cols, rows: xterm.rows }
-      if (nextDimensions.cols === dimensions.cols && nextDimensions.rows === dimensions.rows) return
-      dimensions = nextDimensions
-      terminalBridge.shellSessions.resize(sessionId, nextDimensions)
-    }
-    const resizeScheduler = createAnimationFrameResizeScheduler(fit)
-    const resizeObserver = new ResizeObserver(resizeScheduler.schedule)
-    resizeObserver.observe(container.current)
-    refitTerminal.current = fit
-    resizeScheduler.schedule()
-    const outputController = createShellXtermOutputController({
-      sessionId,
-      write: (data, callback) => {
-        const followsOutput = shouldFollowTerminalOutput({ viewportY: xterm.buffer.active.viewportY, baseY: xterm.buffer.active.baseY })
-        xterm.write(data, () => {
-          if (followsOutput) xterm.scrollToBottom()
-          else setHasUnreadOutput(true)
-          callback()
-        })
-      },
-      ready: (message) => terminalBridge.shellSessions.ready(sessionId, message),
-      ack: (message) => terminalBridge.shellSessions.ack(sessionId, message),
-      onWriteError: (error) => {
-        if (outputErrorReported) return
-        outputErrorReported = true
-        setTerminalFailure({
-          error: reportTerminalFailure(error, 'render-output', 'Output del terminale sospeso', 'La shell è ancora attiva. Recupera lo storico per continuare a vedere l’output.'),
-          recovery: 'resume',
-        })
-      },
-      onWriteTimeout: () => {
-        if (automaticOutputRecoveryUsed) {
-          if (!outputErrorReported) {
-            setTerminalFailure({
-              error: reportTerminalFailure(new Error('Terminal renderer recovery timeout'), 'render-output-timeout', 'Output del terminale sospeso', 'Il recupero automatico non è riuscito. Riavvia la shell; lo storico disponibile verrà mantenuto.'),
-              recovery: 'restart',
-            })
-          }
-          outputErrorReported = true
-          return
-        }
-        automaticOutputRecoveryUsed = true
-        void synchronizeOutput.current?.(true).catch((error) => {
-          setTerminalFailure({
-            error: reportTerminalFailure(error, 'resume-output', 'Storico del terminale non recuperato', 'La sessione è rimasta attiva. Riprova il recupero oppure riavvia la shell.'),
-            recovery: 'resume',
-          })
-        })
-      },
-      onRendered: () => { automaticOutputRecoveryUsed = false },
-    })
-    const renderSnapshot = (snapshot: ShellSessionResumeSnapshot, reset: boolean) => {
-      const resetSequence = reset ? '\x1bc' : ''
-      const notice = snapshot.truncated
-        ? `\r\n\x1b[33m[VincodeLab: storico precedente limitato; rimossi ${(snapshot.droppedBytes / (1024 * 1024)).toFixed(1)} MiB]\x1b[0m\r\n`
-        : ''
-      return `${resetSequence}${notice}${snapshot.blocks.map((block) => block.data).join('')}`
-    }
-    const resume = async (reset = false) => {
-      const request = ++synchronizationRequest
-      const snapshot = await terminalBridge.shellSessions.resume(sessionId)
-      if (disposed || request !== synchronizationRequest) {
-        terminalBridge.shellSessions.disconnect(sessionId, { attachmentId: snapshot.attachmentId, generation: snapshot.generation })
-        return
-      }
-      if (reset) setHasUnreadOutput(false)
-      outputErrorReported = false
-      if (!outputController.restore(snapshot, renderSnapshot(snapshot, reset))) {
-        terminalBridge.shellSessions.disconnect(sessionId, { attachmentId: snapshot.attachmentId, generation: snapshot.generation })
-        return
-      }
-      setTerminalFailure((current) => current?.recovery === 'resume' ? null : current)
-      if (snapshot.status === 'exited') {
-        const normalExit = snapshot.exitStatus?.exitCode === 0
-        updateStatus(normalExit ? 'exited' : 'error')
-        if (!normalExit) {
-          setTerminalFailure({
-            error: reportTerminalFailure(new Error(`Shell exit code ${snapshot.exitStatus?.exitCode ?? 'unknown'}`), 'session-exit', 'Shell terminata in modo inatteso', 'Lo storico è rimasto disponibile. Riavvia la shell per continuare.'),
-            recovery: 'restart',
-          })
-        }
-      } else if (statusRef.current === 'starting') updateStatus('ready')
-    }
-    const input = xterm.onData((data) => {
-      if (statusRef.current === 'ready') terminalBridge.shellSessions.write(sessionId, data)
-    })
-    const scroll = xterm.onScroll(() => setHasUnreadOutput(!shouldFollowTerminalOutput({ viewportY: xterm.buffer.active.viewportY, baseY: xterm.buffer.active.baseY })))
-    const unsubscribeData = terminalBridge.shellSessions.onData((event) => {
-      if (event.sessionId !== sessionId) return
-      outputController.accept(event)
-    })
-    const unsubscribeExit = terminalBridge.shellSessions.onExit((event) => {
-      if (event.sessionId !== sessionId) return
-      const normalExit = event.exitCode === 0 || event.reason === 'closed'
-      updateStatus(normalExit ? 'exited' : 'error')
-      if (!normalExit) {
-        setTerminalFailure({
-          error: reportTerminalFailure(new Error(`Shell exit code ${event.exitCode ?? 'unknown'} reason ${event.reason}`), 'session-exit', 'Shell terminata in modo inatteso', 'Lo storico è rimasto disponibile. Riavvia la shell per continuare.'),
-          recovery: 'restart',
-        })
-      }
-    })
-    const unsubscribeError = terminalBridge.shellSessions.onError((event) => {
-      if (event.sessionId !== sessionId) return
-      setTerminalFailure(terminalFailureFromEvent(event))
-    })
-    synchronizeOutput.current = resume
-    void resume().catch((error) => {
-      setTerminalFailure({
-        error: reportTerminalFailure(error, 'resume-output', 'Storico del terminale non recuperato', 'La sessione è rimasta disponibile. Riprova il recupero.'),
-        recovery: 'resume',
-      })
-    })
-
-    return () => {
-      disposed = true
-      synchronizationRequest += 1
-      input.dispose()
-      scroll.dispose()
-      unsubscribeData()
-      unsubscribeExit()
-      unsubscribeError()
-      resizeScheduler.cancel()
-      const outputConnection = outputController.currentConnection()
-      outputController.dispose()
-      if (outputConnection) terminalBridge.shellSessions.disconnect(sessionId, outputConnection)
-      resizeObserver.disconnect()
-      refitTerminal.current = null
-      if (synchronizeOutput.current === resume) synchronizeOutput.current = null
-      searchAddon.current = null
-      xterm.dispose()
-      terminal.current = null
-    }
-  }, [sessionId, updateStatus])
-
-  useEffect(() => {
-    return observeXtermTheme((theme) => {
-      // La shell rimane attiva: aggiornare il canvas evita di interrompere il PTY.
-      if (terminal.current) terminal.current.options.theme = theme
-    })
-  }, [])
 
   useEffect(() => {
     if (!terminal.current) return
@@ -664,7 +210,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     searchAddon.current?.findNext(terminalQuery, { incremental: true })
   }, [terminalQuery, terminalSearchOpen])
 
-  const copySelection = async () => {
+  async function copySelection() {
     const selection = terminal.current?.getSelection() ?? ''
     if (!selection) return
     try {
@@ -674,6 +220,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
       setClipboardFailure(reportTerminalClipboardFailure(cause, 'copy'))
     }
   }
+
   const paste = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText()
@@ -684,14 +231,16 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
       setClipboardFailure(reportTerminalClipboardFailure(cause, 'paste'))
     }
   }, [sessionId])
-  const retryTerminalResize = () => {
+
+  function retryTerminalResize() {
     const currentTerminal = terminal.current
     if (!currentTerminal) throw new Error('Terminale non disponibile per il ridimensionamento')
     setTerminalFailure(null)
     terminalBridge.shellSessions.resize(sessionId, { cols: currentTerminal.cols, rows: currentTerminal.rows })
     currentTerminal.focus()
   }
-  const recoverTerminalFailure = async () => {
+
+  async function recoverTerminalFailure() {
     if (terminalFailure?.recovery === 'restart') {
       await restart()
       return
@@ -713,11 +262,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
       })
     }
   }
-  const retrySshConnection = async () => {
-    const commandId = managedConnectionCommandId.current
-    if (!commandId) throw new Error('Profilo SSH non più disponibile')
-    await runCommand(commandId)
-  }
+
   const clearView = () => { terminal.current?.clear(); terminal.current?.focus() }
   const closeTerminalSearch = () => { searchAddon.current?.clearDecorations(); setTerminalQuery(''); setTerminalSearchOpen(false); requestAnimationFrame(() => terminal.current?.focus()) }
   const revealOutput = () => { terminal.current?.scrollToBottom(); setHasUnreadOutput(false) }
@@ -763,10 +308,10 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     finalFocusEl={() => commandsTrigger.current}
     initialFocusEl={() => commandSearchInput.current}
     modal={false}
-    open={commandsOpen}
+    open={commandLibrary.state.commandsOpen}
     preventScroll={false}
     trapFocus={false}
-    onOpenChange={handleCommandsOpenChange}
+    onOpenChange={commandLibrary.actions.handleCommandsOpenChange}
   >
     <section className={terminalStyles.freePage} aria-label="Terminale libero">
       <div className={terminalStyles.freeToolbar}>
@@ -805,45 +350,10 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
       />}
       <div className={terminalStyles.freeSurface} data-xterm-host="shell" ref={container} />
       {hasUnreadOutput && <Button className={terminalStyles.newOutput} size="sm" variant="subtle" onClick={revealOutput}>Nuovo output</Button>}
-      <Splitter.Root aria-label="Comandi del workspace" className={terminalStyles.commandSplitter} defaultFixedSize={commandsWidth} fixedPanel="end" hidden={!commandsOpen} panels={workspaceCommandPanels} storageKey={`vincodelab.terminal.commands-width:${workspace}`}>
-        <Splitter.Panel aria-hidden="true" className={terminalStyles.commandSpace} id="terminal-space" />
-        <Splitter.ResizeTrigger aria-label="Ridimensiona comandi workspace" className={terminalStyles.commandResize} id="terminal-space:workspace-commands" title="Trascina per ridimensionare i comandi. Doppio clic per ripristinare."><Splitter.ResizeTriggerIndicator /></Splitter.ResizeTrigger>
-        <Splitter.Panel id="workspace-commands"><Dialog.Content asChild unstyled><aside className={terminalStyles.commandSidebar} aria-label="Comandi del workspace">
-        <header className={terminalStyles.commandHeader}><strong>Comandi workspace</strong><div className={terminalStyles.commandHeaderActions}><Button size="sm" onClick={() => openNewCommand('shell')}><Plus size={14} /> Nuovo comando</Button><IconButton tooltip="Chiudi comandi workspace" onClick={closeCommands}><X size={15} /></IconButton></div></header>
-        <Field.Root><Field.Input ref={commandSearchInput} aria-label="Cerca comandi" placeholder="Cerca comandi" value={commandSearch} onChange={(event) => setCommandSearch(event.target.value)} /></Field.Root>
-        <Collapsible.Root className={terminalStyles.commandCreate}><Collapsible.Trigger><Collapsible.Indicator><ChevronRight aria-hidden="true" size={13} /></Collapsible.Indicator>Nuova categoria</Collapsible.Trigger><Collapsible.Content><Field.Root className={terminalStyles.categoryCreateField}><Field.Input aria-label="Nome categoria" placeholder="Nome categoria" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} /><Button size="sm" variant="outline" disabled={commandsBusy || !categoryName.trim()} onClick={() => void createCategory()}><Plus size={14} /> Crea</Button></Field.Root></Collapsible.Content></Collapsible.Root>
-        {commandFormOpen && <div className={terminalStyles.commandForm}>
-          <div className={terminalStyles.commandFormTop}><SelectField aria-label="Categoria comando" options={categories.map((category) => ({ value: category.id, label: category.name }))} value={commandCategoryId} placeholder="Scegli categoria" onValueChange={setCommandCategoryId} /><Field.Root><Field.Input aria-label="Titolo comando" placeholder="Titolo comando" value={commandTitle} onChange={(event) => setCommandTitle(event.target.value)} /></Field.Root></div>
-          <SegmentGroup.Root className={terminalStyles.commandKind} aria-label="Tipo comando" orientation="horizontal" value={commandKind} onValueChange={({ value }) => { if (value) setCommandKind(value as WorkspaceCommandKind) }}><SegmentGroup.Indicator />{([{ value: 'shell', label: 'Comando libero' }, { value: 'ssh', label: 'Connessione SSH' }] as const).map((item) => <SegmentGroup.Item key={item.value} value={item.value}><SegmentGroup.ItemHiddenInput /><SegmentGroup.ItemControl /><SegmentGroup.ItemText>{item.label}</SegmentGroup.ItemText></SegmentGroup.Item>)}</SegmentGroup.Root>
-          {commandKind === 'shell' ? <Field.Root><Field.Textarea aria-label="Testo comando" placeholder="npm run build" value={commandText} onChange={(event) => setCommandText(event.target.value)} /></Field.Root> : <div className={terminalStyles.sshFields}>
-            <Field.Root><Field.Input aria-label="Destinazione SSH" autoCapitalize="none" autoCorrect="off" placeholder="alias in ~/.ssh/config oppure utente@server" spellCheck={false} value={sshDestination} onChange={(event) => setSshDestination(event.target.value)} /></Field.Root>
-            <Field.Root><Field.Input aria-label="Cartella remota iniziale" autoCapitalize="none" autoCorrect="off" placeholder="/srv/app oppure ~/progetto" spellCheck={false} value={remoteRoot} onChange={(event) => setRemoteRoot(event.target.value)} /></Field.Root>
-            <code className={terminalStyles.sshPreview} aria-label="Comando SSH generato">ssh {sshDestination || 'destinazione'} · {remoteRoot || 'cartella remota'}</code>
-          </div>}
-          <Field.Root><Field.Input aria-label="Nota comando" placeholder="Nota opzionale" value={commandNote} onChange={(event) => setCommandNote(event.target.value)} /></Field.Root>
-          <div className={terminalStyles.commandFormActions}><Button size="sm" disabled={commandsBusy || !commandFormValid} onClick={() => void saveCommand()}>{editingCommandId ? 'Aggiorna comando' : 'Salva comando'}</Button><Button size="sm" type="button" variant="outline" onClick={resetCommandForm}>Annulla</Button></div>
-        </div>}
-        {sshLaunchState && <div className={`${terminalStyles.sshState} ${sshLaunchState.state === 'connected' ? terminalStyles.sshStateConnected : sshLaunchState.state === 'error' ? terminalStyles.sshStateError : ''}`} role="status"><span>{sshLaunchState.state === 'connecting' ? 'Connessione SSH in corso…' : sshLaunchState.state === 'connected' ? 'Connessione SSH attiva' : sshLaunchState.state === 'error' ? 'Connessione SSH non disponibile' : 'Connessione SSH terminata'}</span><small>{sshLaunchState.title}</small></div>}
-        {sshFailure && <ErrorNotice action={{ label: 'Riconnetti', onClick: retrySshConnection }} error={sshFailure} />}
-        {commandsLoading && <div className={terminalStyles.commandFeedback} role="status"><Spinner size={14} /> Caricamento categorie…</div>}
-        {commandsLoadError && <ErrorNotice
-          action={{ label: 'Riprova', onClick: async () => { try { await loadCommands() } catch { /* Lo stesso callout viene aggiornato dal nuovo incidente. */ } } }}
-          error={commandsLoadError}
-        />}
-        {!commandsLoading && !commandsLoadError && commandLibraryView.categories.length === 0 && <div className={terminalStyles.commandFeedback} role="status">{commandSearch.trim() ? 'Nessun comando corrisponde alla ricerca.' : 'Nessuna categoria in questo workspace.'}</div>}
-        <div className={terminalStyles.commandList}>{commandLibraryView.categories.map((category) => {
-          const commands = category.commands
-          const categoryExpanded = expandedCategoryIds.has(category.id) || autoExpandedCategoryIds.has(category.id)
-          return <Collapsible.Root asChild key={category.id} open={categoryExpanded} onOpenChange={({ open }) => setCategoryExpanded(category.id, open)}><section className={terminalStyles.commandCategory}>
-            <h3 className={terminalStyles.commandCategoryHeader}>{editingCategory?.id === category.id ? <Field.Root className={terminalStyles.categoryEdit}><Field.Input aria-label={`Rinomina ${category.name}`} value={editingCategory.name} onChange={(event) => setEditingCategory({ ...editingCategory, name: event.target.value })} /><Button size="xs" variant="subtle" aria-label={`Salva ${category.name}`} onClick={() => void saveCategory()}>Salva</Button></Field.Root> : <Collapsible.Trigger className={terminalStyles.categoryToggle}><Collapsible.Indicator><ChevronRight aria-hidden="true" size={14} /></Collapsible.Indicator><span className={terminalStyles.categoryLabel}>{category.name}</span><small className={terminalStyles.categoryCount}>{commands.length}</small></Collapsible.Trigger>}<span className={terminalStyles.categoryActions}><IconButton size="icon-xs" tooltip={`Rinomina ${category.name}`} onClick={() => { expandCategory(category.id); setEditingCategory({ id: category.id, name: category.name }) }}><Pencil size={12} /></IconButton><IconButton size="icon-xs" tooltip={`Elimina ${category.name}`} onClick={() => deleteCategory(category)}><Trash2 size={12} /></IconButton></span></h3>
-            <Collapsible.Content>{commands.map((command) => <article className={terminalStyles.commandArticle} key={command.id}><div className={terminalStyles.commandCopy}><strong>{command.title}</strong><code>{command.kind === 'ssh' ? `ssh ${command.sshDestination} · ${command.remoteRoot}` : command.command}</code>{command.note && <small>{command.note}</small>}<SelectField aria-label={`Sposta ${command.title}`} options={categories.map((candidate) => ({ value: candidate.id, label: `Sposta in: ${candidate.name}` }))} value={command.categoryId} disabled={commandsBusy} onValueChange={(value) => void moveCommand(command, value)} /></div><div className={terminalStyles.commandActions}><Button size="sm" disabled={commandsBusy || status !== 'ready'} onClick={() => requestRun(command)}><Play size={13} /> {command.kind === 'ssh' ? 'Connetti' : 'Esegui'}</Button><IconButton tooltip={`Modifica ${command.title}`} onClick={() => startEditCommand(command)}><Pencil size={13} /></IconButton><IconButton tooltip={`Elimina ${command.title}`} onClick={() => deleteCommand(command)}><Trash2 size={13} /></IconButton></div></article>)}</Collapsible.Content>
-          </section></Collapsible.Root>
-        })}</div>
-      </aside></Dialog.Content></Splitter.Panel>
-      </Splitter.Root>
+      <WorkspaceCommandPanel commandSearchInput={commandSearchInput} commandsWidth={commandsWidth} controller={commandLibrary} status={status} workspace={workspace} />
       {status === 'starting' && <div className={terminalStyles.stage} aria-live="polite"><Spinner size={16} /><span>Avvio shell nel workspace…</span></div>}
       {status === 'exited' && !terminalFailure && <div className={terminalStyles.freeRecovery} role="status"><p>La sessione shell è terminata.</p><Button size="sm" variant="outline" onClick={() => void restart()}><RefreshCw aria-hidden="true" /> Riavvia terminale</Button></div>}
-      <ConfirmationDialog request={confirmation} onCancel={() => setConfirmation(null)} />
+      <ConfirmationDialog request={commandLibrary.state.confirmation} onCancel={() => commandLibrary.setters.setConfirmation(null)} />
     </section>
   </Dialog.Root>
 }

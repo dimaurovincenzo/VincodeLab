@@ -1,4 +1,5 @@
 export { editorBridge } from './api/editor.bridge'
+export { ProjectEditor } from './components/project-editor'
 export { editorTabCloseTargets, editorWorkbenchCycleDirection } from './model/editor.commands'
 export type { EditorTabCloseCommand } from './model/editor.commands'
 export {

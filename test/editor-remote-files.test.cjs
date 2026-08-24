@@ -2,18 +2,21 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
+const { readAppSource } = require('./helpers/app-source.cjs')
+const { readEditorModule } = require('./helpers/editor-source.cjs')
 
 test('l’editor distingue i file remoti e li salva soltanto nella cache locale', () => {
-  const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
-  const types = fs.readFileSync(path.join(__dirname, '../src/features/editor/model/editor.types.ts'), 'utf8')
-  const documentModel = fs.readFileSync(path.join(__dirname, '../src/features/editor/model/editor-document.ts'), 'utf8')
-  const bridge = fs.readFileSync(path.join(__dirname, '../src/features/editor/api/editor.bridge.ts'), 'utf8')
+  const tabs = readEditorModule('hooks/use-editor-tabs.ts')
+  const persistence = readEditorModule('hooks/use-editor-file-persistence.ts')
+  const types = readEditorModule('model/editor.types.ts')
+  const documentModel = readEditorModule('model/editor-document.ts')
+  const bridge = readEditorModule('api/editor.bridge.ts')
 
   assert.match(types, /source: 'workspace' \| 'remote'/)
   assert.match(bridge, /get remoteFiles\(\)/)
-  assert.match(editor, /editorBridge\.remoteFiles\.saveLocal/)
+  assert.match(persistence, /editorBridge\.remoteFiles\.saveLocal/)
   assert.match(documentModel, /Remoto · Modificato/)
-  assert.match(editor, /remoteOpenRequest/)
+  assert.match(tabs, /remoteOpenRequest/)
 })
 
 test('il confronto remoto usa CodeMirror MergeView e richiede un caricamento esplicito', () => {
@@ -26,7 +29,7 @@ test('il confronto remoto usa CodeMirror MergeView e richiede un caricamento esp
 })
 
 test('il terminale passa il file remoto all’Editor senza perdere le viste montate', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
+  const app = readAppSource()
   const workspace = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/terminal-workspace.tsx'), 'utf8')
 
   assert.match(app, /setRemoteOpenRequest/)

@@ -3,7 +3,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 
-const { reportPreloadFailure } = require('../electron/preload-error-experience.cjs')
+const { reportPreloadFailure } = require('../electron/app/preload-error-experience.cjs')
 
 test('classifica il preload failure, correla il recovery e non inoltra dettagli raw', () => {
   const logs = []
@@ -58,9 +58,11 @@ test('mantiene disponibile il recovery anche se il logger è degradato', () => {
 
 test('il main non passa path, messaggi, tabella o connessione grezzi ai log interessati', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const startupRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-startup-runtime.cjs'), 'utf8')
+  const windowLifecycle = fs.readFileSync(path.join(__dirname, '../electron/app/window-lifecycle-runtime.cjs'), 'utf8')
   const databaseIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/database.ipc.cjs'), 'utf8')
-  const preloadHandler = main.match(/webContents\.on\('preload-error',[\s\S]*?\n  \}\)/u)?.[0] ?? ''
-  const migrationHandler = main.match(/function migrateLegacyDatabaseSecretsInBatches\(\) \{[\s\S]*?\n\}/u)?.[0] ?? ''
+  const preloadHandler = windowLifecycle.match(/webContents\.on\('preload-error',[\s\S]*?\n    \}\)/u)?.[0] ?? ''
+  const migrationHandler = startupRuntime.match(/function migrateLegacyDatabaseSecretsInBatches\(\) \{[\s\S]*?\n  \}/u)?.[0] ?? ''
   const tableRowsHandler = databaseIpc.match(/\['database:tableRows',[\s\S]*?\n    \}\],/u)?.[0] ?? ''
 
   assert.match(preloadHandler, /reportPreloadFailure\(error/u)
@@ -69,4 +71,5 @@ test('il main non passa path, messaggi, tabella o connessione grezzi ai log inte
   assert.doesNotMatch(migrationHandler, /message:\s*error|String\(error\)/u)
   assert.match(tableRowsHandler, /getApplicationErrorLogMetadata\(incident\)/u)
   assert.doesNotMatch(tableRowsHandler, /log\([^\n]*(?:connectionId|tableName|error\.message|message:)/u)
+  assert.match(main, /createApplicationStartupRuntime\(\{/u)
 })

@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const test = require('node:test')
 
-const { discoverManagedPiPackages, parseGitHubPackageSource } = require('../electron/update-discovery.cjs')
+const { discoverManagedPiPackages, parseGitHubPackageSource } = require('../electron/infrastructure/updates/update-discovery.adapter.cjs')
 
 test('riconosce solo le sorgenti GitHub dichiarate da Pi', () => {
   assert.deepEqual(parseGitHubPackageSource('git:github.com/acme/pi-tools'), { owner: 'acme', repository: 'pi-tools', ref: null })

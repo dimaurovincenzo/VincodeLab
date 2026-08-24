@@ -5,7 +5,7 @@ const {
   APP_SECTIONS,
   createApplicationMenuTemplate,
   isApplicationMenuCommand,
-} = require('../electron/application-menu.cjs')
+} = require('../electron/domains/menu/application-menu.cjs')
 
 const WORKSPACE_SECTIONS = ['ai', 'editor', 'terminal', 'github', 'database']
 
