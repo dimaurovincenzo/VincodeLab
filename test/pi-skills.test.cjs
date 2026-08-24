@@ -4,7 +4,12 @@ const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
 
-const { deleteSystemSkill, listSystemSkills } = require('../electron/domains/ai/system-skills.cjs')
+const { createSystemSkillsUseCases } = require('../electron/domains/ai/system-skills.cjs')
+const { createSystemSkillsFilesystemAdapter } = require('../electron/infrastructure/filesystem/system-skills-filesystem.adapter.cjs')
+
+const { deleteSystemSkill, listSystemSkills } = createSystemSkillsUseCases({
+  storage: createSystemSkillsFilesystemAdapter(),
+})
 
 test('il catalogo skill Pi riconosce anche file markdown diretti', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-pi-skills-'))

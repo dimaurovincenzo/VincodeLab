@@ -45,6 +45,8 @@ const aiFilesystemIsolatedDomains = new Map([
   ['electron/domains/ai/project-instructions.cjs', 'Istruzioni progetto'],
   ['electron/domains/ai/project-skills-storage.port.cjs', 'Porta Skill progetto'],
   ['electron/domains/ai/project-skills.cjs', 'Skill progetto'],
+  ['electron/domains/ai/system-skills-storage.port.cjs', 'Porta Skill di sistema'],
+  ['electron/domains/ai/system-skills.cjs', 'Skill di sistema'],
 ])
 const menuHostSpecifiers = new Set(['child_process', 'electron', 'node:child_process'])
 

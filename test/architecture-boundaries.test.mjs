@@ -271,6 +271,25 @@ test('mantiene filesystem e risoluzione path fuori dal dominio Skill progetto e 
   })
 })
 
+test('mantiene filesystem e helper concreti fuori dal dominio Skill di sistema', () => {
+  withFixture({
+    'electron/domains/ai/system-skills.cjs': [
+      "require('node:fs')",
+      "require('node:path')",
+      "require('../filesystem/file-utils.cjs')",
+    ].join('\n'),
+    'electron/domains/ai/system-skills-storage.port.cjs': "require('fs/promises')\n",
+    'electron/domains/filesystem/file-utils.cjs': 'module.exports = {}\n',
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('dominio Skill di sistema dipende direttamente dal filesystem host')).length, 2)
+    assert.equal(problems.filter((problem) => problem.includes('dominio Porta Skill di sistema')).length, 1)
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "node:path"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "fs/promises"')))
+    assert.ok(problems.some((problem) => problem.includes('implementazione filesystem concreta')))
+  })
+})
+
 test('mantiene processi host ed Electron fuori dal dominio Menu', () => {
   withFixture({
     'electron/domains/menu/runtime.cjs': [

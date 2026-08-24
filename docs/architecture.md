@@ -95,6 +95,8 @@ Le istruzioni Pi del progetto seguono lo stesso confine. `electron/domains/ai/pr
 
 Anche le skill Pi locali usano una porta dedicata. `electron/domains/ai/project-skills.cjs` valida nomi, identificatori e frontmatter, costruisce i DTO e ordina i risultati; `electron/infrastructure/filesystem/project-skills-filesystem.adapter.cjs` possiede invece `.pi/skills`, risoluzione dei riferimenti, lettura e rimozione sicure, creazione esclusiva e aggiornamenti atomici. La scansione non segue symlink ed è limitata a 500 skill e profondità 8 prima che contenuti e metadati raggiungano il dominio.
 
+Le skill di sistema applicano lo stesso modello alla root configurata `~/.pi/agent/skills`. Il dominio `system-skills.cjs` possiede validazione, frontmatter, DTO e collision policy; la porta `system-skills-storage.port.cjs` nasconde formato e I/O. L’adapter `system-skills-filesystem.adapter.cjs` supporta sia directory con `SKILL.md` sia file `.md` legacy, limita il catalogo alle prime 500 entry, non segue symlink, crea con semantica no-clobber e cleanup della directory riservata, aggiorna atomicamente il target fissato da un handle opaco e rimuove soltanto il formato risolto.
+
 Il controller PTY possiede sempre un solo processo client. In modalità Herdr quel processo è esclusivamente il client: il server persistente, i workspace e i pane restano di proprietà di Herdr e non vengono arrestati dal lifecycle di VincodeLab. Il fallback Pi è ammesso soltanto prima del primo byte prodotto da Herdr; dopo l'attivazione richiede una recovery utente esplicita. L'IPC blocca l'iniezione programmatica di contesto nel client condiviso, mentre tastiera e incolla manuale attraversano il normale canale PTY.
 
 ### Editor e filesystem

@@ -5,11 +5,13 @@ const path = require('node:path')
 const test = require('node:test')
 
 const { toApplicationError } = require('../electron/domains/errors/application-error.cjs')
+const { createSystemSkillsUseCases } = require('../electron/domains/ai/system-skills.cjs')
+const { createSystemSkillsFilesystemAdapter } = require('../electron/infrastructure/filesystem/system-skills-filesystem.adapter.cjs')
 const {
   createSystemSkill,
   getSystemSkill,
   listSystemSkills,
-} = require('../electron/domains/ai/system-skills.cjs')
+} = createSystemSkillsUseCases({ storage: createSystemSkillsFilesystemAdapter() })
 
 const SKILL_CONTENT = '---\nname: available\ndescription: Skill disponibile.\n---\n'
 

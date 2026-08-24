@@ -22,7 +22,8 @@ const { environmentForPi, resolvePiExecutable: findPiExecutable } = require('./i
 const { prepareTerminalAttachment } = require('./infrastructure/filesystem/terminal-attachment.adapter.cjs')
 const { MAX_PASTE_BYTES } = require('./domains/terminal/terminal-input.cjs')
 const { createTerminalDiagnosticsReport, sanitizeRendererMetrics } = require('./domains/terminal/terminal-diagnostics.cjs')
-const { createSystemSkill, deleteSystemSkill, getSystemSkill, listSystemSkills, updateSystemSkill } = require('./domains/ai/system-skills.cjs')
+const { createSystemSkillsUseCases } = require('./domains/ai/system-skills.cjs')
+const { createSystemSkillsFilesystemAdapter } = require('./infrastructure/filesystem/system-skills-filesystem.adapter.cjs')
 const { PI_COMMAND_TIMEOUT_MS, createPiSystemUseCases } = require('./domains/ai/pi-system-service.cjs')
 const { createProjectInstructionsUseCases } = require('./domains/ai/project-instructions.cjs')
 const { createProjectInstructionsFilesystemAdapter } = require('./infrastructure/filesystem/project-instructions-filesystem.adapter.cjs')
@@ -178,6 +179,15 @@ const reliabilityFaultInjection = RELIABILITY_FAULT_INJECTION_MODE
   : null
 const applicationHomePath = app.getPath('home')
 const systemSkillsRoot = path.join(applicationHomePath, '.pi', 'agent', 'skills')
+const {
+  createSystemSkill,
+  deleteSystemSkill,
+  getSystemSkill,
+  listSystemSkills,
+  updateSystemSkill,
+} = createSystemSkillsUseCases({
+  storage: createSystemSkillsFilesystemAdapter(),
+})
 const piAgentRoot = path.join(applicationHomePath, '.pi', 'agent')
 const ptyRuntime = createPtyRuntime()
 const shellHost = createShellHostAdapter({ environment: process.env })
