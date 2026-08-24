@@ -212,7 +212,7 @@ test('system light e dark attraversano preferenza Electron, DOM e token senza ri
   const tokens = read('src/theme/tokens.ts')
   const electron = read('electron/main.cjs')
   const xtermTheme = read('src/lib/xterm-theme.ts')
-  const freeTerminal = read('src/components/free-terminal.tsx')
+  const freeTerminal = read('src/features/terminal/components/free-terminal.tsx')
 
   assert.match(app, /useState<'system' \| 'light' \| 'dark'>\('system'\)/)
   assert.match(app, /window\.vincodeLab\.appearance\.get\(\)[\s\S]*?setAppearance\(value\)/)
@@ -264,7 +264,7 @@ test('le liste selezionabili delegano focus composito tastiera e selezione a Lis
   const index = read('src/components/ui/index.ts')
   const recipes = read('src/theme/recipes.ts')
   const projectSkills = read('src/components/project-skills.tsx')
-  const remoteFiles = read('src/components/remote-files.tsx')
+  const remoteFiles = read('src/features/remote-files/components/remote-files.tsx')
   const settings = read('src/features/settings/components/settings.tsx')
 
   assert.match(primitive, /Listbox as ArkListbox[^\n]*from '@ark-ui\/react\/listbox'/)
@@ -327,7 +327,7 @@ test('Tabs e SegmentGroup delegano roving focus e tastiera ad Ark senza handler 
 })
 
 test('gli allegati Pi delegano drop, focus e tastiera a FileUpload senza cambiare gli IPC', () => {
-  const attachments = read('src/components/terminal-attachments.tsx')
+  const attachments = read('src/features/ai/components/terminal-attachments.tsx')
   const fileUpload = read('src/components/ui/file-upload.tsx')
   const recipes = read('src/theme/recipes.ts')
   const styles = [attachments, fileUpload, recipes, read('src/theme/styles/terminal.ts')].join('\n')
@@ -351,10 +351,10 @@ test('Splitter centralizza persistenza, reset e dimensioni controllate senza sep
   const consumers = [
     'src/components/project-skills.tsx',
     'src/features/database/components/database-workspace.tsx',
-    'src/components/remote-files.tsx',
-    'src/components/github-workspace.tsx',
+    'src/features/remote-files/components/remote-files.tsx',
+    'src/features/github/components/github-workspace.tsx',
     'src/components/project-editor.tsx',
-    'src/components/free-terminal.tsx',
+    'src/features/terminal/components/free-terminal.tsx',
   ]
 
   assert.match(splitter, /readStorageSize\(window\.localStorage, storageKey\)/)
@@ -375,7 +375,7 @@ test('Splitter centralizza persistenza, reset e dimensioni controllate senza sep
     assert.doesNotMatch(source, /useResizablePanel|role="separator"|onPointerDown=/)
   }
 
-  const github = read('src/components/github-workspace.tsx')
+  const github = read('src/features/github/components/github-workspace.tsx')
   assert.match(github, /collapsible:\s*true,\s*collapsedSize:\s*'240px'/)
   assert.match(github, /<Splitter\.Context>\{\(\{ collapsePanel, expandPanel \}\)/)
   assert.match(github, /expandPanel\('github-project-picker'\) : collapsePanel\('github-project-picker'\)/)
@@ -434,8 +434,8 @@ test('Dialog delega focus trap, Escape e semantica modale ad Ark senza ruoli man
     'src/components/workspace-change-dialog.tsx',
     'src/components/remote-diff-dialog.tsx',
     'src/features/database/components/database-workspace.tsx',
-    'src/components/remote-files.tsx',
-    'src/components/github-workspace.tsx',
+    'src/features/remote-files/components/remote-files.tsx',
+    'src/features/github/components/github-workspace.tsx',
     'src/components/terminal-paste-status.tsx',
   ]
 
@@ -459,7 +459,7 @@ test('Dialog delega focus trap, Escape e semantica modale ad Ark senza ruoli man
     ['src/components/workspace-change-dialog.tsx', 'cancelButton', /finalFocusEl=\{\(\) => focusState\.opener\}/],
     ['src/components/remote-diff-dialog.tsx', 'closeButton', /finalFocusEl=\{\(\) => opener\.current\}/],
     ['src/features/database/components/database-workspace.tsx', 'connectionNameInput', /finalFocusEl=\{\(\) => connectionDialogOpener\.current\}/],
-    ['src/components/remote-files.tsx', 'renameInput', /finalFocusEl=\{\(\) => renameDialogOpener\.current\}/],
+    ['src/features/remote-files/components/remote-files.tsx', 'renameInput', /finalFocusEl=\{\(\) => renameDialogOpener\.current\}/],
     ['src/components/terminal-paste-status.tsx', 'primaryAction', /finalFocusEl=\{\(\) => opener\.current\}/],
   ]
   for (const [file, initialFocusRef, finalFocusPattern] of focusContracts) {
@@ -468,21 +468,21 @@ test('Dialog delega focus trap, Escape e semantica modale ad Ark senza ruoli man
     assert.match(source, finalFocusPattern, `${file} deve affidare ad Ark il ritorno all'opener`)
   }
 
-  for (const file of ['src/features/database/components/database-workspace.tsx', 'src/components/terminal-paste-status.tsx', 'src/components/remote-files.tsx', 'src/components/remote-diff-dialog.tsx']) {
+  for (const file of ['src/features/database/components/database-workspace.tsx', 'src/components/terminal-paste-status.tsx', 'src/features/remote-files/components/remote-files.tsx', 'src/components/remote-diff-dialog.tsx']) {
     const source = read(file)
     assert.match(source, /<Dialog\.CloseTrigger asChild><IconButton[^>]*tooltip=/, `${file} deve usare IconButton con tooltip per la chiusura icon-only`)
     assert.doesNotMatch(source, /<Dialog\.CloseTrigger asChild><Button[^>]*(?:size="icon|aria-label="Chiudi)/, `${file} non deve ricreare un icon button con Button`)
   }
 
   const database = read('src/features/database/components/database-workspace.tsx')
-  const remoteFiles = read('src/components/remote-files.tsx')
+  const remoteFiles = read('src/features/remote-files/components/remote-files.tsx')
   const workspaceChange = read('src/components/workspace-change-dialog.tsx')
   assert.doesNotMatch(database, /\{connectionModalOpen && <Dialog\.Root/)
   assert.doesNotMatch(remoteFiles, /\{renaming && <Dialog\.Root/)
   assert.doesNotMatch(remoteFiles, /<Field\.Input autoFocus/)
   assert.doesNotMatch(workspaceChange, /if \(!open\) return null/)
 
-  const terminal = read('src/components/free-terminal.tsx')
+  const terminal = read('src/features/terminal/components/free-terminal.tsx')
   assert.match(terminal, /<Dialog\.Root[\s\S]*?finalFocusEl=\{\(\) => commandsTrigger\.current\}/)
   assert.match(terminal, /<Dialog\.Root[\s\S]*?initialFocusEl=\{\(\) => commandSearchInput\.current\}/)
   assert.match(terminal, /modal=\{false\}[\s\S]*?trapFocus=\{false\}/)
@@ -595,10 +595,10 @@ test('lo stato delle tab Ark non viene duplicato da classi attive legacy', () =>
   const tabSurfaces = [
     'src/App.tsx',
     'src/features/settings/components/settings.tsx',
-    'src/components/terminal-workspace.tsx',
-    'src/components/remote-files.tsx',
+    'src/features/terminal/components/terminal-workspace.tsx',
+    'src/features/remote-files/components/remote-files.tsx',
     'src/features/database/components/database-workspace.tsx',
-    'src/components/github-workspace.tsx',
+    'src/features/github/components/github-workspace.tsx',
   ].map(read).join('\n')
   const styles = [
     ...filesUnder(path.join(projectRoot, 'src/styles'), (file) => file.endsWith('.css')),
@@ -613,11 +613,11 @@ test('lo stato delle tab Ark non viene duplicato da classi attive legacy', () =>
 test('le viste operative restano montate dopo la prima apertura', () => {
   const record = (file) => rendererRecords.find((candidate) => candidate.file === file)
   const app = record('src/App.tsx')
-  const terminal = record('src/components/terminal-workspace.tsx')
+  const terminal = record('src/features/terminal/components/terminal-workspace.tsx')
   const database = record('src/features/database/components/database-workspace.tsx')
   const settings = record('src/features/settings/components/settings.tsx')
   const editor = record('src/components/project-editor.tsx')
-  const freeTerminal = record('src/components/free-terminal.tsx')
+  const freeTerminal = record('src/features/terminal/components/free-terminal.tsx')
   assert.ok(app && terminal && database && settings && editor && freeTerminal)
 
   const appContents = jsxElements(app, 'Tabs.Content')

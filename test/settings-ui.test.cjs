@@ -40,7 +40,7 @@ test('la toolbar globale non duplica l apertura workspace e l aspetto vive nelle
 
 test('le tab AI adottano il medesimo indicatore di selezione delle tab GitHub', () => {
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const aiStyles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/ai.ts'), 'utf8')
   const recipes = fs.readFileSync(path.join(__dirname, '../src/theme/recipes.ts'), 'utf8')
 
@@ -78,7 +78,7 @@ test('Generali gestisce valori globali e personalizzazioni del workspace', () =>
 
 test('Generali espone diagnostica Terminale AI privacy-safe e solo su richiesta', () => {
   const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
-  const diagnostics = fs.readFileSync(path.join(__dirname, '../src/components/terminal-diagnostics.tsx'), 'utf8')
+  const diagnostics = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/terminal-diagnostics.tsx'), 'utf8')
 
   assert.match(settings, /<TerminalDiagnostics/)
   assert.match(diagnostics, /Metriche tecniche senza contenuti della sessione/)

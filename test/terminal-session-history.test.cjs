@@ -41,7 +41,7 @@ test('il listener della console Electron usa la firma corrente senza registrare 
 test('il riavvio usa soltanto la sessione selezionata senza un secondo bridge IPC', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
 
   assert.match(main, /createShellSessionManager/)
   assert.doesNotMatch(main, /let shellProcess|let shellWorkspacePath/)

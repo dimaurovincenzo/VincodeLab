@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 
-const workspace = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+const workspace = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
 const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
 test('GitHub usa primitive accessibili per azioni icon-only e selezione branch', () => {

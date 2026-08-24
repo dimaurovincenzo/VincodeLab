@@ -212,9 +212,9 @@ test('main e preload espongono mutazioni filesystem confinate e Cestino macOS', 
 test('DOM renderer identifica Explorer, cartelle, tab, recenti, copie e trasferimenti', () => {
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
   const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
-  const remote = fs.readFileSync(path.join(__dirname, '../src/components/remote-files.tsx'), 'utf8')
-  const terminal = fs.readFileSync(path.join(__dirname, '../src/components/terminal-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const remote = fs.readFileSync(path.join(__dirname, '../src/features/remote-files/components/remote-files.tsx'), 'utf8')
+  const terminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/terminal-workspace.tsx'), 'utf8')
 
   assert.match(app, /closest<HTMLElement>\('\[data-context-menu-kind\]'\)/)
   assert.match(app, /data-context-menu-kind="recent-workspace"/)

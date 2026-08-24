@@ -27,7 +27,7 @@ test('il confronto remoto usa CodeMirror MergeView e richiede un caricamento esp
 
 test('il terminale passa il file remoto all’Editor senza perdere le viste montate', () => {
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const workspace = fs.readFileSync(path.join(__dirname, '../src/components/terminal-workspace.tsx'), 'utf8')
+  const workspace = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/terminal-workspace.tsx'), 'utf8')
 
   assert.match(app, /setRemoteOpenRequest/)
   assert.match(app, /<ProjectEditor[^>]*remoteOpenRequest=/)

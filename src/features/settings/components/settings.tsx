@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Bot, Boxes, Check, CircleAlert, CircleCheck, Cpu, Download, FilePlus2, RefreshCw, RotateCcw, Settings2, Trash2 } from 'lucide-react'
 import { Button, Checkbox, createListCollection, ErrorNotice, Field, IconButton, Listbox, SegmentGroup, SelectField, Spinner, Tabs, toast } from '@/components/ui'
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
-import { TerminalDiagnostics } from '@/components/terminal-diagnostics'
+import { TerminalDiagnostics } from '@/features/ai'
 import { settingsBridge } from '../api/settings.bridge'
 import {
   defaultPiConfigDimensions,

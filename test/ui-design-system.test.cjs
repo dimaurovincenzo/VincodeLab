@@ -250,7 +250,7 @@ test('le superfici Graphite non mantengono override cromatici legacy', () => {
 
 test('xterm riceve il tema dal design system senza colori duplicati nei componenti', () => {
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const freeTerminal = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
+  const freeTerminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
   const xtermThemePath = path.join(__dirname, '../src/lib/xterm-theme.ts')
   const xtermTheme = fs.existsSync(xtermThemePath) ? fs.readFileSync(xtermThemePath, 'utf8') : ''
 
@@ -299,7 +299,7 @@ test('la Presence Ark e WorkbenchPresence non avvolgono le viste operative persi
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
   const confirmation = fs.readFileSync(path.join(__dirname, '../src/components/confirmation-dialog.tsx'), 'utf8')
   const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
 
   assert.match(confirmation, /const renderedRequest = request \?\? lastRequest/)
   assert.match(confirmation, /onExitComplete=\{\(\) => \{/)
@@ -361,8 +361,8 @@ test('un errore di vista non sostituisce toolbar e navigazione globali', () => {
 
 test('le sezioni operative consumano le preferenze effettive globali o del workspace', () => {
   const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
-  const terminal = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const terminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const database = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
 
   for (const key of ['editor.fontSize', 'editor.tabSize', 'editor.wordWrap', 'editor.autoSave', 'editor.explorerWidth']) assert.match(editor, new RegExp(key.replace('.', '\\.')))
@@ -432,7 +432,7 @@ test('impostazioni usa un unico scorrimento della pagina e una superficie operat
 
 test('i messaggi di sistema usano una terminologia italiana coerente', () => {
   const instructions = fs.readFileSync(path.join(__dirname, '../src/components/project-instructions.tsx'), 'utf8')
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   assert.doesNotMatch(instructions, /project-local/)
   assert.match(github, /Progetti GitHub del workspace/)
   assert.match(github, /'Board del Project'/)
@@ -445,8 +445,8 @@ test('i controlli icon-only espongono un tooltip operativo', () => {
   const skills = fs.readFileSync(path.join(__dirname, '../src/components/project-skills.tsx'), 'utf8')
   const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const attachments = fs.readFileSync(path.join(__dirname, '../src/components/terminal-attachments.tsx'), 'utf8')
-  const terminal = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
+  const attachments = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/terminal-attachments.tsx'), 'utf8')
+  const terminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
   assert.match(tooltip, /@ark-ui\/react\/tooltip/)
   assert.match(iconButton, /<Tooltip\.Root/)
   assert.match(iconButton, /const button = <Button/)
@@ -468,12 +468,12 @@ test('i controlli icon-only espongono un tooltip operativo', () => {
 })
 
 test('GitHub esplicita il prerequisito per le azioni remote disabilitate', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   assert.match(github, /Collega o crea un repository GitHub dalla scheda Modifiche per pubblicare e sincronizzare il branch\./)
 })
 
 test('GitHub distingue il branch del workspace dall’identità del repository', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
 
   assert.match(github, /<h1 className=\{gh\.pageTitle\}><GitFork size=\{18\} \/> Git del workspace<\/h1>/)
   assert.match(github, /<strong>Branch attivo<\/strong> \{status\.branch\}/)
@@ -481,7 +481,7 @@ test('GitHub distingue il branch del workspace dall’identità del repository',
 })
 
 test('GitHub separa il grafo e presenta i Projects del workspace in una tabella raggruppata', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
 
   assert.match(github, /type GitHubTab = 'changes' \| 'graph' \| 'issues' \| 'projects'/)
   assert.match(github, /<Tabs\.Root asChild value=\{tab\}[^>]*onValueChange=/)
@@ -500,7 +500,7 @@ test('GitHub separa il grafo e presenta i Projects del workspace in una tabella 
 })
 
 test('la board Project rende le sub-issue nella gerarchia del rispettivo padre', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
   assert.match(component, /function orderProjectItemsByHierarchy\(items: GitHubProjectItem\[\]\)/)
@@ -511,7 +511,7 @@ test('la board Project rende le sub-issue nella gerarchia del rispettivo padre',
 })
 
 test('Project GitHub comunica il caricamento e cerca le attività per numero issue', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
   assert.match(component, /function matchesProjectItemSearch\(item: GitHubProjectItem, query: string\)/)
@@ -524,7 +524,7 @@ test('Project GitHub comunica il caricamento e cerca le attività per numero iss
 })
 
 test('i gruppi Project sono intestazioni comprimibili e riconoscibili', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
   assert.match(github, /const \[collapsedBoardGroups, setCollapsedBoardGroups\] = useState<Set<string>>\(new Set\(\)\)/)
@@ -538,7 +538,7 @@ test('i gruppi Project sono intestazioni comprimibili e riconoscibili', () => {
 })
 
 test('la board Project espone una tabella ARIA completa senza mascherare i controlli interattivi', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
 
   assert.match(github, /role="table" aria-colcount=/)
   assert.match(github, /role="rowgroup"/)
@@ -573,7 +573,7 @@ test('GitHub applica ruoli Graphite alle superfici operative e agli stati delle 
 })
 
 test('le tab GitHub usano un indicatore Graphite rettilineo senza arrotondare la selezione', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
   const recipes = fs.readFileSync(path.join(__dirname, '../src/theme/recipes.ts'), 'utf8')
 
@@ -594,7 +594,7 @@ test('GitHub non conserva una palette locale fuori dal design system', () => {
 })
 
 test('la board Project apre il dettaglio dell’attività in un modal e non mostra azioni di aggiunta', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
 
   assert.doesNotMatch(github, /Nuova bozza/)
   assert.doesNotMatch(github, /Aggiungi una issue del workspace/)
@@ -607,7 +607,7 @@ test('la board Project apre il dettaglio dell’attività in un modal e non most
 })
 
 test('la lista Issue apre un dettaglio consultabile senza esporre azioni remote', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
 
   assert.match(github, /const \[selectedIssue, setSelectedIssue\] = useState<GitHubIssue \| null>\(null\)/)
   assert.match(github, /onClick=\{\(event\) => \{ issueDetailTrigger\.current = event\.currentTarget; setSelectedIssue\(issue\); setIssueDetailOpen\(true\) \}\}/)
@@ -618,7 +618,7 @@ test('la lista Issue apre un dettaglio consultabile senza esporre azioni remote'
 })
 
 test('il dettaglio Issue rende la descrizione come anteprima Markdown', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
   assert.match(github, /<MarkdownPreview source=\{selectedIssue\.body\}/)
@@ -628,7 +628,7 @@ test('il dettaglio Issue rende la descrizione come anteprima Markdown', () => {
 })
 
 test('il selettore Project si richiude e gli assegnatari restano compatti nella tabella', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
   assert.match(github, /const \[projectPickerCollapsed, setProjectPickerCollapsed\] = useState\(false\)/)
@@ -642,9 +642,9 @@ test('le superfici laterali condividono resize accessibile e persistente', () =>
   const editor = fs.readFileSync(path.join(__dirname, '../src/components/project-editor.tsx'), 'utf8')
   const skills = fs.readFileSync(path.join(__dirname, '../src/components/project-skills.tsx'), 'utf8')
   const database = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-workspace.tsx'), 'utf8')
-  const terminal = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
-  const remote = fs.readFileSync(path.join(__dirname, '../src/components/remote-files.tsx'), 'utf8')
+  const terminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const remote = fs.readFileSync(path.join(__dirname, '../src/features/remote-files/components/remote-files.tsx'), 'utf8')
   const splitter = fs.readFileSync(path.join(__dirname, '../src/components/ui/splitter.tsx'), 'utf8')
 
   for (const component of [editor, skills, database, terminal, github, remote]) {
@@ -661,7 +661,7 @@ test('le superfici laterali condividono resize accessibile e persistente', () =>
 })
 
 test('la board GitHub tollera campi restituiti senza metadati testuali', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
 
   assert.match(github, /function projectFieldDataType\(field: GitHubProjectField\)/)
   assert.match(github, /typeof field\.dataType === 'string' \? field\.dataType\.toLowerCase\(\) : ''/)
@@ -670,7 +670,7 @@ test('la board GitHub tollera campi restituiti senza metadati testuali', () => {
 })
 
 test('GitHub espone la freschezza cache e aggiorna senza bloccare dati disponibili', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
   assert.match(github, /gitBridge\.gitStatus\(\{ force \}\)/)
@@ -682,7 +682,8 @@ test('GitHub espone la freschezza cache e aggiorna senza bloccare dati disponibi
 })
 
 test('GitHub comunica ogni limite bounded e riferisce le azioni di gruppo ai file visibili', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
+  const feedback = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-feedback.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
   const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
 
@@ -695,14 +696,14 @@ test('GitHub comunica ogni limite bounded e riferisce le azioni di gruppo ai fil
   assert.match(github, /Aggiungi i \{stageable\.length\} file visibili consentiti/)
   assert.match(github, /Rimuovi i \{staged\.length\} file visibili/)
   assert.match(github, /Le azioni di gruppo agiscono solo sui file mostrati/)
-  assert.match(github, /function LimitNotice/)
+  assert.match(feedback, /function LimitNotice/)
   assert.match(styles, /limitNotice:\s*css\(\{[\s\S]*?bg:\s*'stateWarningSoft'[\s\S]*?borderColor:\s*'stateWarning'/)
   assert.match(types, /interface GitBranchPage \{ branches: GitBranch\[\]; hasMore: boolean; truncated: boolean \}/)
   assert.match(types, /branches: \(\) => Promise<GitBranchPage>/)
 })
 
 test('l’apertura di una board Project riusa la cache fino al refresh esplicito', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const loadBoard = github.slice(github.indexOf('  const loadBoard ='), github.indexOf('  const createProject ='))
 
   assert.match(loadBoard, /githubBridge\.projectBoard\(projectNumber\)/)
@@ -772,7 +773,7 @@ test('l’incolla nel Terminale AI segnala esplicitamente un contenuto rifiutato
 
 test('i terminali riusano una toolbar con reset zoom e riavvio', () => {
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const shell = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
+  const shell = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
   const toolbar = fs.readFileSync(path.join(__dirname, '../src/components/terminal-toolbar.tsx'), 'utf8')
 
   assert.match(app, /<TerminalToolbar/)
@@ -807,7 +808,7 @@ test('la barra del Terminale AI resta piatta ma lascia respiro a testo e control
 })
 
 test('il terminale libero offre ricerca xterm senza condividere la sessione Pi', () => {
-  const shell = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
+  const shell = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
 
   assert.match(shell, /@xterm\/addon-search/)
   assert.match(shell, /new SearchAddon\(\)/)
@@ -817,7 +818,7 @@ test('il terminale libero offre ricerca xterm senza condividere la sessione Pi',
 
 test('i terminali non forzano lo scroll durante la lettura dello storico', () => {
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const shell = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
+  const shell = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
 
   assert.match(app, /shouldFollowTerminalOutput/)
   assert.match(shell, /shouldFollowTerminalOutput/)
@@ -831,8 +832,8 @@ test('i terminali non forzano lo scroll durante la lettura dello storico', () =>
 
 test('gli allegati sono esclusivi di Pi e non inviano Invio', () => {
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const attachments = fs.readFileSync(path.join(__dirname, '../src/components/terminal-attachments.tsx'), 'utf8')
-  const shell = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
+  const attachments = fs.readFileSync(path.join(__dirname, '../src/features/ai/components/terminal-attachments.tsx'), 'utf8')
+  const shell = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
 
   assert.match(app, /<TerminalAttachments/)
   assert.match(attachments, /prepareDroppedAttachments/)
@@ -843,8 +844,8 @@ test('gli allegati sono esclusivi di Pi e non inviano Invio', () => {
 
 test('il Terminale AI parte a 11 px e le viste terminale ricevono lo stato di attivazione', () => {
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const freeTerminal = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
-  const terminalWorkspace = fs.readFileSync(path.join(__dirname, '../src/components/terminal-workspace.tsx'), 'utf8')
+  const freeTerminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
+  const terminalWorkspace = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/terminal-workspace.tsx'), 'utf8')
 
   assert.match(app, /const \[fontSize, setFontSize\] = useState\(11\)/)
   assert.match(app, /<TerminalWorkspace\b[^>]*active=\{appSection === 'terminal'\}[^>]*workspace=\{workspace\}/)
@@ -926,7 +927,7 @@ test('il Terminale libero non espone una cornice chiara attorno al canvas', () =
 })
 
 test('il terminale libero apre una sidebar comandi senza ridimensionare il PTY', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
 
   assert.match(component, /aria-label="Apri comandi workspace"/)
@@ -947,7 +948,7 @@ test('il terminale libero apre una sidebar comandi senza ridimensionare il PTY',
 })
 
 test('i comandi workspace usano primitive Field Select Collapsible e IconButton senza fallback HTML', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
 
   for (const primitive of ['Field', 'SelectField', 'Collapsible', 'IconButton']) assert.match(component, new RegExp(`<${primitive}`))
@@ -957,7 +958,7 @@ test('i comandi workspace usano primitive Field Select Collapsible e IconButton 
 })
 
 test('la sidebar invoca le azioni di salvataggio al click', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
 
   assert.match(component, /onClick=\{\(\) => void createCategory\(\)\}/)
   assert.match(component, /onClick=\{\(\) => void saveCommand\(\)\}/)
@@ -965,7 +966,7 @@ test('la sidebar invoca le azioni di salvataggio al click', () => {
 })
 
 test('la libreria comandi mostra categorie collassabili e feedback di caricamento', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
 
   assert.match(component, /workspaceCommandLibraryView\(categories, commandSearch\)/)
@@ -1060,7 +1061,7 @@ test('Database usa un explorer con tab, albero schema e modifica della connessio
 
 test('Database mantiene compatta la connessione e il pannello comandi mostra il form solo su richiesta', () => {
   const databaseStyles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
-  const terminal = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
+  const terminal = fs.readFileSync(path.join(__dirname, '../src/features/terminal/components/free-terminal.tsx'), 'utf8')
   const terminalStyles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/terminal.ts'), 'utf8')
 
   assert.match(databaseStyles, /sidebar:\s*css\(\{[\s\S]*?gridTemplateRows:\s*'auto minmax\(0, 1fr\) auto'/)
@@ -1152,7 +1153,7 @@ test('il workbench Modifiche GitHub riempie la vista e dimensiona correttamente 
 })
 
 test('Modifiche GitHub usa un workbench master detail senza cronologia duplicata', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
   assert.match(github, /className=\{gh\.changesWorkbench\}/)
@@ -1168,7 +1169,7 @@ test('Modifiche GitHub usa un workbench master detail senza cronologia duplicata
 })
 
 test('Issue GitHub usa ricerca numerica e compositore modale', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
 
   assert.match(github, /function matchesIssueSearch\(issue: GitHubIssue, query: string\)/)
@@ -1238,7 +1239,7 @@ test('la configurazione Pi viene chiusa anche quando Impostazioni resta montata 
 })
 
 test('la board Project ignora un caricamento superato da una selezione più recente', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   assert.match(github, /const boardRequest = useRef\(0\)/)
   assert.match(github, /const requestId = \+\+boardRequest\.current/)
   assert.match(github, /if \(requestId !== boardRequest\.current\) return/)
@@ -1263,7 +1264,7 @@ test('il grafo Git sfrutta tutta la larghezza della sezione GitHub', () => {
 })
 
 test('il grafo Git mantiene continui i rami e differenzia le corsie', () => {
-  const component = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const component = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/github.ts'), 'utf8')
   const pathStyles = styles.slice(styles.indexOf('export const gitGraphPathStyles'), styles.indexOf('export const gitGraphNodeStyles'))
   const nodeStyles = styles.slice(styles.indexOf('export const gitGraphNodeStyles'), styles.indexOf('export const githubMarkdownStyles'))
@@ -1354,14 +1355,14 @@ test('Istruzioni progetto non consente modifiche prima della lettura iniziale e 
 })
 
 test('GitHub non confonde il caricamento remoto con un workspace non configurato', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   assert.match(github, /const githubDataState = !data \?/)
   assert.match(github, /Caricamento dati GitHub…/)
   assert.match(github, /Riprova caricamento GitHub/)
 })
 
 test('il modal attività GitHub trattiene e ripristina il focus da tastiera', () => {
-  const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
+  const github = fs.readFileSync(path.join(__dirname, '../src/features/github/components/github-workspace.tsx'), 'utf8')
   const dialog = fs.readFileSync(path.join(__dirname, '../src/components/ui/dialog.tsx'), 'utf8')
   assert.match(dialog, /Root:\s*withRootProvider\(ArkDialog\.Root\)/)
   assert.match(dialog, /Content:\s*withContext\(ArkDialog\.Content, 'content'\)/)

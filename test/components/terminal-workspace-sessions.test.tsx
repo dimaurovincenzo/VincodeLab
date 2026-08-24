@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/components/free-terminal', () => ({
+vi.mock('@/features/terminal/components/free-terminal', () => ({
   FreeTerminal: ({
     active,
     onStatusChange,
@@ -18,7 +18,7 @@ vi.mock('@/components/free-terminal', () => ({
   </div>,
 }))
 
-vi.mock('@/components/remote-files', () => ({
+vi.mock('@/features/remote-files', () => ({
   RemoteFiles: ({ active }: { active: boolean }) => <div data-active={String(active)} data-testid="remote-files">File remoti persistenti</div>,
 }))
 

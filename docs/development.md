@@ -71,7 +71,7 @@ src/
   app/                    composizione, provider, layout e stato della shell
   features/               capacità verticali con API pubblica per feature
   bridge/                 unico accesso renderer al preload Electron
-  components/             viste e componenti React
+  components/             componenti condivisi e facciate legacy temporanee
     ui/                    unico ingresso per le primitive condivise
   shared/                 moduli neutrali realmente condivisi
   lib/                    stato e logica renderer riutilizzabile

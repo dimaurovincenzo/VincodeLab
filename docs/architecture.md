@@ -68,7 +68,7 @@ Il primo registratore backend estratto è `electron/ipc/domains/runtime.ipc.cjs`
 
 `node-pty` ospita sia le sessioni shell sia Pi Coding Agent. Il main possiede processi, backpressure, cronologia e lifecycle; xterm si occupa soltanto della presentazione e dell'input. Le viste terminale rimangono montate durante la navigazione per preservare sessione e viewport.
 
-Nel renderer `src/features/terminal/` espone sessioni shell, libreria comandi e connessioni SSH gestite; `src/features/ai/` mantiene invece le capacità specifiche di Pi e dei suoi allegati. Le due feature risolvono il preload tramite adapter ritardati distinti: condividono primitive tecniche, ma non controller dell'output, stato o lifecycle.
+Nel renderer `src/features/terminal/` possiede i controller canonici delle sessioni shell, della libreria comandi e delle connessioni SSH gestite; `src/features/ai/` mantiene invece le capacità specifiche di Pi, gli allegati e la diagnostica. Le due feature risolvono il preload tramite adapter ritardati distinti: condividono primitive tecniche, ma non controller dell'output, stato o lifecycle. I vecchi path in `src/components/` sono facciate temporanee e non contengono più implementazione.
 
 `electron/bootstrap.cjs` installa l'esperienza fatal prima di caricare moduli nativi. `electron/pty-runtime.cjs` confina invece un componente PTY mancante o incompatibile: terminali e Pi risultano degradati, mentre le aree che non richiedono PTY restano operative. Una dipendenza essenziale del bundle assente viene presentata come installazione da riparare, senza esporre il messaggio raw del loader.
 
@@ -86,7 +86,7 @@ Il controller della vista, il modello puro, i tipi di dominio, l'input numerico 
 
 `electron/github-service.cjs` separa operazioni Git locali da richieste effettuate con GitHub CLI. L'area GitHub usa esclusivamente il repository associato al workspace attivo. Registri dedicati gestiscono annullamento e appartenenza delle operazioni lunghe.
 
-Nel renderer `src/features/git/` espone soltanto le operazioni sul repository locale, mentre `src/features/github/` espone repository remoti, issue e Projects. I due adapter risolvono il bridge Electron al momento di ogni invocazione e impediscono alla vista legacy di dipendere direttamente da `window.vincodeLab`; questa separazione resta valida anche finché il preload mantiene entrambe le capacità nello stesso namespace storico `github`.
+Nel renderer `src/features/git/` espone soltanto le operazioni sul repository locale, mentre `src/features/github/` possiede il controller canonico di repository remoti, issue e Projects. I feedback presentazionali riusabili sono separati dal controller; il vecchio path della vista è una facciata. I due adapter risolvono il bridge Electron al momento di ogni invocazione e impediscono alla UI di dipendere direttamente da `window.vincodeLab`; questa separazione resta valida anche finché il preload mantiene entrambe le capacità nello stesso namespace storico `github`.
 
 ### Database
 
@@ -106,7 +106,7 @@ L’explorer usa `SCAN`, letture paginate per tipo, preflight della dimensione e
 
 Il servizio SSH usa gli eseguibili OpenSSH locali e una connessione controllata per workspace. SFTP esegue operazioni serializzate e limitate. I file aperti vengono copiati in una cache applicativa, confrontati tramite hash e sincronizzati soltanto su azione esplicita; lo stato di conflitto non sovrascrive automaticamente né la copia locale né quella remota.
 
-`src/features/remote-files/` possiede il confine renderer per profili SSH, navigazione SFTP, trasferimenti, copie tracciate e comandi contestuali. La vista risolve queste capacità tramite l'API pubblica della feature e non accede più direttamente al preload.
+`src/features/remote-files/` possiede il controller canonico e il confine renderer per profili SSH, navigazione SFTP, trasferimenti, copie tracciate e comandi contestuali. La vista risolve queste capacità tramite l'API pubblica della feature e non accede più direttamente al preload; il vecchio path è una facciata di compatibilità.
 
 ## Persistenza
 

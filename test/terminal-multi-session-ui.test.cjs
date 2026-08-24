@@ -4,8 +4,8 @@ const path = require('node:path')
 const test = require('node:test')
 
 const projectRoot = path.join(__dirname, '..')
-const terminalWorkspace = fs.readFileSync(path.join(projectRoot, 'src/components/terminal-workspace.tsx'), 'utf8')
-const freeTerminal = fs.readFileSync(path.join(projectRoot, 'src/components/free-terminal.tsx'), 'utf8')
+const terminalWorkspace = fs.readFileSync(path.join(projectRoot, 'src/features/terminal/components/terminal-workspace.tsx'), 'utf8')
+const freeTerminal = fs.readFileSync(path.join(projectRoot, 'src/features/terminal/components/free-terminal.tsx'), 'utf8')
 
 test('FreeTerminal è un client isolato per sessionId e non crea PTY legacy', () => {
   assert.match(freeTerminal, /sessionId: string/)
