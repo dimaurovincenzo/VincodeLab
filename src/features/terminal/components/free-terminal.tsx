@@ -7,6 +7,20 @@ import { Button, Collapsible, Dialog, ErrorNotice, Field, IconButton, SegmentGro
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
 import { TerminalToolbar } from '@/components/terminal-toolbar'
 import { terminalBridge } from '../api/terminal.bridge'
+import {
+  terminalSessionStatusLabel,
+  terminalSessionUiStatus,
+  type TerminalClipboardFailure,
+  type TerminalFailure,
+  type TerminalPreferenceFailure,
+  type TerminalSessionUiStatus,
+} from '../model/terminal-session'
+import {
+  reportTerminalClipboardFailure,
+  reportTerminalFailure,
+  reportTerminalPreferenceFailure,
+  terminalFailureFromEvent,
+} from '../services/terminal-error'
 import { scheduleVisibleTerminalRefit } from '@/lib/terminal-activation.js'
 import { createAnimationFrameResizeScheduler } from '@/lib/terminal-resize.js'
 import { nextTerminalFontSize, readTerminalPreferences, writeTerminalPreferences } from '@/lib/terminal-preferences.js'
@@ -17,8 +31,10 @@ import { useApplicationMenuCommand } from '@/lib/app-menu-command'
 import { createShellXtermOutputController } from '@/lib/shell-xterm-output-controller'
 import { suppressGlobalTerminalShortcut } from '@/lib/workbench-shortcuts'
 import { workspaceCommandLibraryView } from '@/lib/workspace-command-library.js'
-import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
+import type { UserError } from '@/lib/user-error'
 import { terminalStyles } from '@/theme/styles/terminal'
+
+export type { TerminalSessionUiStatus } from '../model/terminal-session'
 
 const workspaceCommandPanels: SplitterPanelData[] = [
   { id: 'terminal-space', minSize: '420px' },
@@ -34,72 +50,6 @@ type Props = {
   profileComposerRequest: number
   onManagedConnection: (connectionId: string) => void
   onStatusChange?: (sessionId: string, status: TerminalSessionUiStatus) => void
-}
-
-export type TerminalSessionUiStatus = 'starting' | 'ready' | 'exited' | 'error'
-
-type TerminalFailure = {
-  error: UserError
-  recovery: ShellSessionErrorRecovery
-}
-
-type TerminalPreferenceFailure = {
-  error: UserError
-  recovery: 'load' | 'save'
-}
-
-function reportTerminalFailure(error: unknown, operation: string, title: string, description: string, category: 'process' | 'persistence' | 'remote' = 'process') {
-  return reportUserError(normalizeUserError(error, {
-    category,
-    component: 'terminal',
-    operation,
-    title,
-    fallbackDescription: description,
-  }))
-}
-
-function reportTerminalPreferenceFailure(error: unknown, recovery: TerminalPreferenceFailure['recovery']) {
-  return reportTerminalFailure(
-    error,
-    recovery === 'load' ? 'load-terminal-preferences' : 'save-terminal-preferences',
-    recovery === 'load' ? 'Preferenze del terminale non caricate' : 'Preferenze del terminale non salvate',
-    recovery === 'load'
-      ? 'È stata applicata la dimensione predefinita. La sessione e l’output sono rimasti disponibili.'
-      : 'La nuova dimensione resta attiva in questa sessione, ma potrebbe non essere ripristinata alla prossima apertura.',
-    'persistence',
-  )
-}
-
-const shellSessionErrorCopy: Record<ShellSessionOneWayOperation, { title: string; fallbackDescription: string }> = {
-  ready: { title: 'Output del terminale non collegato', fallbackDescription: 'Recupera lo storico per riallineare la sessione.' },
-  ack: { title: 'Output del terminale non confermato', fallbackDescription: 'Recupera lo storico per continuare a ricevere l’output.' },
-  disconnect: { title: 'Output del terminale non scollegato', fallbackDescription: 'Riapri la sessione per riallineare il collegamento.' },
-  write: { title: 'Testo non inviato', fallbackDescription: 'La sessione e lo storico sono rimasti disponibili. Riavvia la shell se non risponde.' },
-  resize: { title: 'Terminale non ridimensionato', fallbackDescription: 'La sessione è rimasta attiva. Adatta nuovamente il terminale.' },
-}
-
-function terminalFailureFromEvent(event: ShellSessionErrorEvent): TerminalFailure {
-  const copy = shellSessionErrorCopy[event.operation]
-  return {
-    error: normalizeUserError(event.error, {
-      category: event.error.category,
-      code: event.error.code,
-      component: 'terminal',
-      correlationId: event.error.correlationId,
-      fallbackDescription: copy.fallbackDescription,
-      operation: event.operation,
-      recoverable: event.error.recoverable,
-      severity: event.error.severity,
-      title: copy.title,
-    }),
-    recovery: event.recovery,
-  }
-}
-
-function sessionUiStatus(status: ShellSessionStatus | undefined): TerminalSessionUiStatus {
-  if (status === 'starting') return 'starting'
-  if (status === 'exited') return 'exited'
-  return 'ready'
 }
 
 export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'running', focusRequest = 0, profileComposerRequest, onManagedConnection, onStatusChange }: Props) {
@@ -119,7 +69,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
   const managedConnectionCommandId = useRef<string | null>(null)
   const synchronizeOutput = useRef<((reset?: boolean) => Promise<void>) | null>(null)
   const statusListener = useRef(onStatusChange)
-  const [status, setStatus] = useState<TerminalSessionUiStatus>(() => sessionUiStatus(initialStatus))
+  const [status, setStatus] = useState<TerminalSessionUiStatus>(() => terminalSessionUiStatus(initialStatus))
   const statusRef = useRef(status)
   const isActiveRef = useRef(active)
   const [{ fontSize: initialFontSize, failure: initialTerminalPreferenceFailure }] = useState(() => {
@@ -145,7 +95,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
   const [terminalFailure, setTerminalFailure] = useState<TerminalFailure | null>(null)
   const [terminalPreferenceFailure, setTerminalPreferenceFailure] = useState<TerminalPreferenceFailure | null>(initialTerminalPreferenceFailure)
   const [sshFailure, setSshFailure] = useState<UserError | null>(null)
-  const [clipboardFailure, setClipboardFailure] = useState<{ action: 'copy' | 'paste'; error: UserError } | null>(null)
+  const [clipboardFailure, setClipboardFailure] = useState<TerminalClipboardFailure | null>(null)
   const [commandSearch, setCommandSearch] = useState('')
   const [categoryName, setCategoryName] = useState('')
   const [commandTitle, setCommandTitle] = useState('')
@@ -163,7 +113,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
   const [confirmation, setConfirmation] = useState<ConfirmationRequest | null>(null)
   const commandLibraryView = useMemo(() => workspaceCommandLibraryView(categories, commandSearch), [categories, commandSearch])
   const autoExpandedCategoryIds = useMemo(() => new Set(commandLibraryView.autoExpandedIds), [commandLibraryView.autoExpandedIds])
-  const statusLabel = status === 'starting' ? 'Avvio shell…' : status === 'ready' ? 'Shell pronta' : status === 'exited' ? 'Shell terminata' : 'Shell non disponibile'
+  const statusLabel = terminalSessionStatusLabel(status)
 
   useEffect(() => {
     statusListener.current = onStatusChange
@@ -721,16 +671,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
       await navigator.clipboard.writeText(selection)
       setClipboardFailure(null)
     } catch (cause) {
-      setClipboardFailure({
-        action: 'copy',
-        error: reportUserError(normalizeUserError(cause, {
-          category: 'permission',
-          component: 'terminal',
-          operation: 'copy-selection',
-          title: 'Selezione non copiata',
-          description: 'Gli appunti non sono accessibili. La selezione resta disponibile nel terminale.',
-        })),
-      })
+      setClipboardFailure(reportTerminalClipboardFailure(cause, 'copy'))
     }
   }
   const paste = useCallback(async () => {
@@ -740,16 +681,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
       setClipboardFailure(null)
       terminal.current?.focus()
     } catch (cause) {
-      setClipboardFailure({
-        action: 'paste',
-        error: reportUserError(normalizeUserError(cause, {
-          category: 'permission',
-          component: 'terminal',
-          operation: 'paste',
-          title: 'Testo non incollato',
-          description: 'Gli appunti non sono accessibili. La sessione del terminale è rimasta attiva.',
-        })),
-      })
+      setClipboardFailure(reportTerminalClipboardFailure(cause, 'paste'))
     }
   }, [sessionId])
   const retryTerminalResize = () => {
