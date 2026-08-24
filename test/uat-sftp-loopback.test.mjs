@@ -20,6 +20,7 @@ import {
 const TEST_DIRECTORY = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(TEST_DIRECTORY, '..')
 const SCRIPT_PATH = path.join(ROOT, 'scripts', 'uat-sftp-loopback.mjs')
+const SCENARIO_PATH = path.join(ROOT, 'scripts', 'lib', 'sftp-loopback-uat', 'scenario.mjs')
 const PORT = 55_321
 const FIXTURE = '/tmp/vincodelab-sftp-uat-unit'
 
@@ -201,7 +202,7 @@ test('il report JSON espone solo esiti, ambiente e hash ammessi', () => {
 })
 
 test('il contratto statico usa il servizio reale e copre operazioni, cancellazione e cleanup finale', async () => {
-  const source = await readFile(SCRIPT_PATH, 'utf8')
+  const source = await readFile(SCENARIO_PATH, 'utf8')
   assert.match(source, /createSftpService\(/u)
   for (const operation of ['list', 'download', 'uploadTemp', 'chmod', 'rename', 'mkdir', 'rmdir', 'remove']) {
     assert.match(source, new RegExp(`sftpService\\.${operation}\\(`, 'u'))
