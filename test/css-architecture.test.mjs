@@ -202,14 +202,20 @@ test("Editor usa token e confina le integrazioni CodeMirror", () => {
 
 test("Database usa explorer e split pane enterprise senza palette locale", () => {
   const database = readWorkspaceFile("src/theme/styles/database.ts");
+  const databaseTableGrid = readWorkspaceFile("src/theme/styles/database-table-grid.ts");
   const bridge = readWorkspaceFile("src/styles/views/database.css");
 
   assert.match(database, /export const databaseStyles/);
+  assert.match(database, /import \{ databaseTableGridStyles \} from '\.\/database-table-grid'/);
+  assert.match(database, /\.\.\.databaseTableGridStyles/);
+  assert.doesNotMatch(database, /^  grid(?:Row|Cell)?:\s*(?:css|cva)\(/m);
+  assert.match(databaseTableGrid, /export const databaseTableGridStyles/);
+  assert.match(databaseTableGrid, /grid:\s*css\(\{[\s\S]*?gridTemplateRows:/);
   assert.match(database, /--splitter-display/);
   assert.match(database, /gridTemplateRows:/);
   assert.match(bridge, /\.cm-/);
   assert.doesNotMatch(
-    [database, bridge].join("\n"),
+    [database, databaseTableGrid, bridge].join("\n"),
     /#[0-9a-f]{3,8}\b|!important|data-theme|prefers-color-scheme/i,
   );
 });

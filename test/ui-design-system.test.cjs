@@ -342,7 +342,7 @@ test('la griglia Database reimposta le bozze al remount senza aggiornamenti sinc
 })
 
 test('la griglia Database usa ruoli semantici Graphite e viste locali accessibili', () => {
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
+  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database-table-grid.ts'), 'utf8')
   const workspace = readDatabaseSource()
 
   assert.match(styles, /stateSuccess/)
@@ -1149,7 +1149,7 @@ test('Database distingue procedure e funzioni dalle tabelle nell explorer', () =
 test('Database apre una griglia dati ricercabile e salva solo nella transazione', () => {
   const component = readDatabaseSource()
   const grid = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-table-grid.tsx'), 'utf8')
-  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
+  const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database-table-grid.ts'), 'utf8')
 
   assert.match(component, /database\s*\.\s*tableRows/)
   assert.match(component, /database\s*\.\s*updateTableRows/)
