@@ -32,7 +32,7 @@ function createDeveloperToolsBridge(ipcRenderer) {
     },
     pi: {
       reload: () => ipcRenderer.invoke(IPC_CHANNELS.PI_RELOAD),
-      restart: () => ipcRenderer.invoke(IPC_CHANNELS.PI_RESTART),
+      restart: (options) => ipcRenderer.invoke(IPC_CHANNELS.PI_RESTART, options),
     },
     systemSkills: {
       list: () => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_SKILLS_LIST), get: (id) => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_SKILLS_GET, id), create: (name) => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_SKILLS_CREATE, name), update: (id, content) => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_SKILLS_UPDATE, id, content), delete: (id) => ipcRenderer.invoke(IPC_CHANNELS.SYSTEM_SKILLS_DELETE, id),

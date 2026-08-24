@@ -7,6 +7,18 @@ function terminalDiagnostics(piSessionController, createTerminalDiagnosticsRepor
   })
 }
 
+function terminalResumeSnapshot(piSessionController) {
+  const stream = piSessionController.getStream()
+  if (!stream) throw new Error('La sessione del Terminale AI non è attiva.')
+  const state = piSessionController.getState()
+  return Object.freeze({
+    ...stream.createResumeSnapshot(),
+    runtime: state.runtime,
+    piAvailable: state.piAvailable,
+    ...(state.fallbackReason ? { fallbackReason: state.fallbackReason } : {}),
+  })
+}
+
 function createAiTerminalInvokeHandlers({
   assertTrustedSender,
   chooseTerminalAttachments,
@@ -28,15 +40,20 @@ function createAiTerminalInvokeHandlers({
       assertTrustedSender(event)
       return reloadPi()
     }],
-    [IPC_CHANNELS.PI_RESTART, (event) => {
+    [IPC_CHANNELS.PI_RESTART, (event, options) => {
       assertTrustedSender(event)
-      return restartPi()
+      if (options !== undefined && (
+        !options
+        || typeof options !== 'object'
+        || Array.isArray(options)
+        || Object.keys(options).some((key) => key !== 'runtime')
+        || options.runtime !== 'pi'
+      )) throw new Error('Opzioni riavvio Terminale AI non valide.')
+      return restartPi(options)
     }],
     [IPC_CHANNELS.TERMINAL_RESUME, (event) => {
       assertTrustedSender(event)
-      const stream = piSessionController.getStream()
-      if (!stream) throw new Error('La sessione Pi non è attiva.')
-      return stream.createResumeSnapshot()
+      return terminalResumeSnapshot(piSessionController)
     }],
     [IPC_CHANNELS.TERMINAL_WRITE_INPUT, (event, data) => {
       assertTrustedSender(event)
@@ -53,8 +70,20 @@ function createAiTerminalInvokeHandlers({
           severity: 'warning',
         })
       }
+      if (piSessionController.getState().runtime === 'herdr') {
+        throw toApplicationError(new Error('Programmatic input disabled for shared Herdr session.'), {
+          category: 'validation',
+          channel: IPC_CHANNELS.TERMINAL_WRITE_INPUT,
+          code: 'HERDR_PROGRAMMATIC_INPUT_DISABLED',
+          domain: 'terminal',
+          message: 'L’invio automatico è disattivato in Herdr. Seleziona il pane Pi desiderato e inserisci il contenuto direttamente.',
+          operation: 'writeInput',
+          recoverable: true,
+          severity: 'info',
+        })
+      }
       if (!piSessionController.write(data)) {
-        throw toApplicationError(new Error('Il processo Pi non ha accettato l’input programmatico.'), {
+        throw toApplicationError(new Error('Il processo del Terminale AI non ha accettato l’input programmatico.'), {
           channel: IPC_CHANNELS.TERMINAL_WRITE_INPUT,
           code: 'TERMINAL_WRITE_INPUT_FAILED',
           domain: 'terminal',
@@ -156,7 +185,7 @@ function createAiTerminalSendListeners({
     [IPC_CHANNELS.TERMINAL_KEY, (event, data) => {
       assertTrustedSender(event)
       if (!piSessionController.write(data)) {
-        rejectOneWay('TERMINAL_INPUT_REJECTED', 'Il processo Pi non ha accettato l’input.')
+        rejectOneWay('TERMINAL_INPUT_REJECTED', 'Il Terminale AI non ha accettato l’input.')
       }
     }],
     [IPC_CHANNELS.TERMINAL_RENDERER_METRICS, (event, metrics) => {
@@ -192,7 +221,7 @@ function createAiTerminalSendListeners({
         rejectOneWay('TERMINAL_RESIZE_INVALID', 'Dimensioni Terminale AI non valide.')
       }
       if (!piSessionController.resize(cols, rows)) {
-        rejectOneWay('TERMINAL_RESIZE_REJECTED', 'Il processo Pi non ha accettato il ridimensionamento.')
+        rejectOneWay('TERMINAL_RESIZE_REJECTED', 'Il Terminale AI non ha accettato il ridimensionamento.')
       }
     }],
   ])
@@ -220,4 +249,5 @@ module.exports = {
   createAiTerminalInvokeHandlers,
   createAiTerminalSendListeners,
   registerAiTerminalIpc,
+  terminalResumeSnapshot,
 }

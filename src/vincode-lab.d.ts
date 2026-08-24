@@ -1,7 +1,15 @@
 interface TerminalExitStatus {
-  exitCode: number
-  signal: number
+  exitCode: number | null
+  signal: number | string | null
+  runtime?: AiTerminalRuntime
+  piAvailable?: boolean
 }
+
+type AiTerminalRuntime = import('./bridge').AiTerminalRuntime
+type AiTerminalFallbackReason = import('./bridge').AiTerminalFallbackReason
+type AiTerminalReloadResult = import('./bridge').AiTerminalReloadResult
+type AiTerminalRestartOptions = import('./bridge').AiTerminalRestartOptions
+type AiTerminalRestartResult = import('./bridge').AiTerminalRestartResult
 
 type ShellSessionStatus = 'starting' | 'running' | 'exited'
 interface ShellSessionMetadata {
@@ -132,6 +140,9 @@ type TerminalResumeSnapshot = {
   snapshot: { data: string; firstSequence: number; watermark: number; bytes: number }
   status: TerminalStreamStatus
   exitStatus?: TerminalExitStatus
+  runtime: AiTerminalRuntime
+  fallbackReason?: AiTerminalFallbackReason
+  piAvailable?: boolean
 }
 type TerminalStreamState = { sessionId: string; status: TerminalStreamStatus; queuedBytes: number }
 
@@ -811,11 +822,11 @@ interface Window {
       create: (name: string) => Promise<ProjectSkill>
       update: (skillId: string, content: string) => Promise<ProjectSkill>
       delete: (skillId: string) => Promise<{ deleted: true }>
-      reload: () => Promise<{ reloaded: true }>
+      reload: () => Promise<AiTerminalReloadResult>
     }
     pi: {
-      reload: () => Promise<{ reloaded: true }>
-      restart: () => Promise<{ restarted: true }>
+      reload: () => Promise<AiTerminalReloadResult>
+      restart: (options?: AiTerminalRestartOptions) => Promise<AiTerminalRestartResult>
     }
     systemSkills: { list: () => Promise<ProjectSkill[]>; get: (id: string) => Promise<ProjectSkill>; create: (name: string) => Promise<ProjectSkill>; update: (id: string, content: string) => Promise<ProjectSkill>; delete: (id: string) => Promise<{ deleted: true }> }
     runtime: { capabilities: () => Promise<RuntimeCapabilitiesSnapshot> }

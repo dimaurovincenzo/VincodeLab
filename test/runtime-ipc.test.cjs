@@ -18,6 +18,7 @@ function runtimeFixture(overrides = {}) {
       calls.push(['service', options])
       return snapshot
     },
+    inspectHerdr: async () => ({ available: true, executable: '/opt/homebrew/bin/herdr' }),
     resolvePiExecutable: () => '/usr/local/bin/pi',
     ...overrides,
   }
@@ -39,36 +40,37 @@ test('registra una sola volta il manifesto IPC Runtime', () => {
   assert.deepEqual([...fixture.registrations.keys()], RUNTIME_INVOKE_CHANNELS)
 })
 
-test('verifica il sender prima di leggere le capability e conserva le opzioni normali', () => {
+test('verifica il sender prima di leggere le capability e conserva le opzioni normali', async () => {
   const fixture = runtimeFixture()
   const event = { sender: { id: 42 } }
   const handler = createRuntimeHandlers(fixture.dependencies).get('runtime:capabilities')
 
-  assert.equal(handler(event), fixture.snapshot)
+  assert.equal(await handler(event), fixture.snapshot)
   assert.equal(fixture.calls[0][0], 'guard')
   assert.equal(fixture.calls[0][1], event)
   assert.deepEqual(fixture.calls[1], ['service', {
+    herdrStatus: { available: true, executable: '/opt/homebrew/bin/herdr' },
     piExecutable: '/usr/local/bin/pi',
     ptyStatus: { available: true },
     systemToolSearchOptions: undefined,
   }])
 })
 
-test('mantiene confinata la ricerca strumenti nello smoke clean-machine', () => {
+test('mantiene confinata la ricerca strumenti nello smoke clean-machine', async () => {
   const fixture = runtimeFixture({ cleanMachineSmokeMode: true })
   const handler = createRuntimeHandlers(fixture.dependencies).get('runtime:capabilities')
 
-  handler({ sender: { id: 1 } })
+  await handler({ sender: { id: 1 } })
   assert.deepEqual(fixture.calls[1][1].systemToolSearchOptions, {
     includeCommonDirectories: false,
     includeNvm: false,
   })
 })
 
-test('non intercetta gli errori destinati alla boundary IPC globale', () => {
+test('non intercetta gli errori destinati alla boundary IPC globale', async () => {
   const expected = new Error('runtime probe failed')
   const fixture = runtimeFixture({ getRuntimeCapabilities: () => { throw expected } })
   const handler = createRuntimeHandlers(fixture.dependencies).get('runtime:capabilities')
 
-  assert.throws(() => handler({ sender: { id: 1 } }), (error) => error === expected)
+  await assert.rejects(handler({ sender: { id: 1 } }), (error) => error === expected)
 })

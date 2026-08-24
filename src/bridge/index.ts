@@ -1,5 +1,13 @@
 export { bridgeNamespace, getVincodeLabBridge, optionalVincodeLabBridge } from './electron/get-vincode-lab-bridge'
 export type {
+  AiTerminalFallbackReason,
+  AiTerminalReloadResult,
+  AiTerminalRestartOptions,
+  AiTerminalRestartResult,
+  AiTerminalRuntime,
+  AiTerminalRuntimeState,
+} from './contracts/ai-terminal.types'
+export type {
   RedisApi,
   RedisConnection,
   RedisConnectionInput,

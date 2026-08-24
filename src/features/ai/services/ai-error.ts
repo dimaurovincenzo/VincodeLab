@@ -81,11 +81,17 @@ export function normalizeAiSessionFailure(cause: unknown, context: AiFailureCont
   })
   const signature = `${classified.code ?? ''} ${classified.technicalMessage}`
   const piMissing = classified.code === 'PI_NOT_INSTALLED'
+  const terminalRuntimeUnavailable = classified.code === 'AI_TERMINAL_RUNTIME_UNAVAILABLE'
+  const herdrNotRunnable = classified.code === 'HERDR_NOT_RUNNABLE'
+  const herdrEndedDuringStartup = classified.code === 'HERDR_SESSION_ENDED_DURING_STARTUP'
+  const herdrEndedWithoutFallback = classified.code === 'HERDR_SESSION_ENDED_WITHOUT_FALLBACK'
   const rateLimited = /RATE.?LIMIT|TOO_MANY_REQUESTS|\b429\b/iu.test(signature)
   const configurationRequired = classified.category === 'authentication'
     || classified.category === 'configuration'
     || classified.category === 'permission'
     || piMissing
+    || terminalRuntimeUnavailable
+    || herdrNotRunnable
     || /CONFIG|CREDENTIAL|API.?KEY|TOKEN_(?:EXPIRED|INVALID|MISSING)|NOT_CONFIGURED/iu.test(signature)
   const providerFailure = /PROVIDER|MODEL|UPSTREAM|AI_API|API_(?:FAILURE|UNAVAILABLE)/iu.test(signature)
   const category = configurationRequired
@@ -97,7 +103,27 @@ export function normalizeAiSessionFailure(cause: unknown, context: AiFailureCont
         : classified.category
   const copy = classified.category === 'cancelled'
     ? { description: `L’operazione AI è stata annullata. ${context.preserved}`, title: 'Operazione AI annullata' }
-    : piMissing
+    : terminalRuntimeUnavailable
+      ? {
+          description: `Herdr non è disponibile e Pi Coding Agent non è installato o utilizzabile. ${context.preserved} Installa almeno uno dei due runtime e aggiorna la verifica nelle Impostazioni.`,
+          title: 'Runtime del Terminale AI non disponibile',
+        }
+      : herdrNotRunnable
+        ? {
+            description: `Herdr è stato rilevato ma non è riuscito ad avviarsi, e Pi diretto non è disponibile come recovery. ${context.preserved} Verifica Herdr oppure installa Pi Coding Agent.`,
+            title: 'Herdr non avviabile',
+          }
+        : herdrEndedDuringStartup
+          ? {
+              description: `Il client Herdr si è chiuso dopo aver mostrato la fleet. ${context.preserved} La sessione condivisa non è stata arrestata: ricollega Herdr oppure avvia Pi diretto.`,
+              title: 'Client Herdr chiuso durante l’avvio',
+            }
+          : herdrEndedWithoutFallback
+            ? {
+                description: `Il client Herdr si è chiuso dopo aver mostrato la fleet. ${context.preserved} La sessione condivisa non è stata arrestata; ricollega Herdr per continuare. Pi diretto non è disponibile su questo Mac.`,
+                title: 'Client Herdr chiuso durante l’avvio',
+              }
+        : piMissing
       ? {
           description: `Pi Coding Agent non è installato o non è rilevabile. ${context.preserved} Editor, Terminale locale, GitHub, Database e Redis restano disponibili. Installa Pi, quindi aggiorna la verifica nelle Impostazioni.`,
           title: 'Pi Coding Agent non installato',
@@ -123,8 +149,18 @@ export function normalizeAiSessionFailure(cause: unknown, context: AiFailureCont
   })
   return {
     error,
-    primaryRecovery: configurationRequired ? 'settings' : context.recovery,
-    secondaryRecovery: configurationRequired && context.recovery !== 'settings' ? context.recovery : undefined,
+    primaryRecovery: herdrEndedDuringStartup || herdrEndedWithoutFallback
+      ? 'restart'
+      : configurationRequired
+        ? 'settings'
+        : context.recovery,
+    secondaryRecovery: herdrEndedDuringStartup
+      ? 'start-pi-direct'
+      : herdrEndedWithoutFallback
+        ? undefined
+        : configurationRequired && context.recovery !== 'settings'
+          ? context.recovery
+          : context.secondaryRecovery,
   }
 }
 

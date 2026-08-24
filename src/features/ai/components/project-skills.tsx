@@ -102,7 +102,7 @@ export function ProjectSkills({ workspace, onWorkspaceGuardChange }: Props) {
             <p>{selected ? `${selected.id}/SKILL.md${hasUnsavedChanges ? ' · modificata, non salvata' : ''}` : 'Crea o seleziona una skill per modificarla.'}</p>
           </div>
           <div className={aiStyles.editorActions}>
-            <Button variant="outline" size="sm" onClick={() => void reloadPi()}><RefreshCw aria-hidden="true" /> Ricarica Pi</Button>
+            <Button variant="outline" size="sm" onClick={() => void reloadPi()}><RefreshCw aria-hidden="true" /> Ricarica risorse Pi</Button>
             {selected && <>
               {hasUnsavedChanges && <Button variant="outline" size="sm" onClick={discardChanges} disabled={saving}>Annulla modifiche</Button>}
               <Button size="sm" onClick={() => void saveSkill()} disabled={saving || !hasUnsavedChanges}><Save aria-hidden="true" /> Salva modifiche</Button>
@@ -111,7 +111,7 @@ export function ProjectSkills({ workspace, onWorkspaceGuardChange }: Props) {
           </div>
         </div>
 
-        <div className={aiStyles.advisory}><AlertTriangle aria-hidden="true" size={15} /> Pi carica le skill progetto solo dopo la conferma <code>/trust</code>. Dopo modifiche usa “Ricarica Pi”.</div>
+        <div className={aiStyles.advisory}><AlertTriangle aria-hidden="true" size={15} /> Pi carica le skill progetto solo dopo la conferma <code>/trust</code>. In Herdr esegui <code>/reload</code> direttamente nel pane Pi desiderato.</div>
 
         {operationFailure && !sidebarFailure && <ErrorNotice error={operationFailure.error} action={{ label: 'Riprova', onClick: retryOperation }} />}
 

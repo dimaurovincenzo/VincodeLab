@@ -19,6 +19,7 @@ function createPiRuntime({
   notifyWhenBackground,
   ptyRuntime,
   resolveExecutable,
+  resolveLaunchCandidates,
   requireActiveWorkspace,
   sendToRenderer,
   showOpenDialog,
@@ -27,32 +28,34 @@ function createPiRuntime({
   if (typeof environmentForExecutable !== 'function') throw new Error('Provider ambiente runtime Pi non valido.')
   if (typeof isProcessAlive !== 'function') throw new Error('Verifica processo runtime Pi non valida.')
   if (typeof resolveExecutable !== 'function') throw new Error('Resolver eseguibile runtime Pi non valido.')
+  if (typeof resolveLaunchCandidates !== 'function') throw new Error('Resolver lancio Terminale AI non valido.')
   let configProcess
   let configExit
 
-  function handleSessionExit({ exitCode, signal, reason, sessionId }) {
+  function handleSessionExit({ exitCode, signal, reason, runtime, piAvailable, sessionId }) {
     const expected = reason !== 'exit' && reason !== 'failure'
-    log(expected || (exitCode === 0 && !signal) ? 'info' : 'error', expected ? 'pi_stopped' : 'pi_exited', {
+    log(expected || (exitCode === 0 && !signal) ? 'info' : 'error', expected ? 'ai_terminal_stopped' : 'ai_terminal_exited', {
       exitCode,
       signal,
       reason,
+      runtime,
       sessionId,
     })
     // Stop, restart, cambio workspace e shutdown sono già osservabili dalla
     // rispettiva operazione; soltanto gli exit inattesi cambiano lo stato UI.
     if (expected) return
-    sendToRenderer(IPC_CHANNELS.TERMINAL_EXIT, { exitCode, signal })
+    sendToRenderer(IPC_CHANNELS.TERMINAL_EXIT, { exitCode, signal, runtime, piAvailable })
     if (exitCode !== 0 || signal) {
+      const label = runtime === 'herdr' ? 'Herdr' : 'Pi'
       notifyWhenBackground(
-        'VincodeLab · Pi',
-        signal ? `La sessione Pi è stata interrotta (segnale ${signal}).` : `Pi si è chiuso con codice ${exitCode}.`,
+        `VincodeLab · ${label}`,
+        signal ? `${label} è stato interrotto (segnale ${signal}).` : `${label} si è chiuso con codice ${exitCode}.`,
       )
     }
   }
 
   const controller = createSessionController({
-    resolveExecutable,
-    environmentForExecutable,
+    resolveLaunchCandidates,
     isProcessAlive,
     processFactory: (executable, args, options) => ptyRuntime.spawn(executable, args, options),
     createStream: ({ pty: ptyProcess, sessionId }) => createStreamController({
@@ -65,9 +68,9 @@ function createPiRuntime({
       getPty,
       waitForCapacity: (signal) => stream.waitForInputCapacity(signal),
     }),
-    onStarted: ({ pid, sessionId }) => log('info', 'pi_started', { pid, sessionId }),
+    onStarted: ({ fallbackReason, pid, runtime, sessionId }) => log('info', 'ai_terminal_started', { fallbackReason, pid, runtime, sessionId }),
     onExit: handleSessionExit,
-    onError: ({ source }) => log('error', 'pi_session_failure', { reason: source }),
+    onError: ({ source }) => log('error', 'ai_terminal_session_failure', { reason: source }),
   })
 
   function start(workspacePath) {
@@ -79,14 +82,19 @@ function createPiRuntime({
   }
 
   async function reload() {
-    await controller.reload()
-    log('info', 'pi_resources_reloaded')
-    return { reloaded: true }
+    const result = await controller.reload()
+    log('info', result.reloaded ? 'ai_terminal_reload_sent' : 'ai_terminal_reload_skipped', { reason: result.reason, runtime: result.runtime })
+    return result
   }
 
-  async function restart() {
-    await start(requireActiveWorkspace())
-    return { restarted: true }
+  async function restart(options) {
+    const result = await controller.start(requireActiveWorkspace(), options)
+    return {
+      restarted: true,
+      runtime: result.runtime,
+      piAvailable: result.piAvailable,
+      ...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}),
+    }
   }
 
   async function chooseAttachments() {

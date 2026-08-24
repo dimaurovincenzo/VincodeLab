@@ -838,7 +838,8 @@ test('i terminali riusano una toolbar con reset zoom e riavvio', () => {
   assert.match(app, /<TerminalToolbar/)
   assert.match(shell, /<TerminalToolbar/)
   assert.match(toolbar, /aria-label="Reimposta zoom"/)
-  assert.match(toolbar, /<IconButton tooltip="Riavvia sessione" onClick=\{onRestart\}>/)
+  assert.match(toolbar, /restartLabel = 'Riavvia sessione'/)
+  assert.match(toolbar, /<IconButton tooltip=\{restartLabel\} onClick=\{onRestart\}>/)
 })
 
 test('il valore dello zoom conserva spazio proprio tra i controlli meno e più', () => {

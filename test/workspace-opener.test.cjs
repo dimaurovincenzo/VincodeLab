@@ -54,6 +54,21 @@ test('apre il workspace e mantiene operative le feature se Pi parte', async () =
   assert.ok(calls.some((entry) => entry[0] === 'pi:start'))
 })
 
+test('un failure di startup del Terminale AI produce una sola notifica di proprietà del workspace', async () => {
+  const { calls, opener } = fixture({
+    startPi: async () => { throw new Error('Herdr closed during startup') },
+    workspaceFailure: (_error, options) => ({
+      error: options.message,
+      errorIncident: { code: 'HERDR_SESSION_ENDED_DURING_STARTUP' },
+    }),
+  })
+
+  const result = await opener.open('/workspace')
+
+  assert.equal(result.errorIncident.code, 'HERDR_SESSION_ENDED_DURING_STARTUP')
+  assert.equal(calls.filter((entry) => entry[0] === 'notify').length, 1)
+})
+
 test('il cambio workspace drena il runtime precedente prima della nuova sessione', async () => {
   const { calls, opener } = fixture({ previousPath: '/previous' })
   await opener.open('/next')

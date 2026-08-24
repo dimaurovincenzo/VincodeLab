@@ -1,30 +1,15 @@
-const { createPublicError, isPublicError } = require('../errors/public-error.cjs')
+const {
+  HERDR_NOT_RUNNABLE,
+  HERDR_SESSION_ENDED_DURING_STARTUP,
+  HERDR_SESSION_ENDED_WITHOUT_FALLBACK,
+  PI_NOT_INSTALLED,
+  PI_NOT_RUNNABLE,
+  publicPiFailure,
+} = require('./ai-terminal-launch-policy.cjs')
 
 const DEFAULT_STOP_GRACE_MS = 750
 const DEFAULT_FORCE_STOP_MS = 750
 const MAX_KEY_BYTES = 64 * 1024
-
-const PI_NOT_INSTALLED = Object.freeze({
-  code: 'PI_NOT_INSTALLED',
-  message: 'Pi Coding Agent non è installato. Installalo oppure configura il percorso dell’eseguibile.',
-})
-const PI_NOT_RUNNABLE = Object.freeze({
-  code: 'PI_NOT_RUNNABLE',
-  message: 'Pi Coding Agent è presente ma non può essere avviato. Verifica installazione e permessi, quindi riprova.',
-})
-
-function publicPiFailure(definition, cause) {
-  if (isPublicError(cause)) return cause
-  const error = createPublicError(definition.code, definition.message)
-  if (cause) {
-    try {
-      Object.defineProperty(error, 'cause', { value: cause })
-    } catch {
-      // Il messaggio pubblico resta valido anche se non è possibile conservare la cause.
-    }
-  }
-  return error
-}
 
 function createDeferred() {
   let resolve
@@ -63,16 +48,46 @@ function normalizeExitStatus(event = {}) {
   })
 }
 
+function validateLaunchDescriptor(candidate, workspacePath) {
+  const runtime = candidate?.runtime
+  const executable = candidate?.executable
+  const args = candidate?.args
+  const options = candidate?.options
+  const startupWindowMs = candidate?.startupWindowMs
+  if (runtime !== 'herdr' && runtime !== 'pi') throw new Error('Runtime Terminale AI non valido.')
+  if (typeof executable !== 'string' || executable.length === 0 || executable.length > 4_096 || executable.includes('\0')) {
+    throw new Error('Eseguibile Terminale AI non valido.')
+  }
+  if (!Array.isArray(args) || args.some((argument) => typeof argument !== 'string' || argument.includes('\0'))) {
+    throw new Error('Argomenti Terminale AI non validi.')
+  }
+  if (!options || typeof options !== 'object' || Array.isArray(options) || options.cwd !== workspacePath) {
+    throw new Error('Opzioni Terminale AI non valide.')
+  }
+  if (!options.env || typeof options.env !== 'object' || Array.isArray(options.env)) throw new Error('Ambiente Terminale AI non valido.')
+  if (!Number.isSafeInteger(startupWindowMs) || startupWindowMs < 0 || startupWindowMs > 10_000) {
+    throw new Error('Finestra di avvio Terminale AI non valida.')
+  }
+  if (candidate.terminalFailure !== undefined && candidate.terminalFailure !== PI_NOT_INSTALLED.code && candidate.terminalFailure !== PI_NOT_RUNNABLE.code && candidate.terminalFailure !== HERDR_NOT_RUNNABLE.code) {
+    throw new Error('Failure terminale Terminale AI non valido.')
+  }
+  return candidate
+}
+
+function terminalFailureFor(candidate) {
+  if (candidate?.terminalFailure === PI_NOT_INSTALLED.code) return PI_NOT_INSTALLED
+  if (candidate?.terminalFailure === HERDR_NOT_RUNNABLE.code) return HERDR_NOT_RUNNABLE
+  return PI_NOT_RUNNABLE
+}
+
 function createPiSessionController(options = {}) {
-  if (typeof options.resolveExecutable !== 'function') throw new Error('Resolver eseguibile Pi non valido.')
-  if (typeof options.environmentForExecutable !== 'function') throw new Error('Provider ambiente Pi non valido.')
+  if (typeof options.resolveLaunchCandidates !== 'function') throw new Error('Resolver candidati Terminale AI non valido.')
   if (typeof options.processFactory !== 'function') throw new Error('Factory processo Pi non valida.')
   if (typeof options.createStream !== 'function') throw new Error('Factory stream Pi non valida.')
   if (typeof options.createInput !== 'function') throw new Error('Factory input Pi non valida.')
   if (typeof options.isProcessAlive !== 'function') throw new Error('Verifica processo Pi non valida.')
 
-  const resolveExecutable = options.resolveExecutable
-  const environmentForExecutable = options.environmentForExecutable
+  const resolveLaunchCandidates = options.resolveLaunchCandidates
   const processFactory = options.processFactory
   const createStream = options.createStream
   const createInput = options.createInput
@@ -84,6 +99,11 @@ function createPiSessionController(options = {}) {
   const setTimer = options.setTimer ?? setTimeout
   const clearTimer = options.clearTimer ?? clearTimeout
   const scheduleStartCheck = options.scheduleStartCheck ?? setImmediate
+  const drainStartupEvents = options.drainStartupEvents ?? (() => new Promise((resolve) => scheduleStartCheck(resolve)))
+  const waitForStartupWindow = options.waitForStartupWindow ?? ((milliseconds) => new Promise((resolve) => {
+    if (milliseconds === 0) scheduleStartCheck(resolve)
+    else setTimer(resolve, milliseconds)
+  }))
   const stopGraceMs = options.stopGraceMs ?? DEFAULT_STOP_GRACE_MS
   const forceStopMs = options.forceStopMs ?? DEFAULT_FORCE_STOP_MS
   if (!Number.isSafeInteger(stopGraceMs) || stopGraceMs < 0 || !Number.isSafeInteger(forceStopMs) || forceStopMs < 0) {
@@ -146,13 +166,18 @@ function createPiSessionController(options = {}) {
       emit(onError, { source: 'stream-end', error, workspacePath: session.workspacePath })
     }
     session.exit.resolve(session.exitStatus)
-    emit(onExit, {
-      workspacePath: session.workspacePath,
-      sessionId: session.sessionId,
-      exitCode: session.exitStatus.exitCode,
-      signal: session.exitStatus.signal,
-      reason,
-    })
+    if (!session.suppressExitEvent) {
+      emit(onExit, {
+        workspacePath: session.workspacePath,
+        sessionId: session.sessionId,
+        exitCode: session.exitStatus.exitCode,
+        signal: session.exitStatus.signal,
+        reason,
+        runtime: session.runtime,
+        piAvailable: session.piAvailable,
+        fallbackReason: session.fallbackReason,
+      })
+    }
     return true
   }
 
@@ -205,7 +230,7 @@ function createPiSessionController(options = {}) {
     if (synthesizeExitIfGone(session, 'force-stop')) return session.exitStatus
 
     session.stopReason = null
-    const error = new Error('Il processo Pi non ha confermato l’arresto; il nuovo avvio è stato bloccato per evitare una sessione duplicata.')
+    const error = new Error('Il Terminale AI non ha confermato l’arresto; il nuovo avvio è stato bloccato per evitare una sessione duplicata.')
     error.code = 'PI_STOP_FAILED'
     throw error
   }
@@ -247,6 +272,9 @@ function createPiSessionController(options = {}) {
     const temporarySession = {
       pty: ptyProcess,
       workspacePath,
+      runtime: null,
+      fallbackReason: null,
+      suppressExitEvent: true,
       finalized: false,
       exitStatus: null,
       stopReason: 'start-failed',
@@ -260,7 +288,7 @@ function createPiSessionController(options = {}) {
       await terminateSession(temporarySession, 'start-failed')
     } catch (cleanupError) {
       emit(onError, { source: 'start-cleanup', error: cleanupError, workspacePath })
-      const error = new Error('Pi non è stato inizializzato e il processo avviato non ha confermato l’arresto.')
+      const error = new Error('Il Terminale AI non è stato inizializzato e il processo avviato non ha confermato l’arresto.')
       error.code = 'PI_START_CLEANUP_FAILED'
       error.cause = originalError
       throw error
@@ -269,136 +297,194 @@ function createPiSessionController(options = {}) {
     }
   }
 
-  async function startOperation(workspacePath) {
+  async function startOperation(workspacePath, launchOptions) {
     if (typeof workspacePath !== 'string' || workspacePath.length === 0 || workspacePath.length > 4_096 || workspacePath.includes('\0')) {
-      throw new Error('Percorso workspace non valido per Pi.')
+      throw new Error('Percorso workspace non valido per il Terminale AI.')
     }
 
-    let executable
+    let candidates
     try {
-      executable = resolveExecutable()
+      candidates = await resolveLaunchCandidates(workspacePath, launchOptions)
     } catch (error) {
-      emit(onError, { source: 'resolve-executable', error, workspacePath })
+      emit(onError, { source: 'resolve-launch-candidates', error, workspacePath })
       throw publicPiFailure(PI_NOT_RUNNABLE, error)
     }
-    if (typeof executable !== 'string' || executable.length === 0) {
-      throw publicPiFailure(PI_NOT_INSTALLED)
+    if (!Array.isArray(candidates) || candidates.length === 0 || candidates.length > 2) {
+      throw publicPiFailure(PI_NOT_RUNNABLE, new Error('Piano di lancio Terminale AI non valido.'))
     }
-    let environment
-    try {
-      environment = environmentForExecutable(executable)
-    } catch (error) {
-      emit(onError, { source: 'environment', error, workspacePath })
-      throw publicPiFailure(PI_NOT_RUNNABLE, error)
+    const launchCandidates = candidates.map((candidate) => validateLaunchDescriptor(candidate, workspacePath))
+    if (launchCandidates.length === 2 && (launchCandidates[0].runtime !== 'herdr' || launchCandidates[1].runtime !== 'pi')) {
+      throw publicPiFailure(PI_NOT_RUNNABLE, new Error('Ordine candidati Terminale AI non valido.'))
     }
-    if (!environment || typeof environment !== 'object' || Array.isArray(environment)) {
-      throw publicPiFailure(PI_NOT_RUNNABLE, new Error('Ambiente di esecuzione Pi non valido.'))
-    }
-    const sessionId = createId()
-    if (typeof sessionId !== 'string' || sessionId.length === 0 || sessionId.length > 128) {
-      throw new Error('ID sessione Pi non valido.')
-    }
-
     if (currentSession) await stopCurrent('restart')
 
-    let ptyProcess
-    try {
-      ptyProcess = validatePtyProcess(processFactory(executable, [], {
-        name: 'xterm-256color',
-        cols: 120,
-        rows: 34,
-        cwd: workspacePath,
-        env: { ...environment, TERM: 'xterm-256color' },
-      }))
-    } catch (error) {
-      emit(onError, { source: 'spawn', error, workspacePath })
-      throw publicPiFailure(PI_NOT_RUNNABLE, error)
-    }
-
-    const session = {
-      sessionId,
-      workspacePath,
-      pty: ptyProcess,
-      stream: null,
-      input: null,
-      dataSubscription: null,
-      exitSubscription: null,
-      exit: createDeferred(),
-      exitStatus: null,
-      stopReason: null,
-      finalized: false,
-      recoveryScheduled: false,
-    }
-    const pendingEvents = []
-    const subscriptions = []
-    let activated = false
-
-    try {
-      const dataSubscription = ptyProcess.onData((data) => {
-        if (!activated) {
-          pendingEvents.push({ type: 'data', data })
-          return
+    let dynamicFallbackReason = null
+    for (let index = 0; index < launchCandidates.length; index += 1) {
+      const candidate = launchCandidates[index]
+      const hasFallback = index + 1 < launchCandidates.length
+      let ptyProcess
+      try {
+        ptyProcess = validatePtyProcess(processFactory(candidate.executable, candidate.args, candidate.options))
+      } catch (error) {
+        emit(onError, { source: `${candidate.runtime}-spawn`, error, workspacePath })
+        if (candidate.runtime === 'herdr' && hasFallback) {
+          dynamicFallbackReason = 'spawn-failed'
+          continue
         }
-        if (currentSession !== session || session.finalized || typeof data !== 'string' || data.length === 0) return
-        try {
-          session.stream.push(data)
-        } catch (error) {
-          scheduleRecovery(session, 'stream-data', error)
-        }
-      })
-      subscriptions.push(dataSubscription)
-      session.dataSubscription = dataSubscription
-
-      const exitSubscription = ptyProcess.onExit((event = {}) => {
-        if (!activated) {
-          pendingEvents.push({ type: 'exit', event })
-          return
-        }
-        if (currentSession === session) finishSession(session, event)
-      })
-      subscriptions.push(exitSubscription)
-      session.exitSubscription = exitSubscription
-
-      session.stream = createStream({ pty: ptyProcess, sessionId: session.sessionId })
-      session.input = createInput({
-        pty: ptyProcess,
-        stream: session.stream,
-        getPty: () => currentSession === session && !session.finalized ? ptyProcess : undefined,
-      })
-      currentSession = session
-      activated = true
-
-      for (const pending of pendingEvents) {
-        if (pending.type === 'exit') finishSession(session, pending.event)
-        else if (!session.finalized && typeof pending.data === 'string' && pending.data.length > 0) session.stream.push(pending.data)
+        throw publicPiFailure(terminalFailureFor(candidate), error)
       }
-      pendingEvents.length = 0
-    } catch (error) {
-      disposeResource(session.input)
-      disposeResource(session.stream)
-      if (currentSession === session) currentSession = null
-      await cleanSpawnFailure(ptyProcess, subscriptions, workspacePath, error)
-      emit(onError, { source: 'attach', error, workspacePath })
-      throw error
+
+      const sessionId = createId()
+      if (typeof sessionId !== 'string' || sessionId.length === 0 || sessionId.length > 128) {
+        await cleanSpawnFailure(ptyProcess, [], workspacePath, new Error('ID sessione Terminale AI non valido.'))
+        throw new Error('ID sessione Terminale AI non valido.')
+      }
+      const session = {
+        sessionId,
+        workspacePath,
+        runtime: candidate.runtime,
+        piAvailable: candidate.runtime === 'pi' || !candidate.terminalFailure,
+        fallbackReason: candidate.runtime === 'pi' ? dynamicFallbackReason ?? candidate.fallbackReason ?? null : null,
+        pty: ptyProcess,
+        stream: null,
+        input: null,
+        dataSubscription: null,
+        exitSubscription: null,
+        exit: createDeferred(),
+        exitStatus: null,
+        stopReason: null,
+        suppressExitEvent: false,
+        finalized: false,
+        recoveryScheduled: false,
+      }
+      const pendingEvents = []
+      const subscriptions = []
+      const startupSignal = createDeferred()
+      let activated = false
+      let producedOutput = false
+
+      try {
+        const dataSubscription = ptyProcess.onData((data) => {
+          if (!activated) {
+            if (typeof data === 'string' && data.length > 0) {
+              producedOutput = true
+              pendingEvents.push({ type: 'data', data })
+              startupSignal.resolve('output')
+            }
+            return
+          }
+          if (currentSession !== session || session.finalized || typeof data !== 'string' || data.length === 0) return
+          try {
+            session.stream.push(data)
+          } catch (error) {
+            scheduleRecovery(session, 'stream-data', error)
+          }
+        })
+        subscriptions.push(dataSubscription)
+        session.dataSubscription = dataSubscription
+
+        const exitSubscription = ptyProcess.onExit((event = {}) => {
+          if (!activated) {
+            pendingEvents.push({ type: 'exit', event })
+            startupSignal.resolve('exit')
+            return
+          }
+          if (currentSession === session) finishSession(session, event)
+        })
+        subscriptions.push(exitSubscription)
+        session.exitSubscription = exitSubscription
+      } catch (error) {
+        await cleanSpawnFailure(ptyProcess, subscriptions, workspacePath, error)
+        emit(onError, { source: `${candidate.runtime}-attach`, error, workspacePath })
+        if (candidate.runtime === 'herdr' && hasFallback && !producedOutput) {
+          dynamicFallbackReason = 'spawn-failed'
+          continue
+        }
+        throw error
+      }
+
+      const startupOutcome = await Promise.race([
+        startupSignal.promise,
+        waitForStartupWindow(candidate.startupWindowMs).then(() => 'window'),
+      ])
+      if (startupOutcome === 'exit') await drainStartupEvents()
+      if (startupOutcome === 'exit' && !producedOutput) {
+        subscriptions.forEach(disposeSubscription)
+        const exitEvent = pendingEvents.find((event) => event.type === 'exit')?.event ?? {}
+        const exitStatus = normalizeExitStatus(exitEvent)
+        emit(onError, {
+          source: `${candidate.runtime}-early-exit`,
+          error: Object.assign(new Error('Il Terminale AI è terminato prima di produrre output.'), { exitStatus }),
+          workspacePath,
+        })
+        if (candidate.runtime === 'herdr' && hasFallback) {
+          dynamicFallbackReason = 'early-exit'
+          continue
+        }
+        const detail = exitStatus.signal ? `segnale ${exitStatus.signal}` : `codice ${exitStatus.exitCode ?? 'sconosciuto'}`
+        throw publicPiFailure(terminalFailureFor(candidate), Object.assign(new Error(`Il Terminale AI è terminato durante l’avvio (${detail}).`), { code: 'AI_TERMINAL_EARLY_EXIT' }))
+      }
+
+      try {
+        session.stream = createStream({ pty: ptyProcess, sessionId: session.sessionId })
+        session.input = createInput({
+          pty: ptyProcess,
+          stream: session.stream,
+          getPty: () => currentSession === session && !session.finalized ? ptyProcess : undefined,
+        })
+        currentSession = session
+        activated = true
+
+        for (const pending of pendingEvents) {
+          if (pending.type === 'data') session.stream.push(pending.data)
+        }
+        const pendingExit = pendingEvents.findLast((pending) => pending.type === 'exit')
+        if (pendingExit) {
+          // Il fallimento appartiene ancora all'operazione di startup, che
+          // produrrà la sola superficie utente e la sola notifica. Lo stream
+          // viene comunque finalizzato, senza pubblicare anche TERMINAL_EXIT.
+          session.suppressExitEvent = true
+          finishSession(session, pendingExit.event, 'start-failed')
+        }
+        pendingEvents.length = 0
+      } catch (error) {
+        disposeResource(session.input)
+        disposeResource(session.stream)
+        if (currentSession === session) currentSession = null
+        await cleanSpawnFailure(ptyProcess, subscriptions, workspacePath, error)
+        emit(onError, { source: `${candidate.runtime}-initialize`, error, workspacePath })
+        throw error
+      }
+
+      if (session.finalized) {
+        if (session.runtime === 'herdr') {
+          throw publicPiFailure(session.piAvailable ? HERDR_SESSION_ENDED_DURING_STARTUP : HERDR_SESSION_ENDED_WITHOUT_FALLBACK)
+        }
+        throw publicPiFailure(PI_NOT_RUNNABLE)
+      }
+
+      emit(onStarted, {
+        workspacePath,
+        sessionId: session.sessionId,
+        pid: Number.isInteger(ptyProcess.pid) ? ptyProcess.pid : null,
+        runtime: session.runtime,
+        piAvailable: session.piAvailable,
+        fallbackReason: session.fallbackReason,
+      })
+      return Object.freeze({
+        started: true,
+        sessionId: session.sessionId,
+        runtime: session.runtime,
+        piAvailable: session.piAvailable,
+        ...(session.fallbackReason ? { fallbackReason: session.fallbackReason } : {}),
+      })
     }
 
-    // node-pty non espone un evento "ready": un turno del loop distingue uno
-    // spawn utilizzabile da un child che termina appena il binding ha agganciato exit.
-    await new Promise((resolve) => scheduleStartCheck(resolve))
-    if (session.finalized) {
-      const { exitCode, signal } = session.exitStatus
-      const detail = signal ? `segnale ${signal}` : `codice ${exitCode ?? 'sconosciuto'}`
-      const error = new Error(`Pi è terminato durante l’avvio (${detail}).`)
-      error.code = 'PI_EARLY_EXIT'
-      throw publicPiFailure(PI_NOT_RUNNABLE, error)
-    }
-
-    emit(onStarted, { workspacePath, sessionId: session.sessionId, pid: Number.isInteger(ptyProcess.pid) ? ptyProcess.pid : null })
-    return Object.freeze({ started: true, sessionId: session.sessionId })
+    throw publicPiFailure(PI_NOT_RUNNABLE, new Error('Nessun candidato Terminale AI avviabile.'))
   }
 
-  function start(workspacePath) {
-    return enqueue(() => startOperation(workspacePath))
+  function start(workspacePath, launchOptions) {
+    return enqueue(() => startOperation(workspacePath, launchOptions))
   }
 
   function stop(reason = 'stop') {
@@ -408,7 +494,10 @@ function createPiSessionController(options = {}) {
   function reload() {
     return enqueue(async () => {
       const session = currentSession
-      if (!session || session.finalized) throw new Error('La sessione Pi non è attiva.')
+      if (!session || session.finalized) throw new Error('Il Terminale AI non è attivo.')
+      if (session.runtime === 'herdr') {
+        return Object.freeze({ reloaded: false, runtime: 'herdr', reason: 'active-pane-ambiguous' })
+      }
       try {
         session.pty.write('/reload\r')
       } catch (error) {
@@ -421,7 +510,7 @@ function createPiSessionController(options = {}) {
         }
         throw error
       }
-      return Object.freeze({ reloaded: true })
+      return Object.freeze({ reloaded: true, runtime: 'pi' })
     })
   }
 
@@ -463,12 +552,15 @@ function createPiSessionController(options = {}) {
   }
 
   function getState() {
-    if (!currentSession) return Object.freeze({ status: 'idle', workspacePath: null, pid: null })
+    if (!currentSession) return Object.freeze({ status: 'idle', workspacePath: null, pid: null, runtime: null, fallbackReason: null })
     return Object.freeze({
       status: currentSession.finalized ? 'exited' : currentSession.stopReason ? 'stopping' : 'running',
       workspacePath: currentSession.workspacePath,
       pid: Number.isInteger(currentSession.pty.pid) ? currentSession.pty.pid : null,
       exitStatus: currentSession.exitStatus,
+      runtime: currentSession.runtime,
+      piAvailable: currentSession.piAvailable,
+      fallbackReason: currentSession.fallbackReason,
     })
   }
 

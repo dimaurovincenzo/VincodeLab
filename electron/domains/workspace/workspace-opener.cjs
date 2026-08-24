@@ -57,8 +57,8 @@ function createWorkspaceOpener({
       if (previousWorkspacePath && previousWorkspacePath !== normalizedWorkspacePath) {
         await cleanupWorkspaceRuntime(previousWorkspacePath, 'workspace-change')
       } else {
-        // Anche una riapertura dello stesso workspace deve sostituire la sessione
-        // Pi, senza invalidare connessioni Database/SSH della vista corrente.
+        // Anche una riapertura dello stesso workspace deve sostituire il client
+        // del Terminale AI, senza invalidare connessioni Database/SSH della vista corrente.
         await stopTerminal('workspace-change')
       }
       if (generation !== openGeneration) {
@@ -72,7 +72,7 @@ function createWorkspaceOpener({
           severity: 'info',
         })
       }
-      // Editor, Git e GitHub restano operativi anche quando Pi non è disponibile.
+      // Editor, Git e GitHub restano operativi anche quando nessun runtime AI è disponibile.
       recordWorkspace(normalizedWorkspacePath)
       setActiveWorkspacePath(normalizedWorkspacePath)
       setActiveWorkspaceError(undefined)
@@ -90,14 +90,15 @@ function createWorkspaceOpener({
         const failure = workspaceFailure(error, {
           code: 'PI_START_FAILED',
           domain: 'ai',
-          message: 'Impossibile avviare Pi per questo workspace.',
+          message: 'Impossibile avviare il Terminale AI per questo workspace.',
           operation: 'start',
         })
         setActiveWorkspaceError(failure.error)
         setActiveWorkspaceIncident(failure.errorIncident)
-        const piMissing = failure.errorIncident.code === 'PI_NOT_INSTALLED'
-        log(piMissing ? 'warning' : 'error', piMissing ? 'pi_not_installed' : 'pi_start_failed')
-        if (!piMissing) notifyWhenBackground('VincodeLab · Pi', failure.error)
+        const runtimeUnavailable = failure.errorIncident.code === 'PI_NOT_INSTALLED'
+          || failure.errorIncident.code === 'AI_TERMINAL_RUNTIME_UNAVAILABLE'
+        log(runtimeUnavailable ? 'warning' : 'error', runtimeUnavailable ? 'ai_terminal_runtime_unavailable' : 'ai_terminal_start_failed')
+        if (!runtimeUnavailable) notifyWhenBackground('VincodeLab · Terminale AI', failure.error)
         return { path: normalizedWorkspacePath, ...failure }
       }
     } catch (error) {
@@ -112,7 +113,7 @@ function createWorkspaceOpener({
         operation: 'open',
       })
       log('error', 'workspace_open_failed')
-      notifyWhenBackground('VincodeLab · Pi', failure.error)
+      notifyWhenBackground('VincodeLab', failure.error)
       return failure
     }
   }

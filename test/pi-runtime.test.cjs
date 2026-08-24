@@ -19,8 +19,8 @@ function fixture() {
     onExit(listener) { onExit = listener },
   }
   const controller = {
-    reload: async () => {},
-    start: async () => ({ started: true }),
+    reload: async () => ({ reloaded: true, runtime: 'pi' }),
+    start: async () => ({ started: true, runtime: 'pi', piAvailable: true }),
     stop: async () => ({ stopped: true }),
   }
   const runtime = createPiRuntime({
@@ -34,6 +34,7 @@ function fixture() {
     notifyWhenBackground() {},
     ptyRuntime: { spawn: (...args) => { spawned.push(args); return pty } },
     resolveExecutable: () => '/usr/local/bin/pi',
+    resolveLaunchCandidates: async () => [],
     requireActiveWorkspace: () => '/workspace',
     sendToRenderer: (...entry) => deliveries.push(entry),
     showOpenDialog: async () => ({ canceled: true, filePaths: [] }),
@@ -67,5 +68,5 @@ test('allegati annullati e stop config assente restano operazioni innocue', asyn
 
 test('reload delega al controller e mantiene il contratto pubblico', async () => {
   const { runtime } = fixture()
-  assert.deepEqual(await runtime.reload(), { reloaded: true })
+  assert.deepEqual(await runtime.reload(), { reloaded: true, runtime: 'pi' })
 })

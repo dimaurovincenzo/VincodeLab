@@ -60,13 +60,15 @@ export function useAiRuntime({
     terminal.current?.focus()
   }, [])
   const terminalStatus = status === 'running'
-    ? 'Pi pronto'
+    ? runtime.terminalRuntime?.runtime === 'herdr'
+      ? 'Herdr · sessione condivisa'
+      : 'Pi diretto pronto'
     : status === 'launching'
-      ? 'Avvio Pi…'
+      ? 'Avvio Terminale AI…'
       : status === 'ended'
         ? 'Sessione terminata'
         : status === 'error'
-          ? 'Errore Pi'
+          ? 'Errore Terminale AI'
           : 'In attesa'
 
   return {

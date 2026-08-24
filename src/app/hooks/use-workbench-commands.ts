@@ -198,8 +198,8 @@ export function useWorkbenchCommands({
         const scope = context.aiTab === 'skills' ? 'skills' : 'instructions'
         await saveWorkspaceGuardScope(scope)
       } },
-      { id: 'ai.reload', title: 'Ricarica risorse Pi', category: 'AI', shortcut: '⌘⌥R', when: workspaceOnly, run: () => reloadPi() },
-      { id: 'ai.restart', title: 'Riavvia sessione Pi', category: 'AI', when: workspaceOnly, run: () => restartPi() },
+      { id: 'ai.reload', title: 'Ricarica risorse Pi (Pi diretto)', category: 'AI', shortcut: '⌘⌥R', when: workspaceOnly, run: () => reloadPi() },
+      { id: 'ai.restart', title: 'Riavvia Terminale AI', category: 'AI', when: workspaceOnly, run: () => restartPi() },
       { id: 'ai.copy', title: 'Copia selezione Terminale AI', category: 'AI', when: (context) => context.hasWorkspace && context.section === 'ai' && context.aiTab === 'terminal', run: () => copyTerminalSelection() },
       { id: 'ai.paste', title: 'Incolla nel Terminale AI', category: 'AI', when: (context) => context.hasWorkspace && context.section === 'ai' && context.aiTab === 'terminal', run: () => pasteIntoTerminal() },
       { id: 'ai.search', title: 'Cerca nel Terminale AI', category: 'AI', when: (context) => context.hasWorkspace && context.section === 'ai' && context.aiTab === 'terminal', run: () => setTerminalSearchOpen(true) },

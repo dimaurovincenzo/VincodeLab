@@ -108,7 +108,7 @@ describe('Error Experience delle utilità terminale', () => {
       .mockResolvedValueOnce([{ absolutePath: '/tmp/nota.md', name: 'nota.md' }])
     installTerminal({ chooseAttachments, prepareDroppedAttachments: vi.fn() })
 
-    render(<><TerminalAttachments onInsert={vi.fn()} /><Toaster /></>)
+    render(<><TerminalAttachments onInsert={vi.fn(async () => true)} /><Toaster /></>)
     await user.click(screen.getByRole('button', { name: 'Allega file a Pi' }))
     const failure = await screen.findByRole('alert')
     expect(within(failure).getByText('File non allegato')).toBeInTheDocument()
@@ -125,7 +125,7 @@ describe('Error Experience delle utilità terminale', () => {
     const chooseAttachments = vi.fn().mockResolvedValue([{ absolutePath: '/tmp/nota.md', name: 'nota.md' }])
     const onInsert = vi.fn()
       .mockRejectedValueOnce(new Error('secret=non-mostrare AI_SESSION_NOT_RUNNING'))
-      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(true)
     installTerminal({ chooseAttachments, prepareDroppedAttachments: vi.fn() })
 
     render(<TerminalAttachments onInsert={onInsert} />)
@@ -143,5 +143,26 @@ describe('Error Experience delle utilità terminale', () => {
     await waitFor(() => expect(onInsert).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.queryByText('nota.md')).not.toBeInTheDocument())
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('conserva gli allegati quando il Terminale AI rifiuta l’inserimento senza eccezione', async () => {
+    const user = userEvent.setup()
+    const chooseAttachments = vi.fn().mockResolvedValue([{ absolutePath: '/tmp/contesto.md', name: 'contesto.md' }])
+    const onInsert = vi.fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+    installTerminal({ chooseAttachments, prepareDroppedAttachments: vi.fn() })
+
+    render(<TerminalAttachments onInsert={onInsert} />)
+    await user.click(screen.getByRole('button', { name: 'Allega file a Pi' }))
+    expect(await screen.findByText('contesto.md')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Inserisci' }))
+    await waitFor(() => expect(onInsert).toHaveBeenCalledTimes(1))
+    expect(screen.getByText('contesto.md')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Inserisci' }))
+    await waitFor(() => expect(onInsert).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByText('contesto.md')).not.toBeInTheDocument())
   })
 })

@@ -24,6 +24,7 @@ type UseAiTerminalInstanceOptions = {
   preferredTerminalFontFamily: string
   preferredTerminalScrollback: number
   publishAiFailure: AiFailureController['publishAiFailure']
+  resumeTerminal: () => Promise<TerminalResumeSnapshot>
   searchAddon: MutableRef<SearchAddonInstance | null>
   setStatus: Dispatch<SetStateAction<LaunchState>>
   setTerminalInstance: (terminal: Terminal | null) => void
@@ -45,6 +46,7 @@ export function useAiTerminalInstance({
   preferredTerminalFontFamily,
   preferredTerminalScrollback,
   publishAiFailure,
+  resumeTerminal,
   searchAddon,
   setStatus,
   setTerminalInstance,
@@ -120,7 +122,7 @@ export function useAiTerminalInstance({
       outputController.current = controller
       const unsubscribeOutput = aiBridge.terminal.onOutput((block) => controller.accept(block))
       const unsubscribeStreamState = aiBridge.terminal.onStreamState(updateTerminalStreamState)
-      void aiBridge.terminal.resume({}).then((snapshot) => {
+      void resumeTerminal().then((snapshot) => {
         controller.restore(snapshot)
         clearAiFailure('restore-ai-output')
       }).catch((nextError) => {
@@ -167,5 +169,5 @@ export function useAiTerminalInstance({
     })
 
     return () => { disposed = true; cleanup?.() }
-  }, [aiFailureRef, clearAiFailure, fitAddon, fontSize, getTerminal, getTerminalElement, outputController, preferredTerminalCursorStyle, preferredTerminalFontFamily, preferredTerminalScrollback, publishAiFailure, searchAddon, setStatus, setTerminalInstance, terminalRendererGeneration, updateHasUnreadTerminalOutput, updateTerminalStreamState, workspace])
+  }, [aiFailureRef, clearAiFailure, fitAddon, fontSize, getTerminal, getTerminalElement, outputController, preferredTerminalCursorStyle, preferredTerminalFontFamily, preferredTerminalScrollback, publishAiFailure, resumeTerminal, searchAddon, setStatus, setTerminalInstance, terminalRendererGeneration, updateHasUnreadTerminalOutput, updateTerminalStreamState, workspace])
 }

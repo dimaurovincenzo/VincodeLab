@@ -268,7 +268,11 @@ export function useProjectSkillsController({ workspace, onWorkspaceGuardChange }
   const reloadPi = async () => {
     setOperationFailure(null)
     try {
-      await aiBridge.skills.reload()
+      const result = await aiBridge.skills.reload()
+      if (!result.reloaded) {
+        toast.info('Esegui /reload nel pane Pi desiderato in Herdr.')
+        return
+      }
       toast.success('Pi sta ricaricando skill, prompt ed estensioni.')
     } catch (error) {
       setOperationFailure({

@@ -28,18 +28,22 @@ export function useAiFailure() {
     return incident
   }, [])
 
-  const showEndedAiSession = useCallback(() => {
+  const showEndedAiSession = useCallback((runtime: 'herdr' | 'pi', piAvailable = true) => {
+    const herdr = runtime === 'herdr'
     const notice: AiSessionFailure = {
-      error: normalizeUserError(new Error('La sessione Pi è terminata normalmente.'), {
+      error: normalizeUserError(new Error(herdr ? 'Il client Herdr è stato chiuso.' : 'La sessione Pi è terminata normalmente.'), {
         category: 'process',
         code: 'AI_SESSION_ENDED',
         component: 'ai-terminal',
-        description: 'La sessione AI è terminata normalmente. L’output resta disponibile e puoi riavviarla quando vuoi.',
+        description: herdr
+          ? 'Il client Herdr è stato chiuso. La sessione condivisa e i suoi processi non sono stati arrestati.'
+          : 'La sessione AI è terminata normalmente. L’output resta disponibile e puoi riavviarla quando vuoi.',
         operation: 'session-exit',
         severity: 'info',
-        title: 'Sessione AI terminata',
+        title: herdr ? 'Client Herdr chiuso' : 'Sessione AI terminata',
       }),
       primaryRecovery: 'restart',
+      secondaryRecovery: herdr ? piAvailable ? 'start-pi-direct' : 'settings' : undefined,
     }
     aiFailureRef.current = notice
     setAiFailure(notice)

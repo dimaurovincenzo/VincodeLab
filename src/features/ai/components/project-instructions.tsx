@@ -166,7 +166,11 @@ export function ProjectInstructions({ workspace, onWorkspaceGuardChange }: Props
   const reloadPi = async () => {
     setOperationFailure(null)
     try {
-      await aiBridge.pi.reload()
+      const result = await aiBridge.pi.reload()
+      if (!result.reloaded) {
+        toast.info('Esegui /reload nel pane Pi desiderato in Herdr.')
+        return
+      }
       toast.success('Pi sta ricaricando le istruzioni progetto.')
     } catch (error) {
       setOperationFailure({
@@ -275,13 +279,13 @@ export function ProjectInstructions({ workspace, onWorkspaceGuardChange }: Props
           <p><code>.pi/APPEND_SYSTEM.md</code> {loadError ? 'lettura non disponibile' : loading ? 'lettura in corso' : hasUnsavedChanges ? 'modificato, non salvato' : exists ? 'attivo' : 'non presente'}</p>
         </div>
         <div className={aiStyles.editorActions}>
-          <Button variant="outline" size="sm" onClick={() => void reloadPi()}><RefreshCw aria-hidden="true" /> Ricarica Pi</Button>
+          <Button variant="outline" size="sm" onClick={() => void reloadPi()}><RefreshCw aria-hidden="true" /> Ricarica risorse Pi</Button>
           {hasUnsavedChanges && <Button variant="outline" size="sm" onClick={discardChanges} disabled={saving}>Annulla modifiche</Button>}
           {exists && <Button tone="danger" variant="outline" size="sm" onClick={clear} disabled={saving}><RotateCcw aria-hidden="true" /> Ripristina</Button>}
           <Button size="sm" onClick={() => void save()} disabled={saving || loading || !hasUnsavedChanges}><Save aria-hidden="true" /> Salva modifiche</Button>
         </div>
       </div>
-      <div className={aiStyles.advisory}><AlertTriangle aria-hidden="true" size={15} /> Questo file aggiunge istruzioni al prompt generale Pi solo per il workspace aperto. Dopo il salvataggio usa “Ricarica Pi”.</div>
+      <div className={aiStyles.advisory}><AlertTriangle aria-hidden="true" size={15} /> Questo file aggiunge istruzioni al prompt generale Pi solo per il workspace aperto. In Herdr esegui <code>/reload</code> direttamente nel pane Pi desiderato.</div>
       {loadError && <ErrorNotice error={loadError} action={{ label: 'Riprova', onClick: loadInstructions }} />}
       {operationFailure && <ErrorNotice error={operationFailure.error} action={{ label: 'Riprova', onClick: retryOperation }} />}
       <Field.Root className={aiStyles.editorField}><Field.Textarea className={aiStyles.editorTextarea} disabled={loading || Boolean(loadError)} value={content} onChange={(event) => {

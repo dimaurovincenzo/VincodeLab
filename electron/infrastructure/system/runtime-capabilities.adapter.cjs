@@ -99,6 +99,7 @@ function probeBundledModule(moduleId, loadModule = require) {
 
 function getRuntimeCapabilities({
   environment = process.env,
+  herdrStatus = { available: false, reason: 'missing' },
   homeDirectory = os.homedir(),
   loadModule = require,
   piExecutable = null,
@@ -143,7 +144,29 @@ function getRuntimeCapabilities({
     state: piExecutable ? 'ready' : 'missing',
     detail: piExecutable
       ? 'Pi è stato rilevato ed è disponibile per il Terminale AI.'
-      : 'Pi non è installato o non è rilevabile. Solo il Terminale AI resta disattivato; il resto di VincodeLab continua a funzionare.',
+      : herdrStatus.available
+        ? 'Pi locale non è rilevabile. Herdr può comunque aprire la fleet; configurazione, pacchetti e fallback Pi diretto restano disattivati.'
+        : 'Pi non è installato o rilevabile e Herdr non è disponibile. Solo il Terminale AI resta disattivato; il resto di VincodeLab continua a funzionare.',
+  })
+  const herdrReason = typeof herdrStatus?.reason === 'string' ? herdrStatus.reason : 'preflight-failed'
+  const herdrState = herdrStatus?.available === true
+    ? 'ready'
+    : herdrReason === 'missing' || herdrReason === 'disabled'
+      ? 'missing'
+      : 'broken'
+  const herdr = Object.freeze({
+    id: 'herdr',
+    kind: 'optional',
+    label: 'Herdr',
+    state: herdrState,
+    code: herdrState === 'ready' ? undefined : `HERDR_${herdrReason.replaceAll('-', '_').toUpperCase()}`,
+    detail: herdrState === 'ready'
+      ? 'Herdr è stato verificato ed è disponibile come client condiviso del Terminale AI.'
+      : herdrReason === 'disabled'
+        ? 'La verifica Herdr è disattivata in questa modalità tecnica di VincodeLab.'
+        : herdrState === 'missing'
+          ? 'Herdr non è stato rilevato. Il Terminale AI userà Pi diretto quando disponibile.'
+          : 'Herdr è presente ma non ha superato la verifica. Il Terminale AI userà Pi diretto quando disponibile.',
   })
   const shellExecutable = resolveSystemShell(environment)
   const systemShell = Object.freeze({
@@ -166,7 +189,7 @@ function getRuntimeCapabilities({
     })
   })
 
-  return Object.freeze({ checkedAt: new Date().toISOString(), items: Object.freeze([appRuntime, terminal, ...databases, pi, systemShell, ...tools]) })
+  return Object.freeze({ checkedAt: new Date().toISOString(), items: Object.freeze([appRuntime, terminal, ...databases, herdr, pi, systemShell, ...tools]) })
 }
 
 module.exports = { BUNDLED_DRIVERS, getRuntimeCapabilities, probeBundledModule, resolveSystemExecutable }

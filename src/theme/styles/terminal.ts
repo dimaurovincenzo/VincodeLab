@@ -27,6 +27,14 @@ export const terminalStyles = {
     px: '3',
     whiteSpace: 'nowrap',
   }),
+  runtimeStatus: css({
+    color: 'textTertiary',
+    fontFamily: 'sans',
+    marginLeft: 'auto',
+    maxW: '55%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  }),
   statusDot: css({
     bg: 'stateSuccess',
     borderRadius: 'full',

@@ -2,15 +2,15 @@ const APP_SECTIONS = new Set(['home', 'ai', 'ai-skills', 'ai-instructions', 'edi
 
 const AI_RESOURCE_ACTIONS = [
   { label: 'Salva risorsa corrente', command: 'ai.save', accelerator: 'CmdOrCtrl+S' },
-  { label: 'Ricarica risorse Pi', command: 'ai.reload', accelerator: 'CmdOrCtrl+Alt+R' },
-  { label: 'Riavvia sessione Pi', command: 'ai.restart' },
+  { label: 'Ricarica risorse Pi (Pi diretto)', command: 'ai.reload', accelerator: 'CmdOrCtrl+Alt+R' },
+  { label: 'Riavvia Terminale AI', command: 'ai.restart' },
 ]
 
 const ACTIONS_BY_SECTION = {
   home: [],
   ai: [
-    { label: 'Ricarica risorse Pi', command: 'ai.reload', accelerator: 'CmdOrCtrl+Alt+R' },
-    { label: 'Riavvia sessione Pi', command: 'ai.restart' },
+    { label: 'Ricarica risorse Pi (Pi diretto)', command: 'ai.reload', accelerator: 'CmdOrCtrl+Alt+R' },
+    { label: 'Riavvia Terminale AI', command: 'ai.restart' },
   ],
   'ai-skills': AI_RESOURCE_ACTIONS,
   'ai-instructions': AI_RESOURCE_ACTIONS,

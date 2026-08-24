@@ -8,7 +8,7 @@ import { terminalStyles } from '@/theme/styles/terminal'
 
 type TerminalAttachmentsProps = {
   contextActions?: TerminalContextAction[]
-  onInsert: (reference: string) => void | Promise<void>
+  onInsert: (reference: string) => Promise<boolean>
 }
 type AttachmentItem = { attachment: TerminalAttachment; file: File; pending: boolean }
 
@@ -112,7 +112,8 @@ export function TerminalAttachments({ contextActions = [], onInsert }: TerminalA
     setInserting(true)
     setInsertionFailure(null)
     try {
-      await onInsert(`${readyItems.map((item) => `@${item.attachment.absolutePath}`).join(' ')} `)
+      const accepted = await onInsert(`${readyItems.map((item) => `@${item.attachment.absolutePath}`).join(' ')} `)
+      if (!accepted) return
       const inserted = new Set(readyItems.map((item) => item.file))
       updateItems((current) => current.filter((item) => !inserted.has(item.file)))
     } catch (error) {

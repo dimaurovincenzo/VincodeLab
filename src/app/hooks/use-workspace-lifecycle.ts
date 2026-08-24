@@ -188,7 +188,7 @@ export function useWorkspaceLifecycle({
     setHomeFailure(null)
     if (result.path) void restoreWorkspaceSession(restoreNavigation)
     if (announce && !startFailure) {
-      toast.success('Sessione Pi avviata', { description: result.path ? workspaceName(result.path) : undefined })
+      toast.success('Terminale AI avviato', { description: result.path ? workspaceName(result.path) : undefined })
     }
     void refreshRecents()
   }, [clearAiFailure, clearWorkspaceStateBeforeOpen, loadAiTerminalPreferences, publishAiFailure, refreshRecents, resetCommandSurfaceForWorkspace, resetNavigationForWorkspace, resetWorkspaceSession, restoreNavigation, restoreWorkspaceSession, restoreWorkspaceStateBeforeOpen, setHomeFailure, setOpeningWorkspacePath, setStatus, setWorkspace, setWorkspaceOpenFailure, updateHasUnreadTerminalOutput, updateTerminalStreamState])

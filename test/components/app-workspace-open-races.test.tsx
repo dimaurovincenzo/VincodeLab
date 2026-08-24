@@ -185,7 +185,7 @@ type WorkspaceBridgeOptions = {
   open: () => Promise<WorkspaceOpenResult | null>
   openRecent: (workspacePath: string) => Promise<WorkspaceOpenResult>
   piReload?: () => Promise<{ reloaded: true }>
-  piRestart?: () => Promise<{ restarted: true }>
+  piRestart?: (options?: AiTerminalRestartOptions) => Promise<AiTerminalRestartResult>
   recents?: RecentWorkspace[]
   reveal?: () => Promise<{ revealed: true }>
   saveWorkspaceSession?: (snapshot: WorkspaceSessionWriteSnapshot) => Promise<WorkspaceSessionSnapshot>
@@ -235,7 +235,7 @@ function installBridge({ activeWorkspace = null, activeWorkspaceResult, getActiv
     },
     pi: {
       reload: vi.fn(piReload ?? (async () => ({ reloaded: true as const }))),
-      restart: vi.fn(piRestart ?? (async () => ({ restarted: true as const }))),
+      restart: vi.fn(piRestart ?? (async () => ({ restarted: true as const, runtime: 'pi' as const, piAvailable: true }))),
     },
     preferences: {
       get: vi.fn(async () => preferenceSnapshot),
@@ -255,6 +255,8 @@ function installBridge({ activeWorkspace = null, activeWorkspaceResult, getActiv
       reportRendererMetrics: vi.fn(),
       resize: vi.fn(),
       resume: vi.fn(terminalResume ?? (async () => ({
+        runtime: 'pi' as const,
+        piAvailable: true,
         sessionId: 'session-test',
         snapshot: { data: '', firstSequence: 0, watermark: 0, bytes: 0 },
         status: 'running' as const,
@@ -333,7 +335,7 @@ async function renderActiveWorkspace(options: Partial<Pick<WorkspaceBridgeOption
     ...options,
   })
   render(<App />)
-  await screen.findByLabelText(`Terminale Pi: ${workspacePath}`)
+  await screen.findByLabelText(`Terminale AI: ${workspacePath}`)
   await waitFor(() => expect(controls.bridge.workspaceSession.get).toHaveBeenCalledTimes(1))
   await waitFor(() => expect(controls.bridge.terminal.resume).toHaveBeenCalledTimes(1))
   return controls
@@ -447,7 +449,7 @@ describe('apertura workspace nel renderer', () => {
     expect(screen.getByRole('button', { name: 'Apri cartella…' })).toBeEnabled()
 
     await act(async () => pendingA.resolve({ path: recentA.path }))
-    expect(screen.queryByLabelText(`Terminale Pi: ${recentA.path}`)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(`Terminale AI: ${recentA.path}`)).not.toBeInTheDocument()
     expect(screen.getByText('Il workspace non è stato aperto. Il workspace precedente è rimasto disponibile.')).toBeInTheDocument()
     expect(retry).toBeEnabled()
   })
@@ -479,9 +481,9 @@ describe('apertura workspace nel renderer', () => {
     expect(controls.bridge.workspace.open).toHaveBeenCalledTimes(2)
     await act(async () => secondAttempt.resolve({ path: '/tmp/workspace-recuperato' }))
 
-    expect(await screen.findByLabelText('Terminale Pi: /tmp/workspace-recuperato')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Terminale AI: /tmp/workspace-recuperato')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Riprova apertura' })).not.toBeInTheDocument()
-    expect(screen.getByText('Pi pronto')).toBeInTheDocument()
+    expect(screen.getByText('Pi diretto pronto')).toBeInTheDocument()
   })
 
   it('instrada il comando nativo workspace.open attraverso la guardia delle modifiche', async () => {
@@ -514,16 +516,58 @@ describe('apertura workspace nel renderer', () => {
     expect(toastStore.getVisibleToasts()[0]?.meta?.errorExperience).toEqual({ occurrences: 2 })
     expect(within(failure).getByRole('button', { name: 'Riprova' })).toBeEnabled()
     expect(screen.queryByText(/alice|private/iu)).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Terminale Pi: /tmp/workspace-lifecycle')).toBeInTheDocument()
+    expect(screen.getByLabelText('Terminale AI: /tmp/workspace-lifecycle')).toBeInTheDocument()
 
     await user.click(within(failure).getByRole('button', { name: 'Riprova' }))
     await waitFor(() => expect(controls.bridge.workspace.reveal).toHaveBeenCalledTimes(3))
     expect(toastStore.getCount()).toBe(1)
-    expect(screen.getByLabelText('Terminale Pi: /tmp/workspace-lifecycle')).toBeInTheDocument()
+    expect(screen.getByLabelText('Terminale AI: /tmp/workspace-lifecycle')).toBeInTheDocument()
   })
 })
 
 describe('Error Experience della sessione AI', () => {
+  it('presenta Herdr come client condiviso, limita le azioni ambigue e offre Pi diretto solo quando disponibile', async () => {
+    const snapshot: TerminalResumeSnapshot = {
+      runtime: 'herdr',
+      piAvailable: true,
+      sessionId: 'herdr-session-test',
+      snapshot: { data: 'fleet Herdr', firstSequence: 0, watermark: 0, bytes: 11 },
+      status: 'running',
+    }
+    const controls = await renderActiveWorkspace({ terminalResume: async () => snapshot })
+    const user = userEvent.setup()
+
+    expect(screen.getByRole('status')).toHaveTextContent('Herdr · sessione condivisa · seleziona o avvia un pane Pi')
+    expect(screen.getByText('Contesto di avvio: /tmp/workspace-lifecycle')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Esegui /reload nel pane Pi desiderato in Herdr' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Ricollega il client Herdr (la fleet resta attiva)' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Allega file a Pi' })).not.toBeInTheDocument()
+
+    act(() => controls.dispatchTerminalExit({ exitCode: 1, signal: 0, runtime: 'herdr', piAvailable: true }))
+    const notice = await screen.findByRole('alert')
+    expect(within(notice).getByRole('heading', { name: 'Client Herdr terminato' })).toBeVisible()
+    expect(within(notice).getByRole('button', { name: 'Ricollega Herdr' })).toBeEnabled()
+    await user.click(within(notice).getByRole('button', { name: 'Avvia Pi diretto' }))
+    await waitFor(() => expect(controls.bridge.pi.restart).toHaveBeenCalledWith({ runtime: 'pi' }))
+  })
+
+  it('non propone Pi diretto quando Herdr è disponibile ma Pi locale manca', async () => {
+    const snapshot: TerminalResumeSnapshot = {
+      runtime: 'herdr',
+      piAvailable: false,
+      sessionId: 'herdr-only-session-test',
+      snapshot: { data: '', firstSequence: 0, watermark: 0, bytes: 0 },
+      status: 'running',
+    }
+    const controls = await renderActiveWorkspace({ terminalResume: async () => snapshot })
+
+    expect(screen.getByRole('status')).toHaveTextContent('Herdr · sessione condivisa · Pi locale non rilevato')
+    act(() => controls.dispatchTerminalExit({ exitCode: 1, signal: 0, runtime: 'herdr', piAvailable: false }))
+    const notice = await screen.findByRole('alert')
+    expect(within(notice).queryByRole('button', { name: 'Avvia Pi diretto' })).not.toBeInTheDocument()
+    expect(within(notice).getByRole('button', { name: 'Apri impostazioni' })).toBeEnabled()
+  })
+
   it('mantiene xterm e apre le Impostazioni quando l avvio richiede configurazione', async () => {
     const workspacePath = '/tmp/ai-config'
     const errorIncident = publicApplicationError(
@@ -544,7 +588,7 @@ describe('Error Experience della sessione AI', () => {
     const user = userEvent.setup()
     const view = render(<App />)
 
-    const terminalView = await screen.findByLabelText(`Terminale Pi: ${workspacePath}`)
+    const terminalView = await screen.findByLabelText(`Terminale AI: ${workspacePath}`)
     await waitFor(() => expect(controls.bridge.terminal.resume).toHaveBeenCalledTimes(1))
     const xtermHost = terminalView.querySelector('[data-xterm-host="ai"]')
     expect(xtermHost).not.toBeNull()
@@ -591,14 +635,14 @@ describe('Error Experience della sessione AI', () => {
   ])('classifica $code durante il reload senza toast duplicati né rimontare xterm', async ({ category, code, expectedTitle, message }) => {
     const controls = await renderActiveWorkspace()
     const user = userEvent.setup()
-    const terminalView = screen.getByLabelText('Terminale Pi: /tmp/workspace-lifecycle')
+    const terminalView = screen.getByLabelText('Terminale AI: /tmp/workspace-lifecycle')
     const xtermHost = terminalView.querySelector('[data-xterm-host="ai"]')
     controls.bridge.pi.reload
       .mockRejectedValueOnce(publicApplicationError(code, category, message))
       .mockRejectedValueOnce(publicApplicationError(code, category, message))
       .mockResolvedValueOnce({ reloaded: true })
 
-    await user.click(screen.getByRole('button', { name: 'Ricarica Pi' }))
+    await user.click(screen.getByRole('button', { name: 'Ricarica risorse Pi' }))
 
     expect(await screen.findByRole('heading', { name: expectedTitle })).toBeVisible()
     expect(screen.getAllByRole('heading', { name: expectedTitle })).toHaveLength(1)
@@ -626,13 +670,13 @@ describe('Error Experience della sessione AI', () => {
   it('distingue il timeout del riavvio e conserva output e istanza xterm durante il retry', async () => {
     const controls = await renderActiveWorkspace()
     const user = userEvent.setup()
-    const terminalView = screen.getByLabelText('Terminale Pi: /tmp/workspace-lifecycle')
+    const terminalView = screen.getByLabelText('Terminale AI: /tmp/workspace-lifecycle')
     const xtermHost = terminalView.querySelector('[data-xterm-host="ai"]')
     controls.bridge.pi.restart
       .mockRejectedValueOnce(new Error('restart timed out [AI_RESTART_TIMEOUT] [ERR-C1D2E3]'))
-      .mockResolvedValueOnce({ restarted: true })
+      .mockResolvedValueOnce({ restarted: true, runtime: 'pi', piAvailable: true })
 
-    await user.click(screen.getByRole('button', { name: 'Riavvia sessione' }))
+    await user.click(screen.getByRole('button', { name: 'Riavvia sessione Pi' }))
 
     expect(await screen.findByRole('heading', { name: 'Sessione AI senza risposta' })).toBeVisible()
     expect(screen.getByText(/L’output precedente è rimasto disponibile/u)).toBeVisible()
@@ -650,6 +694,7 @@ describe('Error Experience della sessione AI', () => {
 
   it('se il riavvio riesce ma il resume fallisce ritenta soltanto il collegamento output', async () => {
     const snapshot: TerminalResumeSnapshot = {
+      runtime: 'pi',
       sessionId: 'session-test',
       snapshot: { data: 'output conservato', firstSequence: 0, watermark: 0, bytes: 16 },
       status: 'running',
@@ -660,10 +705,10 @@ describe('Error Experience della sessione AI', () => {
       .mockResolvedValueOnce({ ...snapshot, sessionId: 'session-restarted' })
     const controls = await renderActiveWorkspace({ terminalResume: resume })
     const user = userEvent.setup()
-    const terminalView = screen.getByLabelText('Terminale Pi: /tmp/workspace-lifecycle')
+    const terminalView = screen.getByLabelText('Terminale AI: /tmp/workspace-lifecycle')
     const xtermHost = terminalView.querySelector('[data-xterm-host="ai"]')
 
-    await user.click(screen.getByRole('button', { name: 'Riavvia sessione' }))
+    await user.click(screen.getByRole('button', { name: 'Riavvia sessione Pi' }))
 
     expect(await screen.findByRole('heading', { name: 'Sessione riavviata, output non collegato' })).toBeVisible()
     expect(screen.getByText(/La sessione è stata riavviata e l’output precedente è rimasto visibile/u)).toBeVisible()
@@ -683,7 +728,7 @@ describe('Error Experience della sessione AI', () => {
   it('conserva la sessione visiva dopo un crash senza mostrare signal o exit code nel messaggio principale', async () => {
     const controls = await renderActiveWorkspace()
     const user = userEvent.setup()
-    const terminalView = screen.getByLabelText('Terminale Pi: /tmp/workspace-lifecycle')
+    const terminalView = screen.getByLabelText('Terminale AI: /tmp/workspace-lifecycle')
     const xtermHost = terminalView.querySelector('[data-xterm-host="ai"]')
 
     act(() => controls.dispatchTerminalExit({ exitCode: 137, signal: 9 }))
@@ -691,7 +736,7 @@ describe('Error Experience della sessione AI', () => {
     expect(await screen.findByRole('heading', { name: 'Sessione AI interrotta' })).toBeVisible()
     expect(screen.getByText(/L’output già ricevuto è rimasto disponibile/u)).toBeVisible()
     expect(screen.queryByText(/PTY signal 9/u)).not.toBeInTheDocument()
-    expect(screen.getByText('Errore Pi')).toBeVisible()
+    expect(screen.getByText('Errore Terminale AI')).toBeVisible()
     expect(xtermHarness.clearCalls).toBe(0)
 
     const notice = screen.getByRole('alert')
@@ -705,6 +750,7 @@ describe('Error Experience della sessione AI', () => {
 
   it('recupera lo storico iniziale ritentando solo resume sulla stessa istanza xterm', async () => {
     const snapshot: TerminalResumeSnapshot = {
+      runtime: 'pi',
       sessionId: 'session-restored',
       snapshot: { data: 'storico recuperato', firstSequence: 0, watermark: 0, bytes: 18 },
       status: 'running',
@@ -714,7 +760,7 @@ describe('Error Experience della sessione AI', () => {
       .mockResolvedValueOnce(snapshot)
     const controls = await renderActiveWorkspace({ terminalResume: resume })
     const user = userEvent.setup()
-    const terminalView = screen.getByLabelText('Terminale Pi: /tmp/workspace-lifecycle')
+    const terminalView = screen.getByLabelText('Terminale AI: /tmp/workspace-lifecycle')
     const xtermHost = terminalView.querySelector('[data-xterm-host="ai"]')
 
     expect(await screen.findByRole('heading', { name: 'Storico della sessione AI non disponibile' })).toBeVisible()

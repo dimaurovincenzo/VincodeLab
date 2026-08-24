@@ -5,6 +5,7 @@ const path = require('node:path')
 const test = require('node:test')
 
 const { createPiSessionController } = require('../electron/domains/ai/pi-session-controller.cjs')
+const { createAiTerminalLaunchPolicy, createLaunchDescriptor } = require('../electron/domains/ai/ai-terminal-launch-policy.cjs')
 const { isPublicError } = require('../electron/domains/errors/public-error.cjs')
 
 function hasPublicCode(code) {
@@ -62,7 +63,7 @@ function fakePty({ pid, exitOnKill = true, ignoreGracefulKill = false, immediate
   return process
 }
 
-function testHarness({ executable = '/opt/pi/bin/pi', outcomes = [], stopGraceMs = 5, forceStopMs = 5, isProcessAlive } = {}) {
+function testHarness({ executable = '/opt/pi/bin/pi', outcomes = [], stopGraceMs = 5, forceStopMs = 5, isProcessAlive, resolveLaunchCandidates } = {}) {
   let resolvedExecutable = executable
   let nextId = 0
   const processes = []
@@ -72,13 +73,20 @@ function testHarness({ executable = '/opt/pi/bin/pi', outcomes = [], stopGraceMs
   const exits = []
   const errors = []
   const queue = [...outcomes]
-  const controller = createPiSessionController({
-    resolveExecutable: () => resolvedExecutable,
+  const launchPolicy = createAiTerminalLaunchPolicy({
     environmentForExecutable: () => ({ PATH: '/opt/pi/bin:/usr/bin' }),
-    processFactory(_executable, _args, options) {
+    getEnvironment: () => ({ PATH: '/usr/bin' }),
+    inspectHerdr: async () => ({ available: false, reason: 'missing' }),
+    resolvePiExecutable: () => resolvedExecutable,
+  })
+  const controller = createPiSessionController({
+    resolveLaunchCandidates: resolveLaunchCandidates ?? launchPolicy.resolveCandidates,
+    processFactory(executable, args, options) {
       const outcome = queue.shift()
       if (outcome instanceof Error) throw outcome
       const ptyProcess = outcome ?? fakePty({ pid: 1_000 + processes.length })
+      ptyProcess.executable = executable
+      ptyProcess.args = args
       ptyProcess.options = options
       processes.push(ptyProcess)
       return ptyProcess
@@ -122,26 +130,33 @@ function testHarness({ executable = '/opt/pi/bin/pi', outcomes = [], stopGraceMs
   }
 }
 
-test('richiede ambiente e liveness come collaboratori del processo Pi', () => {
+function herdrAndPiCandidates(workspacePath, { herdrWindow = 600, herdrFailure } = {}) {
+  const environment = { PATH: '/opt/pi/bin:/opt/homebrew/bin:/usr/bin' }
+  return [
+    createLaunchDescriptor({ runtime: 'herdr', executable: '/opt/homebrew/bin/herdr', workspacePath, environment, startupWindowMs: herdrWindow, terminalFailure: herdrFailure }),
+    createLaunchDescriptor({ runtime: 'pi', executable: '/opt/pi/bin/pi', workspacePath, environment, startupWindowMs: 0 }),
+  ]
+}
+
+test('richiede candidati e liveness come collaboratori del Terminale AI', () => {
   const base = {
-    resolveExecutable: () => '/opt/pi/bin/pi',
     processFactory() {},
     createStream() {},
     createInput() {},
   }
-  assert.throws(() => createPiSessionController(base), /Provider ambiente Pi non valido/u)
+  assert.throws(() => createPiSessionController(base), /Resolver candidati Terminale AI non valido/u)
   assert.throws(
-    () => createPiSessionController({ ...base, environmentForExecutable: () => ({}) }),
+    () => createPiSessionController({ ...base, resolveLaunchCandidates: () => [] }),
     /Verifica processo Pi non valida/u,
   )
 })
 
-test('eseguibile assente e spawn throw non avvelenano i tentativi successivi', async () => {
+test('runtime assenti e spawn throw non avvelenano i tentativi successivi', async () => {
   const spawnError = Object.assign(new Error('posix_spawn ENOENT'), { code: 'ENOENT' })
   const recoveredProcess = fakePty({ pid: 101 })
   const harness = testHarness({ executable: null, outcomes: [spawnError, recoveredProcess] })
 
-  await assert.rejects(harness.controller.start('/tmp/workspace'), hasPublicCode('PI_NOT_INSTALLED'))
+  await assert.rejects(harness.controller.start('/tmp/workspace'), hasPublicCode('AI_TERMINAL_RUNTIME_UNAVAILABLE'))
   assert.equal(harness.processes.length, 0)
   assert.equal(harness.controller.getState().status, 'idle')
 
@@ -162,12 +177,12 @@ test('un crash immediato durante l’aggancio è notificato e consente recovery'
 
   await assert.rejects(harness.controller.start('/tmp/workspace'), (error) => {
     assert.equal(hasPublicCode('PI_NOT_RUNNABLE')(error), true)
-    assert.equal(error.cause?.code, 'PI_EARLY_EXIT')
+    assert.equal(error.cause?.code, 'AI_TERMINAL_EARLY_EXIT')
     assert.match(error.cause?.message, /terminato durante l’avvio.*codice 127/)
     return true
   })
-  assert.equal(harness.controller.getState().status, 'exited')
-  assert.deepEqual(harness.exits.map(({ exitCode, reason }) => ({ exitCode, reason })), [{ exitCode: 127, reason: 'exit' }])
+  assert.equal(harness.controller.getState().status, 'idle')
+  assert.deepEqual(harness.exits, [])
 
   await harness.controller.start('/tmp/workspace')
   assert.equal(harness.controller.getProcess(), recovered)
@@ -284,6 +299,98 @@ test('lo shutdown attende exit e rilascia tutte le risorse della sessione', asyn
   assert.equal(harness.exits[0].reason, 'shutdown')
 })
 
+test('spawn Herdr fallito esegue un solo fallback Pi e pubblica uno stato sanitizzato', async () => {
+  const pi = fakePty({ pid: 902 })
+  const harness = testHarness({
+    outcomes: [new Error('raw herdr spawn failure token=secret'), pi],
+    resolveLaunchCandidates: (workspacePath) => herdrAndPiCandidates(workspacePath),
+  })
+
+  const result = await harness.controller.start('/tmp/workspace')
+
+  assert.deepEqual(result, { started: true, sessionId: 'pi-session-1', runtime: 'pi', piAvailable: true, fallbackReason: 'spawn-failed' })
+  assert.equal(harness.processes.length, 1)
+  assert.equal(harness.controller.getState().runtime, 'pi')
+  assert.equal(harness.controller.getState().fallbackReason, 'spawn-failed')
+  assert.equal(harness.errors.some((event) => event.source === 'herdr-spawn'), true)
+})
+
+test('exit Herdr senza output esegue fallback Pi senza notificare una falsa sessione terminata', async () => {
+  const herdr = fakePty({ pid: 911, deferredExit: { exitCode: 1, signal: 0 } })
+  const pi = fakePty({ pid: 912 })
+  const harness = testHarness({
+    outcomes: [herdr, pi],
+    resolveLaunchCandidates: (workspacePath) => herdrAndPiCandidates(workspacePath),
+  })
+
+  const result = await harness.controller.start('/tmp/workspace')
+
+  assert.equal(result.runtime, 'pi')
+  assert.equal(result.fallbackReason, 'early-exit')
+  assert.equal(harness.processes.length, 2)
+  assert.deepEqual(harness.exits, [])
+  assert.equal(herdr.disposedDataListeners, 1)
+  assert.equal(herdr.disposedExitListeners, 1)
+})
+
+test('qualunque output Herdr rende la sessione autorevole anche se exit è già in coda', async () => {
+  const herdr = fakePty({ pid: 921 })
+  const pi = fakePty({ pid: 922 })
+  const originalOnExit = herdr.onExit
+  herdr.onExit = (listener) => {
+    const subscription = originalOnExit(listener)
+    setImmediate(() => {
+      herdr.emitExit({ exitCode: 0, signal: 0 })
+      herdr.emitData('fleet visible\n')
+    })
+    return subscription
+  }
+  const harness = testHarness({
+    outcomes: [herdr, pi],
+    resolveLaunchCandidates: (workspacePath) => herdrAndPiCandidates(workspacePath),
+  })
+
+  await assert.rejects(harness.controller.start('/tmp/workspace'), hasPublicCode('HERDR_SESSION_ENDED_DURING_STARTUP'))
+
+  assert.equal(harness.processes.length, 1, 'Pi non deve partire dopo output Herdr')
+  assert.deepEqual(harness.streams[0].chunks, ['fleet visible\n'])
+  assert.deepEqual(harness.exits, [], 'lo startup failure possiede da solo feedback e notifica')
+  assert.equal(harness.controller.getState().status, 'exited')
+})
+
+test('exit tardivo Herdr non avvia Pi; la recovery esplicita one-shot avvia soltanto Pi', async () => {
+  const herdr = fakePty({ pid: 931 })
+  const pi = fakePty({ pid: 932 })
+  const harness = testHarness({
+    outcomes: [herdr, pi],
+    resolveLaunchCandidates: (workspacePath, options) => options?.runtime === 'pi'
+      ? [createLaunchDescriptor({ runtime: 'pi', executable: '/opt/pi/bin/pi', workspacePath, environment: { PATH: '/opt/pi/bin:/usr/bin' }, startupWindowMs: 0 })]
+      : herdrAndPiCandidates(workspacePath, { herdrWindow: 0 }),
+  })
+
+  await harness.controller.start('/tmp/workspace')
+  herdr.emitExit({ exitCode: 2, signal: 0 })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(harness.processes.length, 1)
+  assert.equal(harness.controller.getState().runtime, 'herdr')
+
+  const recovered = await harness.controller.start('/tmp/workspace', { runtime: 'pi' })
+  assert.equal(recovered.runtime, 'pi')
+  assert.equal(harness.processes.length, 2)
+  assert.equal(harness.controller.getProcess(), pi)
+})
+
+test('fallback Pi fallito propaga PI_NOT_RUNNABLE senza lasciare doppi processi', async () => {
+  const harness = testHarness({
+    outcomes: [new Error('herdr spawn'), new Error('pi spawn')],
+    resolveLaunchCandidates: (workspacePath) => herdrAndPiCandidates(workspacePath),
+  })
+
+  await assert.rejects(harness.controller.start('/tmp/workspace'), hasPublicCode('PI_NOT_RUNNABLE'))
+  assert.equal(harness.processes.length, 0)
+  assert.equal(harness.controller.getState().status, 'idle')
+})
+
 test('il main attende controller Pi su restart, cambio workspace e shutdown', () => {
   const source = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
   const shutdownRuntime = fs.readFileSync(path.join(__dirname, '../electron/app/application-shutdown-runtime.cjs'), 'utf8')
@@ -293,7 +400,7 @@ test('il main attende controller Pi su restart, cambio workspace e shutdown', ()
 
   assert.match(source, /const piRuntime = createPiRuntime\(\{/)
   assert.match(source, /const piSessionController = piRuntime\.controller/)
-  assert.match(runtime, /async function restart\(\)[\s\S]*?await start\(requireActiveWorkspace\(\)\)/)
+  assert.match(runtime, /async function restart\(options\)[\s\S]*?await controller\.start\(requireActiveWorkspace\(\), options\)/)
   assert.match(cleanup, /cleanupWorkspaceRuntime\(workspacePath, reason\)[\s\S]*?await stopTerminal\(reason\)/)
   assert.match(source, /const openWorkspace = workspaceOpener\.open/)
   assert.match(opener, /async function open\(workspacePath\)[\s\S]*?await cleanupWorkspaceRuntime\(previousWorkspacePath, 'workspace-change'\)[\s\S]*?await stopTerminal\('workspace-change'\)[\s\S]*?await startPi\(normalizedWorkspacePath\)/)

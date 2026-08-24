@@ -10,7 +10,7 @@ type UseAiContextOptions = {
   editorContext: WorkbenchCommandContext['editor']
   githubContext: WorkbenchCommandContext['github']
   navigateToAppSection: (section: AppSection, focusPrimary?: boolean) => void
-  sendAiInput: (data: string) => Promise<void>
+  sendAiInput: (data: string) => Promise<boolean>
 }
 
 function compactContextText(value: string, maxLength = 1_600) {
@@ -21,8 +21,7 @@ function compactContextText(value: string, maxLength = 1_600) {
 export function useAiContext({ databaseContext, editorContext, githubContext, navigateToAppSection, sendAiInput }: UseAiContextOptions) {
   const writeAiInput = useCallback(async function writeAiInputAction(data: string, context: AiInputFailureContext) {
     try {
-      await sendAiInput(data)
-      return true
+      return await sendAiInput(data)
     } catch (nextError) {
       reportTransientFailure(nextError, {
         category: 'process',

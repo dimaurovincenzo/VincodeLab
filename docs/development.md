@@ -125,6 +125,7 @@ Il progetto riconosce alcune variabili per ambienti di sviluppo e test:
 | Variabile | Uso |
 | --- | --- |
 | `VINCODELAB_PI_PATH` | Percorso assoluto di un eseguibile `pi` |
+| `VINCODELAB_HERDR_PATH` | Percorso assoluto di un eseguibile `herdr`; il valore viene validato ed è autorevole per il preflight locale |
 | `VINCODELAB_GH_PATH` | Percorso assoluto di un eseguibile `gh` |
 | `VINCODELAB_DATA_DIR` | Directory dati applicativi alternativa |
 | `VINCODELAB_LOGS_DIR` | Directory log alternativa |
@@ -165,6 +166,10 @@ Vite usa una porta fissa e `strictPort`. Chiudi il processo locale che usa `127.
 ### Pi non viene trovato
 
 Verifica che `pi` sia eseguibile nel `PATH` della shell oppure imposta temporaneamente `VINCODELAB_PI_PATH`. Il resolver controlla anche le installazioni locali comuni e Homebrew.
+
+### Herdr non viene aperto nel Terminale AI
+
+Verifica `herdr --version` e che l'eseguibile sia nel `PATH`; sono supportati anche Homebrew, `~/.local/bin/herdr` e l'override temporaneo `VINCODELAB_HERDR_PATH`. VincodeLab non installa Herdr, non riavvia un server già attivo e non esegue automaticamente `herdr integration install pi`. Se il Terminale AI indica “Pi diretto”, il testo descrittivo associato allo stato runtime riporta il motivo del fallback.
 
 ### GitHub non è configurato
 

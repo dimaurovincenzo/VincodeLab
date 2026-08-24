@@ -62,7 +62,8 @@ Per sviluppare o creare il pacchetto locale servono:
 
 Le integrazioni seguenti sono opzionali:
 
-- [Pi Coding Agent](https://pi.dev/) per il Terminale AI;
+- [Herdr](https://herdr.dev/) come workspace terminale preferito per il Terminale AI;
+- [Pi Coding Agent](https://pi.dev/) come agente in Herdr e fallback diretto quando Herdr non è disponibile;
 - [GitHub CLI](https://cli.github.com/) autenticata per issue e GitHub Projects;
 - OpenSSH, incluso normalmente in macOS, per SSH e SFTP;
 - un server compatibile per PostgreSQL, MySQL, SQL Server o Redis. SQLite funziona con un file locale.
@@ -73,7 +74,7 @@ L'assenza di uno strumento opzionale disabilita la relativa integrazione, non l'
 
 Il bundle `.app` include Electron, il runtime Node usato internamente, il componente PTY, i driver SQL e il client Redis. Sul computer di destinazione **non** occorre installare Node.js, npm, `redis-cli`, `sqlite3`, `psql`, `mysql`, `sqlcmd`, ODBC o `libpq` per avviare VincodeLab.
 
-Pi, Git, GitHub CLI e OpenSSH/SFTP restano integrazioni opzionali. In **Impostazioni → Compatibilità** l'app distingue i componenti inclusi dagli strumenti esterni e spiega quale sola funzione viene disattivata quando uno di essi manca. Consulta la [matrice runtime e recovery](docs/runtime-compatibility.md) per i dettagli.
+Herdr, Pi, Git, GitHub CLI e OpenSSH/SFTP restano integrazioni opzionali. Se Herdr è disponibile, il Terminale AI apre il client verso la sua sessione persistente; altrimenti usa Pi direttamente. In **Impostazioni → Compatibilità** l'app distingue i componenti inclusi dagli strumenti esterni e spiega quale sola funzione viene disattivata quando uno di essi manca. Consulta la [matrice runtime e recovery](docs/runtime-compatibility.md) per i dettagli.
 
 ## Avvio dal sorgente
 

@@ -30,6 +30,7 @@ function dependencies(overrides = {}) {
     maxPasteBytes: 5 * 1024 * 1024,
     piSessionController: {
       getInput: () => null,
+      getState: () => ({ runtime: 'pi', fallbackReason: null, piAvailable: true }),
       getStream: () => null,
       resize: () => true,
       write: () => true,
@@ -120,23 +121,24 @@ test('Pi lifecycle, resume e Pi Config invoke preservano guardie e return semant
     assertTrustedSender: (receivedEvent) => calls.push(['guard', receivedEvent]),
     piSessionController: {
       getInput: () => null,
+      getState: () => ({ runtime: 'herdr', fallbackReason: null, piAvailable: true }),
       getStream: () => ({ createResumeSnapshot: () => snapshot }),
       write: () => true,
     },
     reloadPi: () => { calls.push(['reload']); return reloadResult },
-    restartPi: () => { calls.push(['restart']); return restartResult },
+    restartPi: (options) => { calls.push(['restart', options]); return restartResult },
     startPiConfig: () => { calls.push(['config-start']); return startResult },
     stopPiConfig: async () => { calls.push(['config-stop']) },
   }))
 
   assert.equal(handlers.get('pi:reload')(event), reloadResult)
   assert.equal(handlers.get('pi:restart')(event), restartResult)
-  assert.equal(handlers.get('terminal:resume')(event), snapshot)
+  assert.deepEqual(handlers.get('terminal:resume')(event), { generation: 4, runtime: 'herdr', piAvailable: true })
   assert.equal(handlers.get('piConfig:start')(event), startResult)
   assert.deepEqual(await handlers.get('piConfig:close')(event), { closed: true })
   assert.deepEqual(calls, [
     ['guard', event], ['reload'],
-    ['guard', event], ['restart'],
+    ['guard', event], ['restart', undefined],
     ['guard', event],
     ['guard', event], ['config-start'],
     ['guard', event], ['config-stop'],
@@ -145,8 +147,11 @@ test('Pi lifecycle, resume e Pi Config invoke preservano guardie e return semant
   const noSession = createAiTerminalInvokeHandlers(dependencies())
   assert.throws(
     () => noSession.get('terminal:resume')({}),
-    /La sessione Pi non è attiva\./,
+    /La sessione del Terminale AI non è attiva\./,
   )
+  assert.throws(() => handlers.get('pi:restart')(event, { runtime: 'herdr' }), /Opzioni riavvio Terminale AI non valide/u)
+  assert.throws(() => handlers.get('pi:restart')(event, {}), /Opzioni riavvio Terminale AI non valide/u)
+  assert.equal(handlers.get('pi:restart')(event, { runtime: 'pi' }), restartResult)
 })
 
 test('writeInput conserva limiti byte e ApplicationError pubblico per entrambi i failure', () => {
@@ -158,6 +163,7 @@ test('writeInput conserva limiti byte e ApplicationError pubblico per entrambi i
     piSessionController: {
       getInput: () => null,
       getStream: () => null,
+      getState: () => ({ runtime: 'pi' }),
       write(data) {
         calls.push(['write', data])
         return acceptsInput
@@ -201,7 +207,7 @@ test('writeInput conserva limiti byte e ApplicationError pubblico per entrambi i
     rejectedError = error
   }
   assert.equal(rejectedError.message, 'public:TERMINAL_WRITE_INPUT_FAILED')
-  assert.equal(rejectedError.cause.message, 'Il processo Pi non ha accettato l’input programmatico.')
+  assert.equal(rejectedError.cause.message, 'Il processo del Terminale AI non ha accettato l’input programmatico.')
   assert.deepEqual(rejectedError.options, {
     channel: 'terminal:writeInput',
     code: 'TERMINAL_WRITE_INPUT_FAILED',
@@ -213,6 +219,23 @@ test('writeInput conserva limiti byte e ApplicationError pubblico per entrambi i
   assert.throws(
     () => handlers.get('terminal:writeInput')(event, 'x'.repeat(65_537)),
     /TERMINAL_WRITE_INPUT_INVALID/,
+  )
+
+  const herdr = createAiTerminalInvokeHandlers(dependencies({
+    piSessionController: {
+      getInput: () => null,
+      getState: () => ({ runtime: 'herdr' }),
+      getStream: () => null,
+      write: () => true,
+    },
+    toApplicationError(cause, options) {
+      return Object.assign(new Error(options.message), { cause, options })
+    },
+  }))
+  assert.throws(
+    () => herdr.get('terminal:writeInput')(event, 'contesto'),
+    (error) => error.options.code === 'HERDR_PROGRAMMATIC_INPUT_DISABLED'
+      && error.options.severity === 'info',
   )
 })
 
@@ -408,13 +431,13 @@ test('ready ack key metrics e resize conservano protocollo e rejection codes', (
   assert.throws(
     () => listeners.get('terminal:key')(event, 'x'),
     (error) => error.code === 'TERMINAL_INPUT_REJECTED'
-      && error.message === 'Il processo Pi non ha accettato l’input.',
+      && error.message === 'Il Terminale AI non ha accettato l’input.',
   )
   acceptsResize = false
   assert.throws(
     () => listeners.get('terminal:resize')(event, { cols: 90, rows: 30 }),
     (error) => error.code === 'TERMINAL_RESIZE_REJECTED'
-      && error.message === 'Il processo Pi non ha accettato il ridimensionamento.',
+      && error.message === 'Il Terminale AI non ha accettato il ridimensionamento.',
   )
   assert.throws(
     () => listeners.get('terminal:resize')(event, { cols: 1, rows: 30 }),

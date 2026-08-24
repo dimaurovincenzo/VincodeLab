@@ -70,6 +70,7 @@ const { createRendererRecoveryController } = require('./app/renderer-recovery-co
 const { createWindowCloseCoordinator } = require('./app/window-close-coordinator.cjs')
 const { createPtyRuntime } = require('./infrastructure/processes/pty-runtime.adapter.cjs')
 const { createPiCommandRunner, isPiProcessAlive } = require('./infrastructure/processes/pi-command-runner.adapter.cjs')
+const { createHerdrRuntimeAdapter } = require('./infrastructure/processes/herdr-runtime.adapter.cjs')
 const { createShellHostAdapter } = require('./infrastructure/processes/shell-host.adapter.cjs')
 const { getRuntimeCapabilities } = require('./infrastructure/system/runtime-capabilities.adapter.cjs')
 const { createRendererEventSender } = require('./infrastructure/ipc/renderer-event-sender.cjs')
@@ -78,6 +79,7 @@ const { createShellSessionRuntime } = require('./domains/shell/shell-session-run
 const { createRemoteRuntime } = require('./domains/remote/remote-runtime.cjs')
 const { createContextCommandDispatcher } = require('./domains/menu/context-command-dispatcher.cjs')
 const { createPiRuntime } = require('./domains/ai/pi-runtime.cjs')
+const { createAiTerminalLaunchPolicy } = require('./domains/ai/ai-terminal-launch-policy.cjs')
 const { createWorkspaceOperationBoundary } = require('./domains/workspace/workspace-operation-boundary.cjs')
 const { createWorkspaceRuntimeCleanup } = require('./domains/workspace/workspace-runtime-cleanup.cjs')
 const { createWorkspaceOpener } = require('./domains/workspace/workspace-opener.cjs')
@@ -182,6 +184,18 @@ const piCommandRunner = createPiCommandRunner({
   buildEnvironment: environmentForPi,
   getEnvironment: () => process.env,
   timeoutMs: PI_COMMAND_TIMEOUT_MS,
+})
+const herdrRuntime = createHerdrRuntimeAdapter({
+  getEnvironment: () => process.env,
+  getHomePath: () => applicationHomePath,
+  includeUserCandidates: !CLEAN_MACHINE_SMOKE_MODE,
+})
+const aiTerminalLaunchPolicy = createAiTerminalLaunchPolicy({
+  environmentForExecutable: environmentForPiExecutable,
+  getEnvironment: () => process.env,
+  herdrEnabled: !RELIABILITY_BENCHMARK_MODE,
+  inspectHerdr: herdrRuntime.inspect,
+  resolvePiExecutable,
 })
 const {
   getPiSystemStatus,
@@ -316,6 +330,7 @@ const piRuntime = createPiRuntime({
   notifyWhenBackground,
   ptyRuntime,
   resolveExecutable: resolvePiExecutable,
+  resolveLaunchCandidates: aiTerminalLaunchPolicy.resolveCandidates,
   requireActiveWorkspace,
   sendToRenderer,
   showOpenDialog: (...args) => dialog.showOpenDialog(...args),
@@ -674,6 +689,9 @@ function registerApplicationIpc(instanceRegistry) {
     cleanMachineSmokeMode: CLEAN_MACHINE_SMOKE_MODE,
     getPtyStatus: () => ptyRuntime.getStatus(),
     getRuntimeCapabilities,
+    inspectHerdr: () => RELIABILITY_BENCHMARK_MODE
+      ? { available: false, reason: 'disabled' }
+      : herdrRuntime.inspect(process.env),
     resolvePiExecutable,
   })
   registerPiSystemIpc({

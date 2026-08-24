@@ -15,6 +15,7 @@ import { TerminalAttachments } from './terminal-attachments'
 import type { AiRuntimeController } from '../hooks/use-ai-runtime'
 import type { AiTab, TerminalContextAction } from '../model/ai-runtime.types'
 import { terminalPasteRecoveryLabel } from '../services/ai-error'
+import { aiTerminalRuntimeDescription, aiTerminalRuntimeLabel } from '../services/ai-terminal-runtime-label'
 import '@xterm/xterm/css/xterm.css'
 
 type AiWorkbenchProps = {
@@ -68,6 +69,7 @@ export function AiWorkbench({
     streamState,
     terminalElement,
     terminalQuery,
+    terminalRuntime,
     terminalSearchOpen,
     terminalStatus,
   } = runtime
@@ -84,10 +86,11 @@ export function AiWorkbench({
           </Tabs.List>
           <Tabs.Content value="terminal" className={aiStyles.tabPanel}>
             <ViewErrorBoundary viewName="Terminale AI">
-              <div className={terminalStyles.workspace} aria-label={`Terminale Pi: ${workspace}`}>
+              <div className={terminalStyles.workspace} aria-label={`Terminale AI: ${workspace}`}>
                 <div className={terminalStyles.meta}>
                   <span className={`${terminalStyles.statusDot} ${status === 'launching' ? terminalStyles.statusLaunching : status === 'error' ? terminalStyles.statusError : status !== 'running' ? terminalStyles.statusInactive : ''}`} aria-hidden="true" />
-                  <span>{workspace}</span>
+                  <span>{terminalRuntime?.runtime === 'herdr' ? `Contesto di avvio: ${workspace}` : workspace}</span>
+                  <span className={terminalStyles.runtimeStatus} role="status" title={aiTerminalRuntimeDescription(terminalRuntime)}>{aiTerminalRuntimeLabel(terminalRuntime)}</span>
                 </div>
                 <div className={terminalStyles.controls} aria-label="Controlli terminale">
                   {(streamState?.status === 'paused' || streamState?.status === 'stalled') && <div className={terminalStyles.streamStatus} role="status"><Spinner size={14} /> Rendering rallentato · recupero automatico in corso</div>}
@@ -100,10 +103,10 @@ export function AiWorkbench({
                       <IconButton size="icon-xs" tooltip="Chiudi ricerca" onClick={closeTerminalSearch}><X aria-hidden="true" size={14} /></IconButton>
                     </Field.Root>
                   ) : <span className={terminalStyles.hint}>⌘F cerca · ⌘± zoom</span>}
-                  <IconButton className={terminalStyles.reload} tooltip="Ricarica Pi" onClick={() => void reloadPi()}><RefreshCw aria-hidden="true" size={15} /></IconButton>
-                  <TerminalToolbar fontSize={fontSize} statusLabel={terminalStatus} onClear={clearTerminal} onCopy={() => void copyTerminalSelection()} onPaste={() => void pasteIntoTerminal()} onResetZoom={resetTerminalZoom} onRestart={() => void restartPi()} onSearch={() => setTerminalSearchOpen(true)} onZoom={changeFontSize} />
+                  <IconButton className={terminalStyles.reload} disabled={terminalRuntime?.runtime === 'herdr'} tooltip={terminalRuntime?.runtime === 'herdr' ? 'Esegui /reload nel pane Pi desiderato in Herdr' : 'Ricarica risorse Pi'} onClick={() => void reloadPi()}><RefreshCw aria-hidden="true" size={15} /></IconButton>
+                  <TerminalToolbar fontSize={fontSize} statusLabel={terminalStatus} onClear={clearTerminal} onCopy={() => void copyTerminalSelection()} onPaste={() => void pasteIntoTerminal()} onResetZoom={resetTerminalZoom} onRestart={() => void restartPi()} onSearch={() => setTerminalSearchOpen(true)} onZoom={changeFontSize} restartLabel={terminalRuntime?.runtime === 'herdr' ? 'Ricollega il client Herdr (la fleet resta attiva)' : 'Riavvia sessione Pi'} />
                 </div>
-                <TerminalAttachments contextActions={contextActions} onInsert={sendAiInput} />
+                {terminalRuntime?.runtime === 'pi' && <TerminalAttachments contextActions={contextActions} onInsert={sendAiInput} />}
                 <div className={terminalStyles.surface}><div className={terminalStyles.xtermHost} data-xterm-host="ai" key={workspace} ref={terminalElement} /></div>
                 {pasteProgress && <TerminalPasteStatus
                   failure={pasteFailure?.error}
@@ -115,7 +118,7 @@ export function AiWorkbench({
                   onClose={closeTerminalPasteStatus}
                 />}
                 {hasUnreadTerminalOutput && <Button className={terminalStyles.newOutput} size="sm" variant="subtle" onClick={revealTerminalOutput}>Nuovo output</Button>}
-                {aiFailure && <AiSessionErrorNotice failure={aiFailure} onOpenSettings={onOpenSettings} onReload={reloadPi} onRestart={restartPi} onResumeOutput={retryAiOutput} onRetryTerminal={retryAiTerminal} />}
+                {aiFailure && <AiSessionErrorNotice failure={aiFailure} onOpenSettings={onOpenSettings} onReload={reloadPi} onRestart={() => restartPi()} onResumeOutput={retryAiOutput} onRetryTerminal={retryAiTerminal} onStartPiDirect={() => restartPi({ runtime: 'pi' })} />}
               </div>
             </ViewErrorBoundary>
           </Tabs.Content>
