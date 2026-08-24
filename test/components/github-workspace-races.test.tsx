@@ -201,7 +201,7 @@ describe('ordinamento richieste del workspace GitHub', () => {
       .mockResolvedValueOnce(cached(gitStatus('recuperato')))
     const github = installBridge({ gitStatus: gitStatusMock })
     const user = userEvent.setup()
-    render(<GitHubWorkspace active={false} workspace="/tmp/github-status-recovery" />)
+    render(<GitHubWorkspace active workspace="/tmp/github-status-recovery" />)
 
     expect(await screen.findByRole('heading', { name: 'Stato Git non disponibile' })).toBeVisible()
     expect(screen.getByText(/Riferimento ERR-[A-F0-9]{6}/)).toBeVisible()
@@ -222,7 +222,7 @@ describe('ordinamento richieste del workspace GitHub', () => {
   it('mostra la CTA di inizializzazione soltanto per un vero non-repository', async () => {
     const nonRepository = { ...gitStatus(''), isRepository: false }
     const github = installBridge({ gitStatus: vi.fn(async () => cached(nonRepository)) })
-    render(<GitHubWorkspace active={false} workspace="/tmp/github-not-repository" />)
+    render(<GitHubWorkspace active workspace="/tmp/github-not-repository" />)
 
     expect(await screen.findByRole('heading', { name: 'Nessun repository Git' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Inizializza repository' })).toBeEnabled()
@@ -235,7 +235,7 @@ describe('ordinamento richieste del workspace GitHub', () => {
       .mockResolvedValueOnce(cached(gitStatus('stabile')))
       .mockRejectedValueOnce(new Error('status temporaneamente non disponibile'))
     installBridge({ gitStatus: gitStatusMock })
-    render(<GitHubWorkspace active={false} workspace="/tmp/github-status-last-good" />)
+    render(<GitHubWorkspace active workspace="/tmp/github-status-last-good" />)
 
     await waitFor(() => expect(screen.getByText('Branch attivo').parentElement).toHaveTextContent('stabile'))
     act(() => dispatchApplicationMenuCommand('github.refresh'))
@@ -271,7 +271,7 @@ describe('ordinamento richieste del workspace GitHub', () => {
         }
       }),
     })
-    render(<GitHubWorkspace active={false} workspace={`/tmp/github-error-${code.toLowerCase()}`} />)
+    render(<GitHubWorkspace active workspace={`/tmp/github-error-${code.toLowerCase()}`} />)
 
     expect(await screen.findByRole('heading', { name: expectedTitle })).toBeVisible()
     expect(screen.getByText('Riferimento ERR-A1B2C3')).toBeVisible()
@@ -317,7 +317,7 @@ describe('ordinamento richieste del workspace GitHub', () => {
     })
     const github = installBridge({ commit, gitStatus: gitStatusMock })
     const user = userEvent.setup()
-    render(<GitHubWorkspace active={false} workspace="/tmp/github-commit-conflict" />)
+    render(<GitHubWorkspace active workspace="/tmp/github-commit-conflict" />)
 
     const message = await screen.findByRole('textbox', { name: 'Messaggio del commit' })
     await user.type(message, 'Mantieni questo messaggio')
@@ -346,7 +346,7 @@ describe('ordinamento richieste del workspace GitHub', () => {
     })
     installBridge({ gitStatus: gitStatusMock, pullRebase })
     const user = userEvent.setup()
-    render(<GitHubWorkspace active={false} workspace="/tmp/github-pull-not-found" />)
+    render(<GitHubWorkspace active workspace="/tmp/github-pull-not-found" />)
 
     await user.click(await screen.findByRole('button', { name: 'Integra' }))
     expect(await screen.findByRole('heading', { name: 'Branch remoto non disponibile' })).toBeVisible()
@@ -377,7 +377,7 @@ describe('ordinamento richieste del workspace GitHub', () => {
       gitStatus: vi.fn(async () => cached(gitStatus('main', files))),
     })
     const user = userEvent.setup()
-    render(<GitHubWorkspace active={false} workspace="/tmp/github-diff-recovery" />)
+    render(<GitHubWorkspace active workspace="/tmp/github-diff-recovery" />)
 
     await user.click(await screen.findByRole('button', { name: 'a.ts' }))
     expect(await screen.findByText('diff A conservato')).toBeVisible()
@@ -402,7 +402,7 @@ describe('ordinamento richieste del workspace GitHub', () => {
     })
     installBridge({ createIssue, data: dataMock })
     const user = userEvent.setup()
-    render(<GitHubWorkspace active={false} initialState={initialState('issues')} workspace="/tmp/github-issue-form" />)
+    render(<GitHubWorkspace active initialState={initialState('issues')} workspace="/tmp/github-issue-form" />)
 
     await user.click(await screen.findByRole('button', { name: 'Nuova issue' }))
     const title = screen.getByRole('textbox', { name: 'Titolo' })
@@ -431,7 +431,7 @@ describe('ordinamento richieste del workspace GitHub', () => {
       .mockResolvedValueOnce(cached(projectBoard(1, 'Attività recuperata')))
     const github = installBridge({ projectBoard: boardMock })
     const user = userEvent.setup()
-    render(<GitHubWorkspace active={false} initialState={initialState('projects', 1)} workspace="/tmp/github-board-recovery" />)
+    render(<GitHubWorkspace active initialState={initialState('projects', 1)} workspace="/tmp/github-board-recovery" />)
 
     expect(await screen.findByText('Attività conservata')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Aggiorna' }))
@@ -674,13 +674,13 @@ describe('ordinamento richieste del workspace GitHub', () => {
     installBridge({ gitStatus: gitStatusMock })
     const view = render(<GitHubWorkspace active={false} workspace="/tmp/github-hidden-poll" />)
     await flush()
-    expect(gitStatusMock).toHaveBeenCalledTimes(1)
+    expect(gitStatusMock).not.toHaveBeenCalled()
 
     await act(async () => {
       vi.advanceTimersByTime(5_000)
       await Promise.resolve()
     })
-    expect(gitStatusMock).toHaveBeenCalledTimes(1)
+    expect(gitStatusMock).not.toHaveBeenCalled()
 
     view.rerender(<GitHubWorkspace active workspace="/tmp/github-hidden-poll" />)
     await act(async () => {

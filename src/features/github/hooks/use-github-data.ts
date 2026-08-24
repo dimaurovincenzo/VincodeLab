@@ -178,13 +178,15 @@ export function useGitHubData({ active, autoRefreshSeconds, errors, state }: Opt
   }, [active, autoRefreshSeconds, tab])
 
   useEffect(() => {
+    if (!active) return
     // Rimanda al microtask: l'effetto registra soltanto il caricamento iniziale, non forza un render sincrono.
     void Promise.resolve().then(() => refreshGit())
-  }, [refreshGit])
+  }, [active, refreshGit])
 
   useEffect(() => {
+    if (!active) return
     if ((tab === 'issues' || tab === 'projects') && !state.data) void Promise.resolve().then(() => refreshGitHub())
-  }, [refreshGitHub, state.data, tab])
+  }, [active, refreshGitHub, state.data, tab])
 
   return { refreshGit, refreshGitHub, retryGitStatus }
 }
