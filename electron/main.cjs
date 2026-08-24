@@ -58,6 +58,7 @@ const { createRendererRecoveryController } = require('./renderer-recovery-contro
 const { createWindowCloseCoordinator } = require('./window-close-coordinator.cjs')
 const { createPtyRuntime } = require('./pty-runtime.cjs')
 const { getRuntimeCapabilities } = require('./runtime-capabilities.cjs')
+const { createRendererEventSender } = require('./infrastructure/ipc/renderer-event-sender.cjs')
 const { registerAiTerminalIpc } = require('./ipc/domains/ai-terminal.ipc.cjs')
 const { registerPreferencesIpc } = require('./ipc/domains/preferences.ipc.cjs')
 const { registerRuntimeIpc } = require('./ipc/domains/runtime.ipc.cjs')
@@ -177,29 +178,12 @@ function assertTrustedSender(event) {
   }
 }
 
-function sendToRenderer(channel, payload) {
-  const window = mainWindow
-  if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return false
-  try {
-    window.webContents.send(channel, payload)
-    return true
-  } catch (error) {
-    const incident = toApplicationError(error, {
-      channel: 'renderer:eventDelivery',
-      code: 'RENDERER_EVENT_DELIVERY_FAILED',
-      domain: 'internal',
-      message: 'Un aggiornamento non è stato consegnato all’interfaccia.',
-      operation: 'sendToRenderer',
-      recoverable: true,
-      severity: 'warning',
-    })
-    log('warning', 'renderer_event_delivery_failed', {
-      ...getApplicationErrorLogMetadata(incident),
-      eventChannel: channel,
-    })
-    return false
-  }
-}
+const sendToRenderer = createRendererEventSender({
+  getApplicationErrorLogMetadata,
+  getWindow: () => mainWindow,
+  log,
+  toApplicationError,
+})
 
 function publicApplicationErrorPayload(error, options) {
   const incident = toApplicationError(error, options)

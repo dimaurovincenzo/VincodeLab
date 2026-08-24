@@ -81,10 +81,12 @@ test('tutti i listener ipcMain one-way sono registrati attraverso la boundary', 
 
 test('il caricamento finestra osserva la Promise e il delivery renderer resta best-effort', () => {
   const source = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const rendererEventSender = fs.readFileSync(path.join(__dirname, '../electron/infrastructure/ipc/renderer-event-sender.cjs'), 'utf8')
 
   assert.match(source, /const loadPromise = devServerUrl[\s\S]{0,220}window\.loadURL\(devServerUrl\)[\s\S]{0,120}window\.loadFile\(/)
   assert.match(source, /Promise\.resolve\(loadPromise\)\.catch\(\(\) => \{[\s\S]{0,220}`did-fail-load` possiede logging e recovery/)
   assert.match(source, /renderer_load_start_failed[\s\S]{0,260}recoveryController\.handleLoadFailure/)
-  assert.match(source, /function sendToRenderer[\s\S]{0,220}window\.webContents\.isDestroyed\(\)[\s\S]{0,180}try \{[\s\S]{0,160}window\.webContents\.send\(channel, payload\)/)
-  assert.match(source, /renderer_event_delivery_failed/)
+  assert.match(rendererEventSender, /function sendToRenderer[\s\S]{0,220}window\.webContents\.isDestroyed\(\)[\s\S]{0,180}try \{[\s\S]{0,160}window\.webContents\.send\(channel, payload\)/)
+  assert.match(rendererEventSender, /renderer_event_delivery_failed/)
+  assert.match(source, /createRendererEventSender\(\{/)
 })
