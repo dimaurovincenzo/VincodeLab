@@ -40,7 +40,14 @@ const databaseVendorLifecycleProperties = new Set([
 const shellOperationalSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'node-pty'])
 const aiProcessSpecifiers = new Set(['child_process', 'node:child_process'])
 const aiFilesystemHostSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'path', 'node:path'])
+const projectFileIndexHostSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'path', 'node:path'])
+const projectFileIndexIsolatedDomains = new Map([
+  ['electron/domains/filesystem/project-file-index-host.port.cjs', 'Porta host Indice file progetto'],
+  ['electron/domains/filesystem/project-file-index.cjs', 'Indice file progetto'],
+])
 const aiFilesystemIsolatedDomains = new Map([
+  ['electron/domains/ai/pi-package-skills-source.port.cjs', 'Porta catalogo skill pacchetti Pi'],
+  ['electron/domains/ai/pi-package-skills.cjs', 'Catalogo skill pacchetti Pi'],
   ['electron/domains/ai/project-instructions-storage.port.cjs', 'Porta Istruzioni progetto'],
   ['electron/domains/ai/project-instructions.cjs', 'Istruzioni progetto'],
   ['electron/domains/ai/project-skills-storage.port.cjs', 'Porta Skill progetto'],
@@ -49,6 +56,26 @@ const aiFilesystemIsolatedDomains = new Map([
   ['electron/domains/ai/system-skills.cjs', 'Skill di sistema'],
 ])
 const menuHostSpecifiers = new Set(['child_process', 'electron', 'node:child_process'])
+const rendererBridgeGlobalContractNames = new Set([
+  'AppMenuApi',
+  'AppMenuCommand',
+  'AppMenuSection',
+  'BenchmarkApi',
+  'BenchmarkFault',
+  'BenchmarkWindowBounds',
+  'BenchmarkWindowRectangle',
+  'ContextMenuAction',
+  'ContextMenuApi',
+  'ContextMenuCommand',
+  'ContextMenuFlags',
+  'ContextMenuKind',
+  'ContextMenuOpenRequest',
+  'LifecycleApi',
+  'LifecycleCloseDecision',
+  'LifecycleCloseReason',
+  'LifecycleCloseRequest',
+  'VincodeLabBridge',
+])
 
 // These files predate src/bridge. Keep the list explicit so that new direct
 // renderer-to-preload dependencies cannot be introduced while each legacy
@@ -301,6 +328,61 @@ function directBridgeAccessCount(sourceFile) {
   return count
 }
 
+function windowBridgeIndexedTypeReferenceCount(sourceFile) {
+  let count = 0
+  const visit = (node) => {
+    if (ts.isIndexedAccessTypeNode(node)) {
+      const objectType = node.objectType
+      const indexType = node.indexType
+      const windowType = ts.isTypeReferenceNode(objectType)
+        && ts.isIdentifier(objectType.typeName)
+        && objectType.typeName.text === 'Window'
+      const vincodeLabKey = ts.isLiteralTypeNode(indexType)
+        && ts.isStringLiteralLike(indexType.literal)
+        && indexType.literal.text === 'vincodeLab'
+      if (windowType && vincodeLabKey) count += 1
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return count
+}
+
+function globalBridgeContractDeclarations(sourceFile) {
+  const declarations = new Set()
+  const collect = (statements) => {
+    for (const statement of statements) {
+      const name = statement.name && ts.isIdentifier(statement.name) ? statement.name.text : null
+      if (name && rendererBridgeGlobalContractNames.has(name)) declarations.add(name)
+    }
+  }
+
+  if (!ts.isExternalModule(sourceFile)) collect(sourceFile.statements)
+  const visit = (node) => {
+    if (ts.isModuleDeclaration(node) && node.name.text === 'global') {
+      let body = node.body
+      while (body && ts.isModuleDeclaration(body)) body = body.body
+      if (body && ts.isModuleBlock(body)) collect(body.statements)
+      return
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return [...declarations]
+}
+
+function bridgeTypeContractProblems(file, sourceFile) {
+  const problems = []
+  const indexedReferences = windowBridgeIndexedTypeReferenceCount(sourceFile)
+  if (indexedReferences > 0) {
+    problems.push(`${file}: ${indexedReferences} riferimenti type-level a Window['vincodeLab']; importa VincodeLabBridge da @/bridge`)
+  }
+  for (const declaration of globalBridgeContractDeclarations(sourceFile)) {
+    problems.push(`${file}: contratto bridge globale "${declaration}"; dichiaralo ed esportalo da src/bridge`)
+  }
+  return problems
+}
+
 function isRequireSpecifier(node) {
   return ts.isCallExpression(node.parent)
     && ts.isIdentifier(node.parent.expression)
@@ -512,6 +594,7 @@ export function inspectArchitecture({ root }) {
     const dependencies = []
 
     for (const problem of ipcChannelLiteralProblems(file, sourceFile)) problems.push(`${file}: ${problem}`)
+    for (const problem of bridgeTypeContractProblems(file, sourceFile)) problems.push(problem)
 
     if (file.startsWith('electron/domains/database/')) {
       for (const factory of databaseIdentifierReferences(sourceFile, databaseVendorExecutionFactories)) {
@@ -552,6 +635,11 @@ export function inspectArchitecture({ root }) {
         problems.push(`${file}: dominio ${aiFilesystemIsolatedDomain} dipende direttamente dal filesystem host "${specifier}"; usa la porta storage iniettata`)
         continue
       }
+      const projectFileIndexIsolatedDomain = projectFileIndexIsolatedDomains.get(file)
+      if (projectFileIndexIsolatedDomain && projectFileIndexHostSpecifiers.has(specifier)) {
+        problems.push(`${file}: dominio ${projectFileIndexIsolatedDomain} dipende direttamente dal filesystem host "${specifier}"; usa la porta host iniettata`)
+        continue
+      }
       if (file.startsWith('electron/domains/ai/') && aiProcessSpecifiers.has(specifier)) {
         problems.push(`${file}: dominio AI dipende direttamente dai processi host "${specifier}"; usa un adapter iniettato`)
         continue
@@ -573,6 +661,12 @@ export function inspectArchitecture({ root }) {
       for (const problem of importBoundaryProblems(file, imported)) problems.push(`${file}: ${problem}`)
     }
     graph.set(file, [...new Set(dependencies)])
+  }
+
+  for (const absoluteFile of walk(path.join(absoluteRoot, 'test/components'))) {
+    const file = normalize(path.relative(absoluteRoot, absoluteFile))
+    const sourceFile = sourceFileFor(file, readFileSync(absoluteFile, 'utf8'))
+    for (const problem of bridgeTypeContractProblems(file, sourceFile)) problems.push(problem)
   }
 
   for (const cycle of findCycles(graph)) problems.push(`ciclo di dipendenze: ${cycle.join(' → ')}`)

@@ -47,6 +47,35 @@ test('analizza anche le dipendenze espresse con ImportTypeNode TypeScript', () =
   })
 })
 
+test('impedisce ai consumer di ricavare il contratto bridge da Window o da globali ambienti', () => {
+  withFixture({
+    'src/bridge/contracts/vincode-lab-bridge.ts': "export type VincodeLabBridge = Window['vincodeLab']\n",
+    'src/vincode-lab.d.ts': [
+      "type AppMenuCommand = 'workspace.open'",
+      'interface Window { vincodeLab: unknown }',
+    ].join('\n'),
+    'test/components/bridge-consumer.types.ts': "export type Bridge = Window['vincodeLab']\n",
+  }, (problems) => {
+    assert.ok(problems.some((problem) => problem.includes("src/bridge/contracts/vincode-lab-bridge.ts: 1 riferimenti type-level a Window['vincodeLab']")))
+    assert.ok(problems.some((problem) => problem.includes('src/vincode-lab.d.ts: contratto bridge globale "AppMenuCommand"')))
+    assert.ok(problems.some((problem) => problem.includes("test/components/bridge-consumer.types.ts: 1 riferimenti type-level a Window['vincodeLab']")))
+  })
+})
+
+test('obbliga l augmentazione Window a importare VincodeLabBridge dal public entry', () => {
+  withFixture({
+    'src/bridge/index.ts': "export type { VincodeLabBridge } from './contracts/vincode-lab-bridge'\n",
+    'src/bridge/contracts/vincode-lab-bridge.ts': 'export type VincodeLabBridge = { terminal: unknown }\n',
+    'src/vincode-lab.d.ts': [
+      "import type { VincodeLabBridge } from './bridge/contracts/vincode-lab-bridge'",
+      'declare global { interface Window { vincodeLab: VincodeLabBridge } }',
+      'export {}',
+    ].join('\n'),
+  }, (problems) => {
+    assert.ok(problems.some((problem) => problem.includes('src/vincode-lab.d.ts: import profondo nel bridge renderer')))
+  })
+})
+
 test('obbliga ogni consumer esterno a usare gli ingressi pubblici di feature, UI e bridge', () => {
   withFixture({
     'src/app/shell.ts': [
@@ -287,6 +316,46 @@ test('mantiene filesystem e helper concreti fuori dal dominio Skill di sistema',
     assert.ok(problems.some((problem) => problem.includes('filesystem host "node:path"')))
     assert.ok(problems.some((problem) => problem.includes('filesystem host "fs/promises"')))
     assert.ok(problems.some((problem) => problem.includes('implementazione filesystem concreta')))
+  })
+})
+
+test('mantiene filesystem e risoluzione path fuori dal catalogo skill dei pacchetti Pi e dalla sua porta', () => {
+  withFixture({
+    'electron/domains/ai/pi-package-skills.cjs': [
+      "require('node:fs')",
+      "require('node:path')",
+    ].join('\n'),
+    'electron/domains/ai/pi-package-skills-source.port.cjs': [
+      "require('fs/promises')",
+      "require('path')",
+    ].join('\n'),
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('dominio Catalogo skill pacchetti Pi')).length, 2)
+    assert.equal(problems.filter((problem) => problem.includes('dominio Porta catalogo skill pacchetti Pi')).length, 2)
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "node:path"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "fs/promises"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "path"')))
+  })
+})
+
+test('mantiene filesystem e risoluzione path fuori dall Indice file progetto e dalla sua porta', () => {
+  withFixture({
+    'electron/domains/filesystem/project-file-index.cjs': [
+      "require('node:fs')",
+      "require('node:path')",
+    ].join('\n'),
+    'electron/domains/filesystem/project-file-index-host.port.cjs': [
+      "require('fs/promises')",
+      "require('path')",
+    ].join('\n'),
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('dominio Indice file progetto')).length, 2)
+    assert.equal(problems.filter((problem) => problem.includes('dominio Porta host Indice file progetto')).length, 2)
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "node:path"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "fs/promises"')))
+    assert.ok(problems.some((problem) => problem.includes('filesystem host "path"')))
   })
 })
 
