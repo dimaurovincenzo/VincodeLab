@@ -19,7 +19,44 @@ test.after(() => {
 
 const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const { readCache, writeCache } = require('../electron/infrastructure/persistence/workspace-cache.repository.cjs')
-const { MAX_GIT_GRAPH_COMMITS, MAX_GIT_STATUS_FILES, MAX_GITHUB_ISSUES, addGitHubRemote, assertBranchName, assertFilePaths, assertGitHubRemoteUrl, assertGitHubRepositoryName, chunkGitFilePaths, commit, getCachedGitStatus, getCachedProjectBoard, getCachedResource, getFileDiff, getGitHubData, getGitStatus, getLinkedProjectBoard, githubAccessDiagnostic, githubProjectsDiagnostic, githubUnavailableData, initializeGitRepository, invalidateGitCache, invalidateGitHubDataCache, invalidateProjectBoardCache, listBranches, parseBranches, parseGraph, parseGraphPage, parseHistory, parseIssuesPage, parseStatus, parseStatusPage, push, stageFiles, unstageFiles } = require('../electron/infrastructure/github/github-service.adapter.cjs')
+const { getCachedResource, invalidateGitCache, invalidateGitHubDataCache, invalidateProjectBoardCache } = require('../electron/infrastructure/github/github-cache.adapter.cjs')
+const {
+  MAX_GIT_GRAPH_COMMITS,
+  MAX_GIT_STATUS_FILES,
+  MAX_GITHUB_ISSUES,
+  assertBranchName,
+  assertFilePaths,
+  assertGitHubRemoteUrl,
+  assertGitHubRepositoryName,
+  chunkGitFilePaths,
+  parseBranches,
+  parseGraph,
+  parseGraphPage,
+  parseHistory,
+  parseIssuesPage,
+  parseStatus,
+  parseStatusPage,
+} = require('../electron/domains/github/github-model.cjs')
+const { createGithubService } = require('./helpers/github-service.cjs')
+
+const {
+  addGitHubRemote,
+  commit,
+  getCachedGitStatus,
+  getCachedProjectBoard,
+  getFileDiff,
+  getGitHubData,
+  getGitStatus,
+  getLinkedProjectBoard,
+  githubAccessDiagnostic,
+  githubProjectsDiagnostic,
+  githubUnavailableData,
+  initializeGitRepository,
+  listBranches,
+  push,
+  stageFiles,
+  unstageFiles,
+} = createGithubService()
 
 function withTemporaryCache(t) {
   const dataDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-service-cache-'))
@@ -627,7 +664,7 @@ test('applica le proiezioni bounded Project nel processo GitHub CLI reale', (t) 
   const fakeGh = path.join(root, 'gh')
   const workspace = path.join(root, 'workspace')
   const logPath = path.join(root, 'gh.log')
-  const servicePath = path.join(__dirname, '../electron/infrastructure/github/github-service.adapter.cjs')
+  const servicePath = path.join(__dirname, 'helpers/github-service.cjs')
   fs.mkdirSync(workspace)
   fs.writeFileSync(fakeGh, `#!/bin/sh
 has_jq=0
@@ -655,7 +692,7 @@ fi
 `, { mode: 0o755 })
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
 
-  const script = `const { getLinkedProjectBoard } = require(${JSON.stringify(servicePath)}); getLinkedProjectBoard(${JSON.stringify(workspace)}, 7).then((board) => process.stdout.write(JSON.stringify(board)))`
+  const script = `const { createGithubService } = require(${JSON.stringify(servicePath)}); const { getLinkedProjectBoard } = createGithubService(); getLinkedProjectBoard(${JSON.stringify(workspace)}, 7).then((board) => process.stdout.write(JSON.stringify(board)))`
   const output = execFileSync(process.execPath, ['-e', script], {
     encoding: 'utf8',
     env: {

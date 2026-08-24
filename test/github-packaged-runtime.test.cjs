@@ -9,7 +9,7 @@ test('carica issue e Projects con il PATH minimale del bundle macOS', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-packaged-github-'))
   const fakeGh = path.join(root, 'gh')
   const workspace = path.join(root, 'workspace')
-  const servicePath = path.join(__dirname, '../electron/infrastructure/github/github-service.adapter.cjs')
+  const servicePath = path.join(__dirname, 'helpers/github-service.cjs')
   fs.mkdirSync(workspace)
   fs.writeFileSync(fakeGh, `#!/bin/sh
 if [ "$1 $2" = "repo view" ]; then
@@ -24,7 +24,7 @@ fi
 `, { mode: 0o755 })
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
 
-  const script = `const { getGitHubData } = require(${JSON.stringify(servicePath)}); getGitHubData(${JSON.stringify(workspace)}).then((data) => process.stdout.write(JSON.stringify(data)))`
+  const script = `const { createGithubService } = require(${JSON.stringify(servicePath)}); const { getGitHubData } = createGithubService(); getGitHubData(${JSON.stringify(workspace)}).then((data) => process.stdout.write(JSON.stringify(data)))`
   const output = execFileSync(process.execPath, ['-e', script], {
     encoding: 'utf8',
     env: {

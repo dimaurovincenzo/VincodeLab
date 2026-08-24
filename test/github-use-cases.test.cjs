@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
+const path = require('node:path')
 const test = require('node:test')
 const { createGithubUseCases } = require('../electron/domains/github/github-use-cases.cjs')
 
@@ -129,4 +130,13 @@ test('la composizione mantiene operativi Git locale, diagnostica GitHub e mutazi
   assert.deepEqual(await useCases.createWorkspaceProject('/workspace', 'Roadmap'), { number: 7, title: 'Roadmap' })
   assert.deepEqual(dependencies.projectCalls, [{ repository: { nameWithOwner: 'acme/demo', url: 'https://github.com/acme/demo', owner: 'acme' }, title: 'Roadmap', workspacePath: '/workspace' }])
   assert.deepEqual(dependencies.invalidated, ['/workspace'])
+})
+
+test('il composition root collega esplicitamente dominio GitHub, cache e runner', () => {
+  const root = path.join(__dirname, '..')
+  const source = fs.readFileSync(path.join(root, 'electron/main.cjs'), 'utf8')
+
+  assert.match(source, /createGithubUseCases\(\{ cache: githubCache, projects: githubProjects, runner: githubRunner \}\)/u)
+  assert.doesNotMatch(source, /github-service\.adapter/u)
+  assert.equal(fs.existsSync(path.join(root, 'electron/infrastructure/github/github-service.adapter.cjs')), false)
 })

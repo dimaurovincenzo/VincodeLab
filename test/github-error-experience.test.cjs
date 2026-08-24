@@ -2,13 +2,11 @@ const assert = require('node:assert/strict')
 const test = require('node:test')
 
 const { getApplicationErrorLogMetadata, isApplicationError } = require('../electron/domains/errors/application-error.cjs')
-const {
-  commandFailure,
-  githubAccessDiagnostic,
-  githubUnavailableData,
-  isGitRepository,
-} = require('../electron/infrastructure/github/github-service.adapter.cjs')
+const { commandFailure } = require('../electron/domains/github/command-errors.cjs')
+const { createGithubService } = require('./helpers/github-service.cjs')
 const { createPublicError, isPublicError } = require('../electron/domains/errors/public-error.cjs')
+
+const { githubAccessDiagnostic, githubUnavailableData, isGitRepository } = createGithubService()
 
 const PRIVATE_MARKER = 'SENSITIVE_MARKER_7K9'
 

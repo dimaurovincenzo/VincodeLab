@@ -11,7 +11,9 @@ process.env.VINCODELAB_DATA_DIR = dataDirectory
 
 const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const { readCache, writeCache } = require('../electron/infrastructure/persistence/workspace-cache.repository.cjs')
-const { commandLifecycleError, createCommandRunner, getCachedResource, isCommandCancellation } = require('../electron/infrastructure/github/github-service.adapter.cjs')
+const { commandLifecycleError, isCommandCancellation } = require('../electron/domains/github/command-errors.cjs')
+const { getCachedResource } = require('../electron/infrastructure/github/github-cache.adapter.cjs')
+const { createCommandRunner } = require('../electron/infrastructure/github/command-runner.adapter.cjs')
 
 test.after(() => {
   closeDatabase()

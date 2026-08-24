@@ -19,17 +19,18 @@ process.env.VINCODELAB_DATA_DIR = dataDirectory
 Object.assign(process.env, isolatedGitEnvironment)
 
 const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
+const { createCommandRunner } = require('../electron/infrastructure/github/command-runner.adapter.cjs')
+const { createGithubService } = require('./helpers/github-service.cjs')
 const {
   commit,
   createBranch,
-  createCommandRunner,
   getFileDiff,
   getGitStatus,
   initializeGitRepository,
   push,
   stageFiles,
   switchBranch,
-} = require('../electron/infrastructure/github/github-service.adapter.cjs')
+} = createGithubService()
 
 function git(cwd, args, options = {}) {
   return execFileSync('git', args, {

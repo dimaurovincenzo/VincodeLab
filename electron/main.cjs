@@ -51,8 +51,11 @@ const { createRedisOperationRegistry } = require('./domains/redis/redis-operatio
 const { redisInspectionForRenderer, redisSearchForRenderer, redisSummaryForRenderer } = require('./domains/redis/redis-renderer-serializer.cjs')
 const { nodeRedisClientAdapter } = require('./infrastructure/redis/node-redis-client.adapter.cjs')
 const { createGithubOperationRegistry } = require('./domains/github/github-operation-registry.cjs')
+const { createGithubUseCases } = require('./domains/github/github-use-cases.cjs')
+const githubProjects = require('./domains/github/github-projects.cjs')
+const githubCache = require('./infrastructure/github/github-cache.adapter.cjs')
+const githubRunner = require('./infrastructure/github/command-runner.adapter.cjs')
 const { createExternalMutationRegistry } = require('./domains/workspace/external-mutation-registry.cjs')
-const { addGitHubRemote, addWorkspaceIssueToProject, archiveWorkspaceProjectItem, closeWorkspaceProject, commit, createBranch, createGitHubRepository, createIssue, createWorkspaceProject, createWorkspaceProjectDraft, editWorkspaceProject, fetchRemote, getCachedGitHubData, getCachedGitStatus, getCachedProjectBoard, getFileDiff, getWorkspaceProjectItemFields, initializeGitRepository, listBranches, pullRebase, push, revertCommit, stageFiles, switchBranch, unstageFiles, updateIssue, updateWorkspaceProjectItem } = require('./infrastructure/github/github-service.adapter.cjs')
 const { closeDatabase, getAppearance, getDataDirectory, getDatabase, isDirectory, listRecentWorkspaces, recordWorkspace, setAppearance } = require('./infrastructure/persistence/workspace.repository.cjs')
 const { revealWorkspace } = require('./domains/workspace/workspace-reveal.cjs')
 const { getWorkspaceSession, saveWorkspaceSession } = require('./infrastructure/persistence/workspace-session.repository.cjs')
@@ -268,6 +271,7 @@ const { saveProjectFile } = createProjectFileSaver(createProjectFileSaveFilesyst
 const projectFileIndex = createProjectFileIndex(createProjectFileIndexFilesystemAdapter())
 const databaseOperations = createDatabaseOperationRegistry()
 const redisOperations = createRedisOperationRegistry()
+const githubUseCases = createGithubUseCases({ cache: githubCache, projects: githubProjects, runner: githubRunner })
 const githubOperations = createGithubOperationRegistry()
 const externalMutations = createExternalMutationRegistry()
 const volatileDrafts = createVolatileDraftRegistry()
@@ -683,45 +687,45 @@ function registerApplicationIpc(instanceRegistry) {
     updateProjectSkill,
   })
   registerGitIpc({
-    addGitHubRemote,
+    addGitHubRemote: githubUseCases.addGitHubRemote,
     assertCacheReadOptions,
     assertTrustedSender,
-    commit,
-    createBranch,
-    fetchRemote,
-    getCachedGitStatus,
-    getFileDiff,
-    initializeGitRepository,
+    commit: githubUseCases.commit,
+    createBranch: githubUseCases.createBranch,
+    fetchRemote: githubUseCases.fetchRemote,
+    getCachedGitStatus: githubUseCases.getCachedGitStatus,
+    getFileDiff: githubUseCases.getFileDiff,
+    initializeGitRepository: githubUseCases.initializeGitRepository,
     ipcMain,
-    listBranches,
-    pullRebase,
-    push,
-    revertCommit,
+    listBranches: githubUseCases.listBranches,
+    pullRebase: githubUseCases.pullRebase,
+    push: githubUseCases.push,
+    revertCommit: githubUseCases.revertCommit,
     runLatestGithubRead,
     runWorkspaceMutation,
-    stageFiles,
-    switchBranch,
-    unstageFiles,
+    stageFiles: githubUseCases.stageFiles,
+    switchBranch: githubUseCases.switchBranch,
+    unstageFiles: githubUseCases.unstageFiles,
   })
   registerGithubIpc({
-    addWorkspaceIssueToProject,
-    archiveWorkspaceProjectItem,
+    addWorkspaceIssueToProject: githubUseCases.addWorkspaceIssueToProject,
+    archiveWorkspaceProjectItem: githubUseCases.archiveWorkspaceProjectItem,
     assertCacheReadOptions,
     assertTrustedSender,
-    closeWorkspaceProject,
-    createGitHubRepository,
-    createIssue,
-    createWorkspaceProject,
-    createWorkspaceProjectDraft,
-    editWorkspaceProject,
-    getCachedGitHubData,
-    getCachedProjectBoard,
-    getWorkspaceProjectItemFields,
+    closeWorkspaceProject: githubUseCases.closeWorkspaceProject,
+    createGitHubRepository: githubUseCases.createGitHubRepository,
+    createIssue: githubUseCases.createIssue,
+    createWorkspaceProject: githubUseCases.createWorkspaceProject,
+    createWorkspaceProjectDraft: githubUseCases.createWorkspaceProjectDraft,
+    editWorkspaceProject: githubUseCases.editWorkspaceProject,
+    getCachedGitHubData: githubUseCases.getCachedGitHubData,
+    getCachedProjectBoard: githubUseCases.getCachedProjectBoard,
+    getWorkspaceProjectItemFields: githubUseCases.getWorkspaceProjectItemFields,
     ipcMain,
     runLatestGithubRead,
     runWorkspaceMutation,
-    updateIssue,
-    updateWorkspaceProjectItem,
+    updateIssue: githubUseCases.updateIssue,
+    updateWorkspaceProjectItem: githubUseCases.updateWorkspaceProjectItem,
   })
   registerAiTerminalIpc({
     assertTrustedSender,
