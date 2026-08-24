@@ -335,8 +335,8 @@ test('gli allegati Pi delegano drop, focus e tastiera a FileUpload senza cambiar
   for (const slot of ['Root', 'Dropzone', 'HiddenInput', 'Trigger', 'ItemGroup', 'Item', 'ItemName', 'ItemDeleteTrigger']) {
     assert.match(attachments, new RegExp(`<FileUpload\\.${slot}`))
   }
-  assert.match(attachments, /window\.vincodeLab\.terminal\.chooseAttachments\(\)/)
-  assert.match(attachments, /window\.vincodeLab\.terminal\.prepareDroppedAttachments\(files\)/)
+  assert.match(attachments, /aiBridge\.terminal\.chooseAttachments\(\)/)
+  assert.match(attachments, /aiBridge\.terminal\.prepareDroppedAttachments\(files\)/)
   assert.match(fileUpload, /FileUpload as ArkFileUpload[\s\S]*?from '@ark-ui\/react\/file-upload'/)
   assert.match(fileUpload, /createStyleContext\(fileUpload\)/)
   assert.match(recipes, /&\[data-dragging\]::after/)

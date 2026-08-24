@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Activity, Download, RefreshCw } from 'lucide-react'
 import { Button, ErrorNotice, Spinner, toast } from '@/components/ui'
+import { aiBridge } from '@/features/ai'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
 import { terminalStyles } from '@/theme/styles/terminal'
 
@@ -16,7 +17,7 @@ export function TerminalDiagnostics() {
   const refresh = async () => {
     setBusy('refresh')
     setFailure(null)
-    try { setDiagnostics(await window.vincodeLab.terminal.diagnostics()) }
+    try { setDiagnostics(await aiBridge.terminal.diagnostics()) }
     catch (error) {
       setFailure({
         error: reportUserError(normalizeUserError(error, {
@@ -37,7 +38,7 @@ export function TerminalDiagnostics() {
     setBusy('export')
     setFailure(null)
     try {
-      const result = await window.vincodeLab.terminal.exportDiagnostics()
+      const result = await aiBridge.terminal.exportDiagnostics()
       if (result.exported) toast.success('Report diagnostico esportato.', { description: result.filePath })
     } catch (error) {
       setFailure({

@@ -11,13 +11,9 @@ const sourceRoots = ['src', 'electron']
 export const legacyDirectBridgeFiles = new Map([
   ['src/App.tsx', 40],
   ['src/components/benchmark-view-fault-probe.tsx', 1],
-  ['src/components/free-terminal.tsx', 27],
   ['src/components/project-instructions.tsx', 7],
   ['src/components/project-skills.tsx', 7],
   ['src/components/redis-workspace.tsx', 1],
-  ['src/components/terminal-attachments.tsx', 2],
-  ['src/components/terminal-diagnostics.tsx', 2],
-  ['src/components/terminal-workspace.tsx', 8],
   ['src/components/workspace-switcher.tsx', 1],
   ['src/lib/app-preferences.ts', 1],
   ['src/lib/volatile-draft-store.ts', 1],

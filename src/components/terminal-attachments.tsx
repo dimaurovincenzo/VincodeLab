@@ -1,6 +1,7 @@
 import { Paperclip, Send, X } from 'lucide-react'
 import { useRef, useState, type MouseEvent } from 'react'
 import { Button, ErrorNotice, FileUpload, IconButton, Spinner, toast, type FileUploadFileChangeDetails } from '@/components/ui'
+import { aiBridge } from '@/features/ai'
 import { normalizeUserError, reportUserError } from '@/lib/user-error'
 import { terminalStyles } from '@/theme/styles/terminal'
 
@@ -37,7 +38,7 @@ export function TerminalAttachments({ contextActions = [], onInsert }: TerminalA
 
   const addChosenAttachments = async () => {
     try {
-      const chosen = await window.vincodeLab.terminal.chooseAttachments()
+      const chosen = await aiBridge.terminal.chooseAttachments()
       updateItems((current) => {
         const known = new Set(current.filter((item) => !item.pending).map((item) => item.attachment.absolutePath))
         const next = chosen.flatMap((attachment) => {
@@ -66,7 +67,7 @@ export function TerminalAttachments({ contextActions = [], onInsert }: TerminalA
 
   const prepareDroppedAttachments = async (files: File[]) => {
     try {
-      const prepared = await window.vincodeLab.terminal.prepareDroppedAttachments(files)
+      const prepared = await aiBridge.terminal.prepareDroppedAttachments(files)
       updateItems((current) => {
         const preparedByFile = new Map(files.map((file, index) => [file, prepared[index]]))
         const preparedFiles = new Set(files)

@@ -47,7 +47,7 @@ test('il riavvio usa soltanto la sessione selezionata senza un secondo bridge IP
   assert.doesNotMatch(main, /let shellProcess|let shellWorkspacePath/)
   assert.doesNotMatch(main, /['"]shell:restart['"]/)
   assert.doesNotMatch(preload, /['"]shell:restart['"]/)
-  assert.match(component, /await window\.vincodeLab\.shellSessions\.restart\(sessionId\)/)
+  assert.match(component, /await terminalBridge\.shellSessions\.restart\(sessionId\)/)
   assert.doesNotMatch(component, /window\.vincodeLab\.shell\./)
   assert.doesNotMatch(component, /restartKey/)
 })

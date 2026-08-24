@@ -68,6 +68,8 @@ Il primo registratore backend estratto è `electron/ipc/domains/runtime.ipc.cjs`
 
 `node-pty` ospita sia le sessioni shell sia Pi Coding Agent. Il main possiede processi, backpressure, cronologia e lifecycle; xterm si occupa soltanto della presentazione e dell'input. Le viste terminale rimangono montate durante la navigazione per preservare sessione e viewport.
 
+Nel renderer `src/features/terminal/` espone sessioni shell, libreria comandi e connessioni SSH gestite; `src/features/ai/` mantiene invece le capacità specifiche di Pi e dei suoi allegati. Le due feature risolvono il preload tramite adapter ritardati distinti: condividono primitive tecniche, ma non controller dell'output, stato o lifecycle.
+
 `electron/bootstrap.cjs` installa l'esperienza fatal prima di caricare moduli nativi. `electron/pty-runtime.cjs` confina invece un componente PTY mancante o incompatibile: terminali e Pi risultano degradati, mentre le aree che non richiedono PTY restano operative. Una dipendenza essenziale del bundle assente viene presentata come installazione da riparare, senza esporre il messaggio raw del loader.
 
 La risoluzione di Pi è isolata in `electron/pi-executable.cjs`. Se l'eseguibile non è disponibile, l'errore resta confinato al Terminale AI.

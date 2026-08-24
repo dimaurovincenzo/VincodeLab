@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, FolderOpen, Plus, TerminalSquare, X } from '
 import { FreeTerminal, type TerminalSessionUiStatus } from '@/components/free-terminal'
 import { RemoteFiles } from '@/components/remote-files'
 import { Button, ErrorNotice, IconButton, Spinner, Tabs } from '@/components/ui'
+import { terminalBridge } from '@/features/terminal'
 import { dispatchApplicationMenuCommand } from '@/lib/app-menu-command'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
 import { terminalStyles } from '@/theme/styles/terminal'
@@ -155,7 +156,7 @@ export function TerminalWorkspace({ active, workspace, focusRequest = 0, actionR
       mruSessionIds.current = []
 
       try {
-        let snapshot = await window.vincodeLab.shellSessions.list()
+        let snapshot = await terminalBridge.shellSessions.list()
         if (!isCurrent()) return
         if (snapshot.sessions.length === 0) {
           const pendingAction = actionRequestRef.current
@@ -176,7 +177,7 @@ export function TerminalWorkspace({ active, workspace, focusRequest = 0, actionR
           })
           const restoredSessions: ShellSessionMetadata[] = []
           for (let index = 0; index < targetCount; index += 1) {
-            restoredSessions.push(await window.vincodeLab.shellSessions.create())
+            restoredSessions.push(await terminalBridge.shellSessions.create())
             if (!isCurrent()) return
           }
           const activeOrdinal = restoredActiveSessionOrdinal === null
@@ -184,7 +185,7 @@ export function TerminalWorkspace({ active, workspace, focusRequest = 0, actionR
             : Math.min(restoredActiveSessionOrdinal, restoredSessions.length - 1)
           const restoredActiveSession = restoredSessions[activeOrdinal]
           if (restoredActiveSession && activeOrdinal !== restoredSessions.length - 1) {
-            const focused = await window.vincodeLab.shellSessions.focus(restoredActiveSession.sessionId)
+            const focused = await terminalBridge.shellSessions.focus(restoredActiveSession.sessionId)
             if (!isCurrent()) return
             restoredSessions[activeOrdinal] = focused
           }
@@ -222,7 +223,7 @@ export function TerminalWorkspace({ active, workspace, focusRequest = 0, actionR
     commitActiveSession(sessionId)
     setTerminalFocusRequest((current) => current + 1)
     try {
-      const focused = await window.vincodeLab.shellSessions.focus(sessionId)
+      const focused = await terminalBridge.shellSessions.focus(sessionId)
       setSessions((current) => {
         const next = current.map((session) => session.sessionId === sessionId ? { ...session, ...focused, active: true } : { ...session, active: false })
         sessionsRef.current = next
@@ -252,7 +253,7 @@ export function TerminalWorkspace({ active, workspace, focusRequest = 0, actionR
     setCreating(true)
     setFeedback({ kind: 'status', message: 'Avvio di un nuovo terminale…' })
     try {
-      const created = await window.vincodeLab.shellSessions.create()
+      const created = await terminalBridge.shellSessions.create()
       const nextSessions = sessionsRef.current.some((session) => session.sessionId === created.sessionId)
         ? sessionsRef.current
         : [...sessionsRef.current, created]
@@ -289,7 +290,7 @@ export function TerminalWorkspace({ active, workspace, focusRequest = 0, actionR
     setTab('shell')
     setClosingSessionIds((current) => new Set(current).add(sessionId))
     try {
-      const result = await window.vincodeLab.shellSessions.close(sessionId)
+      const result = await terminalBridge.shellSessions.close(sessionId)
       const remainingSessions = sessionsRef.current.filter((session) => session.sessionId !== sessionId)
       replaceSessions(remainingSessions)
       setSessionStatuses((current) => {
@@ -364,7 +365,7 @@ export function TerminalWorkspace({ active, workspace, focusRequest = 0, actionR
     if (activeSessionRef.current) void closeSession(activeSessionRef.current)
   }, [actionRequest, closeSession, createSession, cycleSession, focusSession, loading])
 
-  useEffect(() => window.vincodeLab.contextMenu?.onAction?.((action) => {
+  useEffect(() => terminalBridge.contextMenu?.onAction?.((action) => {
     if (action.contextKind !== 'terminal-tab' || !action.contextId) return
     if (action.command === 'terminalTab.new') { void createSession(); return }
     if (!sessionsRef.current.some((session) => session.sessionId === action.contextId)) return
@@ -402,7 +403,7 @@ export function TerminalWorkspace({ active, workspace, focusRequest = 0, actionR
     let targetSessionId = activeSessionRef.current
     if (!targetSessionId) targetSessionId = (await createSession())?.sessionId ?? null
     if (!targetSessionId || !await focusSession(targetSessionId)) throw new Error('Nessun terminale disponibile per la connessione SSH.')
-    const result = await window.vincodeLab.workspaceCommands.run(commandId)
+    const result = await terminalBridge.workspaceCommands.run(commandId)
     if (result.managedConnectionId) setConnectionId(result.managedConnectionId)
     return result.managedConnectionId ?? null
   }

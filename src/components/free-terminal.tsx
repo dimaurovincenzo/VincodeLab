@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, ChevronUp, PanelRightOpen, Pencil, Play, Plu
 import { Button, Collapsible, Dialog, ErrorNotice, Field, IconButton, SegmentGroup, SelectField, Spinner, Splitter, toast, type SplitterPanelData, type ToastAction } from '@/components/ui'
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
 import { TerminalToolbar } from '@/components/terminal-toolbar'
+import { terminalBridge } from '@/features/terminal'
 import { scheduleVisibleTerminalRefit } from '@/lib/terminal-activation.js'
 import { createAnimationFrameResizeScheduler } from '@/lib/terminal-resize.js'
 import { nextTerminalFontSize, readTerminalPreferences, writeTerminalPreferences } from '@/lib/terminal-preferences.js'
@@ -229,10 +230,10 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     updateStatus('starting')
     setHasUnreadOutput(false)
     try {
-      await window.vincodeLab.shellSessions.restart(sessionId)
+      await terminalBridge.shellSessions.restart(sessionId)
       await synchronizeOutput.current?.(true)
       refitTerminal.current?.()
-      if (terminal.current) window.vincodeLab.shellSessions.resize(sessionId, { cols: terminal.current.cols, rows: terminal.current.rows })
+      if (terminal.current) terminalBridge.shellSessions.resize(sessionId, { cols: terminal.current.cols, rows: terminal.current.rows })
       terminal.current?.focus()
       updateStatus('ready')
       setTerminalFailure(null)
@@ -249,7 +250,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     setCommandsLoading(true)
     setCommandsLoadError(null)
     try {
-      const result = await window.vincodeLab.workspaceCommands.list()
+      const result = await terminalBridge.workspaceCommands.list()
       setCategories(result.categories)
       setCommandCategoryId((current) => current || result.categories[0]?.id || '')
       return result
@@ -326,7 +327,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     if (!categoryName.trim()) return
     setCommandsBusy(true)
     try {
-      const category = await window.vincodeLab.workspaceCommands.createCategory(categoryName)
+      const category = await terminalBridge.workspaceCommands.createCategory(categoryName)
       setCategoryName('')
       expandCategory(category.id)
       await refreshCommandsOwned()
@@ -385,8 +386,8 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
         sshDestination: commandKind === 'ssh' ? sshDestination : '',
         remoteRoot: commandKind === 'ssh' ? remoteRoot : '',
       }
-      if (editingCommandId) await window.vincodeLab.workspaceCommands.update(editingCommandId, input)
-      else await window.vincodeLab.workspaceCommands.create(input)
+      if (editingCommandId) await terminalBridge.workspaceCommands.update(editingCommandId, input)
+      else await terminalBridge.workspaceCommands.create(input)
       expandCategory(commandCategoryId)
       resetCommandForm()
       await refreshCommandsOwned()
@@ -412,7 +413,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     if (categoryId === command.categoryId) return
     setCommandsBusy(true)
     try {
-      await window.vincodeLab.workspaceCommands.move(command.id, categoryId)
+      await terminalBridge.workspaceCommands.move(command.id, categoryId)
       expandCategory(categoryId)
       await refreshCommandsOwned()
     } catch (error) {
@@ -428,7 +429,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     onConfirm: () => void (async () => {
       setCommandsBusy(true)
       try {
-        await window.vincodeLab.workspaceCommands.delete(command.id)
+        await terminalBridge.workspaceCommands.delete(command.id)
         await refreshCommandsOwned()
       } catch (error) {
         showCommandFailure(error, 'delete-workspace-command', 'Comando non eliminato', 'Il comando è rimasto nella libreria. Riprova.', {
@@ -443,7 +444,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     if (!category?.name.trim()) return
     setCommandsBusy(true)
     try {
-      await window.vincodeLab.workspaceCommands.updateCategory(category.id, category.name)
+      await terminalBridge.workspaceCommands.updateCategory(category.id, category.name)
       setEditingCategory(null)
       await refreshCommandsOwned()
     } catch (error) {
@@ -459,7 +460,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     onConfirm: () => void (async () => {
       setCommandsBusy(true)
       try {
-        await window.vincodeLab.workspaceCommands.deleteCategory(category.id)
+        await terminalBridge.workspaceCommands.deleteCategory(category.id)
         await refreshCommandsOwned()
       } catch (error) {
         showCommandFailure(error, 'delete-command-category', 'Categoria non eliminata', 'La categoria e i suoi comandi sono rimasti disponibili. Riprova.', {
@@ -479,11 +480,11 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     setCommandsBusy(true)
     try {
       managedConnectionCommandId.current = commandId
-      await window.vincodeLab.shellSessions.focus(sessionId)
-      const result = await window.vincodeLab.workspaceCommands.run(commandId)
+      await terminalBridge.shellSessions.focus(sessionId)
+      const result = await terminalBridge.workspaceCommands.run(commandId)
       if (result.managedConnectionId) {
         managedConnectionId.current = result.managedConnectionId
-        const connection = (await window.vincodeLab.managedSsh.list()).find((item) => item.id === result.managedConnectionId) ?? null
+        const connection = (await terminalBridge.managedSsh.list()).find((item) => item.id === result.managedConnectionId) ?? null
         setSshLaunchState(connection)
         setSshFailure(null)
         onManagedConnection(result.managedConnectionId)
@@ -501,7 +502,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     } finally { setCommandsBusy(false) }
   }
 
-  useEffect(() => window.vincodeLab.managedSsh.onStatus((connection) => {
+  useEffect(() => terminalBridge.managedSsh.onStatus((connection) => {
     if (managedConnectionId.current !== connection.id) return
     setSshLaunchState(connection)
     if (connection.state === 'connected') setSshFailure(null)
@@ -548,7 +549,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
       const nextDimensions = { cols: xterm.cols, rows: xterm.rows }
       if (nextDimensions.cols === dimensions.cols && nextDimensions.rows === dimensions.rows) return
       dimensions = nextDimensions
-      window.vincodeLab.shellSessions.resize(sessionId, nextDimensions)
+      terminalBridge.shellSessions.resize(sessionId, nextDimensions)
     }
     const resizeScheduler = createAnimationFrameResizeScheduler(fit)
     const resizeObserver = new ResizeObserver(resizeScheduler.schedule)
@@ -565,8 +566,8 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
           callback()
         })
       },
-      ready: (message) => window.vincodeLab.shellSessions.ready(sessionId, message),
-      ack: (message) => window.vincodeLab.shellSessions.ack(sessionId, message),
+      ready: (message) => terminalBridge.shellSessions.ready(sessionId, message),
+      ack: (message) => terminalBridge.shellSessions.ack(sessionId, message),
       onWriteError: (error) => {
         if (outputErrorReported) return
         outputErrorReported = true
@@ -605,15 +606,15 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     }
     const resume = async (reset = false) => {
       const request = ++synchronizationRequest
-      const snapshot = await window.vincodeLab.shellSessions.resume(sessionId)
+      const snapshot = await terminalBridge.shellSessions.resume(sessionId)
       if (disposed || request !== synchronizationRequest) {
-        window.vincodeLab.shellSessions.disconnect(sessionId, { attachmentId: snapshot.attachmentId, generation: snapshot.generation })
+        terminalBridge.shellSessions.disconnect(sessionId, { attachmentId: snapshot.attachmentId, generation: snapshot.generation })
         return
       }
       if (reset) setHasUnreadOutput(false)
       outputErrorReported = false
       if (!outputController.restore(snapshot, renderSnapshot(snapshot, reset))) {
-        window.vincodeLab.shellSessions.disconnect(sessionId, { attachmentId: snapshot.attachmentId, generation: snapshot.generation })
+        terminalBridge.shellSessions.disconnect(sessionId, { attachmentId: snapshot.attachmentId, generation: snapshot.generation })
         return
       }
       setTerminalFailure((current) => current?.recovery === 'resume' ? null : current)
@@ -629,14 +630,14 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
       } else if (statusRef.current === 'starting') updateStatus('ready')
     }
     const input = xterm.onData((data) => {
-      if (statusRef.current === 'ready') window.vincodeLab.shellSessions.write(sessionId, data)
+      if (statusRef.current === 'ready') terminalBridge.shellSessions.write(sessionId, data)
     })
     const scroll = xterm.onScroll(() => setHasUnreadOutput(!shouldFollowTerminalOutput({ viewportY: xterm.buffer.active.viewportY, baseY: xterm.buffer.active.baseY })))
-    const unsubscribeData = window.vincodeLab.shellSessions.onData((event) => {
+    const unsubscribeData = terminalBridge.shellSessions.onData((event) => {
       if (event.sessionId !== sessionId) return
       outputController.accept(event)
     })
-    const unsubscribeExit = window.vincodeLab.shellSessions.onExit((event) => {
+    const unsubscribeExit = terminalBridge.shellSessions.onExit((event) => {
       if (event.sessionId !== sessionId) return
       const normalExit = event.exitCode === 0 || event.reason === 'closed'
       updateStatus(normalExit ? 'exited' : 'error')
@@ -647,7 +648,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
         })
       }
     })
-    const unsubscribeError = window.vincodeLab.shellSessions.onError((event) => {
+    const unsubscribeError = terminalBridge.shellSessions.onError((event) => {
       if (event.sessionId !== sessionId) return
       setTerminalFailure(terminalFailureFromEvent(event))
     })
@@ -670,7 +671,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
       resizeScheduler.cancel()
       const outputConnection = outputController.currentConnection()
       outputController.dispose()
-      if (outputConnection) window.vincodeLab.shellSessions.disconnect(sessionId, outputConnection)
+      if (outputConnection) terminalBridge.shellSessions.disconnect(sessionId, outputConnection)
       resizeObserver.disconnect()
       refitTerminal.current = null
       if (synchronizeOutput.current === resume) synchronizeOutput.current = null
@@ -735,7 +736,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
   const paste = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText()
-      if (text && statusRef.current === 'ready') window.vincodeLab.shellSessions.write(sessionId, text)
+      if (text && statusRef.current === 'ready') terminalBridge.shellSessions.write(sessionId, text)
       setClipboardFailure(null)
       terminal.current?.focus()
     } catch (cause) {
@@ -755,7 +756,7 @@ export function FreeTerminal({ active, workspace, sessionId, initialStatus = 'ru
     const currentTerminal = terminal.current
     if (!currentTerminal) throw new Error('Terminale non disponibile per il ridimensionamento')
     setTerminalFailure(null)
-    window.vincodeLab.shellSessions.resize(sessionId, { cols: currentTerminal.cols, rows: currentTerminal.rows })
+    terminalBridge.shellSessions.resize(sessionId, { cols: currentTerminal.cols, rows: currentTerminal.rows })
     currentTerminal.focus()
   }
   const recoverTerminalFailure = async () => {
