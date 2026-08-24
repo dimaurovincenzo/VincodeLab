@@ -53,6 +53,37 @@ function sourceFileFor(file, source) {
   return ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind)
 }
 
+function statementPublishesExport(statement) {
+  if (ts.isExportAssignment(statement)) return true
+  if (ts.isExportDeclaration(statement)) {
+    if (!statement.exportClause) return Boolean(statement.moduleSpecifier)
+    if (ts.isNamespaceExport(statement.exportClause)) return true
+    return statement.exportClause.elements.length > 0
+  }
+  return Boolean(ts.getModifiers(statement)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword))
+}
+
+function featurePublicEntryProblems(root) {
+  const featuresRoot = path.join(root, 'src/features')
+  if (!existsSync(featuresRoot) || !statSync(featuresRoot).isDirectory()) return []
+
+  const problems = []
+  for (const entry of readdirSync(featuresRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const feature = `src/features/${entry.name}`
+    const publicEntry = path.join(featuresRoot, entry.name, 'index.ts')
+    if (!existsSync(publicEntry) || !statSync(publicEntry).isFile()) {
+      problems.push(`${feature}: manca l'ingresso pubblico index.ts`)
+      continue
+    }
+    const sourceFile = sourceFileFor(`${feature}/index.ts`, readFileSync(publicEntry, 'utf8'))
+    if (!sourceFile.statements.some(statementPublishesExport)) {
+      problems.push(`${feature}/index.ts: l'ingresso pubblico non espone alcun export`)
+    }
+  }
+  return problems
+}
+
 function moduleSpecifiers(sourceFile) {
   const specifiers = []
   const addLiteral = (node) => {
@@ -413,7 +444,7 @@ export function inspectArchitecture({ root }) {
   const absoluteRoot = path.resolve(root)
   const files = sourceRoots.flatMap((sourceRoot) => walk(path.join(absoluteRoot, sourceRoot)))
   const graph = new Map()
-  const problems = []
+  const problems = featurePublicEntryProblems(absoluteRoot)
 
   for (const absoluteFile of files) {
     const file = normalize(path.relative(absoluteRoot, absoluteFile))

@@ -28,6 +28,29 @@ test('accetta feature isolate che dipendono da bridge e shared', () => {
   }, (problems) => assert.deepEqual(problems, []))
 })
 
+test('richiede index.ts per ogni directory feature immediata', () => {
+  withFixture({
+    'src/features/editor/model/open.ts': 'export const open = () => undefined\n',
+  }, (problems) => {
+    assert.ok(problems.some((problem) => problem.includes("src/features/editor: manca l'ingresso pubblico index.ts")))
+  })
+})
+
+test('rifiuta un index.ts feature privo di export pubblici', () => {
+  withFixture({
+    'src/features/editor/index.ts': 'const internalOnly = true\nexport {}\n',
+  }, (problems) => {
+    assert.ok(problems.some((problem) => problem.includes('src/features/editor/index.ts: l\'ingresso pubblico non espone alcun export')))
+  })
+})
+
+test('accetta un index.ts feature con soli export type', () => {
+  withFixture({
+    'src/features/editor/index.ts': "export type { EditorContext } from './model/editor-context'\n",
+    'src/features/editor/model/editor-context.ts': 'export type EditorContext = { path: string }\n',
+  }, (problems) => assert.deepEqual(problems, []))
+})
+
 test('blocca import profondi tra feature', () => {
   withFixture({
     'src/features/editor/model/open.ts': "import { query } from '@/features/database/model/query'\nexport const open = query\n",
@@ -516,6 +539,7 @@ test('impedisce import e ricreazione dei path legacy rimossi', () => {
     'src/main.tsx': "import App from './App'\nexport { App }\n",
     'src/components/project-editor.tsx': 'export const ProjectEditor = {}\n',
     'electron/domains/github/service.cjs': "module.exports = require('../../github-service.cjs')\n",
+    'electron/infrastructure/github/github-service.adapter.cjs': 'module.exports = {}\n',
     'electron/domains/ai/pi-executable.cjs': 'module.exports = {}\n',
     'electron/domains/ai/terminal-attachments.cjs': 'module.exports = {}\n',
     'electron/domains/menu/context-command-dispatcher.cjs': 'module.exports = {}\n',
@@ -529,6 +553,7 @@ test('impedisce import e ricreazione dei path legacy rimossi', () => {
   }, (problems) => {
     assert.ok(problems.some((problem) => problem.includes('path legacy "src/App" rimosso; usa "src/app"')))
     assert.ok(problems.some((problem) => problem.includes('path legacy "electron/github-service" rimosso')))
+    assert.ok(problems.some((problem) => problem.includes('electron/infrastructure/github/github-service.adapter.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('electron/domains/ai/pi-executable.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('electron/domains/ai/terminal-attachments.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('electron/domains/menu/context-command-dispatcher.cjs: path legacy rimosso ricreato')))
