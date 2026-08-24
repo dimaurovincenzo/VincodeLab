@@ -57,6 +57,7 @@ const { createRendererRecoveryController } = require('./renderer-recovery-contro
 const { createWindowCloseCoordinator } = require('./window-close-coordinator.cjs')
 const { createPtyRuntime } = require('./pty-runtime.cjs')
 const { getRuntimeCapabilities } = require('./runtime-capabilities.cjs')
+const { registerPreferencesIpc } = require('./ipc/domains/preferences.ipc.cjs')
 const { registerRuntimeIpc } = require('./ipc/domains/runtime.ipc.cjs')
 
 // Ogni invoke attraversa lo stesso confine: gli errori raw restano nel main,
@@ -1343,28 +1344,17 @@ async function initializeApplication() {
     mainWindow?.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#1c1c1e' : '#ececec')
     return value
   })
-  ipcMain.handle('preferences:get', (event) => {
-    assertTrustedSender(event)
-    return reportPreferenceRecovery(getPreferences(activeWorkspacePath ?? null))
-  })
-  ipcMain.handle('preferences:setGlobal', (event, key, value) => {
-    assertTrustedSender(event)
-    setGlobalPreference(key, value)
-    return reportPreferenceRecovery(getPreferences(activeWorkspacePath ?? null))
-  })
-  ipcMain.handle('preferences:setWorkspace', (event, key, value) => {
-    assertTrustedSender(event)
-    return reportPreferenceRecovery(setWorkspacePreference(requireActiveWorkspace(), key, value))
-  })
-  ipcMain.handle('preferences:clearWorkspace', (event, key) => {
-    assertTrustedSender(event)
-    return reportPreferenceRecovery(clearWorkspacePreference(requireActiveWorkspace(), key))
-  })
-  ipcMain.handle('preferences:clearAllWorkspace', (event) => {
-    assertTrustedSender(event)
-    const workspacePath = requireActiveWorkspace()
-    clearAllWorkspacePreferences(workspacePath)
-    return reportPreferenceRecovery(getPreferences(workspacePath))
+  registerPreferencesIpc({
+    ipcMain,
+    assertTrustedSender,
+    clearAllWorkspacePreferences,
+    clearWorkspacePreference,
+    getActiveWorkspacePath: () => activeWorkspacePath,
+    getPreferences,
+    reportPreferenceRecovery,
+    requireActiveWorkspace,
+    setGlobalPreference,
+    setWorkspacePreference,
   })
   ipcMain.handle('updates:list', (event) => { assertTrustedSender(event); return listManagedUpdates() })
   ipcMain.handle('updates:check', (event, id) => { assertTrustedSender(event); return checkUpdates(id ?? null, { force: true }) })

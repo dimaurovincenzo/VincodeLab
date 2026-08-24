@@ -60,7 +60,7 @@ Ogni feature espone un ingresso pubblico `index.ts`; una feature non può import
 
 La struttura viene introdotta per slice. I file ancora nella disposizione precedente restano facciate compatibili finché i test comportamentali non consentono di rimuoverli senza cambiare il runtime.
 
-Il primo registratore backend estratto è `electron/ipc/domains/runtime.ipc.cjs`: dichiara il proprio manifesto di canali, riceve le dipendenze dall'application root e lascia che la boundary IPC globale trasformi gli errori. `electron/preload.cjs` resta invece un singolo artefatto runtime finché non verrà introdotto un bundle dedicato: con il sandbox Electron attivo, un preload CommonJS non può caricare liberamente moduli locali tramite `require()`.
+I registratori backend estratti in `electron/ipc/domains/` includono Runtime e Preferenze: ciascuno dichiara il proprio manifesto di canali, riceve le dipendenze dall'application root e lascia che la boundary IPC globale trasformi gli errori. `electron/preload.cjs` resta invece un singolo artefatto runtime finché non verrà introdotto un bundle dedicato: con il sandbox Electron attivo, un preload CommonJS non può caricare liberamente moduli locali tramite `require()`.
 
 ## Domini applicativi
 

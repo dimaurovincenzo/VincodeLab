@@ -102,6 +102,7 @@ test('preload espone il menu contestuale senza accettare template o callback dal
 test('preload espone preferenze tipizzate senza accettare percorsi workspace', () => {
   const source = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const preferencesIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/preferences.ipc.cjs'), 'utf8')
   const start = source.indexOf('preferences: {')
   const end = source.indexOf('\n  piSystem: {', start)
   const preload = start >= 0 ? source.slice(start, end >= 0 ? end : undefined) : ''
@@ -112,8 +113,10 @@ test('preload espone preferenze tipizzate senza accettare percorsi workspace', (
   assert.match(preload, /clearAllWorkspace: \(\) => ipcRenderer\.invoke\('preferences:clearAllWorkspace'\)/)
   assert.doesNotMatch(preload, /workspacePath|require\(|node:/)
   for (const channel of ['preferences:get', 'preferences:setGlobal', 'preferences:setWorkspace', 'preferences:clearWorkspace', 'preferences:clearAllWorkspace']) {
-    assert.match(main, new RegExp(`ipcMain\\.handle\\('${channel}'[\\s\\S]{0,220}assertTrustedSender`))
+    assert.match(preferencesIpc, new RegExp(`\\['${channel}', \\(event[\\s\\S]{0,180}assertTrustedSender\\(event\\)`))
   }
+  assert.match(main, /registerPreferencesIpc\(\{[\s\S]{0,500}assertTrustedSender/)
+  assert.doesNotMatch(main, /ipcMain\.handle\('preferences:/)
 })
 
 test('le bozze volatili usano invoke con ack per rendere osservabili write e discard', () => {
