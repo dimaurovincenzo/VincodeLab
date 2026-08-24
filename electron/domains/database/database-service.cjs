@@ -39,6 +39,7 @@ const {
   detachRemoteSessionLifecycle,
   disposeRemoteSession,
   forceCloseRemoteSession,
+  invalidateRemoteSession,
   raceRemoteSessionFailure,
 } = require('./remote-session-lifecycle.cjs')
 const schemaCache = new Map()
@@ -221,7 +222,7 @@ function executePostgres(session, sql, parameters, timeoutMs, options) {
     }
     const failAndClose = (error) => {
       finish(error)
-      forceCloseRemoteSession(session)
+      invalidateRemoteSession(session, error)
     }
     const onAbort = () => failAndClose(abortError())
     query.on('row', (row) => {
@@ -252,7 +253,7 @@ function executeMysql(session, sql, parameters, timeoutMs, options) {
     }
     const failAndClose = (error) => {
       finish(error)
-      forceCloseRemoteSession(session)
+      invalidateRemoteSession(session, error)
     }
     const onAbort = () => failAndClose(abortError())
     if (options.signal?.aborted) return onAbort()
@@ -527,4 +528,4 @@ async function inspectSchema(workspacePath, connectionId, options = {}) {
   return schema
 }
 
-module.exports = { attachRemoteSessionLifecycle, beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, detachRemoteSessionLifecycle, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRoutine, inspectSchema, isEditableColumn, limitRemoteReadSql, makeTableSchema, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sanitizeDatabaseDiagnostic, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig }
+module.exports = { attachRemoteSessionLifecycle, beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, detachRemoteSessionLifecycle, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRoutine, inspectSchema, invalidateRemoteSession, isEditableColumn, limitRemoteReadSql, makeTableSchema, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sanitizeDatabaseDiagnostic, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig }

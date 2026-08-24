@@ -182,16 +182,32 @@ export function useDatabaseResources({
       return true
     } catch (error) {
       if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
-      setConnectionReady(true)
-      setResourceRecovery('refresh')
-      setResourceError(reportDatabaseFailure(
-        error,
-        options.preserveSchema ? 'refresh-database-schema' : 'load-database-schema',
-        options.preserveSchema ? 'Schema database non aggiornato' : 'Schema database non caricato',
-        options.preserveSchema
-          ? 'La connessione e le risorse già caricate restano disponibili. Riprova l’aggiornamento quando vuoi.'
-          : 'La connessione è attiva: puoi eseguire query anche senza l’elenco delle risorse. Riprova il caricamento dello schema quando vuoi.',
-      ))
+      try {
+        // Uno stream interrotto per budget può invalidare il socket del driver.
+        // Verifichiamo/ripristiniamo la sessione prima di dichiararla operativa.
+        await databaseBridge.database.connect(connectionId)
+        if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
+        setConnectionReady(true)
+        setResourceRecovery('refresh')
+        setResourceError(reportDatabaseFailure(
+          error,
+          options.preserveSchema ? 'refresh-database-schema' : 'load-database-schema',
+          options.preserveSchema ? 'Schema database non aggiornato' : 'Schema database non caricato',
+          options.preserveSchema
+            ? 'La connessione e le risorse già caricate restano disponibili. Riprova l’aggiornamento quando vuoi.'
+            : 'La connessione è attiva: puoi eseguire query anche senza l’elenco delle risorse. Riprova il caricamento dello schema quando vuoi.',
+        ))
+      } catch (recoveryError) {
+        if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
+        setConnectionReady(false)
+        setResourceRecovery('connect')
+        setResourceError(reportDatabaseFailure(
+          recoveryError,
+          'recover-database-after-schema',
+          'Connessione database da ripristinare',
+          'Lo schema non è stato caricato e la sessione non è più disponibile. Riconnettiti per continuare; query e bozze sono rimaste al sicuro.',
+        ))
+      }
       return false
     } finally {
       if (request === schemaRequest.current) setLoadingResources(false)

@@ -9,7 +9,7 @@ const Database = require('better-sqlite3')
 
 const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const { createConnection, getConnectionWithSecrets, recordHistory } = require('../electron/infrastructure/persistence/database.repository.cjs')
-const { beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, inspectRoutine, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
+const { beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRoutine, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
 const { MAX_ROUTINE_DEFINITION_CHARS, normalizeSchemaPageOptions, remotePrimaryKeyQuery, remoteRoutineDefinitionQuery, remoteRoutinePageSql, remoteTableColumnsPageSql } = require('../electron/domains/database/database-schema-model.cjs')
 const { SqliteWorkerSession, sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics } = require('../electron/infrastructure/database/sqlite-worker-session.adapter.cjs')
 
@@ -408,12 +408,13 @@ test('interrompe lo stream PostgreSQL appena il budget incrementale è superato'
   }
   let emittedRows = 0
   let destroyCalls = 0
-  const client = {
+  const client = Object.assign(new EventEmitter(), {
     destroyed: false,
     destroy() {
       destroyCalls += 1
       this.destroyed = true
     },
+    async end() {},
     query(query) {
       queueMicrotask(() => {
         for (let index = 0; index < 100 && !this.destroyed; index += 1) {
@@ -424,14 +425,33 @@ test('interrompe lo stream PostgreSQL appena il budget incrementale è superato'
       })
       return query
     },
-  }
+  })
+  const key = 'workspace-budget\u0000postgres'
+  let registry
+  const controller = createRemoteSessionLifecycleController({ closeSession: (sessionKey) => registry.close(sessionKey) })
+  registry = createDatabaseSessionRegistry({ closeSession: disposeRemoteSession, forceCloseSession: forceCloseRemoteSession })
+  const session = await registry.acquire(key, async ({ setCandidate }) => {
+    const candidate = { driver: 'postgres', client, Query: FakeQuery }
+    setCandidate(candidate)
+    controller.track(key, candidate)
+    return candidate
+  })
 
   await assert.rejects(
-    executeRemote({ driver: 'postgres', client, Query: FakeQuery }, 'SELECT payload FROM fixture', [], 1_000, { resultBudget: { byteLimit: 100, cellByteLimit: 64 } }),
+    executeRemote(session, 'SELECT payload FROM fixture', [], 1_000, { resultBudget: { byteLimit: 100, cellByteLimit: 64 } }),
     (error) => error.publicCode === 'DATABASE_RESULT_TOO_LARGE',
   )
   assert.equal(destroyCalls, 1)
   assert.ok(emittedRows < 100)
+  const replacement = await registry.acquire(key, async ({ setCandidate }) => {
+    const candidate = { driver: 'postgres', client: new EventEmitter(), Query: FakeQuery }
+    candidate.client.end = async () => undefined
+    setCandidate(candidate)
+    return candidate
+  })
+  assert.notEqual(replacement, session)
+  assert.equal(controller.hasFailure(key), false)
+  await registry.close(key)
 })
 
 test('legge MySQL a eventi senza materializzare il risultato e distingue una colonna affectedRows', async () => {

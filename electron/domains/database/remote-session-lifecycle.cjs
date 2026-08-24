@@ -54,6 +54,7 @@ function attachRemoteSessionLifecycle(session, onFailure = () => undefined) {
       // uncaught exception del processo main.
     }
   }
+  lifecycle.notify = notify
   for (const event of ['error', 'end', 'close']) {
     const listener = event === 'error' ? (error) => notify(event, error) : () => notify(event)
     lifecycle.listeners.push([event, listener])
@@ -155,6 +156,15 @@ function forceCloseRemoteSession(session) {
   }
 }
 
+function invalidateRemoteSession(session, error) {
+  const lifecycle = session?.[REMOTE_SESSION_LIFECYCLE]
+  if (lifecycle && !lifecycle.invalidated) {
+    const reason = error instanceof Error ? error : new Error('Sessione database invalidata.')
+    lifecycle.notify('invalidated', reason)
+  }
+  forceCloseRemoteSession(session)
+}
+
 const remoteSessions = createDatabaseSessionRegistry({
   cleanupTimeoutMs: REMOTE_SESSION_CLEANUP_TIMEOUT_MS,
   closeSession: disposeRemoteSession,
@@ -185,10 +195,10 @@ function createRemoteSessionLifecycleController({ closeSession, invalidateSchema
     const previous = activeSessions.get(key)
     if (previous) markRemoteSessionClosing(previous)
     activeSessions.set(key, session)
-    attachRemoteSessionLifecycle(session, ({ error }) => {
+    attachRemoteSessionLifecycle(session, ({ error, event }) => {
       if (activeSessions.get(key) !== session) return
       activeSessions.delete(key)
-      if (!failures.has(key)) failures.set(key, toDatabasePublicError(error, { fallbackKind: 'connection-lost', phase: 'connection' }))
+      if (event !== 'invalidated' && !failures.has(key)) failures.set(key, toDatabasePublicError(error, { fallbackKind: 'connection-lost', phase: 'connection' }))
       try { invalidateSchema(key) } catch { /* La cache verrà ricostruita alla prossima sessione. */ }
       closeAfterFailure(key)
     })
@@ -231,6 +241,7 @@ module.exports = {
   detachRemoteSessionLifecycle,
   disposeRemoteSession,
   forceCloseRemoteSession,
+  invalidateRemoteSession,
   raceRemoteSessionFailure,
   remoteSessions,
 }

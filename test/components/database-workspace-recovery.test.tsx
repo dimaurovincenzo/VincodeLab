@@ -162,6 +162,7 @@ describe('recovery del workspace Database', () => {
     expect(screen.getByText(/La connessione è attiva/u)).toBeVisible()
     expect(screen.getByRole('button', { name: 'Esegui' })).toBeEnabled()
     expect(database.connect).toHaveBeenCalledWith('database-a')
+    expect(database.connect).toHaveBeenCalledTimes(2)
   })
 
   it('carica la definizione di una routine soltanto quando l’utente la apre', async () => {
