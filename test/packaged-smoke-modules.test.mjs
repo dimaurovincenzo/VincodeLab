@@ -27,7 +27,7 @@ const moduleDeclarations = Object.freeze({
     ],
   },
   'scripts/lib/packaged-smoke/baseline-scenarios.mjs': {
-    digest: '14b0efd2ecb2f600be27bf57b23e8ede22c36ae85cf056677732de14c173a8ee',
+    digest: 'df5042662002ccc7d55157eeb8d22a1f5afc7dc96a5196b76e16bfa233620bc9',
     names: [
       'rendererSmokeScenario',
       'verifyRedisSelectScenario',

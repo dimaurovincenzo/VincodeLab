@@ -134,10 +134,11 @@ export function screenshotPreparationExpression(id) {
     const connect = await waitFor(() => [...workspace.querySelectorAll('button')]
       .find((element) => element.textContent?.trim() === 'Connetti' && !element.disabled), 'comando Connetti Database')
     connect.click()
-    await waitFor(() => [...workspace.querySelectorAll('button')]
-      .some((element) => element.textContent?.trim() === 'Disconnetti' && !element.disabled)
+    await waitFor(() => workspace.getAttribute('aria-busy') === 'false'
       && [...workspace.querySelectorAll('button')]
-        .some((element) => element.textContent?.trim().includes('Esegui') && !element.disabled), 'connessione SQLite pronta')
+        .some((element) => element.textContent?.trim() === 'Disconnetti' && !element.disabled)
+      && [...workspace.querySelectorAll('button')]
+        .some((element) => element.textContent?.trim() === 'Esegui' && !element.disabled), 'connessione SQLite pronta')
     workspace.querySelector('[aria-label="Editor SQL"] .cm-content').focus()
   `)
   if (id === 'settings') return navigationExpression('Impostazioni', `
@@ -165,7 +166,7 @@ export async function prepareDatabaseResults(cdp) {
     }
     const workspace = document.querySelector('[aria-label="Database workspace"]')
     const execute = await waitFor(() => [...workspace.querySelectorAll('button')]
-      .find((element) => element.textContent?.includes('Esegui') && !element.disabled), 'comando Esegui Database; pulsanti: '
+      .find((element) => element.textContent?.trim() === 'Esegui' && !element.disabled), 'comando Esegui Database; pulsanti: '
         + [...workspace.querySelectorAll('button')].map((element) => (element.textContent?.trim() || element.getAttribute('aria-label') || '?') + ':' + element.disabled).join(', '))
     execute.click()
     await waitFor(() => workspace.querySelector('table')?.textContent?.includes('API Gateway'), 'righe SQLite')
