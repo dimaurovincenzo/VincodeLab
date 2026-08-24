@@ -91,6 +91,7 @@ test('il lifecycle prende ownership del PTY prima di riprodurre eventi sincroni 
     processFactory: () => ptyProcess,
     getExecutable: () => '/bin/fake-shell',
     getEnvironment: () => ({}),
+    isProcessAlive: () => false,
     onData: (session, generation, data) => dataEvents.push({ owned: session.process === ptyProcess, generation, data }),
     onExit: (event) => exitEvents.push(event),
     onProcessStopped: () => { stopped += 1 },

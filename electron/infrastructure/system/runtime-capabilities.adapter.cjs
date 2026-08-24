@@ -1,7 +1,7 @@
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const { resolveSystemShell } = require('../../domains/shell/shell-session-manager.cjs')
+const { resolveSystemShell } = require('../processes/shell-host.adapter.cjs')
 
 const BUNDLED_DRIVERS = Object.freeze([
   { id: 'database-sqlite', label: 'SQLite', moduleId: 'better-sqlite3' },

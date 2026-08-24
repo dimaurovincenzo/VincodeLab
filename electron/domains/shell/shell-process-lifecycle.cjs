@@ -1,4 +1,3 @@
-const fs = require('node:fs')
 const path = require('node:path')
 const { createPublicError, isPublicError } = require('../errors/public-error.cjs')
 const { normalizeExitStatus } = require('./shell-session-model.cjs')
@@ -10,26 +9,6 @@ function createDeferred() {
   let resolve
   const promise = new Promise((nextResolve) => { resolve = nextResolve })
   return { promise, resolve }
-}
-
-function defaultProcessFactory(executable, args, options) {
-  return require('node-pty').spawn(executable, args, options)
-}
-
-function resolveSystemShell(environment = process.env) {
-  const candidates = [environment.SHELL, '/bin/zsh', '/bin/bash', '/bin/sh']
-  for (const candidate of candidates) {
-    if (typeof candidate !== 'string' || !path.isAbsolute(candidate)) continue
-    try {
-      if (fs.statSync(candidate).isFile()) {
-        fs.accessSync(candidate, fs.constants.X_OK)
-        return candidate
-      }
-    } catch {
-      // Prova il fallback successivo senza trasformare una shell opzionale in crash.
-    }
-  }
-  return null
 }
 
 function shellLaunchFailure(error) {
@@ -69,30 +48,21 @@ function safeKill(ptyProcess) {
   }
 }
 
-function processIsAlive(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return null
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return error?.code === 'ESRCH' ? false : null
-  }
-}
-
 function createShellProcessLifecycle(options = {}) {
   const stopGraceMs = options.stopGraceMs === undefined ? DEFAULT_STOP_GRACE_MS : options.stopGraceMs
   const forceStopMs = options.forceStopMs === undefined ? DEFAULT_FORCE_STOP_MS : options.forceStopMs
   if (!Number.isSafeInteger(stopGraceMs) || stopGraceMs < 0 || stopGraceMs > 60_000 || !Number.isSafeInteger(forceStopMs) || forceStopMs < 0 || forceStopMs > 60_000) {
     throw new Error('Timeout arresto terminale non validi.')
   }
-  if (options.processFactory !== undefined && typeof options.processFactory !== 'function') {
-    throw new Error('Factory processo terminale non valida.')
-  }
+  if (typeof options.processFactory !== 'function') throw new Error('Factory processo terminale non valida.')
+  if (typeof options.getExecutable !== 'function') throw new Error('Resolver eseguibile shell non valido.')
+  if (typeof options.getEnvironment !== 'function') throw new Error('Provider ambiente shell non valido.')
+  if (typeof options.isProcessAlive !== 'function') throw new Error('Verifica processo shell non valida.')
 
-  const processFactory = options.processFactory ?? defaultProcessFactory
-  const getExecutable = options.getExecutable ?? (() => resolveSystemShell(process.env))
-  const getEnvironment = options.getEnvironment ?? (() => process.env)
-  const isProcessAlive = options.isProcessAlive ?? processIsAlive
+  const processFactory = options.processFactory
+  const getExecutable = options.getExecutable
+  const getEnvironment = options.getEnvironment
+  const isProcessAlive = options.isProcessAlive
   const setTimer = options.setTimer ?? setTimeout
   const clearTimer = options.clearTimer ?? clearTimeout
   const onData = options.onData ?? (() => undefined)
@@ -290,6 +260,4 @@ module.exports = {
   DEFAULT_FORCE_STOP_MS,
   DEFAULT_STOP_GRACE_MS,
   createShellProcessLifecycle,
-  processIsAlive,
-  resolveSystemShell,
 }

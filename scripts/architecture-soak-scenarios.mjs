@@ -184,10 +184,12 @@ export async function runShellLifecycleScenario(config) {
   let nextId = 0
   let manager
   manager = createShellSessionManager({
+    canonicalizeWorkspace: (workspacePath) => fs.realpathSync(workspacePath),
     processFactory: fakePty.processFactory,
     createId: () => `soak-${String(++nextId).padStart(8, '0')}`,
     getExecutable: () => '/bin/fake-shell',
     getEnvironment: () => ({ LANG: 'C.UTF-8' }),
+    isProcessAlive: () => false,
     onData: (event) => {
       dataEvents.push(event)
       ackResults.push(manager.ack(event.workspacePath, event.sessionId, {

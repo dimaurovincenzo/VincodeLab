@@ -16,6 +16,11 @@ function validateSessionLimit(configuredLimit) {
 }
 
 function validateManagerCollaborators(options) {
+  if (typeof options.canonicalizeWorkspace !== 'function') throw new Error('Canonicalizzatore workspace terminale non valido.')
+  if (typeof options.processFactory !== 'function') throw new Error('Factory processo terminale non valida.')
+  if (typeof options.getExecutable !== 'function') throw new Error('Resolver eseguibile shell non valido.')
+  if (typeof options.getEnvironment !== 'function') throw new Error('Provider ambiente shell non valido.')
+  if (typeof options.isProcessAlive !== 'function') throw new Error('Verifica processo shell non valida.')
   if (options.createId !== undefined && typeof options.createId !== 'function') {
     throw new Error('Factory ID sessione non valida.')
   }

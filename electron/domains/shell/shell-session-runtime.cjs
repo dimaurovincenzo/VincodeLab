@@ -3,7 +3,11 @@ const { createShellSessionManager } = require('./shell-session-manager.cjs')
 const { reportShellSessionOneWayFailure } = require('./shell-session-error-event.cjs')
 
 function createShellSessionRuntime({
+  canonicalizeWorkspace,
   getActiveWorkspacePath,
+  getEnvironment,
+  getExecutable,
+  isProcessAlive,
   log,
   managerFactory = createShellSessionManager,
   processFactory,
@@ -52,7 +56,15 @@ function createShellSessionRuntime({
     })
   }
 
-  manager = managerFactory({ processFactory, onData: handleData, onExit: handleExit })
+  manager = managerFactory({
+    canonicalizeWorkspace,
+    getEnvironment,
+    getExecutable,
+    isProcessAlive,
+    processFactory,
+    onData: handleData,
+    onExit: handleExit,
+  })
 
   function handleOneWay(event, sessionId, operation, perform) {
     try {

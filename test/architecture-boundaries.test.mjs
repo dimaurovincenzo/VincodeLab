@@ -135,6 +135,17 @@ test('obbliga il dominio Database a usare porte invece di driver e adapter opera
   })
 })
 
+test('obbliga il dominio Shell a usare collaboratori invece di filesystem e PTY operativi', () => {
+  withFixture({
+    'electron/domains/shell/runtime.cjs': [
+      "require('node:fs')",
+      "require('node-pty')",
+    ].join('\n'),
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('dominio Shell dipende direttamente')).length, 2)
+  })
+})
+
 test('consente al preload di leggere il registro IPC ma vieta stringhe canale locali', () => {
   withFixture({
     'electron/ipc/channels.cjs': "module.exports = { IPC_CHANNELS: { FILES_READ: 'files:read' } }\n",

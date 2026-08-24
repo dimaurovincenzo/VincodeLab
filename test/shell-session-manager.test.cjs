@@ -9,9 +9,18 @@ const {
   DEFAULT_MAX_SESSIONS,
   DEFAULT_SHELL_OUTPUT_HISTORY_BYTES,
   SESSION_ID_PATTERN,
-  createShellSessionManager,
-  resolveSystemShell,
+  createShellSessionManager: createDomainShellSessionManager,
 } = require('../electron/domains/shell/shell-session-manager.cjs')
+
+function createShellSessionManager(options = {}) {
+  return createDomainShellSessionManager({
+    canonicalizeWorkspace: (workspacePath) => fs.realpathSync(workspacePath),
+    getEnvironment: () => ({}),
+    getExecutable: () => '/bin/fake-shell',
+    isProcessAlive: () => false,
+    ...options,
+  })
+}
 
 function temporaryWorkspace(t, prefix = 'vincodelab-shell-sessions-') {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
@@ -89,8 +98,7 @@ function connectRenderer(manager, workspace, sessionId) {
   return snapshot
 }
 
-test('se la shell configurata manca usa un fallback e altrimenti espone recovery locale', (t) => {
-  assert.ok(['/bin/zsh', '/bin/bash', '/bin/sh'].includes(resolveSystemShell({ SHELL: '/shell/inesistente' })))
+test('se la shell configurata manca espone recovery locale', (t) => {
   const workspace = temporaryWorkspace(t)
   const manager = createShellSessionManager({
     createId: sequentialIds(),
@@ -102,6 +110,10 @@ test('se la shell configurata manca usa un fallback e altrimenti espone recovery
     assert.match(error.publicMessage, /aree che non richiedono il Terminale restano disponibili/u)
     return true
   })
+})
+
+test('richiede esplicitamente i collaboratori dell host Shell', () => {
+  assert.throws(() => createDomainShellSessionManager({}), /Canonicalizzatore workspace terminale non valido/u)
 })
 
 test('crea una shell login nel workspace e inoltra dati, input e resize per sessionId', (t) => {

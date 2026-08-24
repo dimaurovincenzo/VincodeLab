@@ -6,6 +6,15 @@ const test = require('node:test')
 
 const { createShellSessionRuntime } = require('../electron/domains/shell/shell-session-runtime.cjs')
 
+function shellHostCollaborators() {
+  return {
+    canonicalizeWorkspace: (workspacePath) => fs.realpathSync(workspacePath),
+    getEnvironment: () => ({}),
+    getExecutable: () => '/bin/fake-shell',
+    isProcessAlive: () => false,
+  }
+}
+
 function processFixture() {
   let onData
   let onExit
@@ -32,6 +41,7 @@ test('inoltra data ed exit soltanto per il workspace attivo', () => {
   let emitData
   let emitExit
   const runtime = createShellSessionRuntime({
+    ...shellHostCollaborators(),
     getActiveWorkspacePath: () => workspacePath,
     log: (...entry) => logs.push(entry),
     managerFactory: ({ onData, onExit }) => {
@@ -53,6 +63,7 @@ test('inoltra data ed exit soltanto per il workspace attivo', () => {
 
 test('la boundary one-way confina rifiuti del trasporto renderer', () => {
   const runtime = createShellSessionRuntime({
+    ...shellHostCollaborators(),
     getActiveWorkspacePath: () => null,
     log() {},
     processFactory: () => processFixture().process,
@@ -68,6 +79,7 @@ test('la boundary one-way confina rifiuti del trasporto renderer', () => {
 test('closeSessions è idempotente senza workspace e requireRunning preserva la guardia', async () => {
   const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-shell-runtime-'))
   const runtime = createShellSessionRuntime({
+    ...shellHostCollaborators(),
     getActiveWorkspacePath: () => null,
     log() {},
     processFactory: () => processFixture().process,

@@ -1,6 +1,4 @@
 const crypto = require('node:crypto')
-const fs = require('node:fs')
-const path = require('node:path')
 const {
   DEFAULT_COLS,
   DEFAULT_MAX_SESSIONS,
@@ -24,9 +22,10 @@ const {
   SHELL_OUTPUT_BLOCK_BYTES,
   createShellOutputTransport,
 } = require('./shell-output-transport.cjs')
-const { createShellProcessLifecycle, resolveSystemShell } = require('./shell-process-lifecycle.cjs')
+const { createShellProcessLifecycle } = require('./shell-process-lifecycle.cjs')
 
 function createShellSessionManager(options = {}) {
+  validateManagerCollaborators(options)
   const maxSessions = validateSessionLimit(options.maxSessions)
   const outputTransport = createShellOutputTransport({
     maxHistoryBytes: options.maxHistoryBytes,
@@ -50,7 +49,7 @@ function createShellSessionManager(options = {}) {
     onExit: options.onExit,
     onProcessStopped: (session) => outputTransport.processStopped(session),
   })
-  validateManagerCollaborators(options)
+  const canonicalizeWorkspace = options.canonicalizeWorkspace
   const createId = options.createId ?? (() => crypto.randomUUID())
   const createAttachmentId = options.createAttachmentId ?? (() => crypto.randomUUID())
   const now = options.now ?? Date.now
@@ -73,9 +72,7 @@ function createShellSessionManager(options = {}) {
     const knownPath = aliases.get(requestedPath)
     if (knownPath) return knownPath
 
-    const root = path.resolve(fs.realpathSync(requestedPath))
-    const stats = fs.lstatSync(root)
-    if (!stats.isDirectory() || stats.isSymbolicLink()) throw new Error('Il workspace non è una directory valida.')
+    const root = validateWorkspacePath(canonicalizeWorkspace(requestedPath))
     aliases.set(requestedPath, root)
     aliases.set(root, root)
     return root
@@ -334,5 +331,4 @@ module.exports = {
   SESSION_ID_PATTERN,
   SHELL_OUTPUT_BLOCK_BYTES,
   createShellSessionManager,
-  resolveSystemShell,
 }

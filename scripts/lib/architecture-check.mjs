@@ -12,6 +12,7 @@ const ipcChannelRegistryFile = 'electron/ipc/channels.cjs'
 const ipcPublicChannelSet = new Set(IPC_PUBLIC_CHANNELS)
 const ipcChannelPattern = /^[a-z][A-Za-z0-9]*:[A-Za-z][A-Za-z0-9]*$/u
 const databaseDriverSpecifiers = Object.freeze(['better-sqlite3', 'mysql2', 'pg', 'tedious'])
+const shellOperationalSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'node-pty'])
 
 // These files predate src/bridge. Keep the list explicit so that new direct
 // renderer-to-preload dependencies cannot be introduced while each legacy
@@ -419,6 +420,10 @@ export function inspectArchitecture({ root }) {
     for (const specifier of moduleSpecifiers(sourceFile)) {
       if (file.startsWith('electron/domains/database/') && isDatabaseDriverSpecifier(specifier)) {
         problems.push(`${file}: dominio Database dipende direttamente dal driver esterno "${specifier}"; usa la porta driver`)
+        continue
+      }
+      if (file.startsWith('electron/domains/shell/') && shellOperationalSpecifiers.has(specifier)) {
+        problems.push(`${file}: dominio Shell dipende direttamente dall'host operativo "${specifier}"; usa i collaboratori iniettati`)
         continue
       }
       const requested = extensionlessModule(absoluteRoot, absoluteFile, specifier)

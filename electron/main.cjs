@@ -69,6 +69,7 @@ const { createReliabilityFaultInjection } = require('./app/reliability-fault-inj
 const { createRendererRecoveryController } = require('./app/renderer-recovery-controller.cjs')
 const { createWindowCloseCoordinator } = require('./app/window-close-coordinator.cjs')
 const { createPtyRuntime } = require('./infrastructure/processes/pty-runtime.adapter.cjs')
+const { createShellHostAdapter } = require('./infrastructure/processes/shell-host.adapter.cjs')
 const { getRuntimeCapabilities } = require('./infrastructure/system/runtime-capabilities.adapter.cjs')
 const { createRendererEventSender } = require('./infrastructure/ipc/renderer-event-sender.cjs')
 const { createApplicationIpcBoundary } = require('./infrastructure/ipc/application-ipc-boundary.cjs')
@@ -172,6 +173,7 @@ const reliabilityFaultInjection = RELIABILITY_FAULT_INJECTION_MODE
 const systemSkillsRoot = path.join(app.getPath('home'), '.pi', 'agent', 'skills')
 const piAgentRoot = path.join(app.getPath('home'), '.pi', 'agent')
 const ptyRuntime = createPtyRuntime()
+const shellHost = createShellHostAdapter({ environment: process.env })
 const projectFileIndex = createProjectFileIndex()
 const databaseOperations = createDatabaseOperationRegistry()
 const redisOperations = createRedisOperationRegistry()
@@ -228,7 +230,11 @@ const {
 } = workspaceOperations
 
 const shellSessionRuntime = createShellSessionRuntime({
+  canonicalizeWorkspace: shellHost.canonicalizeWorkspace,
   getActiveWorkspacePath: () => activeWorkspacePath,
+  getEnvironment: shellHost.getEnvironment,
+  getExecutable: shellHost.getExecutable,
+  isProcessAlive: shellHost.isProcessAlive,
   log,
   processFactory: (executable, args, options) => ptyRuntime.spawn(executable, args, options),
   sendToRenderer,
