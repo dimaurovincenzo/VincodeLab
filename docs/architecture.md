@@ -67,6 +67,8 @@ Ogni feature espone un ingresso pubblico `index.ts`; tutti i consumer esterni, c
 
 Nel backend `electron/main.cjs` e `electron/app/bootstrap.cjs` sono gli unici composition root. Gli altri moduli application e i domini non dipendono dagli adapter; infrastructure implementa le porte concrete e i registrar IPC ricevono i collaboratori dal main. La radice `electron/` è riservata alla composition root e all'artefatto preload generato. Il preload è un confine isolato e può importare soltanto altri moduli canonici sotto `electron/preload/` oltre al pacchetto `electron`.
 
+I template dei menu restano trasformazioni pure sotto `electron/domains/menu/`. Il routing dei comandi contestuali appartiene invece all'application layer in `electron/app/context-command-runtime.cjs`; clipboard, dialog, Finder e l'esecuzione bounded di `/usr/bin/open` sono confinati dall'adapter `electron/infrastructure/menu/context-command-host.adapter.cjs` e collegati esclusivamente dalla composition root.
+
 `npm run check:architecture` analizza import, export, `require`, import dinamici e accessi al preload tramite AST TypeScript. Blocca deep import, dipendenze inverse, path legacy rimossi e cicli. Oxlint esegue inoltre `import/no-cycle` sul grafo completo.
 
 I registratori in `electron/ipc/domains/` dichiarano manifesti invoke/send, ricevono dipendenze dalla composition root e lasciano alla boundary IPC globale la trasformazione degli errori. Le sorgenti preload sono modulari; `scripts/build-preload.mjs` genera deterministicamente `electron/preload.cjs`, mentre `npm run check:preload` impedisce drift dell'artefatto senza ridurre `sandbox` o `contextIsolation`.

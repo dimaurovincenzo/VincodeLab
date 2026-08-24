@@ -14,6 +14,7 @@ const ipcChannelPattern = /^[a-z][A-Za-z0-9]*:[A-Za-z][A-Za-z0-9]*$/u
 const databaseDriverSpecifiers = Object.freeze(['better-sqlite3', 'mysql2', 'pg', 'tedious'])
 const shellOperationalSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'node-pty'])
 const aiProcessSpecifiers = new Set(['child_process', 'node:child_process'])
+const menuHostSpecifiers = new Set(['child_process', 'electron', 'node:child_process'])
 
 // These files predate src/bridge. Keep the list explicit so that new direct
 // renderer-to-preload dependencies cannot be introduced while each legacy
@@ -65,6 +66,7 @@ export const removedLegacyModules = new Map([
   ['electron/fatal-error-experience', 'electron/app/fatal-error-experience.cjs'],
   ['electron/application-menu', 'electron/domains/menu/application-menu.cjs'],
   ['electron/context-menu', 'electron/domains/menu/context-menu.cjs'],
+  ['electron/domains/menu/context-command-dispatcher', 'electron/app/context-command-runtime.cjs'],
   ['electron/logger', 'electron/infrastructure/logging/logger.adapter.cjs'],
   ['electron/lifecycle-close-controller', 'electron/app/lifecycle-close-controller.cjs'],
   ['electron/ipc-one-way-error', 'electron/infrastructure/ipc/ipc-one-way-error.cjs'],
@@ -440,6 +442,10 @@ export function inspectArchitecture({ root }) {
       }
       if (file.startsWith('electron/domains/ai/') && aiProcessSpecifiers.has(specifier)) {
         problems.push(`${file}: dominio AI dipende direttamente dai processi host "${specifier}"; usa un adapter iniettato`)
+        continue
+      }
+      if (file.startsWith('electron/domains/menu/') && menuHostSpecifiers.has(specifier)) {
+        problems.push(`${file}: dominio Menu dipende direttamente dall'host operativo "${specifier}"; sposta l'orchestrazione in app e usa un adapter iniettato`)
         continue
       }
       const requested = extensionlessModule(absoluteRoot, absoluteFile, specifier)

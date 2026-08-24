@@ -1,60 +1,78 @@
-const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
-const { execFile } = require('node:child_process')
 const path = require('node:path')
+
+const { IPC_CHANNELS } = require('../ipc/channels.cjs')
 
 const WORKSPACE_FILE_CONTEXT_KINDS = new Set(['workspace-file', 'editor-workspace-tab'])
 const WORKSPACE_DIRECTORY_CONTEXT_KIND = 'workspace-directory'
 const WORKSPACE_ROOT_CONTEXT_KIND = 'workspace-root'
 
-function createContextCommandDispatcher({
-  clipboard,
-  dialog,
-  getWindow,
+function createContextCommandRuntime({
+  chooseApplication,
+  copyText,
   log,
+  openPath,
   openProjectFileWith,
+  openWithApplication,
   requireActiveWorkspace,
   resolveProjectDirectory,
   resolveProjectFile,
+  revealItem,
   sendToRenderer,
-  shell,
+  showError,
   toPublicErrorMessage,
 }) {
-  function openWithMacApplication(applicationPath, filePath) {
-    return new Promise((resolve, reject) => {
-      execFile('/usr/bin/open', ['-a', applicationPath, filePath], { timeout: 15_000 }, (error) => error ? reject(error) : resolve())
-    })
+  const dependencies = {
+    chooseApplication,
+    copyText,
+    log,
+    openPath,
+    openProjectFileWith,
+    openWithApplication,
+    requireActiveWorkspace,
+    resolveProjectDirectory,
+    resolveProjectFile,
+    revealItem,
+    sendToRenderer,
+    showError,
+    toPublicErrorMessage,
   }
-
-  async function chooseMacApplication() {
-    const result = await dialog.showOpenDialog(getWindow(), {
-      title: 'Apri con',
-      buttonLabel: 'Apri',
-      defaultPath: '/Applications',
-      properties: ['openFile'],
-    })
-    return result.canceled ? null : result.filePaths[0] ?? null
+  if (Object.values(dependencies).some((dependency) => typeof dependency !== 'function')) {
+    throw new TypeError('Dipendenze comandi contestuali non valide.')
   }
 
   function resolveWorkspaceContextEntry(contextKind, contextId) {
     const workspacePath = requireActiveWorkspace()
     if (contextKind === WORKSPACE_ROOT_CONTEXT_KIND) {
-      return { absolutePath: resolveProjectDirectory(workspacePath, ''), kind: 'directory', relativePath: '' }
+      return { absolutePath: resolveProjectDirectory(workspacePath, ''), relativePath: '' }
     }
     if (contextKind === WORKSPACE_DIRECTORY_CONTEXT_KIND) {
-      return { absolutePath: resolveProjectDirectory(workspacePath, contextId), kind: 'directory', relativePath: contextId }
+      return { absolutePath: resolveProjectDirectory(workspacePath, contextId), relativePath: contextId }
     }
     if (WORKSPACE_FILE_CONTEXT_KINDS.has(contextKind)) {
-      return { absolutePath: resolveProjectFile(workspacePath, contextId), kind: 'file', relativePath: contextId }
+      return { absolutePath: resolveProjectFile(workspacePath, contextId), relativePath: contextId }
     }
     throw new Error('Elemento del workspace non valido.')
   }
 
   function reportFailure(error, operation, title) {
     log('error', operation)
-    dialog.showErrorBox(title, toPublicErrorMessage(error, {
+    showError(title, toPublicErrorMessage(error, {
       code: 'CONTEXT_COMMAND_FAILED',
       message: 'L’operazione selezionata non è stata completata. Riprova.',
     }))
+  }
+
+  function revealPath(targetPath, operation, title) {
+    let result
+    try {
+      result = openPath(targetPath)
+    } catch (error) {
+      reportFailure(error, operation, title)
+      return
+    }
+    void Promise.resolve(result).then((message) => {
+      if (message) throw new Error(message)
+    }).catch((error) => reportFailure(error, operation, title))
   }
 
   function dispatch(command, contextId, contextKind) {
@@ -66,7 +84,7 @@ function createContextCommandDispatcher({
           : command === 'workspaceEntry.copyRelativePath'
             ? entry.relativePath || '.'
             : entry.absolutePath
-        clipboard.writeText(value)
+        copyText(value)
       } catch (error) {
         reportFailure(error, 'workspace_context_copy_failed', 'Percorso non copiato')
       }
@@ -76,11 +94,9 @@ function createContextCommandDispatcher({
       try {
         const entry = resolveWorkspaceContextEntry(contextKind, contextId)
         if (contextKind === WORKSPACE_ROOT_CONTEXT_KIND) {
-          void shell.openPath(entry.absolutePath).then((message) => {
-            if (message) throw new Error(message)
-          }).catch((error) => reportFailure(error, 'workspace_context_reveal_failed', 'Workspace non mostrato'))
+          revealPath(entry.absolutePath, 'workspace_context_reveal_failed', 'Workspace non mostrato')
         } else {
-          shell.showItemInFolder(entry.absolutePath)
+          revealItem(entry.absolutePath)
         }
       } catch (error) {
         reportFailure(error, 'workspace_context_reveal_failed', 'Elemento non mostrato')
@@ -88,20 +104,22 @@ function createContextCommandDispatcher({
       return
     }
     if (command === 'workspaceFile.openWith') {
-      void openProjectFileWith(requireActiveWorkspace(), contextId, {
-        chooseApplication: chooseMacApplication,
-        openWith: openWithMacApplication,
-      }).catch((error) => reportFailure(error, 'workspace_file_open_with_failed', 'Impossibile aprire il file'))
+      try {
+        void Promise.resolve(openProjectFileWith(requireActiveWorkspace(), contextId, {
+          chooseApplication,
+          openWith: openWithApplication,
+        })).catch((error) => reportFailure(error, 'workspace_file_open_with_failed', 'Impossibile aprire il file'))
+      } catch (error) {
+        reportFailure(error, 'workspace_file_open_with_failed', 'Impossibile aprire il file')
+      }
       return
     }
     if (command === 'recentWorkspace.copyPath' || command === 'gitFile.copyPath') {
-      clipboard.writeText(contextId)
+      copyText(contextId)
       return
     }
     if (command === 'recentWorkspace.reveal') {
-      void shell.openPath(contextId).then((message) => {
-        if (message) throw new Error(message)
-      }).catch((error) => reportFailure(error, 'recent_workspace_reveal_failed', 'Workspace non mostrato'))
+      revealPath(contextId, 'recent_workspace_reveal_failed', 'Workspace non mostrato')
       return
     }
     if (command === 'gitFile.reveal') {
@@ -112,7 +130,7 @@ function createContextCommandDispatcher({
         if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
           throw new Error('File Git non valido.')
         }
-        shell.showItemInFolder(candidate)
+        revealItem(candidate)
       } catch (error) {
         reportFailure(error, 'git_file_reveal_failed', 'File non mostrato')
       }
@@ -124,4 +142,4 @@ function createContextCommandDispatcher({
   return Object.freeze({ dispatch })
 }
 
-module.exports = { createContextCommandDispatcher }
+module.exports = { createContextCommandRuntime }

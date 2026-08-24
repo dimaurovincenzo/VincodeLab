@@ -169,6 +169,18 @@ test('obbliga il dominio AI a usare adapter iniettati per i processi host', () =
   })
 })
 
+test('mantiene processi host ed Electron fuori dal dominio Menu', () => {
+  withFixture({
+    'electron/domains/menu/runtime.cjs': [
+      "require('node:child_process')",
+      "require('child_process')",
+      "require('electron')",
+    ].join('\n'),
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('dominio Menu dipende direttamente')).length, 3)
+  })
+})
+
 test('consente al preload di leggere il registro IPC ma vieta stringhe canale locali', () => {
   withFixture({
     'electron/ipc/channels.cjs': "module.exports = { IPC_CHANNELS: { FILES_READ: 'files:read' } }\n",
@@ -201,6 +213,7 @@ test('impedisce import e ricreazione dei path legacy rimossi', () => {
     'src/main.tsx': "import App from './App'\nexport { App }\n",
     'src/components/project-editor.tsx': 'export const ProjectEditor = {}\n',
     'electron/domains/github/service.cjs': "module.exports = require('../../github-service.cjs')\n",
+    'electron/domains/menu/context-command-dispatcher.cjs': 'module.exports = {}\n',
     'electron/managed-ssh-service.cjs': 'module.exports = {}\n',
     'electron/remote-file-store.cjs': 'module.exports = {}\n',
     'electron/runtime.cjs': "module.exports = require('./shell-session-manager.cjs')\n",
@@ -208,6 +221,7 @@ test('impedisce import e ricreazione dei path legacy rimossi', () => {
   }, (problems) => {
     assert.ok(problems.some((problem) => problem.includes('path legacy "src/App" rimosso; usa "src/app"')))
     assert.ok(problems.some((problem) => problem.includes('path legacy "electron/github-service" rimosso')))
+    assert.ok(problems.some((problem) => problem.includes('electron/domains/menu/context-command-dispatcher.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('path legacy "electron/shell-session-manager" rimosso')))
     assert.ok(problems.some((problem) => problem.includes('electron/managed-ssh-service.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('electron/remote-file-store.cjs: path legacy rimosso ricreato')))

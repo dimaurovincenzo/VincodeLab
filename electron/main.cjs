@@ -75,9 +75,10 @@ const { createShellHostAdapter } = require('./infrastructure/processes/shell-hos
 const { getRuntimeCapabilities } = require('./infrastructure/system/runtime-capabilities.adapter.cjs')
 const { createRendererEventSender } = require('./infrastructure/ipc/renderer-event-sender.cjs')
 const { createApplicationIpcBoundary } = require('./infrastructure/ipc/application-ipc-boundary.cjs')
+const { createContextCommandHostAdapter } = require('./infrastructure/menu/context-command-host.adapter.cjs')
 const { createShellSessionRuntime } = require('./domains/shell/shell-session-runtime.cjs')
 const { createRemoteRuntime } = require('./domains/remote/remote-runtime.cjs')
-const { createContextCommandDispatcher } = require('./domains/menu/context-command-dispatcher.cjs')
+const { createContextCommandRuntime } = require('./app/context-command-runtime.cjs')
 const { createPiRuntime } = require('./domains/ai/pi-runtime.cjs')
 const { createAiTerminalLaunchPolicy } = require('./domains/ai/ai-terminal-launch-policy.cjs')
 const { createWorkspaceOperationBoundary } = require('./domains/workspace/workspace-operation-boundary.cjs')
@@ -305,20 +306,28 @@ const getManagedSsh = remoteRuntime.getManagedSsh
 const getRemoteFileService = remoteRuntime.getRemoteFileService
 const requireManagedConnectionForWorkspace = remoteRuntime.requireManagedConnection
 
-const contextCommandDispatcher = createContextCommandDispatcher({
+const contextCommandHost = createContextCommandHostAdapter({
   clipboard,
   dialog,
   getWindow: () => mainWindow,
+  shell,
+})
+const contextCommandRuntime = createContextCommandRuntime({
+  chooseApplication: contextCommandHost.chooseApplication,
+  copyText: contextCommandHost.copyText,
   log,
+  openPath: contextCommandHost.openPath,
   openProjectFileWith,
+  openWithApplication: contextCommandHost.openWithApplication,
   requireActiveWorkspace,
   resolveProjectDirectory,
   resolveProjectFile,
+  revealItem: contextCommandHost.revealItem,
   sendToRenderer,
-  shell,
+  showError: contextCommandHost.showError,
   toPublicErrorMessage,
 })
-const dispatchContextMenuCommand = contextCommandDispatcher.dispatch
+const dispatchContextMenuCommand = contextCommandRuntime.dispatch
 
 const piRuntime = createPiRuntime({
   createPublicError,
