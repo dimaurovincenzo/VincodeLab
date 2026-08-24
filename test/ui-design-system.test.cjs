@@ -298,7 +298,7 @@ test('i dialog usano la Presence Ark mentre Motion 13 resta confinato alla prese
 test('la Presence Ark e WorkbenchPresence non avvolgono le viste operative persistenti', () => {
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
   const confirmation = fs.readFileSync(path.join(__dirname, '../src/components/confirmation-dialog.tsx'), 'utf8')
-  const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
+  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
   const github = fs.readFileSync(path.join(__dirname, '../src/components/github-workspace.tsx'), 'utf8')
 
   assert.match(confirmation, /const renderedRequest = request \?\? lastRequest/)
@@ -416,7 +416,7 @@ test('impostazioni usa un unico scorrimento della pagina e una superficie operat
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
   const source = fs.readFileSync(path.join(__dirname, '../src/theme/styles/settings.ts'), 'utf8')
   const layout = fs.readFileSync(path.join(__dirname, '../src/theme/styles/shell.ts'), 'utf8')
-  const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
+  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
   const tabs = fs.readFileSync(path.join(__dirname, '../src/components/ui/tabs.tsx'), 'utf8')
   const recipes = fs.readFileSync(path.join(__dirname, '../src/theme/recipes.ts'), 'utf8')
   assert.match(settings, /<Tabs\.List className=\{settingsStyles\.tabs\}/)
@@ -443,7 +443,7 @@ test('i controlli icon-only espongono un tooltip operativo', () => {
   const iconButton = fs.readFileSync(path.join(__dirname, '../src/components/ui/icon-button.tsx'), 'utf8')
   const tooltip = fs.readFileSync(path.join(__dirname, '../src/components/ui/tooltip.tsx'), 'utf8')
   const skills = fs.readFileSync(path.join(__dirname, '../src/components/project-skills.tsx'), 'utf8')
-  const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
+  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
   const attachments = fs.readFileSync(path.join(__dirname, '../src/components/terminal-attachments.tsx'), 'utf8')
   const terminal = fs.readFileSync(path.join(__dirname, '../src/components/free-terminal.tsx'), 'utf8')
@@ -719,7 +719,7 @@ test('GitHub non conserva stili della precedente board a colonne', () => {
 })
 
 test('Impostazioni blocca il refresh ripetuto e mostra lo stato in corso', () => {
-  const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
+  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
   assert.match(settings, /const \[refreshing, setRefreshing\] = useState\(false\)/)
   assert.match(settings, /disabled=\{refreshing\}/)
   assert.match(settings, /Aggiornamento…/)
@@ -985,7 +985,7 @@ test('la libreria comandi mostra categorie collassabili e feedback di caricament
 })
 
 test('Impostazioni e Home usano una navigazione orizzontale senza sidebar locale', () => {
-  const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
+  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
   assert.match(settings, /aria-label="Sezioni Impostazioni"/)
   for (const tab of ['Generali', 'Runtime Pi', 'Pacchetti Pi', 'Skill Pi']) assert.match(settings, new RegExp(`>${tab}<`))
@@ -1220,7 +1220,7 @@ test('l’editor Skill ignora una risposta IPC superata da una selezione più re
 })
 
 test('la configurazione Pi viene chiusa quando si lascia la relativa tab', () => {
-  const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
+  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
 
   assert.match(settings, /const closeConfig = useCallback\(async \(\) =>/)
   assert.match(settings, /await settingsBridge\.piConfig\.close\(\)/)
@@ -1229,7 +1229,7 @@ test('la configurazione Pi viene chiusa quando si lascia la relativa tab', () =>
 
 test('la configurazione Pi viene chiusa anche quando Impostazioni resta montata ma nascosta', () => {
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
+  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
 
   assert.match(app, /<AppSettings active=\{appSection === 'settings'\}/)
   assert.match(settings, /if \(!active\) void closeConfig\(\)/)

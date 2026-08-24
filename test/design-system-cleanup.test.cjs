@@ -23,7 +23,7 @@ test('la shell usa solo classi Panda e conserva il marker tecnico Electron', () 
 })
 
 test('i SegmentGroup visivamente orizzontali dichiarano la stessa semantica ad Ark', () => {
-  const roots = ['src/App.tsx', 'src/components/settings.tsx', 'src/components/free-terminal.tsx']
+  const roots = ['src/App.tsx', 'src/features/settings/components/settings.tsx', 'src/components/free-terminal.tsx']
     .flatMap((file) => read(file).split('\n').filter((line) => line.includes('<SegmentGroup.Root')))
 
   assert.equal(roots.length, 4)

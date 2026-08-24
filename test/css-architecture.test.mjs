@@ -249,7 +249,7 @@ test("entrypoint CSS non dipende dai fogli legacy", () => {
 
 test("Home e Impostazioni riusano la shell operativa e le tab condivise", () => {
   const app = readWorkspaceFile("src/App.tsx");
-  const settings = readWorkspaceFile("src/components/settings.tsx");
+  const settings = readWorkspaceFile("src/features/settings/components/settings.tsx");
   const tabs = readWorkspaceFile("src/components/ui/tabs.tsx");
   const recipes = readWorkspaceFile("src/theme/recipes.ts");
   const homeStyles = readWorkspaceFile("src/theme/styles/home.ts");

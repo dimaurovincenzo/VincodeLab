@@ -208,7 +208,7 @@ test('le primitive interattive sono centralizzate su Ark con recipe Park e Panda
 
 test('system light e dark attraversano preferenza Electron, DOM e token senza rimontare le superfici tecniche', () => {
   const app = read('src/App.tsx')
-  const settings = read('src/components/settings.tsx')
+  const settings = read('src/features/settings/components/settings.tsx')
   const tokens = read('src/theme/tokens.ts')
   const electron = read('electron/main.cjs')
   const xtermTheme = read('src/lib/xterm-theme.ts')
@@ -265,7 +265,7 @@ test('le liste selezionabili delegano focus composito tastiera e selezione a Lis
   const recipes = read('src/theme/recipes.ts')
   const projectSkills = read('src/components/project-skills.tsx')
   const remoteFiles = read('src/components/remote-files.tsx')
-  const settings = read('src/components/settings.tsx')
+  const settings = read('src/features/settings/components/settings.tsx')
 
   assert.match(primitive, /Listbox as ArkListbox[^\n]*from '@ark-ui\/react\/listbox'/)
   assert.match(index, /createListCollection[^\n]*from '@ark-ui\/react\/collection'/)
@@ -593,7 +593,7 @@ test('i vecchi helper di resize e navigazione sono eliminati, non solo inutilizz
 test('lo stato delle tab Ark non viene duplicato da classi attive legacy', () => {
   const tabSurfaces = [
     'src/App.tsx',
-    'src/components/settings.tsx',
+    'src/features/settings/components/settings.tsx',
     'src/components/terminal-workspace.tsx',
     'src/components/remote-files.tsx',
     'src/components/database-workspace.tsx',
@@ -614,7 +614,7 @@ test('le viste operative restano montate dopo la prima apertura', () => {
   const app = record('src/App.tsx')
   const terminal = record('src/components/terminal-workspace.tsx')
   const database = record('src/components/database-workspace.tsx')
-  const settings = record('src/components/settings.tsx')
+  const settings = record('src/features/settings/components/settings.tsx')
   const editor = record('src/components/project-editor.tsx')
   const freeTerminal = record('src/components/free-terminal.tsx')
   assert.ok(app && terminal && database && settings && editor && freeTerminal)

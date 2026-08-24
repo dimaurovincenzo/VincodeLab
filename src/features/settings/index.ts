@@ -1,6 +1,7 @@
 export { settingsBridge } from './api/settings.bridge'
 export { NumberPreferenceInput } from './components/number-preference-input'
 export type { NumberPreferenceInputProps } from './components/number-preference-input'
+export { Settings } from './components/settings'
 export {
   defaultPiConfigDimensions,
   isPackageSource,

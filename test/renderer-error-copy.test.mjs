@@ -8,15 +8,15 @@ import { normalizeUserError, reportUserError } from '../src/lib/user-error.js'
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url))
 const components = [
-  'settings.tsx',
-  'project-skills.tsx',
-  'project-instructions.tsx',
-  'terminal-diagnostics.tsx',
-  'terminal-attachments.tsx',
+  'features/settings/components/settings.tsx',
+  'components/project-skills.tsx',
+  'components/project-instructions.tsx',
+  'components/terminal-diagnostics.tsx',
+  'components/terminal-attachments.tsx',
 ]
 
 function componentSource(fileName) {
-  return fs.readFileSync(path.join(testDirectory, '../src/components', fileName), 'utf8')
+  return fs.readFileSync(path.join(testDirectory, '../src', fileName), 'utf8')
 }
 
 test('le superfici renderer selezionate non mostrano proprieta message grezze', () => {
@@ -31,7 +31,7 @@ test('le superfici renderer selezionate non mostrano proprieta message grezze', 
 })
 
 test('Settings possiede localmente gli errori e non duplica la superficie con toast', () => {
-  const settings = componentSource('settings.tsx')
+  const settings = componentSource('features/settings/components/settings.tsx')
   assert.match(settings, /normalizeUserError\(update\.lastError, \{/u)
   assert.match(settings, /error=\{managedUpdateFailures\.get\(update\.id\)!\}/u)
   assert.match(settings, /<ErrorNotice/u)
@@ -43,7 +43,7 @@ test('Settings possiede localmente gli errori e non duplica la superficie con to
 
 test('Pi assente usa copy specifica e apre direttamente il recovery Runtime Pi', () => {
   const app = fs.readFileSync(path.join(testDirectory, '../src/App.tsx'), 'utf8')
-  const settings = componentSource('settings.tsx')
+  const settings = componentSource('features/settings/components/settings.tsx')
   assert.match(app, /classified\.code === 'PI_NOT_INSTALLED'/u)
   assert.match(app, /title: 'Pi Coding Agent non installato'/u)
   assert.match(app, /Editor, Terminale locale, GitHub, Database e Redis restano disponibili/u)

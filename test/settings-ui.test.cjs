@@ -10,7 +10,7 @@ test('la navigazione principale dichiara la sezione Impostazioni', () => {
 })
 
 test('le tab Impostazioni etichettano i rispettivi pannelli', () => {
-  const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
+  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
 
   assert.match(settings, /<Tabs\.Root asChild value=\{tab\}[^>]*onValueChange=/)
   assert.match(settings, /<Tabs\.List[^>]*aria-label="Sezioni Impostazioni"/)
@@ -24,7 +24,7 @@ test('le tab Impostazioni etichettano i rispettivi pannelli', () => {
 
 test('la toolbar globale non duplica l apertura workspace e l aspetto vive nelle impostazioni', () => {
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
-  const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
+  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
   const toolbar = app.match(/<header className=\{`window-toolbar \$\{shellStyles\.toolbar\}`\}>([\s\S]*?)<\/header>/)?.[1]
 
   assert.ok(toolbar, 'la toolbar applicativa deve usare il modulo Panda della shell')
@@ -52,7 +52,7 @@ test('le tab AI adottano il medesimo indicatore di selezione delle tab GitHub', 
 })
 
 test('Generali gestisce valori globali e personalizzazioni del workspace', () => {
-  const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
+  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
   const model = fs.readFileSync(path.join(__dirname, '../src/features/settings/model/settings-model.ts'), 'utf8')
   const numberInput = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/number-preference-input.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/settings.ts'), 'utf8')
@@ -77,7 +77,7 @@ test('Generali gestisce valori globali e personalizzazioni del workspace', () =>
 })
 
 test('Generali espone diagnostica Terminale AI privacy-safe e solo su richiesta', () => {
-  const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
+  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
   const diagnostics = fs.readFileSync(path.join(__dirname, '../src/components/terminal-diagnostics.tsx'), 'utf8')
 
   assert.match(settings, /<TerminalDiagnostics/)
@@ -88,7 +88,7 @@ test('Generali espone diagnostica Terminale AI privacy-safe e solo su richiesta'
 })
 
 test('Impostazioni presenta aggiornamenti con filtri stato pronto e rollback confermato', () => {
-  const settings = fs.readFileSync(path.join(__dirname, '../src/components/settings.tsx'), 'utf8')
+  const settings = fs.readFileSync(path.join(__dirname, '../src/features/settings/components/settings.tsx'), 'utf8')
   const types = fs.readFileSync(path.join(__dirname, '../src/features/settings/model/settings.types.ts'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/settings.ts'), 'utf8')
 
