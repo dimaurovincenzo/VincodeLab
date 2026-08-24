@@ -28,6 +28,12 @@ Se uno di questi componenti inclusi manca o non è compatibile con l'architettur
 
 Un'assenza opzionale è uno stato previsto, non un incidente fatal. L'interfaccia non avvia retry automatici infiniti, non mostra stack trace e non duplica lo stesso problema in più notifiche.
 
+### Homebrew e applicazioni avviate da Finder
+
+macOS non garantisce che un'app avviata da Finder erediti il `PATH` configurato nella shell. VincodeLab rileva quindi Homebrew nei prefissi standard `/opt/homebrew` e `/usr/local`, oppure nel prefisso assoluto indicato da `HOMEBREW_PREFIX`. Il prefisso viene accettato soltanto se esiste e contiene `bin/brew` come file eseguibile; in quel caso `bin` e `sbin` vengono aggiunti una sola volta all'ambiente dei subprocess.
+
+La rilevazione non esegue `.zshrc`, `.zprofile`, altri profili utente o `brew shellenv`, e non interpreta output di shell. Gli strumenti installati con Homebrew diventano così disponibili al Terminale locale e alle integrazioni Git, GitHub, Pi e npm senza rendere Homebrew un requisito per avviare l'app. I driver Database e Redis inclusi nel bundle continuano a non dipendere da formule Homebrew.
+
 ## Feedback e recovery
 
 Apri **Impostazioni → Compatibilità** e seleziona **Aggiorna** dopo aver installato uno strumento. La pagina usa tre stati:
@@ -46,6 +52,7 @@ I percorsi senza dipendenze esterne sono coperti da fault injection e test compo
 
 ```bash
 node --test \
+  test/application-process-environment.test.cjs \
   test/startup-bootstrap.test.cjs \
   test/runtime-capabilities.test.cjs \
   test/pty-runtime.test.cjs \

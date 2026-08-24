@@ -128,6 +128,7 @@ Il progetto riconosce alcune variabili per ambienti di sviluppo e test:
 | `VINCODELAB_GH_PATH` | Percorso assoluto di un eseguibile `gh` |
 | `VINCODELAB_DATA_DIR` | Directory dati applicativi alternativa |
 | `VINCODELAB_LOGS_DIR` | Directory log alternativa |
+| `HOMEBREW_PREFIX` | Prefisso Homebrew personalizzato; viene usato solo se contiene `bin/brew` eseguibile |
 
 Non salvare questi valori in file versionati. Per test manuali usa directory temporanee e non puntare mai a un profilo reale se stai iniettando errori o dati corrotti.
 
