@@ -13,11 +13,19 @@ test('la porta database rifiuta implementazioni incomplete ed espone solo il con
     createMysqlClient() {},
     createPostgresClient() {},
     executeRemote() {},
+    executeTransaction() {},
     dettaglioAdapter: 'non pubblico',
   }
   const port = createDatabaseDriverPort(implementation)
 
   assert.equal(Object.isFrozen(port), true)
+  assert.deepEqual(Object.keys(port), [
+    'createMssqlConnection',
+    'createMysqlClient',
+    'createPostgresClient',
+    'executeRemote',
+    'executeTransaction',
+  ])
   assert.equal('dettaglioAdapter' in port, false)
 })
 
@@ -259,4 +267,71 @@ test('SQL Server inoltra abort a Request.cancel senza invalidare l intera sessio
   await assert.rejects(pending, (error) => error?.name === 'AbortError')
   assert.equal(activeRequest.cancelCalls, 1)
   assert.deepEqual(invalidations, [])
+})
+
+test('PostgreSQL traduce le operazioni transazionali semantiche in query sulla stessa sessione', async () => {
+  const queries = []
+  const adapter = createNodeDatabaseDriverAdapter()
+  const session = {
+    driver: 'postgres',
+    client: {
+      async query(sql) { queries.push(sql) },
+    },
+  }
+
+  await adapter.executeTransaction(session, 'begin')
+  await adapter.executeTransaction(session, 'commit')
+  await adapter.executeTransaction(session, 'rollback')
+
+  assert.deepEqual(queries, ['BEGIN', 'COMMIT', 'ROLLBACK'])
+})
+
+test('MySQL usa il transaction manager promise per begin commit e rollback', async () => {
+  const calls = []
+  const adapter = createNodeDatabaseDriverAdapter()
+  const session = {
+    driver: 'mysql',
+    client: {
+      async beginTransaction() { calls.push('begin') },
+      async commit() { calls.push('commit') },
+      async rollback() { calls.push('rollback') },
+    },
+  }
+
+  await adapter.executeTransaction(session, 'begin')
+  await adapter.executeTransaction(session, 'commit')
+  await adapter.executeTransaction(session, 'rollback')
+
+  assert.deepEqual(calls, ['begin', 'commit', 'rollback'])
+})
+
+test('SQL Server confina i callback tedious e propaga il failure originale', async () => {
+  const calls = []
+  const driverError = Object.assign(new Error('transaction rejected'), { number: 2627 })
+  const adapter = createNodeDatabaseDriverAdapter()
+  const session = {
+    driver: 'mssql',
+    client: {
+      beginTransaction(callback) {
+        calls.push('begin')
+        queueMicrotask(() => callback())
+      },
+      commitTransaction(callback) {
+        calls.push('commit')
+        queueMicrotask(() => callback())
+      },
+      rollbackTransaction(callback) {
+        calls.push('rollback')
+        queueMicrotask(() => callback(driverError))
+      },
+    },
+  }
+
+  await adapter.executeTransaction(session, 'begin')
+  await adapter.executeTransaction(session, 'commit')
+  await assert.rejects(adapter.executeTransaction(session, 'rollback'), (error) => error === driverError)
+
+  assert.deepEqual(calls, ['begin', 'commit', 'rollback'])
+  assert.throws(() => adapter.executeTransaction(session, 'savepoint'), /Operazione transazionale database non valida/u)
+  assert.throws(() => adapter.executeTransaction(session, 'toString'), /Operazione transazionale database non valida/u)
 })

@@ -6,6 +6,12 @@ function cancellationError() {
   return error
 }
 
+const REMOTE_TRANSACTION_OPERATIONS = Object.freeze({
+  begin: Object.freeze({ mysqlMethod: 'beginTransaction', mssqlMethod: 'beginTransaction', postgresSql: 'BEGIN' }),
+  commit: Object.freeze({ mysqlMethod: 'commit', mssqlMethod: 'commitTransaction', postgresSql: 'COMMIT' }),
+  rollback: Object.freeze({ mysqlMethod: 'rollback', mssqlMethod: 'rollbackTransaction', postgresSql: 'ROLLBACK' }),
+})
+
 function createNodeDatabaseDriverAdapter({
   loadMssql = () => require('tedious'),
   loadMysql = () => require('mysql2/promise'),
@@ -155,6 +161,28 @@ function createNodeDatabaseDriverAdapter({
         if (signal?.aborted) return onAbort()
         signal?.addEventListener('abort', onAbort, { once: true })
         try { session.client.execSql(request) } catch (error) { finish(error) }
+      })
+    },
+    executeTransaction(session, operation) {
+      if (!Object.hasOwn(REMOTE_TRANSACTION_OPERATIONS, operation)) throw new TypeError('Operazione transazionale database non valida.')
+      const transaction = REMOTE_TRANSACTION_OPERATIONS[operation]
+
+      if (session?.driver === 'postgres') {
+        if (typeof session.client?.query !== 'function') throw new TypeError('Client PostgreSQL non valido.')
+        return session.client.query(transaction.postgresSql)
+      }
+
+      if (session?.driver === 'mysql') {
+        const method = session.client?.[transaction.mysqlMethod]
+        if (typeof method !== 'function') throw new TypeError('Client MySQL non valido.')
+        return method.call(session.client)
+      }
+
+      if (session?.driver !== 'mssql') throw new TypeError('Sessione database remota non valida.')
+      const method = session.client?.[transaction.mssqlMethod]
+      if (typeof method !== 'function') throw new TypeError('Client SQL Server non valido.')
+      return new Promise((resolve, reject) => {
+        method.call(session.client, (error) => error ? reject(error) : resolve())
       })
     },
   })

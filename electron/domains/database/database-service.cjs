@@ -179,20 +179,6 @@ function enqueueRemoteOperation(session, operation) {
   return execution
 }
 
-function runMssqlTransactionOperation(session, operation) {
-  const method = {
-    begin: 'beginTransaction',
-    commit: 'commitTransaction',
-    rollback: 'rollbackTransaction',
-  }[operation]
-  if (session?.driver !== 'mssql' || !method || typeof session.client?.[method] !== 'function') throw new Error('Operazione transazionale SQL Server non valida.')
-  // Tedious deve aggiornare il proprio transaction descriptor: inviare BEGIN
-  // come normale query lascia il driver fuori sincronia con SQL Server.
-  return enqueueRemoteOperation(session, () => raceRemoteSessionFailure(session, new Promise((resolve, reject) => {
-    session.client[method]((error) => error ? reject(error) : resolve())
-  }))).catch((error) => { throw toDatabasePublicError(error, { phase: 'query' }) })
-}
-
 function abortError() {
   const error = new Error('database_query_cancelled')
   error.name = 'AbortError'
@@ -217,6 +203,13 @@ function executeRemote(session, sql, parameters = [], timeoutMs = 30_000, option
       onInvalidate: (error) => invalidateRemoteSession(session, error),
     }).then(({ affectedRows }) => ({ rows: collector.rows, affectedRows }))
     return raceRemoteSessionFailure(session, operation)
+  }).catch((error) => { throw toDatabasePublicError(error, { phase: 'query' }) })
+}
+
+function executeRemoteTransaction(session, operation) {
+  return enqueueRemoteOperation(session, () => {
+    if (typeof session?.driverPort?.executeTransaction !== 'function') throw new TypeError('Porta transazioni database remote non disponibile.')
+    return raceRemoteSessionFailure(session, session.driverPort.executeTransaction(session, operation))
   }).catch((error) => { throw toDatabasePublicError(error, { phase: 'query' }) })
 }
 
@@ -290,8 +283,7 @@ async function beginTransaction(workspacePath, connectionId) {
   const session = await getSession(workspacePath, connectionId)
   if (session.transactionActive) throw new Error('Una transazione è già attiva.')
   if (session.driver === 'sqlite') await requestSqlite(session, 'exec', { sql: 'BEGIN' })
-  else if (session.driver === 'mssql') await runMssqlTransactionOperation(session, 'begin')
-  else await executeRemote(session, 'BEGIN')
+  else await executeRemoteTransaction(session, 'begin')
   session.transactionActive = true
   return { active: true }
 }
@@ -300,8 +292,7 @@ async function commitTransaction(workspacePath, connectionId) {
   const session = await getSession(workspacePath, connectionId)
   if (!session.transactionActive) throw new Error('Nessuna transazione attiva.')
   if (session.driver === 'sqlite') await requestSqlite(session, 'exec', { sql: 'COMMIT' })
-  else if (session.driver === 'mssql') await runMssqlTransactionOperation(session, 'commit')
-  else await executeRemote(session, 'COMMIT')
+  else await executeRemoteTransaction(session, 'commit')
   session.transactionActive = false
   return { active: false }
 }
@@ -310,8 +301,7 @@ async function rollbackTransaction(workspacePath, connectionId) {
   const session = await getSession(workspacePath, connectionId)
   if (!session.transactionActive) throw new Error('Nessuna transazione attiva.')
   if (session.driver === 'sqlite') await requestSqlite(session, 'exec', { sql: 'ROLLBACK' })
-  else if (session.driver === 'mssql') await runMssqlTransactionOperation(session, 'rollback')
-  else await executeRemote(session, 'ROLLBACK')
+  else await executeRemoteTransaction(session, 'rollback')
   session.transactionActive = false
   return { active: false }
 }
@@ -445,4 +435,4 @@ async function inspectSchema(workspacePath, connectionId, options = {}) {
   return schema
 }
 
-module.exports = { attachRemoteSessionLifecycle, beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, detachRemoteSessionLifecycle, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, invalidateRemoteSession, isEditableColumn, limitRemoteReadSql, makeTableSchema, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sanitizeDatabaseDiagnostic, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig }
+module.exports = { attachRemoteSessionLifecycle, beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, detachRemoteSessionLifecycle, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, invalidateRemoteSession, isEditableColumn, limitRemoteReadSql, makeTableSchema, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, safeQueryErrorMessage, sanitizeDatabaseDiagnostic, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig }

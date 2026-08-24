@@ -9,7 +9,7 @@ const Database = require('better-sqlite3')
 
 const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const { createConnection, getConnectionWithSecrets, recordHistory } = require('../electron/infrastructure/persistence/database.repository.cjs')
-const { beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
+const { beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
 const { MAX_ROUTINE_DEFINITION_CHARS, normalizeSchemaPageOptions, remotePrimaryKeyQuery, remoteRoutineDefinitionQuery, remoteRoutinePageSql, remoteTableIdentityPageSql } = require('../electron/domains/database/database-schema-model.cjs')
 const { createNodeDatabaseDriverAdapter, nodeDatabaseDriverAdapter } = require('../electron/infrastructure/database/node-database-driver.adapter.cjs')
 const { SqliteWorkerSession, sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics } = require('../electron/infrastructure/database/sqlite-worker-session.adapter.cjs')
@@ -776,53 +776,78 @@ test('serializza le richieste SQL Server sulla stessa sessione e prosegue dopo u
   assert.deepEqual(events, ['first:start', 'first:end', 'second:start'])
 })
 
-test('usa il transaction manager nativo di tedious per le transazioni SQL Server', async () => {
+test('il dominio conserva stato e mapping mentre l adapter gestisce le transazioni remote', async () => {
+  const workspacePath = '/workspace/remote-transaction-domain'
+  const connectionId = '12345678-1234-4123-8123-123456789abc'
   const calls = []
-  const session = {
-    driver: 'mssql',
-    client: {
-      beginTransaction(callback) {
-        calls.push('begin')
-        queueMicrotask(() => callback())
-      },
-      commitTransaction(callback) {
-        calls.push('commit')
-        queueMicrotask(() => callback())
-      },
-      rollbackTransaction(callback) {
-        calls.push('rollback')
-        queueMicrotask(() => callback())
-      },
-    },
+  let failNext = null
+
+  class FakeConnection extends EventEmitter {
+    connect() { queueMicrotask(() => this.emit('connect')) }
+    close() { queueMicrotask(() => this.emit('end')) }
+    beginTransaction(callback) { this.#complete('begin', callback) }
+    commitTransaction(callback) { this.#complete('commit', callback) }
+    rollbackTransaction(callback) { this.#complete('rollback', callback) }
+
+    #complete(operation, callback) {
+      calls.push(operation)
+      const error = failNext
+      failNext = null
+      queueMicrotask(() => callback(error))
+    }
   }
 
-  await runMssqlTransactionOperation(session, 'begin')
-  await runMssqlTransactionOperation(session, 'commit')
-  await runMssqlTransactionOperation(session, 'rollback')
+  const driverPort = createNodeDatabaseDriverAdapter({
+    loadMssql: () => ({ Connection: FakeConnection, Request: class {}, TYPES: {} }),
+  })
+  configureDatabasePersistence({
+    getConnectionWithSecrets: () => ({
+      database: 'app',
+      driver: 'mssql',
+      host: 'database.internal',
+      id: connectionId,
+      name: 'Test',
+      password: 'secret',
+      port: 1433,
+      user: 'developer',
+    }),
+    recordHistory: () => undefined,
+  })
+  configureDatabaseRuntime({
+    createSqliteWorkerSession: (sqlitePath, onClosed) => new SqliteWorkerSession(sqlitePath, onClosed),
+    driverPort,
+    sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics,
+  })
 
-  assert.deepEqual(calls, ['begin', 'commit', 'rollback'])
-})
-
-test('normalizza anche gli errori del transaction manager SQL Server', async () => {
-  const driverError = Object.assign(new Error("Violation of UNIQUE KEY constraint 'private-key'"), { number: 2627 })
-  const session = {
-    driver: 'mssql',
-    client: {
-      beginTransaction(callback) {
-        queueMicrotask(() => callback(driverError))
-      },
-    },
-  }
-
-  await assert.rejects(
-    runMssqlTransactionOperation(session, 'begin'),
-    (error) => (
+  try {
+    const driverError = Object.assign(new Error("Violation of UNIQUE KEY constraint 'private-key'"), { number: 2627 })
+    failNext = driverError
+    await assert.rejects(beginTransaction(workspacePath, connectionId), (error) => (
       error.publicCode === 'DATABASE_CONSTRAINT_VIOLATION'
-      && error.databaseKind === 'constraint'
       && !error.message.includes('private-key')
       && !error.databaseDiagnostic.includes('private-key')
-    ),
-  )
+    ))
+
+    assert.deepEqual(await beginTransaction(workspacePath, connectionId), { active: true })
+    await assert.rejects(beginTransaction(workspacePath, connectionId), /transazione è già attiva/iu)
+    assert.deepEqual(await commitTransaction(workspacePath, connectionId), { active: false })
+    await assert.rejects(commitTransaction(workspacePath, connectionId), /Nessuna transazione attiva/iu)
+
+    assert.deepEqual(await beginTransaction(workspacePath, connectionId), { active: true })
+    failNext = driverError
+    await assert.rejects(rollbackTransaction(workspacePath, connectionId), (error) => error.publicCode === 'DATABASE_CONSTRAINT_VIOLATION')
+    await assert.rejects(beginTransaction(workspacePath, connectionId), /transazione è già attiva/iu)
+    assert.deepEqual(await rollbackTransaction(workspacePath, connectionId), { active: false })
+    assert.deepEqual(calls, ['begin', 'begin', 'commit', 'begin', 'rollback', 'rollback'])
+  } finally {
+    await closeConnectionSession(workspacePath, connectionId)
+    configureDatabasePersistence({ getConnectionWithSecrets, recordHistory })
+    configureDatabaseRuntime({
+      createSqliteWorkerSession: (sqlitePath, onClosed) => new SqliteWorkerSession(sqlitePath, onClosed),
+      driverPort: nodeDatabaseDriverAdapter,
+      sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics,
+    })
+  }
 })
 
 test('rende single-flight due aperture remote concorrenti senza perdere client', async () => {

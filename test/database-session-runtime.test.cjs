@@ -10,6 +10,7 @@ function fakeDriverPort(overrides = {}) {
     createMysqlClient: unused,
     createPostgresClient: unused,
     executeRemote: unused,
+    executeTransaction: unused,
     ...overrides,
   }
 }

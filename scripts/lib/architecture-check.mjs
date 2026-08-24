@@ -17,6 +17,11 @@ const databaseVendorExecutionFactories = new Set([
   'createMssqlRequest',
   'createPostgresQuery',
 ])
+const databaseVendorTransactionMethods = new Set([
+  'beginTransaction',
+  'commitTransaction',
+  'rollbackTransaction',
+])
 const shellOperationalSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'node-pty'])
 const aiProcessSpecifiers = new Set(['child_process', 'node:child_process'])
 const menuHostSpecifiers = new Set(['child_process', 'electron', 'node:child_process'])
@@ -196,6 +201,21 @@ function databaseVendorFactoryReferences(sourceFile) {
   const visit = (node) => {
     const name = ts.isIdentifier(node) || ts.isStringLiteralLike(node) ? node.text : null
     if (name && databaseVendorExecutionFactories.has(name)) references.add(name)
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return [...references]
+}
+
+function databaseVendorTransactionReferences(sourceFile) {
+  const references = new Set()
+  const visit = (node) => {
+    if (ts.isPropertyAccessExpression(node) && databaseVendorTransactionMethods.has(node.name.text)) {
+      references.add(node.name.text)
+    } else if (ts.isElementAccessExpression(node)) {
+      const key = node.argumentExpression
+      if (key && ts.isStringLiteralLike(key) && databaseVendorTransactionMethods.has(key.text)) references.add(key.text)
+    }
     ts.forEachChild(node, visit)
   }
   visit(sourceFile)
@@ -441,6 +461,9 @@ export function inspectArchitecture({ root }) {
     if (file.startsWith('electron/domains/database/')) {
       for (const factory of databaseVendorFactoryReferences(sourceFile)) {
         problems.push(`${file}: factory driver "${factory}" non consentita nel dominio Database; usa executeRemote della porta driver`)
+      }
+      for (const method of databaseVendorTransactionReferences(sourceFile)) {
+        problems.push(`${file}: metodo transazionale vendor "${method}" non consentito nel dominio Database; usa executeTransaction della porta driver`)
       }
     }
 

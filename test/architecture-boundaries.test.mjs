@@ -162,6 +162,21 @@ test('impedisce alle factory streaming dei vendor di rientrare nel dominio Datab
   })
 })
 
+test('impedisce ai callback transazionali dei vendor di rientrare nel dominio Database', () => {
+  withFixture({
+    'electron/domains/database/runtime.cjs': [
+      'session.client.beginTransaction(callback)',
+      'session.client.commitTransaction(callback)',
+      "session.client['rollbackTransaction'](callback)",
+    ].join('\n'),
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('metodo transazionale vendor')).length, 3)
+    for (const method of ['beginTransaction', 'commitTransaction', 'rollbackTransaction']) {
+      assert.ok(problems.some((problem) => problem.includes(`metodo transazionale vendor "${method}"`)))
+    }
+  })
+})
+
 test('obbliga il dominio Shell a usare collaboratori invece di filesystem e PTY operativi', () => {
   withFixture({
     'electron/domains/shell/runtime.cjs': [
