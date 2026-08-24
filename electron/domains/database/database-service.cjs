@@ -5,6 +5,7 @@ const {
   mapRemoteTables,
   normalizeSchemaPageOptions,
   remotePrimaryKeyQuery,
+  remoteRoutineDefinitionQuery,
   remoteRoutinePageSql,
   remoteTableColumnsExactQuery,
   remoteTableColumnsPageSql,
@@ -83,6 +84,11 @@ const {
   invalidateSchema: (key) => schemaCache.delete(key),
   invalidateWorkspaceSchema,
 })
+
+async function openConnection(workspacePath, connectionId) {
+  await getSession(workspacePath, connectionId)
+  return { connected: true }
+}
 
 async function readTableRows(workspacePath, connectionId, tableName, options = {}) {
   const session = await getSession(workspacePath, connectionId)
@@ -456,6 +462,20 @@ async function inspectTableSchema(workspacePath, connectionId, session, tableNam
   return mapRemoteTables(columnRows, primaryKeyRows, 1)[0] ?? null
 }
 
+async function inspectRoutine(workspacePath, connectionId, routineName, kind) {
+  const session = await getSession(workspacePath, connectionId)
+  if (session.driver === 'sqlite') return { name: routineName, kind, definition: null, definitionTruncated: false }
+  const query = remoteRoutineDefinitionQuery(session.driver, routineName, kind)
+  const { rows } = await executeRemote(session, query.sql, query.parameters)
+  const row = rows[0]
+  return {
+    name: routineName,
+    kind,
+    definition: row?.definition ?? row?.DEFINITION ?? null,
+    definitionTruncated: Boolean(row?.definition_truncated ?? row?.DEFINITION_TRUNCATED),
+  }
+}
+
 async function inspectRemoteSchemaPage(session, { offset, limit }) {
   // Ogni query carica al massimo una pagina più una risorsa sentinella. In
   // particolare colonne e definizioni non vengono materializzate per l'intero DB.
@@ -507,4 +527,4 @@ async function inspectSchema(workspacePath, connectionId, options = {}) {
   return schema
 }
 
-module.exports = { attachRemoteSessionLifecycle, beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, detachRemoteSessionLifecycle, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectSchema, isEditableColumn, limitRemoteReadSql, makeTableSchema, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sanitizeDatabaseDiagnostic, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig }
+module.exports = { attachRemoteSessionLifecycle, beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, detachRemoteSessionLifecycle, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRoutine, inspectSchema, isEditableColumn, limitRemoteReadSql, makeTableSchema, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sanitizeDatabaseDiagnostic, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig }

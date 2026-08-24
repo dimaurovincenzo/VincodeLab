@@ -97,9 +97,11 @@ const CATEGORY_CODE_SUFFIX = Object.freeze({
 const CHANNEL_MESSAGES = Object.freeze({
   'database:begin': 'Impossibile avviare la transazione.',
   'database:commit': 'Impossibile confermare la transazione.',
+  'database:connect': 'Impossibile aprire la connessione al database.',
   'database:createConnection': 'Impossibile salvare la connessione al database.',
   'database:execute': 'Impossibile completare la query.',
   'database:inspectSchema': 'Impossibile leggere lo schema del database.',
+  'database:inspectRoutine': 'Impossibile leggere la definizione della routine.',
   'database:rollback': 'Impossibile annullare la transazione.',
   'database:tableRows': 'Impossibile leggere i dati della tabella.',
   'redis:createConnection': 'Impossibile salvare la connessione Redis.',

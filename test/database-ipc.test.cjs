@@ -16,6 +16,7 @@ function databaseFixture(overrides = {}) {
     begin: { transactionActive: true },
     clearHistory: { cleared: true },
     commit: { transactionActive: false },
+    connected: { connected: true },
     connection: { id: 'connection-1', name: 'Local' },
     connections: [{ id: 'connection-1', name: 'Local' }],
     execute: { columns: ['id'], rows: [[1]] },
@@ -23,6 +24,7 @@ function databaseFixture(overrides = {}) {
     query: { id: 'query-1', name: 'Lista' },
     queries: [{ id: 'query-1', name: 'Lista' }],
     rollback: { transactionActive: false },
+    routine: { name: 'public.refresh_cache', kind: 'procedure', definition: 'BEGIN END' },
     schema: { tables: [{ name: 'users' }] },
     tableRows: { rows: [{ id: 1 }, { id: 2 }], total: 2 },
     updatedRows: { updated: 1 },
@@ -58,11 +60,13 @@ function databaseFixture(overrides = {}) {
     deleteSavedQuery: (workspacePath, id) => { calls.push(['delete-query', workspacePath, id]) },
     executeQuery: async (workspacePath, id, sql, options) => { calls.push(['execute', workspacePath, id, sql, options]); return results.execute },
     getApplicationErrorLogMetadata: (incident) => { calls.push(['error-metadata', incident]); return { correlationId: incident.correlationId } },
+    inspectRoutine: (workspacePath, id, routineName, kind) => { calls.push(['inspect-routine', workspacePath, id, routineName, kind]); return results.routine },
     inspectSchema: (workspacePath, id, options) => { calls.push(['inspect-schema', workspacePath, id, options]); return results.schema },
     listConnections: (workspacePath) => { calls.push(['list-connections', workspacePath]); return results.connections },
     listHistory: (workspacePath, id, limit) => { calls.push(['list-history', workspacePath, id, limit]); return results.history },
     listSavedQueries: (workspacePath, id) => { calls.push(['list-queries', workspacePath, id]); return results.queries },
     log: (...args) => { calls.push(['log', ...args]) },
+    openConnection: (workspacePath, id) => { calls.push(['connect', workspacePath, id]); return results.connected },
     readTableRows: async (workspacePath, id, tableName, options) => { calls.push(['table-rows', workspacePath, id, tableName, options]); return results.tableRows },
     requireActiveWorkspace: () => { calls.push(['require-workspace']); return '/workspace/current' },
     rollbackTransaction: (workspacePath, id) => { calls.push(['rollback', workspacePath, id]); return results.rollback },
@@ -93,7 +97,7 @@ function databaseFixture(overrides = {}) {
   return { calls, dependencies, ipcMain, operationSignal, predicates, registrations, results }
 }
 
-test('registra una sola volta il manifesto completo dei 18 canali IPC Database', () => {
+test('registra una sola volta il manifesto completo dei 20 canali IPC Database', () => {
   const fixture = databaseFixture()
   const registration = registerDatabaseIpc({ ipcMain: fixture.ipcMain, ...fixture.dependencies })
 
@@ -102,12 +106,14 @@ test('registra una sola volta il manifesto completo dei 18 canali IPC Database',
     'database:createConnection',
     'database:updateConnection',
     'database:deleteConnection',
+    'database:connect',
     'database:execute',
     'database:cancel',
     'database:begin',
     'database:commit',
     'database:rollback',
     'database:inspectSchema',
+    'database:inspectRoutine',
     'database:tableRows',
     'database:updateTableRows',
     'database:listSavedQueries',
@@ -127,9 +133,11 @@ test('gli handler diretti verificano il sender prima di workspace e servizi', as
   const argumentsByChannel = new Map([
     ['database:listConnections', []],
     ['database:createConnection', [{}]],
+    ['database:connect', ['connection-1']],
     ['database:execute', ['connection-1', 'SELECT 1', { operationId: 'operation-1' }]],
     ['database:cancel', ['operation-1']],
     ['database:inspectSchema', ['connection-1', {}]],
+    ['database:inspectRoutine', ['connection-1', 'public.refresh_cache', 'procedure']],
     ['database:tableRows', ['connection-1', 'users', {}]],
     ['database:listSavedQueries', ['connection-1']],
     ['database:saveQuery', [{}]],
@@ -188,7 +196,9 @@ test('inoltra letture, query salvate e history preservando workspace, argomenti 
 
   assert.equal(handlers.get('database:listConnections')(event), fixture.results.connections)
   assert.equal(handlers.get('database:createConnection')(event, connectionInput), fixture.results.connection)
+  assert.equal(handlers.get('database:connect')(event, 'connection-1'), fixture.results.connected)
   assert.equal(handlers.get('database:inspectSchema')(event, 'connection-1', schemaOptions), fixture.results.schema)
+  assert.equal(handlers.get('database:inspectRoutine')(event, 'connection-1', 'public.refresh_cache', 'procedure'), fixture.results.routine)
   assert.equal(handlers.get('database:listSavedQueries')(event, 'connection-1'), fixture.results.queries)
   assert.equal(handlers.get('database:saveQuery')(event, queryInput), fixture.results.query)
   assert.equal(handlers.get('database:updateSavedQuery')(event, 'query-1', queryUpdate), fixture.results.query)
@@ -199,7 +209,9 @@ test('inoltra letture, query salvate e history preservando workspace, argomenti 
   assert.deepEqual(fixture.calls, [
     ['guard', event], ['require-workspace'], ['list-connections', '/workspace/current'],
     ['guard', event], ['require-workspace'], ['create-connection', '/workspace/current', connectionInput],
+    ['guard', event], ['require-workspace'], ['connect', '/workspace/current', 'connection-1'],
     ['guard', event], ['require-workspace'], ['inspect-schema', '/workspace/current', 'connection-1', schemaOptions],
+    ['guard', event], ['require-workspace'], ['inspect-routine', '/workspace/current', 'connection-1', 'public.refresh_cache', 'procedure'],
     ['guard', event], ['require-workspace'], ['list-queries', '/workspace/current', 'connection-1'],
     ['guard', event], ['require-workspace'], ['save-query', '/workspace/current', queryInput],
     ['guard', event], ['require-workspace'], ['update-query', '/workspace/current', 'query-1', queryUpdate],

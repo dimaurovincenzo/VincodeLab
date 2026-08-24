@@ -3,12 +3,14 @@ const DATABASE_INVOKE_CHANNELS = Object.freeze([
   'database:createConnection',
   'database:updateConnection',
   'database:deleteConnection',
+  'database:connect',
   'database:execute',
   'database:cancel',
   'database:begin',
   'database:commit',
   'database:rollback',
   'database:inspectSchema',
+  'database:inspectRoutine',
   'database:tableRows',
   'database:updateTableRows',
   'database:listSavedQueries',
@@ -32,11 +34,13 @@ function createDatabaseHandlers({
   deleteSavedQuery,
   executeQuery,
   getApplicationErrorLogMetadata,
+  inspectRoutine,
   inspectSchema,
   listConnections,
   listHistory,
   listSavedQueries,
   log,
+  openConnection,
   readTableRows,
   requireActiveWorkspace,
   rollbackTransaction,
@@ -62,6 +66,7 @@ function createDatabaseHandlers({
       deleteConnection(workspacePath, id)
       return { deleted: true }
     })],
+    ['database:connect', (event, id) => { assertTrustedSender(event); return openConnection(requireActiveWorkspace(), id) }],
     ['database:execute', async (event, id, sql, options) => {
       assertTrustedSender(event)
       const workspacePath = requireActiveWorkspace()
@@ -88,6 +93,7 @@ function createDatabaseHandlers({
     ['database:commit', (event, id) => runWorkspaceMutation(event, 'database:commit', (workspacePath) => commitTransaction(workspacePath, id))],
     ['database:rollback', (event, id) => runWorkspaceMutation(event, 'database:rollback', (workspacePath) => rollbackTransaction(workspacePath, id))],
     ['database:inspectSchema', (event, id, options) => { assertTrustedSender(event); return inspectSchema(requireActiveWorkspace(), id, options) }],
+    ['database:inspectRoutine', (event, id, routineName, kind) => { assertTrustedSender(event); return inspectRoutine(requireActiveWorkspace(), id, routineName, kind) }],
     ['database:tableRows', async (event, id, tableName, options) => {
       assertTrustedSender(event)
       try {

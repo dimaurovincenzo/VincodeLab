@@ -50,9 +50,11 @@ function makeTableSchema(name, columns) {
 
 function routineMetadataSql(driver) {
   if (driver === 'sqlite') return null
-  if (driver === 'postgres') return "SELECT routine_schema AS schema_name, routine_name, CASE WHEN routine_type = 'PROCEDURE' THEN 'procedure' ELSE 'function' END AS routine_type, routine_definition AS definition FROM information_schema.routines WHERE routine_schema NOT IN ('pg_catalog','information_schema') ORDER BY routine_schema, routine_type, routine_name"
-  if (driver === 'mysql') return "SELECT routine_schema AS schema_name, routine_name, CASE WHEN routine_type = 'PROCEDURE' THEN 'procedure' ELSE 'function' END AS routine_type, routine_definition AS definition FROM information_schema.routines WHERE routine_schema = DATABASE() ORDER BY routine_type, routine_name"
-  return "SELECT s.name AS schema_name, o.name AS routine_name, CASE WHEN o.type = 'P' THEN 'procedure' ELSE 'function' END AS routine_type, m.definition AS definition FROM sys.objects o INNER JOIN sys.schemas s ON s.schema_id = o.schema_id LEFT JOIN sys.sql_modules m ON m.object_id = o.object_id WHERE o.type IN ('P','FN','IF','TF') AND o.is_ms_shipped = 0 ORDER BY s.name, routine_type, o.name"
+  // Lo schema trasporta soltanto metadati leggeri. Le definizioni possono essere
+  // molto grandi e vengono lette separatamente quando l'utente apre la routine.
+  if (driver === 'postgres') return "SELECT routine_schema AS schema_name, routine_name, CASE WHEN routine_type = 'PROCEDURE' THEN 'procedure' ELSE 'function' END AS routine_type FROM information_schema.routines WHERE routine_schema NOT IN ('pg_catalog','information_schema') ORDER BY routine_schema, routine_type, routine_name"
+  if (driver === 'mysql') return "SELECT routine_schema AS schema_name, routine_name, CASE WHEN routine_type = 'PROCEDURE' THEN 'procedure' ELSE 'function' END AS routine_type FROM information_schema.routines WHERE routine_schema = DATABASE() ORDER BY routine_type, routine_name"
+  return "SELECT s.name AS schema_name, o.name AS routine_name, CASE WHEN o.type = 'P' THEN 'procedure' ELSE 'function' END AS routine_type FROM sys.objects o INNER JOIN sys.schemas s ON s.schema_id = o.schema_id WHERE o.type IN ('P','FN','IF','TF') AND o.is_ms_shipped = 0 ORDER BY s.name, routine_type, o.name"
 }
 
 function quoteIdentifier(driver, identifier) {

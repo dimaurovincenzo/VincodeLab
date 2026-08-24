@@ -317,13 +317,32 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
     setDatabaseView('data')
   }
 
-  function openRoutine(routine: DatabaseRoutine) {
-    openSql(routine.definition || `-- Definizione non disponibile per ${routine.name}. Verifica il permesso VIEW DEFINITION sulla connessione.`)
-    resources.setSelectedTableName(null)
-    resources.setTableFilter('')
-    resources.setTablePage(null)
-    resources.setTableError(null)
-    query.setResult(null)
+  async function openRoutine(routine: DatabaseRoutine) {
+    const connectionId = connections.selected?.id
+    if (!connectionId || !resources.connectionReady) return
+    try {
+      const loaded = await databaseBridge.database.inspectRoutine(connectionId, routine.name, routine.kind)
+      if (connections.getSelectedConnectionId() !== connectionId) return
+      const truncationNotice = loaded.definitionTruncated
+        ? '-- Definizione parziale: il testo supera il limite sicuro dell’editor.\n\n'
+        : ''
+      openSql(loaded.definition
+        ? `${truncationNotice}${loaded.definition}`
+        : `-- Definizione non disponibile per ${routine.name}. Verifica il permesso VIEW DEFINITION sulla connessione.`)
+      resources.setSelectedTableName(null)
+      resources.setTableFilter('')
+      resources.setTablePage(null)
+      resources.setTableError(null)
+      query.setResult(null)
+    } catch (error) {
+      const incident = reportDatabaseFailure(
+        error,
+        'load-routine-definition',
+        'Definizione routine non caricata',
+        'La connessione e il testo SQL corrente sono rimasti disponibili. Verifica i permessi e riprova.',
+      )
+      showDatabaseErrorToast(incident, { label: 'Riprova', onClick: () => { void openRoutine(routine) } })
+    }
   }
 
   function requestSaveTableChanges(changes: DatabaseTableChange[]) {
@@ -398,7 +417,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
           onClearHistory={requestClearHistory} onDeleteConnection={deleteConnection} onDeleteSavedQuery={deleteSavedQuery}
           onEditConnection={connections.editConnection} onExpandedSchemasChange={setExpandedSchemas} onNewConnection={connections.openNewConnection}
           onLoadMoreSchema={() => { void resources.loadMoreSchema() }}
-          onOpenRoutine={openRoutine} onOpenSql={openSql} onOpenTable={openTable} onReloadConnections={() => { void connections.loadConnections() }}
+          onOpenRoutine={(routine) => { void openRoutine(routine) }} onOpenSql={openSql} onOpenTable={openTable} onReloadConnections={() => { void connections.loadConnections() }}
           onSchemaFilterChange={resources.setSchemaFilter} onSelectConnection={selectConnection} onSidebarTabChange={setSidebarTab}
           savedQueries={resources.savedQueries} schema={resources.schema} schemaFilter={resources.schemaFilter} schemaHasMore={resources.schemaHasMore} selected={connections.selected}
           selectedTableName={resources.selectedTableName} sidebarTab={sidebarTab}

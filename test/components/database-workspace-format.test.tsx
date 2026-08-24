@@ -31,9 +31,11 @@ function installVincodeLab(connection: DatabaseConnection = {
       database: {
         listConnections: vi.fn(async () => [connection]),
         updateConnection,
+        connect: vi.fn(async () => ({ connected: true as const })),
         listSavedQueries: vi.fn(async () => []),
         listHistory: vi.fn(async () => []),
         inspectSchema: vi.fn(async () => ({ tables: [], routines: [] })),
+        inspectRoutine: vi.fn(async (_connectionId: string, routineName: string, kind: DatabaseRoutine['kind']) => ({ name: routineName, kind, definition: null })),
       },
       preferences: {
         get: vi.fn(async () => ({

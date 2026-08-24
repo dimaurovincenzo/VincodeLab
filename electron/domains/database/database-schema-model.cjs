@@ -6,6 +6,7 @@ const {
 
 const DEFAULT_SCHEMA_PAGE_LIMIT = 50
 const MAX_SCHEMA_PAGE_LIMIT = 100
+const MAX_ROUTINE_DEFINITION_CHARS = 131_072
 
 function normalizeSchemaPageOptions(options = {}) {
   if (options === null || typeof options !== 'object' || Array.isArray(options)) throw new Error('Opzioni schema database non valide.')
@@ -66,6 +67,30 @@ function parseRemoteTableName(tableName) {
   const separator = tableName.indexOf('.')
   if (separator < 1 || separator === tableName.length - 1 || tableName.indexOf('.', separator + 1) !== -1) throw new Error('Identificatore tabella non valido.')
   return { schemaName: tableName.slice(0, separator), tableName: tableName.slice(separator + 1) }
+}
+
+function remoteRoutineDefinitionQuery(driver, qualifiedRoutineName, kind) {
+  const { schemaName, tableName: routineName } = parseRemoteTableName(qualifiedRoutineName)
+  if (!['procedure', 'function'].includes(kind)) throw new Error('Tipo routine database non valido.')
+  const schemaMarker = remoteParameterMarker(driver, 0)
+  const routineMarker = remoteParameterMarker(driver, 1)
+  const typeMarker = remoteParameterMarker(driver, 2)
+  if (driver === 'postgres') {
+    return {
+      sql: `SELECT LEFT(routine_definition, ${MAX_ROUTINE_DEFINITION_CHARS}) AS definition, CHAR_LENGTH(routine_definition) > ${MAX_ROUTINE_DEFINITION_CHARS} AS definition_truncated FROM information_schema.routines WHERE routine_schema = ${schemaMarker} AND routine_name = ${routineMarker} AND routine_type = ${typeMarker} ORDER BY specific_name LIMIT 1`,
+      parameters: [schemaName, routineName, kind.toUpperCase()],
+    }
+  }
+  if (driver === 'mysql') {
+    return {
+      sql: `SELECT LEFT(routine_definition, ${MAX_ROUTINE_DEFINITION_CHARS}) AS definition, CHAR_LENGTH(routine_definition) > ${MAX_ROUTINE_DEFINITION_CHARS} AS definition_truncated FROM information_schema.routines WHERE routine_schema = ${schemaMarker} AND routine_name = ${routineMarker} AND routine_type = ${typeMarker} LIMIT 1`,
+      parameters: [schemaName, routineName, kind.toUpperCase()],
+    }
+  }
+  return {
+    sql: `SELECT TOP 1 LEFT(m.definition, ${MAX_ROUTINE_DEFINITION_CHARS}) AS definition, CASE WHEN LEN(m.definition) > ${MAX_ROUTINE_DEFINITION_CHARS} THEN 1 ELSE 0 END AS definition_truncated FROM sys.objects o INNER JOIN sys.schemas s ON s.schema_id = o.schema_id LEFT JOIN sys.sql_modules m ON m.object_id = o.object_id WHERE s.name = ${schemaMarker} AND o.name = ${routineMarker} AND (CASE WHEN o.type = 'P' THEN 'procedure' ELSE 'function' END) = ${typeMarker} AND o.type IN ('P','FN','IF','TF') AND o.is_ms_shipped = 0`,
+    parameters: [schemaName, routineName, kind],
+  }
 }
 
 function remoteTableColumnsExactQuery(driver, qualifiedTableName) {
@@ -172,11 +197,13 @@ function mapRemoteRoutines(rows, limit = Number.POSITIVE_INFINITY) {
 
 module.exports = {
   DEFAULT_SCHEMA_PAGE_LIMIT,
+  MAX_ROUTINE_DEFINITION_CHARS,
   MAX_SCHEMA_PAGE_LIMIT,
   mapRemoteRoutines,
   mapRemoteTables,
   normalizeSchemaPageOptions,
   remotePrimaryKeyQuery,
+  remoteRoutineDefinitionQuery,
   remoteRoutinePageSql,
   remoteTableColumnsExactQuery,
   remoteTableColumnsPageSql,

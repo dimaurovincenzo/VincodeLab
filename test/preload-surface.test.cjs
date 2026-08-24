@@ -219,6 +219,8 @@ test('preload espone il workspace Database senza accesso Node dal renderer', () 
   const database = preload.slice(preload.indexOf('database:'), preload.indexOf('\n  shell:'))
 
   assert.match(database, /database: \{[\s\S]*execute: \(connectionId, sql, options\) => ipcRenderer\.invoke\('database:execute', connectionId, sql, options\)/)
+  assert.match(database, /connect: \(connectionId\) => ipcRenderer\.invoke\('database:connect', connectionId\)/)
+  assert.match(database, /inspectRoutine: \(connectionId, routineName, kind\) => ipcRenderer\.invoke\('database:inspectRoutine', connectionId, routineName, kind\)/)
   assert.match(database, /cancel: \(operationId\) => ipcRenderer\.invoke\('database:cancel', operationId\)/)
   assert.match(database, /tableRows: \(connectionId, tableName, options\) => ipcRenderer\.invoke\('database:tableRows', connectionId, tableName, options\)/)
   assert.match(database, /updateTableRows: \(connectionId, tableName, changes\) => ipcRenderer\.invoke\('database:updateTableRows', connectionId, tableName, changes\)/)

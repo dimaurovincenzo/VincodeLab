@@ -25,12 +25,14 @@ function installDatabase(overrides: Partial<Window['vincodeLab']['database']> = 
     createConnection: vi.fn(),
     updateConnection: vi.fn(),
     deleteConnection: vi.fn(),
+    connect: vi.fn(async () => ({ connected: true as const })),
     execute: vi.fn(async () => ({ columns: ['risultato'], rows: [{ risultato: 1 }], affectedRows: null, durationMs: 1, hasMore: false, resultBytes: 16 })),
     cancel: vi.fn(async () => ({ cancelled: false, mutative: false })),
     begin: vi.fn(async () => ({ active: true as const })),
     commit: vi.fn(async () => ({ active: false as const })),
     rollback: vi.fn(async () => ({ active: false as const })),
     inspectSchema: vi.fn(async () => ({ tables: [], routines: [] })),
+    inspectRoutine: vi.fn(async (_connectionId: string, routineName: string, kind: DatabaseRoutine['kind']) => ({ name: routineName, kind, definition: null })),
     tableRows: vi.fn(),
     updateTableRows: vi.fn(),
     listSavedQueries: vi.fn(async () => []),
@@ -82,9 +84,9 @@ describe('recovery del workspace Database', () => {
         void connectionId
         return []
       }),
-      inspectSchema: vi.fn(async (connectionId: string) => {
+      connect: vi.fn(async (connectionId: string) => {
         if (connectionId === 'database-b' && !databaseBAvailable) throw new Error('database B non raggiungibile')
-        return { tables: [], routines: [] }
+        return { connected: true as const }
       }),
     })
     const user = userEvent.setup()
@@ -142,6 +144,53 @@ describe('recovery del workspace Database', () => {
     expect(screen.getByRole('treeitem', { name: 'prima_tabella' })).toBeVisible()
     expect(inspectSchema).toHaveBeenLastCalledWith('database-a', { offset: 40, limit: 40 })
     expect(screen.queryByRole('button', { name: 'Carica altre risorse' })).not.toBeInTheDocument()
+  })
+
+  it('mantiene la connessione utilizzabile quando il catalogo è troppo grande per essere materializzato', async () => {
+    const inspectSchema = vi.fn(async () => {
+      throw Object.assign(new Error('catalogo oltre budget'), { code: 'DATABASE_RESULT_TOO_LARGE' })
+    })
+    const database = installDatabase({ listConnections: vi.fn(async () => [connections[0]]), inspectSchema })
+    const user = userEvent.setup()
+    render(<DatabaseWorkspace workspace="/tmp/database-large-catalog" />)
+
+    expect(database.connect).not.toHaveBeenCalled()
+    expect(inspectSchema).not.toHaveBeenCalled()
+    await user.click(await screen.findByRole('button', { name: 'Connetti' }))
+
+    expect(await screen.findByRole('heading', { name: 'Schema database non caricato' })).toBeVisible()
+    expect(screen.getByText(/La connessione è attiva/u)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Esegui' })).toBeEnabled()
+    expect(database.connect).toHaveBeenCalledWith('database-a')
+  })
+
+  it('carica la definizione di una routine soltanto quando l’utente la apre', async () => {
+    const inspectRoutine = vi.fn(async () => ({
+      name: 'public.refresh_cache',
+      kind: 'procedure' as const,
+      definition: 'CREATE PROCEDURE public.refresh_cache() LANGUAGE SQL AS $$ SELECT 1 $$;',
+      definitionTruncated: true,
+    }))
+    installDatabase({
+      listConnections: vi.fn(async () => [connections[0]]),
+      inspectSchema: vi.fn(async () => ({
+        tables: [],
+        routines: [{ name: 'public.refresh_cache', kind: 'procedure' as const, definition: null }],
+      })),
+      inspectRoutine,
+    })
+    const user = userEvent.setup()
+    const { container } = render(<DatabaseWorkspace workspace="/tmp/database-lazy-routine" />)
+
+    expect(inspectRoutine).not.toHaveBeenCalled()
+    await user.click(await screen.findByRole('button', { name: 'Connetti' }))
+    expect(inspectRoutine).not.toHaveBeenCalled()
+    await user.click(await screen.findByRole('button', { name: 'Procedure archiviate: espandi o comprimi' }))
+    await user.click(await screen.findByRole('treeitem', { name: 'public.refresh_cache' }))
+
+    await waitFor(() => expect(inspectRoutine).toHaveBeenCalledWith('database-a', 'public.refresh_cache', 'procedure'))
+    await waitFor(() => expect(sqlEditor(container).state.doc.toString()).toContain('Definizione parziale'))
+    expect(sqlEditor(container).state.doc.toString()).toContain('CREATE PROCEDURE')
   })
 
   it('propaga cancel al backend e consente una nuova query senza rimontare la vista', async () => {

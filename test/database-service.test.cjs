@@ -9,8 +9,8 @@ const Database = require('better-sqlite3')
 
 const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const { createConnection, getConnectionWithSecrets, recordHistory } = require('../electron/infrastructure/persistence/database.repository.cjs')
-const { beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
-const { normalizeSchemaPageOptions, remotePrimaryKeyQuery, remoteRoutinePageSql, remoteTableColumnsPageSql } = require('../electron/domains/database/database-schema-model.cjs')
+const { beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, inspectRoutine, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, openMssqlConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, runMssqlTransactionOperation, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
+const { MAX_ROUTINE_DEFINITION_CHARS, normalizeSchemaPageOptions, remotePrimaryKeyQuery, remoteRoutineDefinitionQuery, remoteRoutinePageSql, remoteTableColumnsPageSql } = require('../electron/domains/database/database-schema-model.cjs')
 const { SqliteWorkerSession, sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics } = require('../electron/infrastructure/database/sqlite-worker-session.adapter.cjs')
 
 configureDatabasePersistence({ getConnectionWithSecrets, recordHistory })
@@ -515,6 +515,11 @@ test('lo schema SQLite espone chiave primaria e colonne modificabili', async (t)
   const { workspace, sqlitePath } = withTemporaryDatabase(t)
   const connection = createConnection(workspace, { name: 'Locale', driver: 'sqlite', sqlitePath })
 
+  assert.deepEqual(await openConnection(workspace, connection.id), { connected: true })
+  assert.deepEqual(await inspectRoutine(workspace, connection.id, 'main.not_available', 'procedure'), {
+    name: 'main.not_available', kind: 'procedure', definition: null, definitionTruncated: false,
+  })
+
   await executeQuery(workspace, connection.id, 'CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT NOT NULL, score INTEGER)', { confirmed: true })
   await executeQuery(workspace, connection.id, 'CREATE TABLE logs(message TEXT)', { confirmed: true })
 
@@ -581,13 +586,17 @@ test('valida la finestra schema e limita le query remote prima di caricare colon
   assert.deepEqual(postgresPrimaryKeys.parameters, ['public', 'users', 'audit', 'events'])
 })
 
-test('legge i metadati delle procedure e funzioni SQL Server senza eseguirle', () => {
+test('pagina metadati leggeri e carica la definizione di una routine solo su richiesta', () => {
   const sql = routineMetadataSql('mssql')
+  const definition = remoteRoutineDefinitionQuery('postgres', 'public.refresh_cache', 'procedure')
 
   assert.match(sql, /sys\.objects/i)
   assert.match(sql, /'procedure'/i)
   assert.match(sql, /'function'/i)
-  assert.match(sql, /sql_modules/i)
+  assert.doesNotMatch(sql, /sql_modules|definition/i)
+  assert.match(definition.sql, new RegExp(`LEFT\\(routine_definition, ${MAX_ROUTINE_DEFINITION_CHARS}\\)`))
+  assert.match(definition.sql, /definition_truncated/i)
+  assert.deepEqual(definition.parameters, ['public', 'refresh_cache', 'PROCEDURE'])
   assert.equal(routineMetadataSql('sqlite'), null)
 })
 

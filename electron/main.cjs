@@ -20,7 +20,7 @@ const { createProjectFileIndex } = require('./domains/filesystem/project-file-in
 const { createProjectSkill, deleteProjectSkill, getProjectSkill, listProjectSkills, updateProjectSkill } = require('./domains/ai/project-skills.cjs')
 const { createCommandCategory, createWorkspaceCommand, deleteCommandCategory, deleteWorkspaceCommand, getWorkspaceCommand, listWorkspaceCommands, moveWorkspaceCommand, updateCommandCategory, updateWorkspaceCommand } = require('./infrastructure/persistence/workspace-commands.repository.cjs')
 const { clearHistory, configureDatabaseSecretStorage, createConnection, deleteConnection, deleteSavedQuery, getConnectionWithSecrets, listConnections, listHistory, listSavedQueries, migrateLegacyConnectionSecrets, recordHistory, saveQuery, updateConnection, updateSavedQuery } = require('./infrastructure/persistence/database.repository.cjs')
-const { beginTransaction, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, executeQuery, inspectSchema, readTableRows, rollbackTransaction, updateTableRows } = require('./domains/database/database-service.cjs')
+const { beginTransaction, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, executeQuery, inspectRoutine, inspectSchema, openConnection, readTableRows, rollbackTransaction, updateTableRows } = require('./domains/database/database-service.cjs')
 const { createDatabaseOperationRegistry } = require('./domains/database/database-operation-registry.cjs')
 const { SqliteWorkerSession, sqliteWorkerDiagnostics } = require('./infrastructure/database/sqlite-worker-session.adapter.cjs')
 const { configureRedisSecretStorage, createRedisConnection, deleteRedisConnection, getRedisConnectionWithSecrets, listRedisConnections, updateRedisConnection } = require('./infrastructure/persistence/redis.repository.cjs')
@@ -699,12 +699,14 @@ function registerApplicationIpc(instanceRegistry) {
     deleteSavedQuery,
     executeQuery,
     getApplicationErrorLogMetadata,
+    inspectRoutine,
     inspectSchema,
     ipcMain,
     listConnections,
     listHistory,
     listSavedQueries,
     log,
+    openConnection,
     readTableRows,
     requireActiveWorkspace,
     rollbackTransaction,

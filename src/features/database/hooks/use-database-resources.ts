@@ -134,12 +134,29 @@ export function useDatabaseResources({
     const preserveReadyState = Boolean(options.preserveSchema && connectionReady)
     const request = ++schemaRequest.current
     setLoadingResources(true)
-    setConnectionReady(false)
+    setConnectionReady(preserveReadyState)
     setResourceError(null)
     setResourceRecovery(null)
     if (!options.preserveSchema) {
       setSchema({ tables: [], routines: [] })
       setSchemaNextOffset(null)
+    }
+    try {
+      await databaseBridge.database.connect(connectionId)
+      if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
+      setConnectionReady(true)
+    } catch (error) {
+      if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
+      setConnectionReady(preserveReadyState)
+      setResourceRecovery('connect')
+      setResourceError(reportDatabaseFailure(
+        error,
+        'connect-database',
+        'Connessione database non pronta',
+        'Query, bozze e risultati precedenti sono rimasti al sicuro. Verifica la configurazione e riprova la connessione.',
+      ))
+      if (request === schemaRequest.current) setLoadingResources(false)
+      return false
     }
     try {
       const page = await databaseBridge.database.inspectSchema(connectionId, {
@@ -165,15 +182,15 @@ export function useDatabaseResources({
       return true
     } catch (error) {
       if (request !== schemaRequest.current || getSelectedConnectionId() !== connectionId) return false
-      setConnectionReady(preserveReadyState)
-      setResourceRecovery(options.preserveSchema ? 'refresh' : 'connect')
+      setConnectionReady(true)
+      setResourceRecovery('refresh')
       setResourceError(reportDatabaseFailure(
         error,
-        options.preserveSchema ? 'refresh-database-schema' : 'connect-database',
-        options.preserveSchema ? 'Schema database non aggiornato' : 'Connessione database non pronta',
+        options.preserveSchema ? 'refresh-database-schema' : 'load-database-schema',
+        options.preserveSchema ? 'Schema database non aggiornato' : 'Schema database non caricato',
         options.preserveSchema
-          ? 'Le risorse già caricate sono rimaste disponibili. Verifica la connessione e riprova l’aggiornamento.'
-          : 'Query, bozze e risultati precedenti sono rimasti al sicuro. Verifica la configurazione e riprova la connessione.',
+          ? 'La connessione e le risorse già caricate restano disponibili. Riprova l’aggiornamento quando vuoi.'
+          : 'La connessione è attiva: puoi eseguire query anche senza l’elenco delle risorse. Riprova il caricamento dello schema quando vuoi.',
       ))
       return false
     } finally {

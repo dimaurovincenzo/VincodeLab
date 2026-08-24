@@ -32,8 +32,10 @@ function installBridge(snapshots: RendererDraftSnapshot[] = []) {
   const database = {
     listConnections: vi.fn(async () => [connection]),
     createConnection: vi.fn(), updateConnection: vi.fn(), deleteConnection: vi.fn(),
+    connect: vi.fn(async () => ({ connected: true as const })),
     execute: vi.fn(), cancel: vi.fn(), begin: vi.fn(), commit: vi.fn(), rollback: vi.fn(),
     inspectSchema: vi.fn(async () => ({ tables: [], routines: [] })),
+    inspectRoutine: vi.fn(async (_connectionId: string, routineName: string, kind: DatabaseRoutine['kind']) => ({ name: routineName, kind, definition: null })),
     tableRows: vi.fn(), updateTableRows: vi.fn(),
     listSavedQueries: vi.fn(async () => []),
     saveQuery: vi.fn(async (input: { connectionId: string; name: string; sql: string }) => ({ id: 'saved-recovery', ...input, updatedAt: 1 })),
