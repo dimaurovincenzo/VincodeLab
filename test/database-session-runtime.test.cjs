@@ -1,5 +1,4 @@
 const assert = require('node:assert/strict')
-const { EventEmitter } = require('node:events')
 const test = require('node:test')
 
 const { createDatabaseSessionRuntime } = require('../electron/domains/database/database-session-runtime.cjs')
@@ -7,9 +6,12 @@ const { createDatabaseSessionRuntime } = require('../electron/domains/database/d
 function fakeDriverPort(overrides = {}) {
   const unused = () => { throw new Error('Driver non atteso nel test.') }
   return {
+    closeRemoteSession: async () => undefined,
     executeRemote: unused,
     executeTransaction: unused,
+    forceCloseRemoteSession: () => undefined,
     openRemoteSession: unused,
+    subscribeRemoteFailure: () => () => undefined,
     ...overrides,
   }
 }
@@ -100,24 +102,22 @@ test('il runtime sessioni mantiene single-flight e cleanup SQLite confinati al w
 test('il runtime remoto riceve il driver dalla composition root senza caricarlo nel dominio', async () => {
   const workspacePath = '/workspace/remote-driver-port'
   const connectionId = 'postgres-1'
-  const client = {
-    connectCalls: 0,
-    endCalls: 0,
-    async connect() { this.connectCalls += 1 },
-    async end() { this.endCalls += 1 },
-    on() {},
-    removeListener() {},
-  }
+  const handle = Object.freeze({})
+  let closeCalls = 0
   const openedConfigs = []
   const candidates = []
   let openCalls = 0
   const driverPort = fakeDriverPort({
+    closeRemoteSession: async (candidate) => {
+      assert.equal(candidate, handle)
+      closeCalls += 1
+    },
     openRemoteSession: async (config, { onCandidate }) => {
       openCalls += 1
       openedConfigs.push(config)
-      onCandidate(client)
-      candidates.push(client)
-      return client
+      onCandidate(handle)
+      candidates.push(handle)
+      return handle
     },
   })
   const runtime = createDatabaseSessionRuntime({
@@ -144,10 +144,12 @@ test('il runtime remoto riceve il driver dalla composition root senza caricarlo 
   ])
 
   assert.equal(session, sameSession)
-  assert.equal(session.client, client)
+  assert.equal(session.handle, handle)
+  assert.equal('client' in session, false)
+  assert.equal('connection' in session, false)
   assert.equal(session.driverPort, driverPort)
   assert.equal(openCalls, 1)
-  assert.deepEqual(candidates, [client])
+  assert.deepEqual(candidates, [handle])
   assert.deepEqual(openedConfigs, [{
     database: 'app',
     driver: 'postgres',
@@ -158,7 +160,7 @@ test('il runtime remoto riceve il driver dalla composition root senza caricarlo 
   }])
 
   await runtime.closeConnectionSession(workspacePath, connectionId)
-  assert.equal(client.endCalls, 1)
+  assert.equal(closeCalls, 1)
 })
 
 test('il candidato remoto consente cleanup mentre openRemoteSession è ancora in corso', async () => {
@@ -168,22 +170,20 @@ test('il candidato remoto consente cleanup mentre openRemoteSession è ancora in
   const connected = deferred()
   const closed = deferred()
   let openCalls = 0
-  const client = {
-    endCalls: 0,
-    async end() {
-      this.endCalls += 1
+  const handle = Object.freeze({})
+  let closeCalls = 0
+  const driverPort = fakeDriverPort({
+    closeRemoteSession: async (candidate) => {
+      assert.equal(candidate, handle)
+      closeCalls += 1
       closed.resolve()
     },
-    on() {},
-    removeListener() {},
-  }
-  const driverPort = fakeDriverPort({
     openRemoteSession: async (_config, { onCandidate }) => {
       openCalls += 1
-      onCandidate(client)
+      onCandidate(handle)
       candidateReady.resolve()
       await connected.promise
-      return client
+      return handle
     },
   })
   const runtime = createDatabaseSessionRuntime({
@@ -210,7 +210,7 @@ test('il candidato remoto consente cleanup mentre openRemoteSession è ancora in
   await closed.promise
 
   assert.equal(openCalls, 1)
-  assert.equal(client.endCalls, 1)
+  assert.equal(closeCalls, 1)
   connected.resolve()
   await closing
   await assert.rejects(opening, (error) => error.publicCode === 'DATABASE_QUERY_CANCELLED')
@@ -219,20 +219,20 @@ test('il candidato remoto consente cleanup mentre openRemoteSession è ancora in
 test('un failure di apertura viene sanitizzato, pulito e consente un nuovo tentativo', async () => {
   const workspacePath = '/workspace/remote-opening-recovery'
   const connectionId = 'postgres-recovery'
-  const clients = []
+  const handles = []
+  const closeCalls = new Map()
   let attempts = 0
   const driverPort = fakeDriverPort({
+    closeRemoteSession: async (handle) => closeCalls.set(handle, (closeCalls.get(handle) ?? 0) + 1),
     openRemoteSession: async (_config, { onCandidate }) => {
       attempts += 1
-      const client = new EventEmitter()
-      client.endCalls = 0
-      client.end = async () => { client.endCalls += 1 }
-      clients.push(client)
-      onCandidate(client)
+      const handle = Object.freeze({})
+      handles.push(handle)
+      onCandidate(handle)
       if (attempts === 1) {
         throw Object.assign(new Error('getaddrinfo ENOTFOUND private-db.internal password=opening-secret'), { code: 'ENOTFOUND' })
       }
-      return client
+      return handle
     },
   })
   const runtime = createDatabaseSessionRuntime({
@@ -258,11 +258,12 @@ test('un failure di apertura viene sanitizzato, pulito e consente un nuovo tenta
     && !error.message.includes('private-db.internal')
     && !error.databaseDiagnostic.includes('opening-secret')
   ))
-  assert.equal(clients[0].endCalls, 1)
+  assert.equal(closeCalls.get(handles[0]), 1)
 
   const recovered = await runtime.getSession(workspacePath, connectionId)
-  assert.equal(recovered.client, clients[1])
+  assert.equal(recovered.handle, handles[1])
+  assert.equal('client' in recovered, false)
   assert.equal(attempts, 2)
   await runtime.closeConnectionSession(workspacePath, connectionId)
-  assert.equal(clients[1].endCalls, 1)
+  assert.equal(closeCalls.get(handles[1]), 1)
 })

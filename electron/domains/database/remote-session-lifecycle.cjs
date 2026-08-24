@@ -6,17 +6,11 @@ const REMOTE_SESSION_LIFECYCLE = Symbol('vincodelab.database-remote-session-life
 const remoteSessionDisposals = new WeakMap()
 const forceClosedRemoteSessions = new WeakSet()
 
-function remoteSessionEmitter(session) {
-  if (session?.driver === 'mysql') return session.client?.connection ?? session.client
-  return session?.client
-}
-
 function detachRemoteSessionLifecycle(session) {
   const lifecycle = session?.[REMOTE_SESSION_LIFECYCLE]
   if (!lifecycle || lifecycle.detached) return
   lifecycle.detached = true
-  for (const [event, listener] of lifecycle.listeners) lifecycle.emitter.removeListener?.(event, listener)
-  lifecycle.listeners.length = 0
+  lifecycle.unsubscribe()
 }
 
 function markRemoteSessionClosing(session) {
@@ -27,18 +21,16 @@ function markRemoteSessionClosing(session) {
 function attachRemoteSessionLifecycle(session, onFailure = () => undefined) {
   if (!session || (typeof session !== 'object' && typeof session !== 'function')) return null
   if (session[REMOTE_SESSION_LIFECYCLE]) return session[REMOTE_SESSION_LIFECYCLE]
-  const emitter = remoteSessionEmitter(session)
-  if (!emitter || typeof emitter.on !== 'function') return null
+  if (!session.handle || typeof session.driverPort?.subscribeRemoteFailure !== 'function') return null
 
   let resolveFailure
   const lifecycle = {
     closing: false,
     detached: false,
-    emitter,
     error: null,
     failure: new Promise((resolve) => { resolveFailure = resolve }),
     invalidated: false,
-    listeners: [],
+    unsubscribe: () => undefined,
   }
   Object.defineProperty(session, REMOTE_SESSION_LIFECYCLE, { value: lifecycle })
 
@@ -55,11 +47,9 @@ function attachRemoteSessionLifecycle(session, onFailure = () => undefined) {
     }
   }
   lifecycle.notify = notify
-  for (const event of ['error', 'end', 'close']) {
-    const listener = event === 'error' ? (error) => notify(event, error) : () => notify(event)
-    lifecycle.listeners.push([event, listener])
-    emitter.on(event, listener)
-  }
+  const unsubscribe = session.driverPort.subscribeRemoteFailure(session.handle, ({ error, event }) => notify(event, error))
+  if (typeof unsubscribe !== 'function') throw new TypeError('Sottoscrizione lifecycle database non valida.')
+  lifecycle.unsubscribe = unsubscribe
   return lifecycle
 }
 
@@ -71,37 +61,6 @@ function raceRemoteSessionFailure(session, operation) {
     Promise.resolve(operation),
     lifecycle.failure.then((error) => Promise.reject(error)),
   ])
-}
-
-async function closeMssqlClient(client) {
-  if (!client || client.closed || typeof client.close !== 'function') return
-  if (typeof client.once !== 'function') {
-    await Promise.resolve(client.close())
-    return
-  }
-  await new Promise((resolve, reject) => {
-    let completed = false
-    const finish = (error) => {
-      if (completed) return
-      completed = true
-      client.removeListener?.('end', onEnd)
-      client.removeListener?.('close', onEnd)
-      client.removeListener?.('error', onError)
-      if (error) reject(error)
-      else resolve()
-    }
-    const onEnd = () => finish()
-    const onError = (error) => finish(error)
-    client.once('end', onEnd)
-    client.once('close', onEnd)
-    client.once('error', onError)
-    try {
-      const result = client.close()
-      if (result && typeof result.then === 'function') result.then(onEnd, onError)
-    } catch (error) {
-      onError(error)
-    }
-  })
 }
 
 function disposeRemoteSession(session) {
@@ -117,17 +76,11 @@ function disposeRemoteSession(session) {
         // La coda può contenere l'errore già restituito alla richiesta chiamante;
         // qui attendiamo soltanto il settlement prima di chiudere la sessione.
       })
-      if (!session.client) {
+      if (!session.handle || typeof session.driverPort?.closeRemoteSession !== 'function') {
         closed = true
         return
       }
-      if (session.driver === 'mssql') {
-        await closeMssqlClient(session.client)
-        closed = true
-        return
-      }
-      if (typeof session.client.end === 'function') await Promise.resolve(session.client.end())
-      else if (typeof session.client.close === 'function') await Promise.resolve(session.client.close())
+      await session.driverPort.closeRemoteSession(session.handle)
       closed = true
     } finally {
       // I listener restano attivi durante end()/close(): alcuni driver emettono
@@ -144,13 +97,8 @@ function forceCloseRemoteSession(session) {
   if (!session || (typeof session !== 'object' && typeof session !== 'function') || forceClosedRemoteSessions.has(session)) return
   forceClosedRemoteSessions.add(session)
   markRemoteSessionClosing(session)
-  const client = session?.client
-  if (!client) return
   try {
-    if (typeof client.destroy === 'function') client.destroy()
-    else if (typeof client.connection?.stream?.destroy === 'function') client.connection.stream.destroy()
-    else if (typeof client.socket?.destroy === 'function') client.socket.destroy()
-    else if (typeof client.close === 'function') client.close()
+    session?.driverPort?.forceCloseRemoteSession?.(session.handle)
   } catch {
     // Il fallback è best effort e non deve mascherare il failure originale.
   }

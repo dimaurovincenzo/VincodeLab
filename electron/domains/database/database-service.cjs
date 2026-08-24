@@ -194,7 +194,7 @@ function executeRemote(session, sql, parameters = [], timeoutMs = 30_000, option
     if (options.signal?.aborted) throw abortError()
     if (typeof session?.driverPort?.executeRemote !== 'function') throw new TypeError('Porta esecuzione database remota non disponibile.')
     const collector = resultCollector(options)
-    const operation = session.driverPort.executeRemote(session, {
+    const operation = session.driverPort.executeRemote(session.handle, {
       sql,
       parameters,
       timeoutMs,
@@ -209,7 +209,7 @@ function executeRemote(session, sql, parameters = [], timeoutMs = 30_000, option
 function executeRemoteTransaction(session, operation) {
   return enqueueRemoteOperation(session, () => {
     if (typeof session?.driverPort?.executeTransaction !== 'function') throw new TypeError('Porta transazioni database remote non disponibile.')
-    return raceRemoteSessionFailure(session, session.driverPort.executeTransaction(session, operation))
+    return raceRemoteSessionFailure(session, session.driverPort.executeTransaction(session.handle, operation))
   }).catch((error) => { throw toDatabasePublicError(error, { phase: 'query' }) })
 }
 

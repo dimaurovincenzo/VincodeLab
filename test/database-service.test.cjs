@@ -9,7 +9,7 @@ const Database = require('better-sqlite3')
 
 const { closeDatabase } = require('../electron/infrastructure/persistence/workspace.repository.cjs')
 const { createConnection, getConnectionWithSecrets, recordHistory } = require('../electron/infrastructure/persistence/database.repository.cjs')
-const { beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
+const { attachRemoteSessionLifecycle, beginTransaction, buildDriverConfig, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, createDatabaseSessionRegistry, createRemoteSessionLifecycleController, disposeRemoteSession, enqueueRemoteOperation, executeQuery, executeRemote, forceCloseRemoteSession, inspectRemoteSchemaPage, inspectRoutine, inspectSchema, limitRemoteReadSql, measureResultRows, normalizeAffectedRows, normalizeDatabaseError, openConnection, readTableRows, recordQueryHistoryOutcome, rollbackTransaction, routineMetadataSql, safeQueryErrorMessage, sqliteWorkerDiagnostics, tablePageParameters, toDatabasePublicError, updateTableRows, validateConnectionConfig } = require('../electron/domains/database/database-service.cjs')
 const { MAX_ROUTINE_DEFINITION_CHARS, normalizeSchemaPageOptions, remotePrimaryKeyQuery, remoteRoutineDefinitionQuery, remoteRoutinePageSql, remoteTableIdentityPageSql } = require('../electron/domains/database/database-schema-model.cjs')
 const { createNodeDatabaseDriverAdapter, nodeDatabaseDriverAdapter } = require('../electron/infrastructure/database/node-database-driver.adapter.cjs')
 const { SqliteWorkerSession, sqliteWorkerDiagnostics: readSqliteWorkerDiagnostics } = require('../electron/infrastructure/database/sqlite-worker-session.adapter.cjs')
@@ -66,6 +66,36 @@ function deferred() {
     reject = rejectPromise
   })
   return { promise, reject, resolve }
+}
+
+function semanticLifecyclePort(emitter, {
+  closeRemoteSession = async () => undefined,
+  forceCloseRemoteSession = () => undefined,
+} = {}) {
+  const handle = Object.freeze({})
+  const driverPort = {
+    closeRemoteSession: (candidate) => {
+      assert.equal(candidate, handle)
+      return closeRemoteSession()
+    },
+    forceCloseRemoteSession: (candidate) => {
+      assert.equal(candidate, handle)
+      return forceCloseRemoteSession()
+    },
+    subscribeRemoteFailure(candidate, onFailure) {
+      assert.equal(candidate, handle)
+      const listeners = [
+        ['error', (error) => onFailure({ error, event: 'error' })],
+        ['end', () => onFailure({ event: 'end' })],
+        ['close', () => onFailure({ event: 'close' })],
+      ]
+      for (const [event, listener] of listeners) emitter.on(event, listener)
+      return () => {
+        for (const [event, listener] of listeners) emitter.removeListener(event, listener)
+      }
+    },
+  }
+  return { driverPort, handle }
 }
 
 test('classifica le mutazioni e richiede conferma prima di eseguirle', async (t) => {
@@ -428,15 +458,22 @@ test('interrompe lo stream PostgreSQL appena il budget incrementale è superato'
       return query
     },
   })
+  const replacementClient = Object.assign(new EventEmitter(), { async connect() {}, async end() {} })
+  let clientIndex = 0
+  class FakeClient {
+    constructor() { return clientIndex++ === 0 ? client : replacementClient }
+  }
+  client.connect = async () => undefined
   const key = 'workspace-budget\u0000postgres'
   const driverPort = createNodeDatabaseDriverAdapter({
-    loadPostgres: () => ({ Query: FakeQuery }),
+    loadPostgres: () => ({ Client: FakeClient, Query: FakeQuery }),
   })
   let registry
   const controller = createRemoteSessionLifecycleController({ closeSession: (sessionKey) => registry.close(sessionKey) })
   registry = createDatabaseSessionRegistry({ closeSession: disposeRemoteSession, forceCloseSession: forceCloseRemoteSession })
+  const handle = await driverPort.openRemoteSession({ database: 'app', driver: 'postgres', host: 'db.internal', password: 'secret', port: 5432, user: 'developer' })
   const session = await registry.acquire(key, async ({ setCandidate }) => {
-    const candidate = { driver: 'postgres', client, driverPort }
+    const candidate = { driver: 'postgres', handle, driverPort }
     setCandidate(candidate)
     controller.track(key, candidate)
     return candidate
@@ -448,9 +485,9 @@ test('interrompe lo stream PostgreSQL appena il budget incrementale è superato'
   )
   assert.equal(destroyCalls, 1)
   assert.ok(emittedRows < 100)
+  const replacementHandle = await driverPort.openRemoteSession({ database: 'app', driver: 'postgres', host: 'db.internal', password: 'secret', port: 5432, user: 'developer' })
   const replacement = await registry.acquire(key, async ({ setCandidate }) => {
-    const candidate = { driver: 'postgres', client: new EventEmitter(), driverPort }
-    candidate.client.end = async () => undefined
+    const candidate = { driver: 'postgres', handle: replacementHandle, driverPort }
     setCandidate(candidate)
     return candidate
   })
@@ -460,7 +497,7 @@ test('interrompe lo stream PostgreSQL appena il budget incrementale è superato'
 })
 
 test('legge MySQL a eventi senza materializzare il risultato e distingue una colonna affectedRows', async () => {
-  const rawClient = {
+  const rawClient = Object.assign(new EventEmitter(), {
     stream: { destroy() {} },
     query() {
       const command = new EventEmitter()
@@ -471,9 +508,14 @@ test('legge MySQL a eventi senza materializzare il risultato e distingue una col
       })
       return command
     },
-  }
+  })
+  const mysqlClient = Object.assign(new EventEmitter(), { connection: rawClient })
+  const driverPort = createNodeDatabaseDriverAdapter({
+    loadMysql: () => ({ createConnection: async () => mysqlClient }),
+  })
+  const handle = await driverPort.openRemoteSession({ database: 'app', driver: 'mysql', host: 'db.internal', password: 'secret', port: 3306, user: 'developer' })
 
-  const result = await executeRemote({ driver: 'mysql', client: { connection: rawClient }, driverPort: nodeDatabaseDriverAdapter }, 'SELECT affectedRows FROM fixture')
+  const result = await executeRemote({ driver: 'mysql', handle, driverPort }, 'SELECT affectedRows FROM fixture')
   assert.deepEqual(result, { rows: [{ affectedRows: 7, label: 'riga utente' }], affectedRows: null })
 })
 
@@ -492,15 +534,27 @@ test('la cancellazione raggiunge la Request SQL Server e libera subito la coda',
     cancel() { this.cancelCalls += 1 }
   }
   const controller = new AbortController()
+  let connection
+  class FakeConnection extends EventEmitter {
+    constructor() {
+      super()
+      connection = this
+    }
+
+    connect() { queueMicrotask(() => this.emit('connect')) }
+    execSql() {}
+  }
   const driverPort = createNodeDatabaseDriverAdapter({
     loadMssql: () => ({
+      Connection: FakeConnection,
       Request: FakeRequest,
       TYPES: { Bit: {}, Float: {}, Int: {}, NVarChar: {} },
     }),
   })
+  const handle = await driverPort.openRemoteSession({ database: 'app', driver: 'mssql', host: 'db.internal', password: 'secret', port: 1433, user: 'developer' })
   const session = {
     driver: 'mssql',
-    client: { execSql() {} },
+    handle,
     driverPort,
   }
   const pending = executeRemote(session, 'WAITFOR DELAY', [], 30_000, { signal: controller.signal })
@@ -509,7 +563,8 @@ test('la cancellazione raggiunge la Request SQL Server e libera subito la coda',
 
   await assert.rejects(pending, (error) => error.publicCode === 'DATABASE_QUERY_CANCELLED')
   assert.equal(request.cancelCalls, 1)
-  assert.deepEqual(await executeRemote({ ...session, client: { execSql(nextRequest) { queueMicrotask(() => nextRequest.callback(undefined, 0)) } } }, 'SELECT 1'), { rows: [], affectedRows: 0 })
+  connection.execSql = (nextRequest) => queueMicrotask(() => nextRequest.callback(undefined, 0))
+  assert.deepEqual(await executeRemote(session, 'SELECT 1'), { rows: [], affectedRows: 0 })
 })
 
 test('il worker SQLite non invia la riga sentinella oltre il proprio IPC', async (t) => {
@@ -895,10 +950,9 @@ test('un evento driver durante connect invalida l apertura e conserva il failure
   const candidateReady = deferred()
   const client = new EventEmitter()
   let endCalls = 0
-  client.end = () => {
-    endCalls += 1
-    return Promise.resolve()
-  }
+  const { driverPort, handle } = semanticLifecyclePort(client, {
+    closeRemoteSession: async () => { endCalls += 1 },
+  })
   let registry
   const lifecycle = createRemoteSessionLifecycleController({
     closeSession: (sessionKey) => registry.close(sessionKey),
@@ -909,7 +963,7 @@ test('un evento driver durante connect invalida l apertura e conserva il failure
   })
 
   const opening = registry.acquire(key, async ({ setCandidate }) => {
-    const session = { driver: 'postgres', client }
+    const session = { driver: 'postgres', driverPort, handle }
     setCandidate(session)
     lifecycle.track(key, session)
     candidateReady.resolve()
@@ -990,6 +1044,19 @@ test('cleanup workspace attende i client del solo workspace selezionato', async 
   await registry.closeMatching(() => true)
 })
 
+test('un callback applicativo che fallisce durante il lifecycle remoto resta confinato', async () => {
+  const emitter = new EventEmitter()
+  const remote = semanticLifecyclePort(emitter)
+  const session = { driver: 'postgres', ...remote }
+  const callbackFailure = new Error('consumer lifecycle failure')
+
+  attachRemoteSessionLifecycle(session, () => { throw callbackFailure })
+  assert.doesNotThrow(() => emitter.emit('error', new Error('connection lost')))
+
+  await disposeRemoteSession(session)
+  for (const event of ['error', 'end', 'close']) assert.equal(emitter.listenerCount(event), 0)
+})
+
 test('i client remoti confinano error, end e close e rendono il failure disponibile alla richiesta successiva', async () => {
   const driverCases = [
     { driver: 'postgres', failureEvent: 'error' },
@@ -1004,32 +1071,13 @@ test('i client remoti confinano error, end e close e rendono il failure disponib
     let driverCloseCalls = 0
     let controllerCloseCalls = 0
     let closePromise
-    let session
-
-    if (driver === 'postgres') {
-      emitter.end = () => {
+    const { driverPort, handle } = semanticLifecyclePort(emitter, {
+      closeRemoteSession: async () => {
         driverCloseCalls += 1
         emitter.emit('error', new Error('late teardown error password=late-secret'))
-        return Promise.resolve()
-      }
-      session = { driver, client: emitter }
-    } else if (driver === 'mysql') {
-      const client = {
-        connection: emitter,
-        end() {
-          driverCloseCalls += 1
-          emitter.emit('error', new Error('late teardown error token=late-token'))
-          return Promise.resolve()
-        },
-      }
-      session = { driver, client }
-    } else {
-      emitter.close = () => {
-        driverCloseCalls += 1
-        queueMicrotask(() => emitter.emit('end'))
-      }
-      session = { driver, client: emitter }
-    }
+      },
+    })
+    const session = { driver, driverPort, handle }
 
     const controller = createRemoteSessionLifecycleController({
       closeSession: () => {
@@ -1068,18 +1116,19 @@ test('i client remoti confinano error, end e close e rendono il failure disponib
   }
 })
 
-test('attende end e l evento end dei driver remoti durante la chiusura', async () => {
+test('attende la chiusura semantica remota e deduplica il disposal', async () => {
   const postgresEnded = deferred()
   let postgresEndCalls = 0
-  const postgresClosing = disposeRemoteSession({
-    driver: 'postgres',
-    client: {
-      end() {
-        postgresEndCalls += 1
-        return postgresEnded.promise
-      },
+  const postgresEmitter = new EventEmitter()
+  const postgresRemote = semanticLifecyclePort(postgresEmitter, {
+    closeRemoteSession: () => {
+      postgresEndCalls += 1
+      return postgresEnded.promise
     },
   })
+  const postgresSession = { driver: 'postgres', ...postgresRemote }
+  const postgresClosing = disposeRemoteSession(postgresSession)
+  assert.equal(disposeRemoteSession(postgresSession), postgresClosing)
   let postgresSettled = false
   void postgresClosing.then(() => { postgresSettled = true })
   await new Promise((resolve) => setImmediate(resolve))
@@ -1088,15 +1137,21 @@ test('attende end e l evento end dei driver remoti durante la chiusura', async (
   await postgresClosing
   assert.equal(postgresEndCalls, 1)
 
-  const mssqlClient = new EventEmitter()
+  const mssqlEmitter = new EventEmitter()
   let mssqlCloseCalls = 0
-  mssqlClient.close = () => { mssqlCloseCalls += 1 }
-  const mssqlClosing = disposeRemoteSession({ driver: 'mssql', client: mssqlClient })
+  const mssqlClosed = deferred()
+  const mssqlRemote = semanticLifecyclePort(mssqlEmitter, {
+    closeRemoteSession: () => {
+      mssqlCloseCalls += 1
+      return mssqlClosed.promise
+    },
+  })
+  const mssqlClosing = disposeRemoteSession({ driver: 'mssql', ...mssqlRemote })
   let mssqlSettled = false
   void mssqlClosing.then(() => { mssqlSettled = true })
   await new Promise((resolve) => setImmediate(resolve))
   assert.equal(mssqlSettled, false)
-  mssqlClient.emit('end')
+  mssqlClosed.resolve()
   await mssqlClosing
   assert.equal(mssqlCloseCalls, 1)
 })

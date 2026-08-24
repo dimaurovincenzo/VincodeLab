@@ -194,6 +194,29 @@ test('impedisce ai callback transazionali dei vendor di rientrare nel dominio Da
   })
 })
 
+test('impedisce al lifecycle remoto vendor di attraversare l handle opaco Database', () => {
+  withFixture({
+    'electron/domains/database/runtime.cjs': [
+      'session.client',
+      'session.connection',
+      'session.stream',
+      'session.socket',
+      'session.end()',
+      'session.close()',
+      "session['destroy']()",
+      // Questi close appartengono al protocollo neutrale già posseduto dal dominio.
+      'session.sqlite.close()',
+      'remoteSessions.close(key)',
+    ].join('\n'),
+  }, (problems) => {
+    const lifecycleProblems = problems.filter((problem) => problem.includes('proprietà lifecycle vendor'))
+    assert.equal(lifecycleProblems.length, 7)
+    for (const property of ['client', 'connection', 'stream', 'socket', 'end', 'close', 'destroy']) {
+      assert.ok(lifecycleProblems.some((problem) => problem.includes(`proprietà lifecycle vendor "${property}"`)))
+    }
+  })
+})
+
 test('obbliga il dominio Shell a usare collaboratori invece di filesystem e PTY operativi', () => {
   withFixture({
     'electron/domains/shell/runtime.cjs': [

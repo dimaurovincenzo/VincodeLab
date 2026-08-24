@@ -94,17 +94,17 @@ function createDatabaseSessionRuntime({
       const session = await remoteSessions.acquire(key, async ({ setCandidate }) => {
         const config = buildDriverConfig(connection)
         let candidate
-        const client = await driverPort.openRemoteSession(config, {
-          onCandidate: (openingClient) => {
+        const handle = await driverPort.openRemoteSession(config, {
+          onCandidate: (openingHandle) => {
             if (candidate) throw new TypeError('Candidato database remoto duplicato.')
-            candidate = { driver: connection.driver, connection, client: openingClient, driverPort }
-            // Il registry e il lifecycle devono conoscere il client prima del
+            candidate = { driver: connection.driver, handle: openingHandle, driverPort }
+            // Il registry e il lifecycle devono conoscere l'handle prima del
             // connect per poter confinare close o failure durante l'apertura.
             setCandidate(candidate)
             remoteSessionLifecycle.track(key, candidate)
           },
         })
-        if (!candidate || candidate.client !== client) throw new TypeError('Candidato database remoto non pubblicato dalla porta driver.')
+        if (!candidate || candidate.handle !== handle) throw new TypeError('Candidato database remoto non pubblicato dalla porta driver.')
         return candidate
       })
       const openingFailure = remoteSessionLifecycle.consumeFailure(key)

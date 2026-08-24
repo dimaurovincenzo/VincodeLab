@@ -12,15 +12,6 @@ const REMOTE_TRANSACTION_OPERATIONS = Object.freeze({
   rollback: Object.freeze({ mysqlMethod: 'rollback', mssqlMethod: 'rollbackTransaction', postgresSql: 'ROLLBACK' }),
 })
 
-function closeRejectedCandidate(driver, client) {
-  try {
-    const closing = driver === 'mssql' ? client?.close?.() : client?.end?.()
-    if (closing && typeof closing.catch === 'function') closing.catch(() => undefined)
-  } catch {
-    // Il failure che ha impedito la pubblicazione resta la causa primaria.
-  }
-}
-
 function connectMssqlClient(client, beforeConnect) {
   return new Promise((resolve, reject) => {
     let settled = false
@@ -46,7 +37,6 @@ function connectMssqlClient(client, beforeConnect) {
       beforeConnect()
     } catch (error) {
       finish(error)
-      closeRejectedCandidate('mssql', client)
       return
     }
     if (settled) return
@@ -54,13 +44,35 @@ function connectMssqlClient(client, beforeConnect) {
   })
 }
 
-function publishRemoteCandidate(driver, client, onCandidate) {
-  try {
-    onCandidate(client)
-  } catch (error) {
-    closeRejectedCandidate(driver, client)
-    throw error
+async function closeMssqlClient(client) {
+  if (!client || client.closed || typeof client.close !== 'function') return
+  if (typeof client.once !== 'function') {
+    await Promise.resolve(client.close())
+    return
   }
+  await new Promise((resolve, reject) => {
+    let settled = false
+    const finish = (error) => {
+      if (settled) return
+      settled = true
+      client.removeListener?.('end', onClose)
+      client.removeListener?.('close', onClose)
+      client.removeListener?.('error', onError)
+      if (error) reject(error)
+      else resolve()
+    }
+    const onClose = () => finish()
+    const onError = (error) => finish(error)
+    client.once('end', onClose)
+    client.once('close', onClose)
+    client.once('error', onError)
+    try {
+      const closing = client.close()
+      if (closing && typeof closing.then === 'function') closing.then(onClose, onError)
+    } catch (error) {
+      onError(error)
+    }
+  })
 }
 
 function createNodeDatabaseDriverAdapter({
@@ -75,9 +87,101 @@ function createNodeDatabaseDriverAdapter({
   const mssqlDriver = () => { mssql ??= loadMssql(); return mssql }
   const mysqlDriver = () => { mysql ??= loadMysql(); return mysql }
   const postgresDriver = () => { postgres ??= loadPostgres(); return postgres }
+  const remoteSessionRecords = new WeakMap()
+
+  function registerRemoteSession(driver, client) {
+    const handle = Object.freeze({})
+    remoteSessionRecords.set(handle, {
+      client,
+      closePromise: null,
+      closed: false,
+      driver,
+      forceClosed: false,
+    })
+    return handle
+  }
+
+  function remoteSessionRecord(handle) {
+    const record = remoteSessionRecords.get(handle)
+    if (!record) throw new TypeError('Handle database remoto non valido.')
+    return record
+  }
+
+  function publishRemoteCandidate(handle, onCandidate) {
+    try {
+      onCandidate(handle)
+    } catch (error) {
+      closeRejectedRemoteHandle(handle)
+      throw error
+    }
+  }
+
+  function closeRejectedRemoteHandle(handle) {
+    const record = remoteSessionRecord(handle)
+    if (record.closePromise || record.closed || record.forceClosed) return
+    try {
+      const closing = record.driver === 'mssql' ? record.client?.close?.() : record.client?.end?.()
+      record.closePromise = Promise.resolve(closing).then(
+        () => { record.closed = true },
+        () => forceCloseRemoteHandle(handle),
+      )
+    } catch {
+      forceCloseRemoteHandle(handle)
+    }
+  }
+
+  function closeRemoteHandle(handle) {
+    const record = remoteSessionRecord(handle)
+    if (record.closePromise) return record.closePromise
+    record.closePromise = (async () => {
+      if (record.closed || record.forceClosed) return
+      if (record.driver === 'mssql') await closeMssqlClient(record.client)
+      else if (typeof record.client?.end === 'function') await Promise.resolve(record.client.end())
+      else if (typeof record.client?.close === 'function') await Promise.resolve(record.client.close())
+      record.closed = true
+    })()
+    return record.closePromise
+  }
+
+  function forceCloseRemoteHandle(handle) {
+    const record = remoteSessionRecord(handle)
+    if (record.forceClosed || record.closed) return
+    record.forceClosed = true
+    const client = record.client
+    try {
+      if (typeof client?.destroy === 'function') client.destroy()
+      else if (typeof client?.connection?.stream?.destroy === 'function') client.connection.stream.destroy()
+      else if (typeof client?.socket?.destroy === 'function') client.socket.destroy()
+      else if (typeof client?.close === 'function') client.close()
+    } catch {
+      // La chiusura forzata è best effort e non sostituisce il failure originale.
+    }
+  }
+
+  function subscribeRemoteHandle(handle, onFailure) {
+    if (typeof onFailure !== 'function') throw new TypeError('Subscriber failure database non valido.')
+    const record = remoteSessionRecord(handle)
+    const emitter = record.driver === 'mysql' ? record.client?.connection ?? record.client : record.client
+    if (!emitter || typeof emitter.on !== 'function') throw new TypeError('Lifecycle database remoto non disponibile.')
+    let subscribed = true
+    const listeners = [
+      ['error', (error) => onFailure({ error, event: 'error' })],
+      ['end', () => onFailure({ event: 'end' })],
+      ['close', () => onFailure({ event: 'close' })],
+    ]
+    for (const [event, listener] of listeners) emitter.on(event, listener)
+    return () => {
+      if (!subscribed) return
+      subscribed = false
+      for (const [event, listener] of listeners) emitter.removeListener?.(event, listener)
+    }
+  }
 
   return createDatabaseDriverPort({
-    executeRemote(session, {
+    closeRemoteSession(handle) {
+      return closeRemoteHandle(handle)
+    },
+    executeRemote(handle, {
       sql,
       parameters = [],
       timeoutMs = 30_000,
@@ -85,7 +189,8 @@ function createNodeDatabaseDriverAdapter({
       onRow = () => undefined,
       onInvalidate = () => undefined,
     } = {}) {
-      if (session?.driver === 'postgres') {
+      const { client, driver } = remoteSessionRecord(handle)
+      if (driver === 'postgres') {
         return new Promise((resolve, reject) => {
           const { Query } = postgresDriver()
           const query = new Query({ text: sql, values: parameters })
@@ -115,11 +220,11 @@ function createNodeDatabaseDriverAdapter({
           query.on('end', (result) => finish(undefined, Array.isArray(result) ? result.at(-1) : result))
           if (signal?.aborted) return onAbort()
           signal?.addEventListener('abort', onAbort, { once: true })
-          try { session.client.query(query) } catch (error) { finish(error) }
+          try { client.query(query) } catch (error) { finish(error) }
         })
       }
 
-      if (session?.driver === 'mysql') {
+      if (driver === 'mysql') {
         return new Promise((resolve, reject) => {
           let affectedRows = null
           let hasFields = false
@@ -139,7 +244,7 @@ function createNodeDatabaseDriverAdapter({
           if (signal?.aborted) return onAbort()
           signal?.addEventListener('abort', onAbort, { once: true })
           try {
-            const rawClient = session.client.connection ?? session.client
+            const rawClient = client.connection ?? client
             const command = rawClient.query({ sql, values: parameters, timeout: timeoutMs })
             command.on('fields', () => { hasFields = true })
             command.on('result', (row) => {
@@ -158,7 +263,7 @@ function createNodeDatabaseDriverAdapter({
         })
       }
 
-      if (session?.driver !== 'mssql') throw new TypeError('Sessione database remota non valida.')
+      if (driver !== 'mssql') throw new TypeError('Sessione database remota non valida.')
       return new Promise((resolve, reject) => {
         const { Request, TYPES } = mssqlDriver()
         let affectedRows = null
@@ -200,30 +305,34 @@ function createNodeDatabaseDriverAdapter({
         request.on('doneInProc', (count) => { affectedRows = count })
         if (signal?.aborted) return onAbort()
         signal?.addEventListener('abort', onAbort, { once: true })
-        try { session.client.execSql(request) } catch (error) { finish(error) }
+        try { client.execSql(request) } catch (error) { finish(error) }
       })
     },
-    executeTransaction(session, operation) {
+    executeTransaction(handle, operation) {
       if (!Object.hasOwn(REMOTE_TRANSACTION_OPERATIONS, operation)) throw new TypeError('Operazione transazionale database non valida.')
       const transaction = REMOTE_TRANSACTION_OPERATIONS[operation]
+      const { client, driver } = remoteSessionRecord(handle)
 
-      if (session?.driver === 'postgres') {
-        if (typeof session.client?.query !== 'function') throw new TypeError('Client PostgreSQL non valido.')
-        return session.client.query(transaction.postgresSql)
+      if (driver === 'postgres') {
+        if (typeof client?.query !== 'function') throw new TypeError('Client PostgreSQL non valido.')
+        return client.query(transaction.postgresSql)
       }
 
-      if (session?.driver === 'mysql') {
-        const method = session.client?.[transaction.mysqlMethod]
+      if (driver === 'mysql') {
+        const method = client?.[transaction.mysqlMethod]
         if (typeof method !== 'function') throw new TypeError('Client MySQL non valido.')
-        return method.call(session.client)
+        return method.call(client)
       }
 
-      if (session?.driver !== 'mssql') throw new TypeError('Sessione database remota non valida.')
-      const method = session.client?.[transaction.mssqlMethod]
+      if (driver !== 'mssql') throw new TypeError('Sessione database remota non valida.')
+      const method = client?.[transaction.mssqlMethod]
       if (typeof method !== 'function') throw new TypeError('Client SQL Server non valido.')
       return new Promise((resolve, reject) => {
-        method.call(session.client, (error) => error ? reject(error) : resolve())
+        method.call(client, (error) => error ? reject(error) : resolve())
       })
+    },
+    forceCloseRemoteSession(handle) {
+      forceCloseRemoteHandle(handle)
     },
     async openRemoteSession(config, { onCandidate = () => undefined } = {}) {
       if (typeof onCandidate !== 'function') throw new TypeError('Callback candidato database non valida.')
@@ -239,9 +348,10 @@ function createNodeDatabaseDriverAdapter({
           connectionTimeoutMillis: 10_000,
           query_timeout: 30_000,
         })
-        publishRemoteCandidate('postgres', client, onCandidate)
+        const handle = registerRemoteSession('postgres', client)
+        publishRemoteCandidate(handle, onCandidate)
         await client.connect()
-        return client
+        return handle
       }
 
       if (config?.driver === 'mysql') {
@@ -256,8 +366,9 @@ function createNodeDatabaseDriverAdapter({
           password: config.password,
           connectTimeout: 10_000,
         })
-        publishRemoteCandidate('mysql', client, onCandidate)
-        return client
+        const handle = registerRemoteSession('mysql', client)
+        publishRemoteCandidate(handle, onCandidate)
+        return handle
       }
 
       if (config?.driver !== 'mssql') throw new TypeError('Driver database remoto non valido.')
@@ -276,8 +387,12 @@ function createNodeDatabaseDriverAdapter({
           trustServerCertificate: true,
         },
       })
-      await connectMssqlClient(client, () => onCandidate(client))
-      return client
+      const handle = registerRemoteSession('mssql', client)
+      await connectMssqlClient(client, () => publishRemoteCandidate(handle, onCandidate))
+      return handle
+    },
+    subscribeRemoteFailure(handle, onFailure) {
+      return subscribeRemoteHandle(handle, onFailure)
     },
   })
 }

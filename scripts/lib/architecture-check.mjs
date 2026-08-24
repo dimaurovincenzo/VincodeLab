@@ -29,6 +29,14 @@ const databaseVendorTransactionMethods = new Set([
   'commitTransaction',
   'rollbackTransaction',
 ])
+const databaseVendorLifecycleProperties = new Set([
+  'client',
+  'connection',
+  'destroy',
+  'end',
+  'socket',
+  'stream',
+])
 const shellOperationalSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'node-pty'])
 const aiProcessSpecifiers = new Set(['child_process', 'node:child_process'])
 const aiFilesystemHostSpecifiers = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises', 'path', 'node:path'])
@@ -230,6 +238,31 @@ function databaseVendorTransactionReferences(sourceFile) {
     } else if (ts.isElementAccessExpression(node)) {
       const key = node.argumentExpression
       if (key && ts.isStringLiteralLike(key) && databaseVendorTransactionMethods.has(key.text)) references.add(key.text)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return [...references]
+}
+
+function databaseVendorLifecycleReferences(sourceFile) {
+  const references = new Set()
+  const memberName = (node) => {
+    if (ts.isPropertyAccessExpression(node)) return node.name.text
+    if (ts.isElementAccessExpression(node) && node.argumentExpression && ts.isStringLiteralLike(node.argumentExpression)) {
+      return node.argumentExpression.text
+    }
+    return null
+  }
+  const allowedCloseReceiver = (node) => {
+    const receiver = unwrapExpression(node.expression)
+    return (ts.isIdentifier(receiver) && receiver.text === 'remoteSessions') || memberName(receiver) === 'sqlite'
+  }
+  const visit = (node) => {
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      const name = memberName(node)
+      if (name && databaseVendorLifecycleProperties.has(name)) references.add(name)
+      if (name === 'close' && !allowedCloseReceiver(node)) references.add(name)
     }
     ts.forEachChild(node, visit)
   }
@@ -487,6 +520,9 @@ export function inspectArchitecture({ root }) {
       }
       for (const method of databaseVendorTransactionReferences(sourceFile)) {
         problems.push(`${file}: metodo transazionale vendor "${method}" non consentito nel dominio Database; usa executeTransaction della porta driver`)
+      }
+      for (const property of databaseVendorLifecycleReferences(sourceFile)) {
+        problems.push(`${file}: proprietà lifecycle vendor "${property}" non consentita nel dominio Database; usa l'handle opaco e le operazioni semantiche della porta driver`)
       }
     }
 

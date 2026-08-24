@@ -1,7 +1,10 @@
 const DATABASE_DRIVER_PORT_METHODS = Object.freeze([
+  'closeRemoteSession',
   'executeRemote',
   'executeTransaction',
+  'forceCloseRemoteSession',
   'openRemoteSession',
+  'subscribeRemoteFailure',
 ])
 
 function createDatabaseDriverPort(implementation) {
