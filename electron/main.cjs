@@ -361,6 +361,11 @@ const dispatchContextMenuCommand = contextCommandRuntime.dispatch
 const piRuntime = createPiRuntime({
   attachmentPreparer: prepareTerminalAttachment,
   createPublicError,
+  deliverPiConfigData: (payload) => sendToRenderer(IPC_CHANNELS.PI_CONFIG_DATA, payload),
+  deliverPiConfigExit: (payload) => sendToRenderer(IPC_CHANNELS.PI_CONFIG_EXIT, payload),
+  deliverTerminalExit: (payload) => sendToRenderer(IPC_CHANNELS.TERMINAL_EXIT, payload),
+  deliverTerminalOutput: (payload) => sendToRenderer(IPC_CHANNELS.TERMINAL_OUTPUT, payload),
+  deliverTerminalStreamState: (payload) => sendToRenderer(IPC_CHANNELS.TERMINAL_STREAM_STATE, payload),
   environmentForExecutable: environmentForPiExecutable,
   getHomePath: () => applicationHomePath,
   getWindow: () => mainWindow,
@@ -371,7 +376,6 @@ const piRuntime = createPiRuntime({
   resolveExecutable: resolvePiExecutable,
   resolveLaunchCandidates: aiTerminalLaunchPolicy.resolveCandidates,
   requireActiveWorkspace,
-  sendToRenderer,
   showOpenDialog: (...args) => dialog.showOpenDialog(...args),
   withCleanupDeadline,
 })

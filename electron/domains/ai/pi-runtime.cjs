@@ -1,4 +1,3 @@
-const { IPC_CHANNELS } = require('../../ipc/channels.cjs')
 const { createPiSessionController } = require('./pi-session-controller.cjs')
 const { safeKillPty } = require('../terminal/pty-lifecycle.cjs')
 const { createTerminalInputController } = require('../terminal/terminal-input.cjs')
@@ -10,6 +9,11 @@ function createPiRuntime({
   createInputController = createTerminalInputController,
   createSessionController = createPiSessionController,
   createStreamController = createTerminalStreamController,
+  deliverPiConfigData,
+  deliverPiConfigExit,
+  deliverTerminalExit,
+  deliverTerminalOutput,
+  deliverTerminalStreamState,
   environmentForExecutable,
   getHomePath,
   getWindow,
@@ -20,7 +24,6 @@ function createPiRuntime({
   resolveExecutable,
   resolveLaunchCandidates,
   requireActiveWorkspace,
-  sendToRenderer,
   showOpenDialog,
   withCleanupDeadline,
 }) {
@@ -29,6 +32,11 @@ function createPiRuntime({
   if (typeof resolveExecutable !== 'function') throw new Error('Resolver eseguibile runtime Pi non valido.')
   if (typeof resolveLaunchCandidates !== 'function') throw new Error('Resolver lancio Terminale AI non valido.')
   if (typeof attachmentPreparer !== 'function') throw new Error('Porta allegati Terminale AI non valida.')
+  if (typeof deliverPiConfigData !== 'function') throw new Error('Porta dati configurazione Pi non valida.')
+  if (typeof deliverPiConfigExit !== 'function') throw new Error('Porta uscita configurazione Pi non valida.')
+  if (typeof deliverTerminalExit !== 'function') throw new Error('Porta uscita Terminale AI non valida.')
+  if (typeof deliverTerminalOutput !== 'function') throw new Error('Porta output Terminale AI non valida.')
+  if (typeof deliverTerminalStreamState !== 'function') throw new Error('Porta stato stream Terminale AI non valida.')
   let configProcess
   let configExit
 
@@ -44,7 +52,7 @@ function createPiRuntime({
     // Stop, restart, cambio workspace e shutdown sono già osservabili dalla
     // rispettiva operazione; soltanto gli exit inattesi cambiano lo stato UI.
     if (expected) return
-    sendToRenderer(IPC_CHANNELS.TERMINAL_EXIT, { exitCode, signal, runtime, piAvailable })
+    deliverTerminalExit({ exitCode, signal, runtime, piAvailable })
     if (exitCode !== 0 || signal) {
       const label = runtime === 'herdr' ? 'Herdr' : 'Pi'
       notifyWhenBackground(
@@ -61,8 +69,8 @@ function createPiRuntime({
     createStream: ({ pty: ptyProcess, sessionId }) => createStreamController({
       pty: ptyProcess,
       sessionId,
-      sendBlock: (block) => sendToRenderer(IPC_CHANNELS.TERMINAL_OUTPUT, block),
-      sendState: (state) => sendToRenderer(IPC_CHANNELS.TERMINAL_STREAM_STATE, state),
+      sendBlock: deliverTerminalOutput,
+      sendState: deliverTerminalStreamState,
     }),
     createInput: ({ stream, getPty }) => createInputController({
       getPty,
@@ -126,13 +134,13 @@ function createPiRuntime({
     const exitPromise = new Promise((resolve) => { resolveExit = resolve })
     configProcess = ptyProcess
     configExit = { process: ptyProcess, promise: exitPromise }
-    ptyProcess.onData((data) => sendToRenderer(IPC_CHANNELS.PI_CONFIG_DATA, data))
+    ptyProcess.onData(deliverPiConfigData)
     ptyProcess.onExit(({ exitCode, signal }) => {
       resolveExit()
       if (configProcess !== ptyProcess) return
       configProcess = undefined
       configExit = undefined
-      sendToRenderer(IPC_CHANNELS.PI_CONFIG_EXIT, { exitCode, signal })
+      deliverPiConfigExit({ exitCode, signal })
     })
     return { started: true, reused: false }
   }

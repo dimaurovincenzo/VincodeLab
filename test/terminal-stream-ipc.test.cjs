@@ -14,6 +14,7 @@ const read = (relativePath) => {
 
 test('main e preload espongono un flusso sequenziale con resume e ACK', () => {
   const piRuntime = read('electron/domains/ai/pi-runtime.cjs')
+  const main = read('electron/main.cjs')
   const aiTerminalIpc = read('electron/ipc/domains/ai-terminal.ipc.cjs')
   const preload = read('electron/preload.cjs')
 
@@ -21,8 +22,10 @@ test('main e preload espongono un flusso sequenziale con resume e ACK', () => {
   assert.match(aiTerminalIpc, /\['terminal:resume'/)
   assert.match(aiTerminalIpc, /\['terminal:ready'/)
   assert.match(aiTerminalIpc, /\['terminal:ack'/)
-  assert.match(piRuntime, /sendToRenderer\('terminal:output'/)
-  assert.match(piRuntime, /sendToRenderer\('terminal:streamState'/)
+  assert.match(piRuntime, /sendBlock: deliverTerminalOutput/)
+  assert.match(piRuntime, /sendState: deliverTerminalStreamState/)
+  assert.match(main, /deliverTerminalOutput: \(payload\) => sendToRenderer\('terminal:output', payload\)/)
+  assert.match(main, /deliverTerminalStreamState: \(payload\) => sendToRenderer\('terminal:streamState', payload\)/)
   assert.match(preload, /resume: \(request\) => ipcRenderer\.invoke\('terminal:resume', request\)/)
   assert.match(preload, /ready: \(message\) => ipcRenderer\.send\('terminal:ready', message\)/)
   assert.match(preload, /ack: \(message\) => ipcRenderer\.send\('terminal:ack', message\)/)
