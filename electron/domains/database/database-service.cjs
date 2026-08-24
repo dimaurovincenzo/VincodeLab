@@ -203,11 +203,32 @@ function resultCollector(options) {
   return createResultBudget(options?.resultBudget)
 }
 
+function createPostgresQuery(session, config) {
+  if (typeof session.driverPort?.createPostgresQuery === 'function') return session.driverPort.createPostgresQuery(config)
+  if (typeof session.Query === 'function') return new session.Query(config)
+  throw new TypeError('Porta query PostgreSQL non disponibile.')
+}
+
+function createMssqlRequest(session, sql, callback) {
+  if (typeof session.driverPort?.createMssqlRequest === 'function') return session.driverPort.createMssqlRequest(sql, callback)
+  if (typeof session.Request === 'function') return new session.Request(sql, callback)
+  throw new TypeError('Porta query SQL Server non disponibile.')
+}
+
+function addMssqlParameter(session, request, name, value) {
+  if (typeof session.driverPort?.addMssqlParameter === 'function') {
+    session.driverPort.addMssqlParameter(request, name, value)
+    return
+  }
+  const type = typeof value === 'boolean' ? session.TYPES?.Bit : typeof value === 'number' ? (Number.isInteger(value) ? session.TYPES?.Int : session.TYPES?.Float) : session.TYPES?.NVarChar
+  if (!type) throw new TypeError('Porta parametri SQL Server non disponibile.')
+  request.addParameter(name, type, value)
+}
+
 function executePostgres(session, sql, parameters, timeoutMs, options) {
   return new Promise((resolve, reject) => {
     const collector = resultCollector(options)
-    const Query = session.Query ?? require('pg').Query
-    const query = new Query({ text: sql, values: parameters })
+    const query = createPostgresQuery(session, { text: sql, values: parameters })
     query.query_timeout = timeoutMs
     let settled = false
     const finish = (error, result) => {
@@ -284,8 +305,6 @@ function executeMssql(session, sql, parameters, timeoutMs, options) {
     let affectedRows = null
     let settled = false
     let request
-    const Request = session.Request ?? require('tedious').Request
-    const TYPES = session.TYPES ?? require('tedious').TYPES
     const finish = (error, count) => {
       if (settled) return
       settled = true
@@ -301,11 +320,10 @@ function executeMssql(session, sql, parameters, timeoutMs, options) {
       finish(error)
     }
     const onAbort = () => cancelAndFail(abortError())
-    request = new Request(sql, (error, count) => finish(error, count))
+    request = createMssqlRequest(session, sql, (error, count) => finish(error, count))
     if (typeof request.setTimeout === 'function') request.setTimeout(timeoutMs)
     parameters.forEach((value, index) => {
-      const type = typeof value === 'boolean' ? TYPES.Bit : typeof value === 'number' ? (Number.isInteger(value) ? TYPES.Int : TYPES.Float) : TYPES.NVarChar
-      request.addParameter(`p${index}`, type, value)
+      addMssqlParameter(session, request, `p${index}`, value)
     })
     request.on('row', (columns) => {
       if (settled) return

@@ -23,6 +23,7 @@ const { createCommandCategory, createWorkspaceCommand, deleteCommandCategory, de
 const { clearHistory, configureDatabaseSecretStorage, createConnection, deleteConnection, deleteSavedQuery, getConnectionWithSecrets, listConnections, listHistory, listSavedQueries, migrateLegacyConnectionSecrets, recordHistory, saveQuery, updateConnection, updateSavedQuery } = require('./infrastructure/persistence/database.repository.cjs')
 const { beginTransaction, classifySql, closeConnectionSession, closeWorkspaceSessions, commitTransaction, configureDatabasePersistence, configureDatabaseRuntime, executeQuery, inspectRoutine, inspectSchema, openConnection, readTableRows, rollbackTransaction, updateTableRows } = require('./domains/database/database-service.cjs')
 const { createDatabaseOperationRegistry } = require('./domains/database/database-operation-registry.cjs')
+const { nodeDatabaseDriverAdapter } = require('./infrastructure/database/node-database-driver.adapter.cjs')
 const { SqliteWorkerSession, sqliteWorkerDiagnostics } = require('./infrastructure/database/sqlite-worker-session.adapter.cjs')
 const { configureRedisSecretStorage, createRedisConnection, deleteRedisConnection, getRedisConnectionWithSecrets, listRedisConnections, updateRedisConnection } = require('./infrastructure/persistence/redis.repository.cjs')
 const { mergeRedisTestConnectionSecrets } = require('./domains/redis/redis-connection-input.cjs')
@@ -119,6 +120,7 @@ const {
 configureDatabasePersistence({ getConnectionWithSecrets, recordHistory })
 configureDatabaseRuntime({
   createSqliteWorkerSession: (sqlitePath, onClosed) => new SqliteWorkerSession(sqlitePath, onClosed),
+  driverPort: nodeDatabaseDriverAdapter,
   sqliteWorkerDiagnostics,
 })
 configureRedisClientAdapter(nodeRedisClientAdapter)

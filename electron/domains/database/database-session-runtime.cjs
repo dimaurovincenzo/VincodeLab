@@ -1,11 +1,12 @@
 const { createPublicError } = require('../errors/public-error.cjs')
+const { assertDatabaseDriverPort } = require('./database-driver.port.cjs')
 const { sqliteInfrastructurePublicError, toDatabasePublicError } = require('./database-error-mapper.cjs')
 const { buildDriverConfig, sessionKey } = require('./sql-model.cjs')
 const { createRemoteSessionLifecycleController, remoteSessions } = require('./remote-session-lifecycle.cjs')
 
-function openMssqlConnection(config, Connection, onInstance = () => undefined) {
+function openMssqlConnectionFromFactory(config, createConnection, onInstance = () => undefined) {
   return new Promise((resolve, reject) => {
-    const instance = new Connection(config)
+    const instance = createConnection(config)
     onInstance(instance)
     const cleanup = () => {
       instance.removeListener?.('connect', onConnect)
@@ -34,6 +35,10 @@ function openMssqlConnection(config, Connection, onInstance = () => undefined) {
   })
 }
 
+function openMssqlConnection(config, Connection, onInstance = () => undefined) {
+  return openMssqlConnectionFromFactory(config, (connectionConfig) => new Connection(connectionConfig), onInstance)
+}
+
 function createDatabaseSessionRuntime({
   getConnectionWithSecrets,
   invalidateSchema,
@@ -44,6 +49,7 @@ function createDatabaseSessionRuntime({
   if (typeof invalidateWorkspaceSchema !== 'function') throw new TypeError('Invalidazione schema workspace non valida.')
 
   const sqliteSessions = new Map()
+  let driverPort = null
   let sqliteRuntime = null
   const remoteSessionLifecycle = createRemoteSessionLifecycleController({
     closeSession: (key) => remoteSessions.close(key),
@@ -54,6 +60,7 @@ function createDatabaseSessionRuntime({
     if (!runtime || typeof runtime.createSqliteWorkerSession !== 'function' || typeof runtime.sqliteWorkerDiagnostics !== 'function') {
       throw new TypeError('Runtime database non valido.')
     }
+    driverPort = assertDatabaseDriverPort(runtime.driverPort)
     sqliteRuntime = Object.freeze({
       createSqliteWorkerSession: runtime.createSqliteWorkerSession,
       sqliteWorkerDiagnostics: runtime.sqliteWorkerDiagnostics,
@@ -124,30 +131,27 @@ function createDatabaseSessionRuntime({
         if (connection.driver === 'postgres') {
           // Una sola connessione per sessione preserva la transazione tra le azioni
           // della griglia; un Pool potrebbe eseguire BEGIN e UPDATE su socket diversi.
-          const { Client, Query } = require('pg')
-          const client = new Client({ host: config.host, port: config.port, database: config.database, user: config.user, password: config.password, connectionTimeoutMillis: 10_000, query_timeout: 30_000 })
-          const candidate = { driver: 'postgres', connection, client, Query }
+          const client = driverPort.createPostgresClient({ host: config.host, port: config.port, database: config.database, user: config.user, password: config.password, connectionTimeoutMillis: 10_000, query_timeout: 30_000 })
+          const candidate = { driver: 'postgres', connection, client, driverPort }
           setCandidate(candidate)
           remoteSessionLifecycle.track(key, candidate)
           await client.connect()
           return candidate
         }
         if (connection.driver === 'mysql') {
-          const mysql = require('mysql2/promise')
-          const client = await mysql.createConnection({ host: config.host, port: config.port, database: config.database, user: config.user, password: config.password, connectTimeout: 10_000 })
-          const candidate = { driver: 'mysql', connection, client }
+          const client = await driverPort.createMysqlClient({ host: config.host, port: config.port, database: config.database, user: config.user, password: config.password, connectTimeout: 10_000 })
+          const candidate = { driver: 'mysql', connection, client, driverPort }
           setCandidate(candidate)
           remoteSessionLifecycle.track(key, candidate)
           return candidate
         }
-        const { Connection, Request, TYPES } = require('tedious')
         let candidate
-        const client = await openMssqlConnection({ server: config.host, authentication: { type: 'default', options: { userName: config.user, password: config.password } }, options: { port: config.port, database: config.database, connectTimeout: 10_000, requestTimeout: 30_000, trustServerCertificate: true } }, Connection, (instance) => {
-          candidate = { driver: 'mssql', connection, client: instance, Request, TYPES }
+        const client = await openMssqlConnectionFromFactory({ server: config.host, authentication: { type: 'default', options: { userName: config.user, password: config.password } }, options: { port: config.port, database: config.database, connectTimeout: 10_000, requestTimeout: 30_000, trustServerCertificate: true } }, driverPort.createMssqlConnection, (instance) => {
+          candidate = { driver: 'mssql', connection, client: instance, driverPort }
           setCandidate(candidate)
           remoteSessionLifecycle.track(key, candidate)
         })
-        return candidate ?? { driver: 'mssql', connection, client, Request, TYPES }
+        return candidate ?? { driver: 'mssql', connection, client, driverPort }
       })
       const openingFailure = remoteSessionLifecycle.consumeFailure(key)
       if (openingFailure) throw openingFailure

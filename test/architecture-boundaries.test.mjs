@@ -119,6 +119,22 @@ test('isola application, infrastructure, IPC e preload nel backend', () => {
   })
 })
 
+test('obbliga il dominio Database a usare porte invece di driver e adapter operativi', () => {
+  withFixture({
+    'electron/domains/database/runtime.cjs': [
+      "require('pg')",
+      "require('mysql2/promise')",
+      "require('tedious')",
+      "require('better-sqlite3')",
+      "require('../../infrastructure/database/node-database-driver.adapter.cjs')",
+    ].join('\n'),
+    'electron/infrastructure/database/node-database-driver.adapter.cjs': 'module.exports = {}\n',
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('driver esterno')).length, 4)
+    assert.ok(problems.some((problem) => problem.includes('dominio Electron dipende da un adapter esterno')))
+  })
+})
+
 test('consente al preload di leggere il registro IPC ma vieta stringhe canale locali', () => {
   withFixture({
     'electron/ipc/channels.cjs': "module.exports = { IPC_CHANNELS: { FILES_READ: 'files:read' } }\n",
