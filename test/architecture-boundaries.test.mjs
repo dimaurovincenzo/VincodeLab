@@ -178,6 +178,28 @@ test('impedisce al runtime AI di tornare nella composition root renderer', () =>
   })
 })
 
+test('impedisce ai modelli con owner unico di tornare nella libreria condivisa', () => {
+  withFixture({
+    'src/lib/editor-icon-resolution.ts': 'export const icon = {}\n',
+    'src/lib/editor-new-file.ts': 'export const draft = {}\n',
+    'src/lib/git-graph.js': 'export const graph = {}\n',
+    'src/lib/github-project-status.js': 'export const status = {}\n',
+    'src/lib/remote-transfer-retry.ts': 'export const retry = {}\n',
+    'src/lib/workspace-command-library.js': 'export const commands = {}\n',
+  }, (problems) => {
+    for (const [legacyPath, owner] of [
+      ['src/lib/editor-icon-resolution.ts', 'src/features/editor'],
+      ['src/lib/editor-new-file.ts', 'src/features/editor'],
+      ['src/lib/git-graph.js', 'src/features/github'],
+      ['src/lib/github-project-status.js', 'src/features/github'],
+      ['src/lib/remote-transfer-retry.ts', 'src/features/remote-files'],
+      ['src/lib/workspace-command-library.js', 'src/features/terminal'],
+    ]) {
+      assert.ok(problems.some((problem) => problem.includes(`${legacyPath}: path legacy rimosso ricreato; usa "${owner}"`)))
+    }
+  })
+})
+
 test('rileva cicli tra moduli interni', () => {
   withFixture({
     'src/shared/a.ts': "import { b } from './b'\nexport const a = b\n",

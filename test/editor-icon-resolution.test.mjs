@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { specialFileIconKey } from '../src/lib/editor-icon-resolution.ts'
+import { specialFileIconKey } from '../src/features/editor/model/editor-icon-resolution.ts'
 
 test('classifica ogni variante dotenv come configurazione ambiente e non come Node.js', () => {
   for (const fileName of ['.env', '.env.local', '.env.production', '.env.example']) {

@@ -4,7 +4,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { pathToFileURL } from 'node:url'
 
-const modulePath = path.join(import.meta.dirname, '../src/lib/editor-new-file.ts')
+const modulePath = path.join(import.meta.dirname, '../src/features/editor/model/editor-new-file.ts')
 const draftModule = fs.existsSync(modulePath) ? await import(pathToFileURL(modulePath)) : {}
 
 test('conferma una bozza con nome e annulla una bozza vuota', () => {

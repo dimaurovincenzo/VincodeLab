@@ -38,6 +38,14 @@ export const removedLegacyModules = new Map([
   ['src/components/settings', 'src/features/settings'],
   ['src/components/terminal-workspace', 'src/features/terminal'],
   ['src/components/workspace-switcher', 'src/features/workspace'],
+  // These models have a single feature owner; keeping their former generic
+  // lib paths forbidden prevents compatibility facades from blurring it again.
+  ['src/lib/editor-icon-resolution', 'src/features/editor'],
+  ['src/lib/editor-new-file', 'src/features/editor'],
+  ['src/lib/git-graph', 'src/features/github'],
+  ['src/lib/github-project-status', 'src/features/github'],
+  ['src/lib/remote-transfer-retry', 'src/features/remote-files'],
+  ['src/lib/workspace-command-library', 'src/features/terminal'],
   ['src/lib/workspace-session', 'src/features/workspace'],
   ['electron/github-service', 'electron/infrastructure/github/github-service.adapter.cjs'],
   ['electron/github-operation-registry', 'electron/domains/github/github-operation-registry.cjs'],

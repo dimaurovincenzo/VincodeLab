@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { createListCollection } from '@/components/ui'
 import { effectivePreference, useAppPreferences } from '@/lib/app-preferences'
-import { layoutGitGraph } from '@/lib/git-graph'
+import { layoutGitGraph } from '../model/git-graph.js'
 import { formatCacheState } from '../model/github-display'
 import { issueStateCounts, visibleGitHubIssues } from '../model/github-issues'
 import {

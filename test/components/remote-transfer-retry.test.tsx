@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createRemoteTransferRetryController, type RemoteTransferEvent, type RetryableRemoteTransferOperation } from '@/lib/remote-transfer-retry'
+import { createRemoteTransferRetryController, type RemoteTransferEvent, type RetryableRemoteTransferOperation } from '@/features/remote-files/model/remote-transfer-retry'
 
 function transfer(id: string, state: RemoteTransferEvent['state'], direction: RemoteTransferEvent['direction'] = 'download', name = 'report.md'): RemoteTransferEvent {
   return { id, direction, name, state }

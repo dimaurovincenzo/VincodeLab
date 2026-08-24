@@ -107,7 +107,7 @@ test('Riprova un transfer fallito riesegue una sola volta la stessa operazione r
   const stateOwner = readRemoteFilesModule('hooks/use-remote-files-state.ts')
   const controller = readRemoteFilesModule('hooks/use-remote-files-controller.ts')
   const serverPanel = readRemoteFilesModule('components/remote-server-panel.tsx')
-  const retryController = fs.readFileSync(path.join(projectRoot, 'src/lib/remote-transfer-retry.ts'), 'utf8')
+  const retryController = fs.readFileSync(path.join(projectRoot, 'src/features/remote-files/model/remote-transfer-retry.ts'), 'utf8')
 
   assert.match(stateOwner, /createRemoteTransferRetryController/)
   assert.match(controller, /retryController\.run\(\{/)

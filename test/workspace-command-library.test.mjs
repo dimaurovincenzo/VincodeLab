@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-const library = await import('../src/lib/workspace-command-library.js').catch(() => ({}))
+const library = await import('../src/features/terminal/model/workspace-command-library.js').catch(() => ({}))
 
 const categories = [
   {

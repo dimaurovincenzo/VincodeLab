@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@/components/ui'
-import { resolveNewFileDraft } from '@/lib/editor-new-file'
 import { editorBridge } from '../api/editor.bridge'
+import { resolveNewFileDraft } from '../model/editor-new-file'
 import type { EditorFailure } from '../model/editor-runtime.types'
 import {
   filterEditorTree,

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { githubProjectStatusTone } from '../src/lib/github-project-status.js'
+import { githubProjectStatusTone } from '../src/features/github/model/github-project-status.js'
 
 test('assegna toni distinti agli stati operativi standard dei Project', () => {
   assert.equal(githubProjectStatusTone('Completato'), 'success')

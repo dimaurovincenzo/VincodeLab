@@ -104,8 +104,8 @@ import testFolderIcon from '@iconify-icons/vscode-icons/folder-type-test'
 import themeFolderIcon from '@iconify-icons/vscode-icons/folder-type-theme'
 import toolsFolderIcon from '@iconify-icons/vscode-icons/folder-type-tools'
 import vscodeFolderIcon from '@iconify-icons/vscode-icons/folder-type-vscode'
-import { specialFileIconKey, type SpecialFileIconKey } from '@/lib/editor-icon-resolution'
 import { editorStyles } from '@/theme/styles/editor'
+import { specialFileIconKey, type SpecialFileIconKey } from '../model/editor-icon-resolution'
 
 export { defaultFolderIcon, defaultFolderOpenedIcon }
 

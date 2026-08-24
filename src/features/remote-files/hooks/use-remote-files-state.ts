@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { createListCollection } from '@/components/ui'
 import type { ConfirmationRequest } from '@/components/confirmation-dialog'
-import { createRemoteTransferRetryController } from '@/lib/remote-transfer-retry'
+import { createRemoteTransferRetryController } from '../model/remote-transfer-retry'
 import type { UserError } from '@/lib/user-error'
 import type { RemoteDirectoryLocation, RemoteFilesView, RemoteLocalFilter } from '../model/remote-files.types'
 

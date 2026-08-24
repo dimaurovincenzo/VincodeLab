@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { toast, type ToastAction } from '@/components/ui'
 import type { ConfirmationRequest } from '@/components/confirmation-dialog'
-import { workspaceCommandLibraryView } from '@/lib/workspace-command-library.js'
 import type { UserError } from '@/lib/user-error'
 import { terminalBridge } from '../api/terminal.bridge'
+import { workspaceCommandLibraryView } from '../model/workspace-command-library.js'
 import { reportTerminalFailure } from '../services/terminal-error'
 
 type UseWorkspaceCommandLibraryOptions = {

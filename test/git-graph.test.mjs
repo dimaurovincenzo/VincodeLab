@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { layoutGitGraph } from '../src/lib/git-graph.js'
+import { layoutGitGraph } from '../src/features/github/model/git-graph.js'
 
 test('draws a single lane for linear history', () => {
   const rows = layoutGitGraph([
