@@ -34,7 +34,7 @@ vi.mock('@/components/ui', async (importOriginal) => {
   }
 })
 
-import { GitHubWorkspace, type GitHubWorkbenchRequest } from '@/components/github-workspace'
+import { GitHubWorkspace, type GitHubWorkbenchRequest } from '@/features/github'
 import { dispatchApplicationMenuCommand } from '@/lib/app-menu-command'
 
 const freshCache: CacheMetadata = { fetchedAt: 1, expiresAt: 2, stale: false }

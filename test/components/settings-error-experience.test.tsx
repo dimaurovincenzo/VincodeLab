@@ -4,12 +4,10 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Settings } from '@/components/settings'
+import { Settings } from '@/features/settings'
 import { toastStore } from '@/components/ui/toast-store'
 import { setAppPreferencesWorkspace } from '@/lib/app-preferences'
 import { clearVolatileDrafts } from '@/lib/volatile-draft-store'
-
-vi.mock('@/components/terminal-diagnostics', () => ({ TerminalDiagnostics: () => null }))
 
 const safePreferences: AppPreferencesSnapshot = {
   schema: [],

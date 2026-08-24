@@ -4,7 +4,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { Settings } from '@/components/settings'
+import { Settings } from '@/features/settings'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 import { clearVolatileDrafts } from '@/lib/volatile-draft-store'
 

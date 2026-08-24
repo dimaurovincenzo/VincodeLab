@@ -4,7 +4,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { FreeTerminal } from '@/components/free-terminal'
+import { FreeTerminal } from '@/features/terminal'
 
 vi.mock('@xterm/addon-fit', () => ({ FitAddon: class { fit() {} } }))
 vi.mock('@xterm/addon-search', () => ({

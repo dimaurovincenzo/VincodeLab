@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { EditorView } from '@codemirror/view'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DatabaseWorkspace } from '@/components/database-workspace'
+import { DatabaseWorkspace } from '@/features/database'
 
 const connections: DatabaseConnection[] = [
   { id: 'database-a', name: 'Database A', driver: 'sqlite', sqlitePath: '/tmp/a.sqlite', hasPassword: false },

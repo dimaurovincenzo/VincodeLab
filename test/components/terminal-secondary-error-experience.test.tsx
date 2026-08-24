@@ -4,8 +4,8 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { TerminalAttachments } from '@/components/terminal-attachments'
-import { TerminalDiagnostics } from '@/components/terminal-diagnostics'
+import { TerminalAttachments } from '@/features/ai'
+import { TerminalDiagnostics } from '@/features/ai'
 import { Toaster, toast } from '@/components/ui'
 
 function diagnosticsReport(queuedBytes: number): TerminalDiagnosticsReport {

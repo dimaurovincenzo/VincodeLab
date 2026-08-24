@@ -22,7 +22,7 @@ vi.mock('@/features/remote-files', () => ({
   RemoteFiles: ({ active }: { active: boolean }) => <div data-active={String(active)} data-testid="remote-files">File remoti persistenti</div>,
 }))
 
-import { TerminalWorkspace, type TerminalWorkspaceActionRequest } from '@/components/terminal-workspace'
+import { TerminalWorkspace, type TerminalWorkspaceActionRequest } from '@/features/terminal'
 
 function session(ordinal: number, options: Partial<ShellSessionMetadata> = {}): ShellSessionMetadata {
   return {

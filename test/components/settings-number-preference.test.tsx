@@ -4,11 +4,9 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { NumberPreferenceInput, Settings } from '@/components/settings'
+import { NumberPreferenceInput, Settings } from '@/features/settings'
 import { publishAppPreferences, setAppPreferencesWorkspace } from '@/lib/app-preferences'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
-
-vi.mock('@/components/terminal-diagnostics', () => ({ TerminalDiagnostics: () => null }))
 
 const definition: AppPreferenceDefinition = {
   key: 'terminal.scrollback',

@@ -12,7 +12,7 @@ vi.mock('@/lib/sql-format', () => ({
   createSqlFormatChange: formatSqlMock,
 }))
 
-import { DatabaseWorkspace } from '@/components/database-workspace'
+import { DatabaseWorkspace } from '@/features/database'
 
 const initialSql = 'SELECT 1 AS risultato'
 

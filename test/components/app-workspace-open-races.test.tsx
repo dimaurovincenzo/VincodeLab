@@ -72,7 +72,7 @@ vi.mock('@xterm/xterm', () => ({
   },
 }))
 
-vi.mock('@/components/settings', () => ({
+vi.mock('@/features/settings', () => ({
   Settings: () => <section aria-label="Impostazioni"><h1>Impostazioni VincodeLab</h1></section>,
 }))
 
@@ -112,7 +112,7 @@ vi.mock('@/components/project-editor', async () => {
   }
 })
 
-vi.mock('@/components/database-workspace', async () => {
+vi.mock('@/features/database', async () => {
   const React = await import('react')
   return {
     DatabaseWorkspace({ onWorkspaceGuardChange }: { onWorkspaceGuardChange?: (guard: WorkspaceChangeGuard | null) => void }) {

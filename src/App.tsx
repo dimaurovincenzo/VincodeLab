@@ -4,12 +4,12 @@ import { BookOpen, Boxes, ChevronDown, ChevronRight, ChevronUp, Database, FileCo
 import { appBridge } from '@/app/api/app.bridge'
 import { Button, ErrorNotice, Field, IconButton, SegmentGroup, Spinner, Tabs, Toaster, WorkbenchPresence, toast } from '@/components/ui'
 import { TerminalToolbar } from '@/components/terminal-toolbar'
-import { TerminalAttachments, type TerminalContextAction } from '@/features/ai'
+import { loadProjectInstructions, loadProjectSkills, TerminalAttachments, type TerminalContextAction } from '@/features/ai'
 import { TerminalPasteStatus } from '@/components/terminal-paste-status'
 import { ViewErrorBoundary } from '@/components/view-error-boundary'
 import { BenchmarkViewFaultProbe } from '@/components/benchmark-view-fault-probe'
 import { WorkspaceChangeDialog } from '@/components/workspace-change-dialog'
-import { WorkspaceSwitcher } from '@/components/workspace-switcher'
+import { WorkspaceSwitcher, createWorkspaceSessionClient } from '@/features/workspace'
 import { CommandPalette, type CommandPaletteItem, type CommandPaletteMode } from '@/components/command-palette'
 import { scheduleVisibleTerminalRefit } from '@/lib/terminal-activation.js'
 import { createAnimationFrameResizeScheduler } from '@/lib/terminal-resize.js'
@@ -25,15 +25,14 @@ import type { TerminalPasteProgress } from '@/lib/terminal-paste-controller.js'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 import { WorkbenchCommandRegistry, type WorkbenchCommand } from '@/lib/workbench-command-registry'
 import { WorkbenchUsageHistory } from '@/lib/workbench-history'
-import { createWorkspaceSessionClient } from '@/lib/workspace-session'
 import { suppressGlobalTerminalShortcut } from '@/lib/workbench-shortcuts'
 import { createPersistentViewState, shouldMountPersistentView, visitPersistentView } from '@/lib/persistent-view-state'
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
 import type { EditorWorkbenchContext, EditorWorkbenchRequest, RemoteOpenRequest } from '@/components/project-editor'
-import type { GitHubWorkbenchContext, GitHubWorkbenchRequest } from '@/components/github-workspace'
-import type { DatabaseWorkbenchContext } from '@/components/database-workspace'
-import type { RedisWorkbenchContext } from '@/components/redis-workspace'
-import type { TerminalWorkspaceAction, TerminalWorkspaceActionRequest } from '@/components/terminal-workspace'
+import type { GitHubWorkbenchContext, GitHubWorkbenchRequest } from '@/features/github'
+import type { DatabaseWorkbenchContext } from '@/features/database'
+import type { RedisWorkbenchContext } from '@/features/redis'
+import type { TerminalWorkspaceAction, TerminalWorkspaceActionRequest } from '@/features/terminal'
 import { aiStyles } from '@/theme/styles/ai'
 import { homeStyles } from '@/theme/styles/home'
 import { shellStyles } from '@/theme/styles/shell'
@@ -44,14 +43,14 @@ import '@xterm/xterm/css/xterm.css'
 // Risolvendo dall'URL della pagina l'icona rimane disponibile in entrambi i contesti.
 const appIconUrl = new URL('vincodelab-icon.png', window.location.href).toString()
 
-const TerminalWorkspace = lazy(() => import('@/components/terminal-workspace').then((module) => ({ default: module.TerminalWorkspace })))
+const TerminalWorkspace = lazy(() => import('@/features/terminal').then((module) => ({ default: module.TerminalWorkspace })))
 const ProjectEditor = lazy(() => import('@/components/project-editor').then((module) => ({ default: module.ProjectEditor })))
-const GitHubWorkspace = lazy(() => import('@/components/github-workspace').then((module) => ({ default: module.GitHubWorkspace })))
-const DatabaseWorkspace = lazy(() => import('@/components/database-workspace').then((module) => ({ default: module.DatabaseWorkspace })))
-const RedisWorkspace = lazy(() => import('@/components/redis-workspace').then((module) => ({ default: module.RedisWorkspace })))
-const AppSettings = lazy(() => import('@/components/settings').then((module) => ({ default: module.Settings })))
-const ProjectSkills = lazy(() => import('@/components/project-skills').then((module) => ({ default: module.ProjectSkills })))
-const ProjectInstructions = lazy(() => import('@/components/project-instructions').then((module) => ({ default: module.ProjectInstructions })))
+const GitHubWorkspace = lazy(() => import('@/features/github').then((module) => ({ default: module.GitHubWorkspace })))
+const DatabaseWorkspace = lazy(() => import('@/features/database').then((module) => ({ default: module.DatabaseWorkspace })))
+const RedisWorkspace = lazy(() => import('@/features/redis').then((module) => ({ default: module.RedisWorkspace })))
+const AppSettings = lazy(() => import('@/features/settings').then((module) => ({ default: module.Settings })))
+const ProjectSkills = lazy(() => loadProjectSkills().then((module) => ({ default: module.ProjectSkills })))
+const ProjectInstructions = lazy(() => loadProjectInstructions().then((module) => ({ default: module.ProjectInstructions })))
 
 type LaunchState = 'idle' | 'launching' | 'running' | 'ended' | 'error'
 type WorkspaceChangeRequest = { kind: 'choose' } | { kind: 'recent'; path: string }

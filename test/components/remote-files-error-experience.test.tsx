@@ -4,7 +4,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
-import { RemoteFiles } from '@/components/remote-files'
+import { RemoteFiles } from '@/features/remote-files'
 
 const connection: ManagedSshConnection = {
   commandId: 'profile-1',

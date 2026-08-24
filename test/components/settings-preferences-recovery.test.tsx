@@ -4,10 +4,8 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { Settings } from '@/components/settings'
+import { Settings } from '@/features/settings'
 import { setAppPreferencesWorkspace } from '@/lib/app-preferences'
-
-vi.mock('@/components/terminal-diagnostics', () => ({ TerminalDiagnostics: () => null }))
 
 function validPreferences(): AppPreferencesSnapshot {
   const key = 'editor.fontSize'

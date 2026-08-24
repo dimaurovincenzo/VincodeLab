@@ -1,8 +1,8 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ProjectInstructions } from '@/components/project-instructions'
-import { ProjectSkills } from '@/components/project-skills'
+import { ProjectInstructions } from '@/features/ai/components/project-instructions'
+import { ProjectSkills } from '@/features/ai/components/project-skills'
 import { clearVolatileDrafts } from '@/lib/volatile-draft-store'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 
