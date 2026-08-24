@@ -314,7 +314,7 @@ test('la Presence Ark e WorkbenchPresence non avvolgono le viste operative persi
 })
 
 test('la griglia Database reimposta le bozze al remount senza aggiornamenti sincroni in effect', () => {
-  const grid = fs.readFileSync(path.join(__dirname, '../src/components/database-table-grid.tsx'), 'utf8')
+  const grid = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-table-grid.tsx'), 'utf8')
   const workspace = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
 
   assert.doesNotMatch(grid, /useEffect\(\(\) => \{\s*setDrafts\(\{\}\)/)
@@ -1086,7 +1086,7 @@ test('Database distingue procedure e funzioni dalle tabelle nell explorer', () =
 
 test('Database apre una griglia dati ricercabile e salva solo nella transazione', () => {
   const component = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
-  const grid = fs.readFileSync(path.join(__dirname, '../src/components/database-table-grid.tsx'), 'utf8')
+  const grid = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-table-grid.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
 
   assert.match(component, /database\s*\.\s*tableRows/)
@@ -1111,7 +1111,7 @@ test('Database apre una griglia dati ricercabile e salva solo nella transazione'
 
 test('Database separa SQL e dati in sotto-tab locali e apre i dati dopo una query riuscita', () => {
   const workspace = fs.readFileSync(path.join(__dirname, '../src/components/database-workspace.tsx'), 'utf8')
-  const grid = fs.readFileSync(path.join(__dirname, '../src/components/database-table-grid.tsx'), 'utf8')
+  const grid = fs.readFileSync(path.join(__dirname, '../src/features/database/components/database-table-grid.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(__dirname, '../src/theme/styles/database.ts'), 'utf8')
 
   assert.match(workspace, /<Tabs\.List[^>]*aria-label="Viste Database"/)

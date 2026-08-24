@@ -8,8 +8,8 @@ import { AlignLeft, ChevronRight, FilePenLine, Play, Plus, RefreshCw, RotateCcw,
 import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-error'
 import { Button, Dialog, ErrorNotice, Field, IconButton, SelectField, Spinner, Splitter, Tabs, TreeView, createTreeCollection, toast, type SplitterPanelData } from '@/components/ui'
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
-import { DatabaseTableGrid, type DatabaseTableDraftGuard } from '@/components/database-table-grid'
 import {
+  DatabaseTableGrid,
   connectionDraftFor as toDraft,
   connectionDraftIdentity,
   connectionInput,
@@ -32,6 +32,7 @@ import {
   type DatabaseGuardFailure,
   type DatabaseSchema,
   type DatabaseSchemaTreeNode as SchemaTreeNode,
+  type DatabaseTableDraftGuard,
   type DatabaseToolbarAction,
   type DatabaseWorkspaceProps as Props,
   type QueryHistoryRefreshFailure,
