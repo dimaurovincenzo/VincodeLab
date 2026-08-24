@@ -9,6 +9,33 @@ import { normalizeUserError, reportUserError, type UserError } from '@/lib/user-
 import { Button, Dialog, ErrorNotice, Field, IconButton, SelectField, Spinner, Splitter, Tabs, TreeView, createTreeCollection, toast, type SplitterPanelData } from '@/components/ui'
 import { ConfirmationDialog, type ConfirmationRequest } from '@/components/confirmation-dialog'
 import { DatabaseTableGrid, type DatabaseTableDraftGuard } from '@/components/database-table-grid'
+import {
+  connectionDraftFor as toDraft,
+  connectionDraftIdentity,
+  connectionInput,
+  databaseBridge,
+  databaseDriverLabel as driverLabel,
+  defaultConnectionDraft as defaultDraft,
+  defaultDatabasePort as defaultPort,
+  defaultSql,
+  gridDraftIdentity,
+  parseConnectionDraft,
+  reportDatabaseFailure,
+  sameConnectionDraft,
+  showDatabaseErrorToast,
+  showDatabaseWarningToast,
+  sqlDraftIdentity,
+  tableLabel,
+  tableSchemaName,
+  type DatabaseConnectionDraft as ConnectionDraft,
+  type DatabaseDriver as Driver,
+  type DatabaseGuardFailure,
+  type DatabaseSchema,
+  type DatabaseSchemaTreeNode as SchemaTreeNode,
+  type DatabaseToolbarAction,
+  type DatabaseWorkspaceProps as Props,
+  type QueryHistoryRefreshFailure,
+} from '@/features/database'
 import { isMutativeSql, schemaTablePreviewSql } from '@/lib/database-query'
 import { effectivePreference, useAppPreferences } from '@/lib/app-preferences'
 import { useApplicationMenuCommand } from '@/lib/app-menu-command'
@@ -19,138 +46,12 @@ import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 import { commitVolatileDraft, discardVolatileDraft, latestVolatileDraft, readVolatileDraft, writeVolatileDraft, type VolatileDraftIdentity } from '@/lib/volatile-draft-store'
 import { databaseStyles as db } from '@/theme/styles/database'
 
-type Driver = DatabaseConnection['driver']
-type ConnectionDraft = DatabaseConnectionInput & { hasPassword?: boolean }
-type DatabaseSchema = { tables: DatabaseTableSchema[]; routines: DatabaseRoutine[] }
-type DatabaseToolbarAction = 'schema' | 'begin' | 'commit' | 'rollback' | 'format' | null
-export type DatabaseWorkbenchContext = {
-  connectionId: string | null
-  connectionName: string | null
-  executing: boolean
-  sql: string
-  tableName: string | null
-  transactionActive: boolean
-}
-type Props = {
-  workspace: string
-  focusRequest?: number
-  initialState?: WorkspaceSessionState['database']
-  onContextChange?: (context: DatabaseWorkbenchContext) => void
-  onSessionChange?: (state: Pick<WorkspaceSessionState['database'], 'selectedConnectionId' | 'sidebarTab' | 'view' | 'expandedSchemaIds' | 'selectedTableName' | 'activeSavedQueryId'>) => void
-  onWorkspaceGuardChange?: (guard: WorkspaceChangeGuard | null) => void
-}
-type SchemaTreeNode = {
-  kind: 'root' | 'group' | 'table' | 'routine'
-  value: string
-  label: string
-  children?: SchemaTreeNode[]
-  count?: number
-  expansionKey?: string
-  tableName?: string
-  routine?: DatabaseRoutine
-}
-type QueryHistoryRefreshFailure = {
-  connectionId: string
-  error: UserError
-  recovery: 'copy-query' | 'refresh-history'
-  sql?: string
-}
-type DatabaseGuardFailure = { error: UserError; recovery: 'save' | 'discard' }
+export type { DatabaseWorkbenchContext } from '@/features/database'
 
 const databasePanels: SplitterPanelData[] = [
   { id: 'database-sidebar', minSize: '240px', maxSize: '720px', resizeBehavior: 'preserve-pixel-size' },
   { id: 'database-editor', minSize: '460px' },
 ]
-
-const defaultDraft = (): ConnectionDraft => ({ name: '', driver: 'sqlite', sqlitePath: '' })
-const defaultSql = 'SELECT 1 AS risultato'
-const defaultPort: Record<Exclude<Driver, 'sqlite'>, number> = { postgres: 5432, mysql: 3306, mssql: 1433 }
-
-function sameConnectionDraft(left: ConnectionDraft, right: ConnectionDraft) {
-  return left.name === right.name
-    && left.driver === right.driver
-    && (left.sqlitePath ?? '') === (right.sqlitePath ?? '')
-    && (left.host ?? '') === (right.host ?? '')
-    && left.port === right.port
-    && (left.database ?? '') === (right.database ?? '')
-    && (left.user ?? '') === (right.user ?? '')
-    && (left.password ?? '') === (right.password ?? '')
-    && Boolean(left.hasPassword) === Boolean(right.hasPassword)
-}
-
-function connectionInput(draft: ConnectionDraft): DatabaseConnectionInput {
-  return draft.driver === 'sqlite'
-    ? { name: draft.name || draft.sqlitePath?.split('/').at(-1) || 'SQLite', driver: 'sqlite', sqlitePath: draft.sqlitePath ?? '' }
-    : { name: draft.name, driver: draft.driver, host: draft.host ?? '', port: draft.port ?? defaultPort[draft.driver], database: draft.database ?? '', user: draft.user ?? '', password: draft.password ?? '' }
-}
-
-function driverLabel(driver: Driver) {
-  return driver === 'sqlite' ? 'SQLite' : driver === 'postgres' ? 'PostgreSQL' : driver === 'mysql' ? 'MySQL' : 'SQL Server'
-}
-
-function toDraft(connection: DatabaseConnection): ConnectionDraft {
-  return { name: connection.name, driver: connection.driver, sqlitePath: connection.sqlitePath ?? '', host: connection.host ?? '', port: connection.port, database: connection.database ?? '', user: connection.user ?? '', password: '', hasPassword: connection.hasPassword }
-}
-
-function sqlDraftIdentity(workspace: string, connectionId: string | null): VolatileDraftIdentity {
-  return { scope: 'database-sql', workspace, resource: connectionId ?? 'unbound' }
-}
-
-function connectionDraftIdentity(workspace: string, connectionId: string | null): VolatileDraftIdentity {
-  return { scope: 'database-connection', workspace, resource: connectionId ?? 'new' }
-}
-
-function gridDraftIdentity(workspace: string, connectionId: string, tableName: string): VolatileDraftIdentity {
-  return { scope: 'database-grid', workspace, resource: JSON.stringify([connectionId, tableName]) }
-}
-
-function reportDatabaseFailure(error: unknown, operation: string, title: string, description: string, severity: 'warning' | 'error' = 'error') {
-  return reportUserError(normalizeUserError(error, {
-    component: 'database-workspace',
-    operation,
-    severity,
-    title,
-    fallbackDescription: description,
-  }))
-}
-
-type DatabaseToastRecovery = { label: string; onClick: () => void }
-
-function showDatabaseErrorToast(incident: UserError, recoveryAction?: DatabaseToastRecovery) {
-  toast.error(incident.title, {
-    description: `${incident.description} Riferimento ${incident.correlationId}.`,
-    dedupeKey: incident.operation,
-    recoveryAction,
-  })
-}
-
-function showDatabaseWarningToast(incident: UserError, recoveryAction?: DatabaseToastRecovery) {
-  toast.warning(incident.title, {
-    action: recoveryAction,
-    description: `${incident.description} Riferimento ${incident.correlationId}.`,
-    id: incident.operation,
-  })
-}
-
-function parseConnectionDraft(value: string): ConnectionDraft | null {
-  try {
-    const draft = JSON.parse(value) as Partial<ConnectionDraft>
-    if (!draft || typeof draft !== 'object' || !['sqlite', 'postgres', 'mysql', 'mssql'].includes(String(draft.driver)) || typeof draft.name !== 'string') return null
-    if (draft.sqlitePath !== undefined && typeof draft.sqlitePath !== 'string') return null
-    if (draft.host !== undefined && typeof draft.host !== 'string') return null
-    if (draft.database !== undefined && typeof draft.database !== 'string') return null
-    if (draft.user !== undefined && typeof draft.user !== 'string') return null
-    if (draft.password !== undefined && typeof draft.password !== 'string') return null
-    if (draft.port !== undefined && (!Number.isInteger(draft.port) || Number(draft.port) < 1 || Number(draft.port) > 65_535)) return null
-    return draft as ConnectionDraft
-  } catch {
-    // Snapshot locale non valido: non contiene dati attendibili da mostrare o registrare; il chiamante lo scarta in modo esplicito.
-    return null
-  }
-}
-
-function tableSchemaName(name: string) { return name.includes('.') ? name.split('.')[0] : 'Tabelle' }
-function tableLabel(name: string) { return name.includes('.') ? name.slice(name.indexOf('.') + 1) : name }
 
 function SchemaTreeNodeView({ indexPath, node }: {
   indexPath: number[]
@@ -415,7 +316,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
     executionRequest.current += 1
     setCancelling(true)
     try {
-      const outcome = await window.vincodeLab.database.cancel(active.operationId)
+      const outcome = await databaseBridge.database.cancel(active.operationId)
       const stillActive = activeQuery.current?.operationId === active.operationId
       if (!outcome.cancelled && stillActive) throw new Error('La query Database in corso non può essere annullata in sicurezza. Attendi il completamento e riprova.')
       if (stillActive) {
@@ -540,7 +441,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
     setLoadingConnections(true)
     setConnectionError(null)
     try {
-      const items = await window.vincodeLab.database.listConnections()
+      const items = await databaseBridge.database.listConnections()
       setConnections(items)
       recoverConnectionDraft(items)
       setSelected((current) => {
@@ -586,7 +487,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
       setTablePage(null)
       setTableError(null)
     })
-    void Promise.all([window.vincodeLab.database.listSavedQueries(connectionId), window.vincodeLab.database.listHistory(connectionId), window.vincodeLab.database.inspectSchema(connectionId)]).then(([queries, entries, currentSchema]) => {
+    void Promise.all([databaseBridge.database.listSavedQueries(connectionId), databaseBridge.database.listHistory(connectionId), databaseBridge.database.inspectSchema(connectionId)]).then(([queries, entries, currentSchema]) => {
       if (!current) return
       const restoredQuery = queries.find((query) => query.id === desiredSavedQueryId.current) ?? null
       const restoredTable = currentSchema.tables.some((table) => table.name === desiredTableName.current) ? desiredTableName.current : null
@@ -615,7 +516,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
 
   useEffect(() => () => {
     const active = activeQuery.current
-    if (active) void window.vincodeLab.database.cancel(active.operationId).catch((error) => {
+    if (active) void databaseBridge.database.cancel(active.operationId).catch((error) => {
       // La vista non esiste più: il cleanup possiede l'incidente e lo registra senza
       // delegarlo all'handler globale o creare una notifica fuori contesto.
       reportDatabaseFailure(
@@ -635,7 +536,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
     const timer = window.setTimeout(() => {
       setTableLoading(true)
       setTableError(null)
-      void window.vincodeLab.database.tableRows(connectionId, selectedTableName, { filter: tableFilter, limit: rowLimit }).then((page) => {
+      void databaseBridge.database.tableRows(connectionId, selectedTableName, { filter: tableFilter, limit: rowLimit }).then((page) => {
         if (request !== tableRequest.current || selectedConnectionId.current !== connectionId) return
         setTablePage(page)
       }).catch((error) => {
@@ -715,7 +616,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
     setQueryError(null)
     setDatabaseView('sql')
     try {
-      const nextResult = await window.vincodeLab.database.execute(connectionId, query, { operationId, confirmed, offset, limit: rowLimit, timeoutMs: queryTimeoutMs })
+      const nextResult = await databaseBridge.database.execute(connectionId, query, { operationId, confirmed, offset, limit: rowLimit, timeoutMs: queryTimeoutMs })
       if (request !== executionRequest.current || selectedConnectionId.current !== connectionId) return
       setLastExecutedSql(query)
       setResult((current) => offset > 0 && current ? { ...nextResult, rows: [...current.rows, ...nextResult.rows], columns: current.columns } : nextResult)
@@ -742,7 +643,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
         })
       }
       try {
-        const nextHistory = await window.vincodeLab.database.listHistory(connectionId)
+        const nextHistory = await databaseBridge.database.listHistory(connectionId)
         if (request !== executionRequest.current || selectedConnectionId.current !== connectionId) return
         setHistory(nextHistory)
         if (historyWasRecorded) setQueryHistoryRefreshFailure(null)
@@ -773,7 +674,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
   }
 
   const retryQueryHistoryRefresh = async (connectionId: string) => {
-    const nextHistory = await window.vincodeLab.database.listHistory(connectionId)
+    const nextHistory = await databaseBridge.database.listHistory(connectionId)
     if (selectedConnectionId.current !== connectionId) return
     setHistory(nextHistory)
     setQueryHistoryRefreshFailure((current) => current?.connectionId === connectionId ? null : current)
@@ -827,8 +728,8 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
     const editId = editingConnectionIdRef.current
     const input = connectionInput(draft)
     const savedConnection = editId
-      ? await window.vincodeLab.database.updateConnection(editId, input)
-      : await window.vincodeLab.database.createConnection(input)
+      ? await databaseBridge.database.updateConnection(editId, input)
+      : await databaseBridge.database.createConnection(input)
     const identity = connectionDraftIdentity(workspace, editId)
     const savedContent = JSON.stringify(draft)
     commitVolatileDraft(identity, savedContent)
@@ -917,7 +818,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
       detail: 'Saranno eliminate anche query salvate e cronologia locali di questa connessione.',
       confirmLabel: 'Elimina connessione',
       destructive: true,
-      onConfirm: () => void window.vincodeLab.database.deleteConnection(connection.id).then(async () => {
+      onConfirm: () => void databaseBridge.database.deleteConnection(connection.id).then(async () => {
         if (selected?.id === connection.id) selectConnection(null)
         await loadConnections()
       }).catch((error) => {
@@ -929,7 +830,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
 
   async function refreshSavedQueries(connectionId: string) {
     try {
-      setSavedQueries(await window.vincodeLab.database.listSavedQueries(connectionId))
+      setSavedQueries(await databaseBridge.database.listSavedQueries(connectionId))
     } catch (error) {
       const incident = reportDatabaseFailure(error, 'refresh-saved-queries', 'Elenco query salvate non aggiornato', 'L’ultima modifica è già al sicuro. Aggiorna soltanto l’elenco, senza ripetere il salvataggio o l’eliminazione.', 'warning')
       showDatabaseWarningToast(incident, { label: 'Aggiorna elenco', onClick: () => { void refreshSavedQueries(connectionId) } })
@@ -941,7 +842,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
     const connectionId = selectedConnectionId.current
     if (!connectionId) throw new Error('Seleziona una connessione prima di salvare la query SQL.')
     if (!content.trim()) throw new Error('La query SQL vuota non può essere salvata automaticamente.')
-    const saved = await window.vincodeLab.database.saveQuery({ connectionId, name: `Query ${new Date().toLocaleTimeString('it-IT')}`, sql: content })
+    const saved = await databaseBridge.database.saveQuery({ connectionId, name: `Query ${new Date().toLocaleTimeString('it-IT')}`, sql: content })
     sqlBaseline.current = { content, savedQueryId: saved.id }
     commitVolatileDraft(sqlDraftIdentity(workspace, connectionId), content)
     setActiveSavedQueryId(sqlRef.current === content ? saved.id : null)
@@ -962,7 +863,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
       destructive: true,
       onConfirm: () => void (async () => {
         try {
-          await window.vincodeLab.database.deleteSavedQuery(query.id)
+          await databaseBridge.database.deleteSavedQuery(query.id)
         } catch (error) {
           const incident = reportDatabaseFailure(error, 'delete-saved-query', 'Query salvata non eliminata', `“${query.name}” è rimasta disponibile. Riprova.`)
           showDatabaseErrorToast(incident, { label: 'Riapri conferma', onClick: () => deleteSavedQuery(query) })
@@ -981,7 +882,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
       detail: `Saranno rimosse ${history.length} query eseguite per ${selected.name}. Le query salvate non verranno modificate.`,
       confirmLabel: 'Pulisci cronologia',
       destructive: true,
-      onConfirm: () => void window.vincodeLab.database.clearHistory(connectionId).then((outcome) => {
+      onConfirm: () => void databaseBridge.database.clearHistory(connectionId).then((outcome) => {
         if (selectedConnectionId.current === connectionId) setHistory([])
         toast.success(`${outcome.deleted} query rimosse dalla cronologia.`)
       }).catch((error) => {
@@ -999,7 +900,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
     const connection = selected
     setToolbarAction('schema')
     try {
-      const nextSchema = await window.vincodeLab.database.inspectSchema(connection.id, { force: true })
+      const nextSchema = await databaseBridge.database.inspectSchema(connection.id, { force: true })
       if (selectedConnectionId.current === connection.id) {
         setSchema(nextSchema)
         setTableRevision((current) => current + 1)
@@ -1015,7 +916,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
     const connectionId = selected.id
     publishToolbarAction('begin')
     try {
-      const outcome = await window.vincodeLab.database.begin(connectionId)
+      const outcome = await databaseBridge.database.begin(connectionId)
       if (selectedConnectionId.current === connectionId) publishTransactionActive(outcome.active, connectionId)
       toast.success('Transazione avviata.', { description: 'Le modifiche restano temporanee finché non scegli Commit.' })
     } catch (error) {
@@ -1029,7 +930,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
     if (toolbarActionRef.current) throw new Error('Attendi il completamento dell’operazione Database in corso e riprova.')
     publishToolbarAction(action)
     try {
-      const outcome = await window.vincodeLab.database[action](connectionId)
+      const outcome = await databaseBridge.database[action](connectionId)
       if (outcome.active) throw new Error('Il database segnala che la transazione è ancora attiva.')
       publishTransactionActive(false)
       if (selectedConnectionId.current === connectionId) setTableRevision((current) => current + 1)
@@ -1063,7 +964,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
     const request = ++tableRequest.current
     setTableLoading(true)
     setTableError(null)
-    void window.vincodeLab.database.tableRows(selected.id, selectedTableName, { filter: tableFilter, offset: tablePage.offset + tablePage.rows.length }).then((nextPage) => {
+    void databaseBridge.database.tableRows(selected.id, selectedTableName, { filter: tableFilter, offset: tablePage.offset + tablePage.rows.length }).then((nextPage) => {
       if (request !== tableRequest.current || selectedConnectionId.current !== selected.id) return
       setTablePage((current) => current ? { ...nextPage, rows: [...current.rows, ...nextPage.rows], offset: current.offset } : nextPage)
     }).catch((error) => {
@@ -1082,7 +983,7 @@ export function DatabaseWorkspace({ workspace, focusRequest = 0, initialState, o
       onConfirm: () => {
         tableUpdateInFlight.current = true
         setTableError(null)
-        void window.vincodeLab.database.updateTableRows(connectionId, tableName, changes).then((outcome) => {
+        void databaseBridge.database.updateTableRows(connectionId, tableName, changes).then((outcome) => {
           toast.success(`${outcome.updated} righe aggiornate nella transazione.`)
           tableDraftGuard.current?.discardAll()
           setTableRevision((current) => current + 1)

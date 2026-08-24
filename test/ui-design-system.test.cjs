@@ -1121,7 +1121,7 @@ test('Database separa SQL e dati in sotto-tab locali e apre i dati dopo una quer
   assert.match(workspace, /<Tabs\.Content value="sql"[^>]*>[\s\S]*?aria-label="Editor SQL"/)
   assert.match(workspace, /<Tabs\.Content value="data"[^>]*>[\s\S]*?<DatabaseTableGrid/)
   assert.doesNotMatch(workspace, /role="(?:tablist|tab)"|aria-controls="database-(?:sql|data)-panel"/)
-  assert.match(workspace, /const execute =[\s\S]*?setDatabaseView\('sql'\)[\s\S]*?await window\.vincodeLab\.database\.execute[\s\S]*?setSelectedTableName\(null\)[\s\S]*?setDatabaseView\('data'\)/)
+  assert.match(workspace, /const execute =[\s\S]*?setDatabaseView\('sql'\)[\s\S]*?await databaseBridge\.database\.execute[\s\S]*?setSelectedTableName\(null\)[\s\S]*?setDatabaseView\('data'\)/)
   assert.match(workspace, /const pendingResultsFocus = useRef\(false\)/)
   assert.match(workspace, /pendingResultsFocus\.current = true[\s\S]*?setDatabaseView\('data'\)/)
   assert.match(workspace, /databaseView !== 'data'[\s\S]*?resultsRegion\.current[\s\S]*?region\.focus\(\)[\s\S]*?document\.activeElement === region/)

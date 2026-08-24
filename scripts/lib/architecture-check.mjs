@@ -11,7 +11,6 @@ const sourceRoots = ['src', 'electron']
 export const legacyDirectBridgeFiles = new Map([
   ['src/App.tsx', 40],
   ['src/components/benchmark-view-fault-probe.tsx', 1],
-  ['src/components/database-workspace.tsx', 22],
   ['src/components/free-terminal.tsx', 27],
   ['src/components/github-workspace.tsx', 30],
   ['src/components/project-instructions.tsx', 7],

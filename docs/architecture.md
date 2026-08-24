@@ -86,6 +86,8 @@ Il controller della vista, il modello puro, i tipi di dominio, l'input numerico 
 
 ### Database
 
+`src/features/database/` possiede tipi, normalizzazione delle connessioni e delle bozze, identità persistenti, copy degli errori e accesso al preload. Il controller React resta temporaneamente dietro la facciata `src/components/database-workspace.tsx`: request revision, istanza CodeMirror, transazioni, griglia e guardia workspace non vengono separati finché i relativi invarianti non sono coperti da test comportamentali dedicati.
+
 Il contratto comune in `electron/database-service.cjs` normalizza SQLite, PostgreSQL, MySQL e SQL Server. Le sessioni e le operazioni attive appartengono al main; il renderer riceve schemi e risultati sottoposti a budget. Le mutazioni della griglia avvengono in una transazione esplicita.
 
 SQLite usa un worker dedicato, così query e cancellazione non bloccano il processo principale.
