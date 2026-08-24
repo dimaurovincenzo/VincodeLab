@@ -26,6 +26,12 @@ export const shellStyles = {
     h: 'toolbar',
     minW: '0',
     px: '4',
+    '@media (max-width: 1340px)': {
+      h: 'auto',
+      minH: '14',
+      pb: '2',
+      pt: '2',
+    },
     '@media (max-width: 900px)': {
       gap: '2',
       gridTemplateColumns: 'minmax(0, 1fr) auto',
@@ -42,11 +48,20 @@ export const shellStyles = {
     gridColumn: '3',
     justifySelf: 'end',
     maxW: 'full',
+    minW: '0',
     overflowX: 'auto',
     scrollbarWidth: 'none',
+    w: 'full',
     '&::-webkit-scrollbar': { display: 'none' },
+    '& [data-scope="tabs"][data-part="trigger"]': { gap: '1', px: '1.5' },
+    '@media (max-width: 1340px)': {
+      gridColumn: '1 / -1',
+      justifyContent: 'center',
+      justifySelf: 'stretch',
+    },
     '@media (max-width: 900px)': {
       gridColumn: '1 / -1',
+      justifyContent: 'flex-start',
       justifySelf: 'stretch',
       order: '4',
       w: 'full',
