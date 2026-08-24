@@ -7,12 +7,13 @@ const read = (relativePath) => fs.readFileSync(path.join(__dirname, '..', relati
 
 test('main e preload espongono un flusso sequenziale con resume e ACK', () => {
   const main = read('electron/main.cjs')
+  const aiTerminalIpc = read('electron/ipc/domains/ai-terminal.ipc.cjs')
   const preload = read('electron/preload.cjs')
 
   assert.match(main, /createTerminalStreamController/)
-  assert.match(main, /ipcMain\.handle\('terminal:resume'/)
-  assert.match(main, /ipcMain\.on\('terminal:ready'/)
-  assert.match(main, /ipcMain\.on\('terminal:ack'/)
+  assert.match(aiTerminalIpc, /\['terminal:resume'/)
+  assert.match(aiTerminalIpc, /\['terminal:ready'/)
+  assert.match(aiTerminalIpc, /\['terminal:ack'/)
   assert.match(main, /sendToRenderer\('terminal:output'/)
   assert.match(main, /sendToRenderer\('terminal:streamState'/)
   assert.match(preload, /resume: \(request\) => ipcRenderer\.invoke\('terminal:resume', request\)/)
@@ -33,8 +34,11 @@ test('la migrazione elimina lo storico stringa e i canali legacy', () => {
 
 test('i messaggi del flusso vengono accettati solo dalla finestra attendibile', () => {
   const main = read('electron/main.cjs')
+  const aiTerminalIpc = read('electron/ipc/domains/ai-terminal.ipc.cjs')
 
-  assert.match(main, /ipcMain\.handle\('terminal:resume',[\s\S]{0,240}assertTrustedSender\(event\)/)
-  assert.match(main, /ipcMain\.on\('terminal:ready',[\s\S]{0,240}assertTrustedSender\(event\)/)
-  assert.match(main, /ipcMain\.on\('terminal:ack',[\s\S]{0,240}assertTrustedSender\(event\)/)
+  assert.match(aiTerminalIpc, /\['terminal:resume',[\s\S]{0,240}assertTrustedSender\(event\)/)
+  assert.match(aiTerminalIpc, /\['terminal:ready',[\s\S]{0,240}assertTrustedSender\(event\)/)
+  assert.match(aiTerminalIpc, /\['terminal:ack',[\s\S]{0,240}assertTrustedSender\(event\)/)
+  assert.match(main, /registerAiTerminalIpc\(\{/)
+  assert.doesNotMatch(main, /ipcMain\.(?:handle|on)\('(terminal|piConfig|pi):/)
 })

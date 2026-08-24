@@ -3,17 +3,132 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 
+const {
+  SHELL_SESSIONS_INVOKE_CHANNELS,
+  SHELL_SESSIONS_SEND_CHANNELS,
+  createShellSessionsHandlers,
+  createShellSessionsListeners,
+  registerShellSessionsIpc,
+} = require('../electron/ipc/domains/shell-sessions.ipc.cjs')
+
 const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
 const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
 const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
 
-function registrationBlock(source, kind, channel) {
-  const marker = `ipcMain.${kind}('${channel}'`
-  const start = source.indexOf(marker)
-  assert.notEqual(start, -1, `registrazione ${channel} assente`)
-  const next = source.indexOf('\n  ipcMain.', start + marker.length)
-  return source.slice(start, next === -1 ? undefined : next)
+function createHarness(overrides = {}) {
+  const calls = []
+  const shellSessionManager = {
+    ack: (...args) => calls.push(['ack', ...args]),
+    close: (...args) => ({ action: 'close', args }),
+    create: (...args) => ({ action: 'create', args }),
+    disconnect: (...args) => calls.push(['disconnect', ...args]),
+    focus: (...args) => ({ action: 'focus', args }),
+    list: (...args) => {
+      calls.push(['list', ...args])
+      return { activeSessionId: 'session-1', sessions: [{ id: 'session-1' }], internal: true }
+    },
+    rendererReady: (...args) => calls.push(['ready', ...args]),
+    resize: (...args) => calls.push(['resize', ...args]),
+    restart: (...args) => ({ action: 'restart', args }),
+    resume: (...args) => ({ action: 'resume', args }),
+    write: (...args) => calls.push(['write', ...args]),
+  }
+  const dependencies = {
+    assertTrustedSender: (event) => calls.push(['guard', event]),
+    handleShellSessionOneWay: (event, sessionId, operation, perform) => {
+      calls.push(['one-way', event, sessionId, operation])
+      return perform()
+    },
+    requireActiveWorkspace: () => '/workspace',
+    shellSessionManager,
+    ...overrides,
+  }
+  return {
+    calls,
+    dependencies,
+    handlers: createShellSessionsHandlers(dependencies),
+    listeners: createShellSessionsListeners(dependencies),
+  }
 }
+
+test('registra manifesti invoke e send senza ownership duplicata', () => {
+  const handles = []
+  const listeners = []
+  const confined = []
+  const { dependencies } = createHarness()
+  const result = registerShellSessionsIpc({
+    ...dependencies,
+    confineIpcOneWay: (channel, listener) => {
+      confined.push(channel)
+      return listener
+    },
+    ipcMain: {
+      handle: (channel, handler) => handles.push([channel, handler]),
+      on: (channel, listener) => listeners.push([channel, listener]),
+    },
+  })
+
+  assert.deepEqual(handles.map(([channel]) => channel), [...SHELL_SESSIONS_INVOKE_CHANNELS])
+  assert.deepEqual(listeners.map(([channel]) => channel), [...SHELL_SESSIONS_SEND_CHANNELS])
+  assert.deepEqual(confined, [...SHELL_SESSIONS_SEND_CHANNELS])
+  assert.deepEqual(result.invokeChannels, SHELL_SESSIONS_INVOKE_CHANNELS)
+  assert.deepEqual(result.sendChannels, SHELL_SESSIONS_SEND_CHANNELS)
+  assert.equal(Object.isFrozen(result), true)
+})
+
+test('gli invoke verificano il sender e conservano workspace, argomenti e risultati', () => {
+  const { calls, handlers } = createHarness()
+  const event = { sender: { id: 7 } }
+
+  assert.deepEqual(handlers.get('shellSessions:list')(event), {
+    activeSessionId: 'session-1',
+    sessions: [{ id: 'session-1' }],
+  })
+  assert.deepEqual(handlers.get('shellSessions:resume')(event, 'session-2'), { action: 'resume', args: ['/workspace', 'session-2'] })
+  assert.deepEqual(handlers.get('shellSessions:create')(event), { action: 'create', args: ['/workspace'] })
+  assert.deepEqual(handlers.get('shellSessions:focus')(event, 'session-2'), { action: 'focus', args: ['/workspace', 'session-2'] })
+  assert.deepEqual(handlers.get('shellSessions:restart')(event, 'session-2'), { action: 'restart', args: ['/workspace', 'session-2'] })
+  assert.deepEqual(handlers.get('shellSessions:close')(event, 'session-2'), { action: 'close', args: ['/workspace', 'session-2'] })
+  assert.equal(calls.filter(([type]) => type === 'guard').length, 6)
+})
+
+test('i listener one-way restano confinati e inoltrano solo la sessione richiesta', () => {
+  const { calls, listeners } = createHarness()
+  const event = { sender: { id: 7 } }
+  const message = { generation: 3 }
+  const dimensions = { cols: 120, rows: 40 }
+
+  listeners.get('shellSessions:ready')(event, 'session-1', message)
+  listeners.get('shellSessions:ack')(event, 'session-1', message)
+  listeners.get('shellSessions:disconnect')(event, 'session-1', message)
+  listeners.get('shellSessions:write')(event, 'session-1', 'pwd\r')
+  listeners.get('shellSessions:resize')(event, 'session-1', dimensions)
+
+  assert.deepEqual(calls.filter(([type]) => type === 'one-way').map((entry) => entry.slice(2)), [
+    ['session-1', 'ready'],
+    ['session-1', 'ack'],
+    ['session-1', 'disconnect'],
+    ['session-1', 'write'],
+    ['session-1', 'resize'],
+  ])
+  assert.deepEqual(calls.find(([type]) => type === 'ready'), ['ready', '/workspace', 'session-1', message])
+  assert.deepEqual(calls.find(([type]) => type === 'ack'), ['ack', '/workspace', 'session-1', message])
+  assert.deepEqual(calls.find(([type]) => type === 'disconnect'), ['disconnect', '/workspace', 'session-1', message])
+  assert.deepEqual(calls.find(([type]) => type === 'write'), ['write', '/workspace', 'session-1', 'pwd\r'])
+  assert.deepEqual(calls.find(([type]) => type === 'resize'), ['resize', '/workspace', 'session-1', dimensions])
+})
+
+test('un sender rifiutato non raggiunge manager o confine operativo', () => {
+  const rejection = new Error('sender rifiutato')
+  const { calls, handlers, listeners } = createHarness({ assertTrustedSender: () => { throw rejection } })
+
+  assert.throws(() => handlers.get('shellSessions:list')({ sender: { id: 7 } }), (error) => error === rejection)
+  assert.throws(
+    () => listeners.get('shellSessions:write')({ sender: { id: 7 } }, 'session-1', 'pwd\r'),
+    (error) => error === rejection,
+  )
+  assert.equal(calls.some(([type]) => type === 'list' || type === 'one-way' || type === 'write'), false)
+})
 
 test('il preload espone sessioni tipizzate senza accettare un workspace path', () => {
   const start = preload.indexOf('shellSessions: {')
@@ -41,25 +156,17 @@ test('il preload espone sessioni tipizzate senza accettare un workspace path', (
   assert.match(types, /onError: \(listener: \(event: ShellSessionErrorEvent\)/)
 })
 
-test('ogni operazione multi-terminale è trusted e deriva il workspace nel main process', () => {
-  for (const channel of ['shellSessions:list', 'shellSessions:resume', 'shellSessions:create', 'shellSessions:focus', 'shellSessions:restart', 'shellSessions:close']) {
-    const block = registrationBlock(main, 'handle', channel)
-    assert.match(block, /assertTrustedSender\(event\)/)
-    assert.match(block, /requireActiveWorkspace\(\)/)
-  }
-  for (const channel of ['shellSessions:ready', 'shellSessions:ack', 'shellSessions:disconnect', 'shellSessions:write', 'shellSessions:resize']) {
-    const block = registrationBlock(main, 'on', channel)
-    assert.match(block, /assertTrustedSender\(event\)/)
-    assert.match(block, /requireActiveWorkspace\(\)/)
-    assert.match(block, /handleShellSessionOneWay\(event, sessionId/)
-  }
+test('main registra il dominio sessioni una volta e conserva il confine one-way', () => {
+  assert.match(main, /registerShellSessionsIpc\(\{/)
+  assert.doesNotMatch(main, /ipcMain\.(?:handle|on)\('shellSessions:/)
+  assert.match(main, /function handleShellSessionOneWay\(event, sessionId, operation, perform\)/)
+  assert.match(main, /reportShellSessionOneWayFailure\(\{[\s\S]*sessionId,[\s\S]*send:/)
   assert.doesNotMatch(main, /shell_session_(?:ready|ack|disconnect|input|resize)_rejected/)
 })
 
 test('ogni chunk terminale attraversa un solo canale IPC tipizzato', () => {
   assert.match(main, /sendToRenderer\('shellSessions:data', \{[\s\S]*sessionId: event\.sessionId,[\s\S]*attachmentId: event\.attachmentId,[\s\S]*generation: event\.generation,[\s\S]*sequence: event\.sequence,[\s\S]*data: event\.data/)
   assert.match(main, /sendToRenderer\('shellSessions:exit', payload\)/)
-  assert.match(main, /reportShellSessionOneWayFailure\(\{[\s\S]*sessionId,[\s\S]*send:/)
   assert.doesNotMatch(main, /let shellProcess|let shellWorkspacePath/)
   assert.doesNotMatch(main, /['"]shell:(?:start|restart|input|resize|data|exit)['"]/)
   assert.doesNotMatch(preload, /\bshell: \{/)

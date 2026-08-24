@@ -5,11 +5,12 @@ const test = require('node:test')
 
 test('il terminale ripristina l’output Pi già prodotto dopo il rimontaggio della vista', () => {
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const aiTerminalIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8')
   const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
   const app = fs.readFileSync(path.join(__dirname, '../src/App.tsx'), 'utf8')
 
   assert.match(main, /createTerminalStreamController/)
-  assert.match(main, /ipcMain\.handle\('terminal:resume'/)
+  assert.match(aiTerminalIpc, /\['terminal:resume'/)
   assert.match(preload, /resume: \(request\) => ipcRenderer\.invoke\('terminal:resume', request\)/)
   assert.match(app, /appBridge\.terminal\.resume/)
   assert.doesNotMatch(app, /window\.vincodeLab/)

@@ -49,21 +49,23 @@ test('il bridge benchmark esiste soltanto con flag e accetta due comandi allowli
 test('il Terminale AI separa tasti interattivi, input programmatici con ack e paste controllati', () => {
   const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const aiTerminalIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8')
 
   assert.match(preload, /writeKey: \(data\) => ipcRenderer\.send\('terminal:key', data\)/)
   assert.match(preload, /writeInput: \(data\) => ipcRenderer\.invoke\('terminal:writeInput', data\)/)
   assert.match(preload, /startPaste: \(input\) => ipcRenderer\.invoke\('terminal:pasteStart', input\)/)
   assert.match(preload, /writePasteChunk: \(input\) => ipcRenderer\.invoke\('terminal:pasteChunk', input\)/)
   assert.match(preload, /cancelPaste: \(transferId\) => ipcRenderer\.invoke\('terminal:pasteCancel', transferId\)/)
-  assert.match(main, /ipcMain\.on\('terminal:key'/)
-  assert.match(main, /ipcMain\.handle\('terminal:writeInput'/)
-  assert.match(main, /return \{ accepted: true, bytes \}/)
+  assert.match(aiTerminalIpc, /\['terminal:key'/)
+  assert.match(aiTerminalIpc, /\['terminal:writeInput'/)
+  assert.match(aiTerminalIpc, /return \{ accepted: true, bytes \}/)
+  assert.match(main, /registerAiTerminalIpc\(\{/)
   assert.doesNotMatch(main, /terminal:input|writeTerminalInput/)
 })
 
 test('il Terminale AI e piConfig espongono failure one-way classificati', () => {
   const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
-  const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const aiTerminalIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8')
   const types = fs.readFileSync(path.join(__dirname, '../src/vincode-lab.d.ts'), 'utf8')
 
   assert.match(preload, /ipcRenderer\.on\('terminal:error'/)
@@ -71,22 +73,22 @@ test('il Terminale AI e piConfig espongono failure one-way classificati', () => 
   assert.match(types, /writeInput: \(data: string\) => Promise<\{ accepted: true; bytes: number \}>/)
   assert.match(types, /onError: \(listener: \(event: TerminalErrorEvent\)/)
   assert.match(types, /onError: \(listener: \(event: PiConfigErrorEvent\)/)
-  assert.match(main, /confineIpcOneWay\('terminal:key'/)
-  assert.match(main, /confineIpcOneWay\('terminal:resize'/)
-  assert.match(main, /confineIpcOneWay\('piConfig:input'/)
-  assert.match(main, /confineIpcOneWay\('piConfig:resize'/)
+  assert.match(aiTerminalIpc, /confineIpcOneWay\(channel, listener\)/)
+  for (const channel of ['terminal:key', 'terminal:resize', 'piConfig:input', 'piConfig:resize']) {
+    assert.match(aiTerminalIpc, new RegExp(`\\['${channel}'`))
+  }
 })
 
 test('il Terminale AI espone diagnostica numerica senza percorso di esportazione dal renderer', () => {
   const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
-  const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const aiTerminalIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8')
 
   assert.match(preload, /reportRendererMetrics: \(metrics\) => ipcRenderer\.send\('terminal:rendererMetrics', metrics\)/)
   assert.match(preload, /diagnostics: \(\) => ipcRenderer\.invoke\('terminal:diagnostics'\)/)
   assert.match(preload, /exportDiagnostics: \(\) => ipcRenderer\.invoke\('terminal:exportDiagnostics'\)/)
-  assert.match(main, /ipcMain\.on\('terminal:rendererMetrics'/)
-  assert.match(main, /ipcMain\.handle\('terminal:diagnostics'/)
-  assert.match(main, /ipcMain\.handle\('terminal:exportDiagnostics'/)
+  assert.match(aiTerminalIpc, /\['terminal:rendererMetrics'/)
+  assert.match(aiTerminalIpc, /\['terminal:diagnostics'/)
+  assert.match(aiTerminalIpc, /\['terminal:exportDiagnostics'/)
   assert.doesNotMatch(preload, /exportDiagnostics: \([^)]*filePath/)
 })
 
@@ -236,31 +238,39 @@ test('ogni API invoke esposta dal preload ha un handler nel main process', () =>
 test('preload espone i comandi workspace senza scrivere direttamente nella shell', () => {
   const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const workspaceCommandsIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/workspace-commands.ipc.cjs'), 'utf8')
   const workspaceCommands = preload.slice(preload.indexOf('workspaceCommands:'), preload.indexOf('\n  shell:'))
 
   assert.match(preload, /workspaceCommands: \{[\s\S]*run: \(commandId\) => ipcRenderer\.invoke\('workspaceCommands:run', commandId\)/)
   assert.doesNotMatch(workspaceCommands, /shell:input/)
-  assert.match(main, /const activeSession = requireRunningShellSession\(workspacePath\)/)
-  assert.match(main, /shellSessionManager\.write\(workspacePath, activeSession\.sessionId/)
-  assert.match(main, /getWorkspaceCommand\(workspacePath, commandId\)/)
+  assert.match(workspaceCommandsIpc, /const activeSession = requireRunningShellSession\(workspacePath\)/)
+  assert.match(workspaceCommandsIpc, /shellSessionManager\.write\(workspacePath, activeSession\.sessionId/)
+  assert.match(workspaceCommandsIpc, /getWorkspaceCommand\(workspacePath, commandId\)/)
+  assert.match(main, /registerWorkspaceCommandsIpc\(\{/)
+  assert.doesNotMatch(main, /ipcMain\.handle\('workspaceCommands:/)
 })
 
 test('preload espone allegati Pi senza accesso filesystem nel renderer', () => {
   const preload = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const aiTerminalIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/ai-terminal.ipc.cjs'), 'utf8')
 
   assert.match(preload, /webUtils\.getPathForFile/)
   assert.match(preload, /chooseAttachments: \(\) => ipcRenderer\.invoke\('terminal:chooseAttachments'\)/)
   assert.match(preload, /prepareDroppedAttachments: \(files\) => ipcRenderer\.invoke\('terminal:prepareDroppedAttachments'/)
   assert.doesNotMatch(preload, /node:fs/)
-  assert.match(main, /ipcMain\.handle\('terminal:chooseAttachments'/)
-  assert.match(main, /ipcMain\.handle\('terminal:prepareDroppedAttachments'/)
-  assert.match(main, /prepareTerminalAttachment/)
+  assert.match(aiTerminalIpc, /\['terminal:chooseAttachments'/)
+  assert.match(aiTerminalIpc, /\['terminal:prepareDroppedAttachments'/)
+  assert.match(aiTerminalIpc, /prepareTerminalAttachment/)
+  assert.match(main, /registerAiTerminalIpc\(\{/)
 })
 
 test('preload espone file remoti con ID opachi e handler confinati', () => {
   const preloadSource = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8')
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
+  const managedSshIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/managed-ssh.ipc.cjs'), 'utf8')
+  const remoteFilesIpc = fs.readFileSync(path.join(__dirname, '../electron/ipc/domains/remote-files.ipc.cjs'), 'utf8')
+  const remoteIpc = `${managedSshIpc}\n${remoteFilesIpc}`
   const start = preloadSource.indexOf('managedSsh:')
   const end = preloadSource.indexOf('\n  database:', start)
   const remotePreload = start >= 0 ? preloadSource.slice(start, end >= 0 ? end : undefined) : ''
@@ -273,5 +283,8 @@ test('preload espone file remoti con ID opachi e handler confinati', () => {
     'managedSsh:list', 'managedSsh:check', 'managedSsh:disconnect',
     'remoteFiles:browse', 'remoteFiles:downloadAndTrack', 'remoteFiles:read',
     'remoteFiles:saveLocal', 'remoteFiles:compare', 'remoteFiles:upload', 'remoteFiles:revealLocal',
-  ]) assert.match(main, new RegExp(`ipcMain\\.handle\\('${channel}'[\\s\\S]{0,260}assertTrustedSender`))
+  ]) assert.match(remoteIpc, new RegExp(`\\['${channel}'[\\s\\S]{0,260}assertTrustedSender`))
+  assert.match(main, /registerManagedSshIpc\(\{/)
+  assert.match(main, /registerRemoteFilesIpc\(\{/)
+  assert.doesNotMatch(main, /ipcMain\.handle\('(managedSsh|remoteFiles):/)
 })

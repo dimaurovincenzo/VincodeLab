@@ -57,6 +57,7 @@ const { createRendererRecoveryController } = require('./renderer-recovery-contro
 const { createWindowCloseCoordinator } = require('./window-close-coordinator.cjs')
 const { createPtyRuntime } = require('./pty-runtime.cjs')
 const { getRuntimeCapabilities } = require('./runtime-capabilities.cjs')
+const { registerAiTerminalIpc } = require('./ipc/domains/ai-terminal.ipc.cjs')
 const { registerPreferencesIpc } = require('./ipc/domains/preferences.ipc.cjs')
 const { registerRuntimeIpc } = require('./ipc/domains/runtime.ipc.cjs')
 const { registerAppearanceIpc } = require('./ipc/domains/appearance.ipc.cjs')
@@ -64,10 +65,15 @@ const { registerDatabaseIpc } = require('./ipc/domains/database.ipc.cjs')
 const { registerFilesystemIpc } = require('./ipc/domains/filesystem.ipc.cjs')
 const { registerGitIpc } = require('./ipc/domains/git.ipc.cjs')
 const { registerGithubIpc } = require('./ipc/domains/github.ipc.cjs')
+const { registerManagedSshIpc } = require('./ipc/domains/managed-ssh.ipc.cjs')
 const { registerPiSystemIpc } = require('./ipc/domains/pi-system.ipc.cjs')
 const { registerProjectResourcesIpc } = require('./ipc/domains/project-resources.ipc.cjs')
+const { registerRedisIpc } = require('./ipc/domains/redis.ipc.cjs')
+const { registerRemoteFilesIpc } = require('./ipc/domains/remote-files.ipc.cjs')
+const { registerShellSessionsIpc } = require('./ipc/domains/shell-sessions.ipc.cjs')
 const { registerSystemSkillsIpc } = require('./ipc/domains/system-skills.ipc.cjs')
 const { registerUpdatesIpc } = require('./ipc/domains/updates.ipc.cjs')
+const { registerWorkspaceCommandsIpc } = require('./ipc/domains/workspace-commands.ipc.cjs')
 const { registerWorkspaceStateIpc } = require('./ipc/domains/workspace-state.ipc.cjs')
 
 // Ogni invoke attraversa lo stesso confine: gli errori raw restano nel main,
@@ -1450,85 +1456,26 @@ async function initializeApplication() {
     updateIssue,
     updateWorkspaceProjectItem,
   })
-  ipcMain.handle('pi:reload', (event) => {
-    assertTrustedSender(event)
-    return reloadPi()
-  })
-  ipcMain.handle('pi:restart', (event) => {
-    assertTrustedSender(event)
-    return restartPi()
-  })
-  ipcMain.handle('terminal:resume', (event) => { assertTrustedSender(event); const stream = piSessionController.getStream(); if (!stream) throw new Error('La sessione Pi non è attiva.'); return stream.createResumeSnapshot() })
-  ipcMain.on('terminal:ready', confineIpcOneWay('terminal:ready', (event, message) => {
-    assertTrustedSender(event)
-    const stream = piSessionController.getStream()
-    if (!stream || !stream.rendererReady(message)) rejectOneWay('TERMINAL_READY_REJECTED', 'Il collegamento renderer non è stato accettato.')
-  }))
-  ipcMain.on('terminal:ack', confineIpcOneWay('terminal:ack', (event, message) => {
-    assertTrustedSender(event)
-    const stream = piSessionController.getStream()
-    if (!stream || !stream.ack(message)) rejectOneWay('TERMINAL_ACK_REJECTED', 'La conferma renderer non è stata accettata.')
-  }))
-  ipcMain.on('terminal:key', confineIpcOneWay('terminal:key', (event, data) => {
-    assertTrustedSender(event)
-    if (!piSessionController.write(data)) rejectOneWay('TERMINAL_INPUT_REJECTED', 'Il processo Pi non ha accettato l’input.')
-  }))
-  ipcMain.handle('terminal:writeInput', (event, data) => {
-    assertTrustedSender(event)
-    const bytes = typeof data === 'string' ? Buffer.byteLength(data, 'utf8') : 0
-    if (typeof data !== 'string' || bytes === 0 || bytes > 65_536) {
-      throw toApplicationError(new Error('Input programmatico non valido.'), {
-        category: 'validation',
-        channel: 'terminal:writeInput',
-        code: 'TERMINAL_WRITE_INPUT_INVALID',
-        domain: 'terminal',
-        message: 'Il testo da inviare al Terminale AI non è valido.',
-        operation: 'writeInput',
-        recoverable: true,
-        severity: 'warning',
-      })
-    }
-    if (!piSessionController.write(data)) {
-      throw toApplicationError(new Error('Il processo Pi non ha accettato l’input programmatico.'), {
-        channel: 'terminal:writeInput',
-        code: 'TERMINAL_WRITE_INPUT_FAILED',
-        domain: 'terminal',
-        message: 'Il testo non è stato inviato al Terminale AI. La sessione è rimasta disponibile.',
-        operation: 'writeInput',
-        recoverable: true,
-      })
-    }
-    return { accepted: true, bytes }
-  })
-  ipcMain.handle('terminal:pasteStart', (event, input) => { assertTrustedSender(event); const inputController = piSessionController.getInput(); if (!inputController) return { accepted: false, reason: 'not-running', totalBytes: input?.totalBytes, limit: MAX_PASTE_BYTES }; return inputController.start(input) })
-  ipcMain.handle('terminal:pasteChunk', (event, input) => { assertTrustedSender(event); const inputController = piSessionController.getInput(); if (!inputController) return { accepted: false, reason: 'not-running', sentBytes: 0, totalBytes: 0 }; return inputController.chunk(input) })
-  ipcMain.handle('terminal:pasteCancel', (event, transferId) => { assertTrustedSender(event); return piSessionController.getInput()?.cancel(transferId) ?? { cancelled: false, sentBytes: 0, totalBytes: 0 } })
-  ipcMain.on('terminal:rendererMetrics', confineIpcOneWay('terminal:rendererMetrics', (event, metrics) => {
-    assertTrustedSender(event)
-    piSessionController.getStream()?.updateRendererMetrics(sanitizeRendererMetrics(metrics))
-  }))
-  ipcMain.handle('terminal:diagnostics', (event) => {
-    assertTrustedSender(event)
-    return createTerminalDiagnosticsReport({ ...(piSessionController.getStream()?.getDiagnostics() ?? {}), paste: piSessionController.getInput()?.getDiagnostics() })
-  })
-  ipcMain.handle('terminal:exportDiagnostics', async (event) => {
-    assertTrustedSender(event)
-    const report = createTerminalDiagnosticsReport({ ...(piSessionController.getStream()?.getDiagnostics() ?? {}), paste: piSessionController.getInput()?.getDiagnostics() })
-    const result = await dialog.showSaveDialog(mainWindow, {
-      title: 'Esporta diagnostica Terminale AI',
-      buttonLabel: 'Esporta',
-      defaultPath: `VincodeLab-terminale-ai-${report.generatedAt.slice(0, 10)}.json`,
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    })
-    if (result.canceled || !result.filePath) return { exported: false }
-    await writeFile(result.filePath, `${JSON.stringify(report, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 })
-    return { exported: true, filePath: result.filePath }
-  })
-  ipcMain.handle('terminal:chooseAttachments', (event) => { assertTrustedSender(event); return chooseTerminalAttachments() })
-  ipcMain.handle('terminal:prepareDroppedAttachments', (event, filePaths) => {
-    assertTrustedSender(event)
-    if (!Array.isArray(filePaths) || filePaths.length > 20) throw new Error('Allegati non validi.')
-    return filePaths.map(prepareTerminalAttachment)
+  registerAiTerminalIpc({
+    assertTrustedSender,
+    chooseTerminalAttachments,
+    confineIpcOneWay,
+    createTerminalDiagnosticsReport,
+    dialog,
+    getMainWindow: () => mainWindow,
+    getPiConfigProcess: () => piConfigProcess,
+    ipcMain,
+    maxPasteBytes: MAX_PASTE_BYTES,
+    piSessionController,
+    prepareTerminalAttachment,
+    rejectOneWay,
+    reloadPi,
+    restartPi,
+    sanitizeRendererMetrics,
+    startPiConfig,
+    stopPiConfig,
+    toApplicationError,
+    writeFile,
   })
   registerSystemSkillsIpc({
     ipcMain,
@@ -1562,187 +1509,44 @@ async function initializeApplication() {
     runExternalMutation,
     updatePiPackage,
   })
-  ipcMain.handle('piConfig:start', (event) => { assertTrustedSender(event); return startPiConfig() })
-  ipcMain.handle('piConfig:close', async (event) => { assertTrustedSender(event); await stopPiConfig(); return { closed: true } })
-  ipcMain.handle('shellSessions:list', (event) => {
-    assertTrustedSender(event)
-    const { activeSessionId, sessions } = shellSessionManager.list(requireActiveWorkspace())
-    return { activeSessionId, sessions }
+  registerShellSessionsIpc({
+    assertTrustedSender,
+    confineIpcOneWay,
+    handleShellSessionOneWay,
+    ipcMain,
+    requireActiveWorkspace,
+    shellSessionManager,
   })
-  ipcMain.handle('shellSessions:resume', (event, sessionId) => {
-    assertTrustedSender(event)
-    return shellSessionManager.resume(requireActiveWorkspace(), sessionId)
+  registerWorkspaceCommandsIpc({
+    assertTrustedSender,
+    createCommandCategory,
+    createWorkspaceCommand,
+    deleteCommandCategory,
+    deleteWorkspaceCommand,
+    getManagedSsh,
+    getWorkspaceCommand,
+    ipcMain,
+    listWorkspaceCommands,
+    moveWorkspaceCommand,
+    requireActiveWorkspace,
+    requireRunningShellSession,
+    shellSessionManager,
+    updateCommandCategory,
+    updateWorkspaceCommand,
   })
-  ipcMain.on('shellSessions:ready', confineIpcOneWay('shellSessions:ready', (event, sessionId, message) => {
-    assertTrustedSender(event)
-    handleShellSessionOneWay(event, sessionId, 'ready', () => shellSessionManager.rendererReady(requireActiveWorkspace(), sessionId, message))
-  }))
-  ipcMain.on('shellSessions:ack', confineIpcOneWay('shellSessions:ack', (event, sessionId, message) => {
-    assertTrustedSender(event)
-    handleShellSessionOneWay(event, sessionId, 'ack', () => shellSessionManager.ack(requireActiveWorkspace(), sessionId, message))
-  }))
-  ipcMain.on('shellSessions:disconnect', confineIpcOneWay('shellSessions:disconnect', (event, sessionId, message) => {
-    assertTrustedSender(event)
-    handleShellSessionOneWay(event, sessionId, 'disconnect', () => shellSessionManager.disconnect(requireActiveWorkspace(), sessionId, message))
-  }))
-  ipcMain.handle('shellSessions:create', (event) => {
-    assertTrustedSender(event)
-    return shellSessionManager.create(requireActiveWorkspace())
+  registerManagedSshIpc({
+    assertTrustedSender,
+    getManagedSsh,
+    getSftpService: () => sftpService,
+    ipcMain,
+    requireActiveWorkspace,
+    requireManagedConnectionForWorkspace,
   })
-  ipcMain.handle('shellSessions:focus', (event, sessionId) => {
-    assertTrustedSender(event)
-    return shellSessionManager.focus(requireActiveWorkspace(), sessionId)
-  })
-  ipcMain.handle('shellSessions:restart', (event, sessionId) => {
-    assertTrustedSender(event)
-    return shellSessionManager.restart(requireActiveWorkspace(), sessionId)
-  })
-  ipcMain.handle('shellSessions:close', (event, sessionId) => {
-    assertTrustedSender(event)
-    return shellSessionManager.close(requireActiveWorkspace(), sessionId)
-  })
-  ipcMain.on('shellSessions:write', confineIpcOneWay('shellSessions:write', (event, sessionId, data) => {
-    assertTrustedSender(event)
-    handleShellSessionOneWay(event, sessionId, 'write', () => shellSessionManager.write(requireActiveWorkspace(), sessionId, data))
-  }))
-  ipcMain.on('shellSessions:resize', confineIpcOneWay('shellSessions:resize', (event, sessionId, dimensions) => {
-    assertTrustedSender(event)
-    handleShellSessionOneWay(event, sessionId, 'resize', () => shellSessionManager.resize(requireActiveWorkspace(), sessionId, dimensions))
-  }))
-  ipcMain.handle('workspaceCommands:list', (event) => {
-    assertTrustedSender(event)
-    return listWorkspaceCommands(requireActiveWorkspace())
-  })
-  ipcMain.handle('workspaceCommands:createCategory', (event, name) => {
-    assertTrustedSender(event)
-    return createCommandCategory(requireActiveWorkspace(), name)
-  })
-  ipcMain.handle('workspaceCommands:updateCategory', (event, categoryId, name) => {
-    assertTrustedSender(event)
-    return updateCommandCategory(requireActiveWorkspace(), categoryId, name)
-  })
-  ipcMain.handle('workspaceCommands:deleteCategory', (event, categoryId) => {
-    assertTrustedSender(event)
-    deleteCommandCategory(requireActiveWorkspace(), categoryId)
-    return { deleted: true }
-  })
-  ipcMain.handle('workspaceCommands:create', (event, input) => {
-    assertTrustedSender(event)
-    return createWorkspaceCommand(requireActiveWorkspace(), input)
-  })
-  ipcMain.handle('workspaceCommands:update', (event, commandId, input) => {
-    assertTrustedSender(event)
-    return updateWorkspaceCommand(requireActiveWorkspace(), commandId, input)
-  })
-  ipcMain.handle('workspaceCommands:move', (event, commandId, categoryId) => {
-    assertTrustedSender(event)
-    moveWorkspaceCommand(requireActiveWorkspace(), commandId, categoryId)
-    return { moved: true }
-  })
-  ipcMain.handle('workspaceCommands:delete', (event, commandId) => {
-    assertTrustedSender(event)
-    deleteWorkspaceCommand(requireActiveWorkspace(), commandId)
-    return { deleted: true }
-  })
-  ipcMain.handle('workspaceCommands:run', (event, commandId) => {
-    assertTrustedSender(event)
-    const workspacePath = requireActiveWorkspace()
-    const activeSession = requireRunningShellSession(workspacePath)
-    const command = getWorkspaceCommand(workspacePath, commandId)
-    if (!command) throw new Error('Comando del workspace non trovato.')
-    if (command.kind === 'ssh') {
-      const service = getManagedSsh()
-      const launch = service.buildTerminalCommand(workspacePath, command)
-      shellSessionManager.write(workspacePath, activeSession.sessionId, `${launch.command}\r`)
-      void service.waitUntilConnected(launch.connection.id)
-      return { executed: true, managedConnectionId: launch.connection.id }
-    }
-    shellSessionManager.write(workspacePath, activeSession.sessionId, `${command.command}\r`)
-    return { executed: true }
-  })
-  ipcMain.handle('managedSsh:list', (event) => {
-    assertTrustedSender(event)
-    return getManagedSsh().list(requireActiveWorkspace())
-  })
-  ipcMain.handle('managedSsh:check', (event, connectionId) => {
-    assertTrustedSender(event)
-    requireManagedConnectionForWorkspace(connectionId)
-    return getManagedSsh().check(connectionId)
-  })
-  ipcMain.handle('managedSsh:disconnect', async (event, connectionId) => {
-    assertTrustedSender(event)
-    requireManagedConnectionForWorkspace(connectionId)
-    if (sftpService) await sftpService.closeConnection(connectionId)
-    await getManagedSsh().disconnect(connectionId)
-    return { disconnected: true }
-  })
-  ipcMain.handle('remoteFiles:browse', (event, connectionId, directoryId) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().browse(requireActiveWorkspace(), connectionId, directoryId)
-  })
-  ipcMain.handle('remoteFiles:downloadAndTrack', (event, entryId) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().downloadAndTrack(requireActiveWorkspace(), entryId)
-  })
-  ipcMain.handle('remoteFiles:downloadAs', (event, entryId) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().downloadAs(requireActiveWorkspace(), entryId)
-  })
-  ipcMain.handle('remoteFiles:read', (event, fileId) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().readLocal(requireActiveWorkspace(), fileId)
-  })
-  ipcMain.handle('remoteFiles:preview', (event, fileId) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().readPreview(requireActiveWorkspace(), fileId)
-  })
-  ipcMain.handle('remoteFiles:saveLocal', (event, fileId, content) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().saveLocal(requireActiveWorkspace(), fileId, content)
-  })
-  ipcMain.handle('remoteFiles:compare', (event, fileId) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().compare(requireActiveWorkspace(), fileId)
-  })
-  ipcMain.handle('remoteFiles:upload', (event, fileId, options) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().upload(requireActiveWorkspace(), fileId, options)
-  })
-  ipcMain.handle('remoteFiles:chooseAndUpload', (event, connectionId, directoryId) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().chooseAndUpload(requireActiveWorkspace(), connectionId, directoryId)
-  })
-  ipcMain.handle('remoteFiles:cancelTransfer', (event, transferId) => {
-    assertTrustedSender(event)
-    return { cancelled: getRemoteFileService().cancelTransfer(requireActiveWorkspace(), transferId) }
-  })
-  ipcMain.handle('remoteFiles:createDirectory', (event, connectionId, parentId, name) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().createDirectory(requireActiveWorkspace(), connectionId, parentId, name)
-  })
-  ipcMain.handle('remoteFiles:rename', (event, entryId, name) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().rename(requireActiveWorkspace(), entryId, name)
-  })
-  ipcMain.handle('remoteFiles:remove', (event, entryId) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().remove(requireActiveWorkspace(), entryId)
-  })
-  ipcMain.handle('remoteFiles:discard', (event, fileId, options) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().discard(requireActiveWorkspace(), fileId, options)
-  })
-  ipcMain.handle('remoteFiles:listTracked', (event) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().listTracked(requireActiveWorkspace())
-  })
-  ipcMain.handle('remoteFiles:revealLocal', (event, fileId) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().revealLocal(requireActiveWorkspace(), fileId)
-  })
-  ipcMain.handle('remoteFiles:cleanup', (event, options) => {
-    assertTrustedSender(event)
-    return getRemoteFileService().cleanup(requireActiveWorkspace(), options)
+  registerRemoteFilesIpc({
+    assertTrustedSender,
+    getRemoteFileService,
+    ipcMain,
+    requireActiveWorkspace,
   })
   registerDatabaseIpc({
     assertTrustedSender,
@@ -1774,143 +1578,31 @@ async function initializeApplication() {
     updateTableRows,
     withCleanupDeadline,
   })
-  ipcMain.handle('redis:listConnections', (event) => {
-    assertTrustedSender(event)
-    return listRedisConnections(requireActiveWorkspace())
+  registerRedisIpc({
+    assertTrustedSender,
+    closeRedisConnectionSession,
+    createPublicError,
+    createRedisConnection,
+    deleteRedisConnection,
+    getRedisConnectionWithSecrets,
+    ipcMain,
+    listRedisConnections,
+    mergeRedisTestConnectionSecrets,
+    randomUUID,
+    readRedisKey,
+    redisInspectionForRenderer,
+    redisOperations,
+    redisSearchForRenderer,
+    redisSummaryForRenderer,
+    requireActiveWorkspace,
+    runWorkspaceMutation,
+    scanRedisKeys,
+    searchRedisKeys,
+    sendToRenderer,
+    testRedisConnectionInput,
+    updateRedisConnection,
+    withCleanupDeadline,
   })
-  ipcMain.handle('redis:createConnection', (event, input) => runWorkspaceMutation(event, 'redis:create-connection', (workspacePath) => createRedisConnection(workspacePath, input)))
-  ipcMain.handle('redis:updateConnection', (event, id, input) => runWorkspaceMutation(event, 'redis:update-connection', async (workspacePath) => {
-    const drain = redisOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === id)
-    await withCleanupDeadline(Promise.all([drain, closeRedisConnectionSession(workspacePath, id)]), 6_000, 'redis-connection-runtime')
-    return updateRedisConnection(workspacePath, id, input)
-  }))
-  ipcMain.handle('redis:deleteConnection', (event, id) => runWorkspaceMutation(event, 'redis:delete-connection', async (workspacePath) => {
-    const drain = redisOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === id)
-    await withCleanupDeadline(Promise.all([drain, closeRedisConnectionSession(workspacePath, id)]), 6_000, 'redis-connection-runtime')
-    deleteRedisConnection(workspacePath, id)
-    return { deleted: true }
-  }))
-  ipcMain.handle('redis:testConnection', async (event, input, connectionId) => {
-    assertTrustedSender(event)
-    const workspacePath = requireActiveWorkspace()
-    let testInput = input
-    if (connectionId !== undefined) {
-      const stored = getRedisConnectionWithSecrets(workspacePath, connectionId)
-      if (!stored) throw createPublicError('REDIS_CONNECTION_NOT_FOUND', 'La connessione Redis del workspace non è più disponibile. Aggiorna l’elenco e riprova.')
-      testInput = mergeRedisTestConnectionSecrets(input, stored)
-    }
-    const operation = redisOperations.start({ operationId: randomUUID(), senderId: event.sender.id, workspacePath, connectionId: connectionId ?? 'draft' })
-    try {
-      return await testRedisConnectionInput(testInput, { signal: operation.signal })
-    } finally {
-      operation.finish()
-    }
-  })
-  ipcMain.handle('redis:scanKeys', async (event, connectionId, input) => {
-    assertTrustedSender(event)
-    const workspacePath = requireActiveWorkspace()
-    const operation = redisOperations.start({ operationId: randomUUID(), senderId: event.sender.id, workspacePath, connectionId })
-    try {
-      const page = await scanRedisKeys(workspacePath, connectionId, {
-        cursor: input?.cursor,
-        match: input?.match,
-        type: input?.type,
-        count: input?.count,
-        signal: operation.signal,
-      })
-      return {
-        cursor: page.nextCursor,
-        keys: page.items.map(redisSummaryForRenderer),
-        scanned: page.scanned,
-        hasMore: !page.complete,
-      }
-    } finally {
-      operation.finish()
-    }
-  })
-  ipcMain.handle('redis:readKey', async (event, connectionId, encodedKey, input) => {
-    assertTrustedSender(event)
-    const workspacePath = requireActiveWorkspace()
-    const operation = redisOperations.start({ operationId: randomUUID(), senderId: event.sender.id, workspacePath, connectionId })
-    try {
-      const inspection = await readRedisKey(workspacePath, connectionId, { encoded: encodedKey }, {
-        cursor: input?.cursor,
-        offset: input?.offset,
-        count: input?.count,
-        signal: operation.signal,
-      })
-      return redisInspectionForRenderer(inspection)
-    } finally {
-      operation.finish()
-    }
-  })
-  ipcMain.handle('redis:reconnect', async (event, connectionId) => {
-    assertTrustedSender(event)
-    const workspacePath = requireActiveWorkspace()
-    await redisOperations.abortAndWaitMatching((operation) => operation.workspacePath === workspacePath && operation.connectionId === connectionId)
-    await closeRedisConnectionSession(workspacePath, connectionId)
-    return { reconnected: true }
-  })
-  ipcMain.handle('redis:searchPayloads', async (event, connectionId, input) => {
-    assertTrustedSender(event)
-    const workspacePath = requireActiveWorkspace()
-    const operation = redisOperations.start({
-      operationId: input?.operationId,
-      senderId: event.sender.id,
-      workspacePath,
-      connectionId,
-    })
-    try {
-      return redisSearchForRenderer(await searchRedisKeys(workspacePath, connectionId, {
-        operationId: input?.operationId,
-        query: input?.query,
-        keyRef: input?.keyRef,
-        keyPattern: input?.keyPattern,
-        type: input?.type,
-        count: input?.count,
-        limit: input?.limit,
-        maxScanned: input?.maxScanned,
-        signal: operation.signal,
-      }, (progress) => {
-        sendToRenderer('redis:searchProgress', redisSearchForRenderer(progress))
-      }))
-    } finally {
-      operation.finish()
-    }
-  })
-  ipcMain.handle('redis:cancel', (event, operationId) => {
-    assertTrustedSender(event)
-    const result = redisOperations.cancel(operationId, event.sender.id)
-    return { cancelled: result.cancelled }
-  })
-  ipcMain.on('piConfig:input', confineIpcOneWay('piConfig:input', (event, data) => {
-    assertTrustedSender(event)
-    if (typeof data !== 'string' || data.length === 0 || Buffer.byteLength(data, 'utf8') > 65_536) {
-      rejectOneWay('PI_CONFIG_INPUT_INVALID', 'Input configurazione non valido.')
-    }
-    if (!piConfigProcess) rejectOneWay('PI_CONFIG_NOT_RUNNING', 'La configurazione di Pi non è attiva.')
-    piConfigProcess.write(data)
-  }))
-  ipcMain.on('piConfig:resize', confineIpcOneWay('piConfig:resize', (event, dimensions) => {
-    assertTrustedSender(event)
-    const cols = Number(dimensions?.cols)
-    const rows = Number(dimensions?.rows)
-    if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols <= 1 || rows <= 1 || cols > 500 || rows > 500) {
-      rejectOneWay('PI_CONFIG_RESIZE_INVALID', 'Dimensioni configurazione non valide.')
-    }
-    if (!piConfigProcess) rejectOneWay('PI_CONFIG_NOT_RUNNING', 'La configurazione di Pi non è attiva.')
-    piConfigProcess.resize(cols, rows)
-  }))
-  ipcMain.on('terminal:resize', confineIpcOneWay('terminal:resize', (event, dimensions) => {
-    assertTrustedSender(event)
-    const cols = Number(dimensions?.cols)
-    const rows = Number(dimensions?.rows)
-    if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols <= 1 || rows <= 1 || cols > 500 || rows > 500) {
-      rejectOneWay('TERMINAL_RESIZE_INVALID', 'Dimensioni Terminale AI non valide.')
-    }
-    if (!piSessionController.resize(cols, rows)) rejectOneWay('TERMINAL_RESIZE_REJECTED', 'Il processo Pi non ha accettato il ridimensionamento.')
-  }))
-
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
