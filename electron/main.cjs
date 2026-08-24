@@ -32,6 +32,7 @@ const { configureRedisSecretStorage, createRedisConnection, deleteRedisConnectio
 const { mergeRedisTestConnectionSecrets } = require('./redis-connection-input.cjs')
 const { closeConnectionSession: closeRedisConnectionSession, closeWorkspaceSessions: closeRedisWorkspaceSessions, readKey: readRedisKey, scanKeys: scanRedisKeys, searchKeys: searchRedisKeys, testConnectionInput: testRedisConnectionInput } = require('./redis-service.cjs')
 const { createRedisOperationRegistry } = require('./redis-operation-registry.cjs')
+const { redisInspectionForRenderer, redisSearchForRenderer, redisSummaryForRenderer } = require('./domains/redis/redis-renderer-serializer.cjs')
 const { createGithubOperationRegistry } = require('./github-operation-registry.cjs')
 const { createExternalMutationRegistry } = require('./external-mutation-registry.cjs')
 const { addGitHubRemote, addWorkspaceIssueToProject, archiveWorkspaceProjectItem, closeWorkspaceProject, commit, createBranch, createGitHubRepository, createIssue, createWorkspaceProject, createWorkspaceProjectDraft, editWorkspaceProject, fetchRemote, getCachedGitHubData, getCachedGitStatus, getCachedProjectBoard, getFileDiff, getWorkspaceProjectItemFields, initializeGitRepository, listBranches, pullRebase, push, revertCommit, stageFiles, switchBranch, unstageFiles, updateIssue, updateWorkspaceProjectItem } = require('./github-service.cjs')
@@ -210,34 +211,6 @@ function publicApplicationErrorPayload(error, options) {
     recoverable: incident.recoverable,
     severity: incident.severity,
   })
-}
-
-function redisKeyForRenderer(keyRef) {
-  if (!keyRef || typeof keyRef !== 'object' || Array.isArray(keyRef) || typeof keyRef.encoded !== 'string') {
-    throw new Error('Riferimento chiave Redis non valido.')
-  }
-  const binary = keyRef.binary === true
-  const display = binary
-    ? `base64:${keyRef.encoded.slice(0, 48)}${keyRef.encoded.length > 48 ? '…' : ''}`
-    : typeof keyRef.display === 'string' && keyRef.display ? keyRef.display : '(chiave vuota)'
-  return { key: display, keyRef: keyRef.encoded, binary }
-}
-
-function redisSummaryForRenderer(summary) {
-  const { key, ...metadata } = summary
-  return { ...redisKeyForRenderer(key), ...metadata }
-}
-
-function redisInspectionForRenderer(inspection) {
-  const { key, resultBytes: _resultBytes, ...value } = inspection
-  return { ...value, ...redisKeyForRenderer(key) }
-}
-
-function redisSearchForRenderer(result) {
-  return {
-    ...result,
-    matches: Array.isArray(result?.matches) ? result.matches.map(redisSummaryForRenderer) : [],
-  }
 }
 
 function workspaceFailure(error, options) {
