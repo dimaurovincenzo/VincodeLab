@@ -35,7 +35,6 @@ type DatabaseApiKey =
   | 'clearHistory'
 
 export type DatabaseBridgeContractAssertions = [
-  Expect<Equal<Window['vincodeLab']['database'], DatabaseApi>>,
   Expect<Equal<VincodeLabBridge['database'], DatabaseApi>>,
   Expect<Equal<keyof DatabaseApi, DatabaseApiKey>>,
 ]

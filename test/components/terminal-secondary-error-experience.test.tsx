@@ -4,7 +4,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TerminalDiagnosticsReport } from '@/bridge'
+import type { TerminalDiagnosticsReport, VincodeLabBridge } from '@/bridge'
 import { TerminalDiagnostics } from '@/features/ai'
 import { TerminalAttachments } from '@/features/ai/components/terminal-attachments'
 import { Toaster, toast } from '@/components/ui'
@@ -47,7 +47,7 @@ function diagnosticsReport(queuedBytes: number): TerminalDiagnosticsReport {
 function installTerminal(terminal: Record<string, unknown>) {
   Object.defineProperty(window, 'vincodeLab', {
     configurable: true,
-    value: { terminal } as unknown as Window['vincodeLab'],
+    value: { terminal } as unknown as VincodeLabBridge,
   })
 }
 

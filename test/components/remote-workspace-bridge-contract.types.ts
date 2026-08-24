@@ -135,7 +135,6 @@ type ExpectedRemoteFilesApi = {
 
 export type RemoteWorkspaceBridgeContractAssertions = [
   Expect<Equal<WorkspaceCommandsApi, ExpectedWorkspaceCommandsApi>>,
-  Expect<Equal<Window['vincodeLab']['workspaceCommands'], WorkspaceCommandsApi>>,
   Expect<Equal<VincodeLabBridge['workspaceCommands'], WorkspaceCommandsApi>>,
   Expect<Equal<keyof WorkspaceCommandsApi,
     | 'list'
@@ -149,11 +148,9 @@ export type RemoteWorkspaceBridgeContractAssertions = [
     | 'run'
   >>,
   Expect<Equal<ManagedSshApi, ExpectedManagedSshApi>>,
-  Expect<Equal<Window['vincodeLab']['managedSsh'], ManagedSshApi>>,
   Expect<Equal<VincodeLabBridge['managedSsh'], ManagedSshApi>>,
   Expect<Equal<keyof ManagedSshApi, 'list' | 'check' | 'disconnect' | 'onStatus'>>,
   Expect<Equal<RemoteFilesApi, ExpectedRemoteFilesApi>>,
-  Expect<Equal<Window['vincodeLab']['remoteFiles'], RemoteFilesApi>>,
   Expect<Equal<VincodeLabBridge['remoteFiles'], RemoteFilesApi>>,
   Expect<Equal<keyof RemoteFilesApi,
     | 'browse'

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { appBridge } from '@/app/api/app.bridge'
-import type { WorkspaceSessionState } from '@/bridge'
+import type { AppMenuSection, WorkspaceSessionState } from '@/bridge'
 import type { DatabaseWorkbenchContext } from '@/features/database'
 import type { EditorWorkbenchContext, EditorWorkbenchRequest, RemoteOpenRequest } from '@/features/editor'
 import type { GitHubWorkbenchContext, GitHubWorkbenchRequest } from '@/features/github'

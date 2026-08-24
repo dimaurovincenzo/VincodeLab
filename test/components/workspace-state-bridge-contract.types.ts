@@ -12,10 +12,8 @@ type Equal<Left, Right> =
 type Expect<Value extends true> = Value
 
 export type WorkspaceStateBridgeContractAssertions = [
-  Expect<Equal<Window['vincodeLab']['workspaceSession'], WorkspaceSessionApi>>,
   Expect<Equal<VincodeLabBridge['workspaceSession'], WorkspaceSessionApi>>,
   Expect<Equal<keyof WorkspaceSessionApi, 'get' | 'save'>>,
-  Expect<Equal<Window['vincodeLab']['volatileDrafts'], VolatileDraftsApi>>,
   Expect<Equal<VincodeLabBridge['volatileDrafts'], VolatileDraftsApi>>,
   Expect<Equal<keyof VolatileDraftsApi, 'list' | 'write' | 'discard'>>,
 ]

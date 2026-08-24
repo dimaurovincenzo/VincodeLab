@@ -18,6 +18,25 @@ export type {
   PiApi,
 } from './contracts/ai-terminal.types'
 export type {
+  AppMenuApi,
+  AppMenuCommand,
+  AppMenuSection,
+} from './contracts/app-menu.types'
+export type {
+  BenchmarkApi,
+  BenchmarkFault,
+  BenchmarkWindowBounds,
+  BenchmarkWindowRectangle,
+} from './contracts/benchmark.types'
+export type {
+  ContextMenuAction,
+  ContextMenuApi,
+  ContextMenuCommand,
+  ContextMenuFlags,
+  ContextMenuKind,
+  ContextMenuOpenRequest,
+} from './contracts/context-menu.types'
+export type {
   DatabaseApi,
   DatabaseCancelResult,
   DatabaseColumn,
@@ -66,6 +85,12 @@ export type {
   ManagedSshApi,
   ManagedSshConnection,
 } from './contracts/managed-ssh.types'
+export type {
+  LifecycleApi,
+  LifecycleCloseDecision,
+  LifecycleCloseReason,
+  LifecycleCloseRequest,
+} from './contracts/lifecycle.types'
 export type {
   PiConfigApi,
   PiConfigErrorEvent,

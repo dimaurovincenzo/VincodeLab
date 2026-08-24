@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { DatabaseConnection } from '@/bridge'
+import type { DatabaseConnection, VincodeLabBridge } from '@/bridge'
 import {
   connectionDraftFor,
   connectionDraftIdentity,
@@ -90,7 +90,7 @@ describe('database renderer bridge', () => {
     const api = { listConnections: () => Promise.resolve([]) }
     Object.defineProperty(window, 'vincodeLab', {
       configurable: true,
-      value: { database: api } as unknown as Window['vincodeLab'],
+      value: { database: api } as unknown as VincodeLabBridge,
     })
     expect(databaseBridge.database).toBe(api)
   })

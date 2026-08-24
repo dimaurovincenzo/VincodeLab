@@ -4,7 +4,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AppPreferenceDefinition, AppPreferencesSnapshot } from '@/bridge'
+import type { AppPreferenceDefinition, AppPreferencesSnapshot, VincodeLabBridge } from '@/bridge'
 import { Settings } from '@/features/settings'
 import { toastStore } from '@/components/ui/toast-store'
 import { setAppPreferencesWorkspace } from '@/lib/app-preferences'
@@ -67,7 +67,7 @@ function installBridge({
         write: vi.fn(),
       },
       updates: { list: vi.fn(async () => []) },
-    } as unknown as Window['vincodeLab'],
+    } as unknown as VincodeLabBridge,
   })
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import type { AppMenuCommand } from '@/bridge'
 
 const APP_MENU_COMMAND_EVENT = 'vincodelab:application-menu-command'
 

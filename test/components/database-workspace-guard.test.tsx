@@ -5,7 +5,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EditorView } from '@codemirror/view'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DatabaseConnection, DatabaseConnectionInput, DatabaseQueryResult, DatabaseRoutine } from '@/bridge'
+import type { DatabaseConnection, DatabaseConnectionInput, DatabaseQueryResult, DatabaseRoutine, VincodeLabBridge } from '@/bridge'
 import { DatabaseWorkspace } from '@/features/database'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 
@@ -38,7 +38,7 @@ function captureGuard() {
   }
 }
 
-function installDatabase(overrides: Partial<Window['vincodeLab']['database']> = {}) {
+function installDatabase(overrides: Partial<VincodeLabBridge['database']> = {}) {
   const database = {
     listConnections: vi.fn(async () => [connection]),
     createConnection: vi.fn(async (input: DatabaseConnectionInput) => ({ ...connection, ...input, id: 'database-created', hasPassword: Boolean(input.password) })),
@@ -61,7 +61,7 @@ function installDatabase(overrides: Partial<Window['vincodeLab']['database']> = 
     listHistory: vi.fn(async () => []),
     clearHistory: vi.fn(),
     ...overrides,
-  } as unknown as Window['vincodeLab']['database']
+  } as unknown as VincodeLabBridge['database']
   Object.defineProperty(window, 'vincodeLab', {
     configurable: true,
     value: {
@@ -69,7 +69,7 @@ function installDatabase(overrides: Partial<Window['vincodeLab']['database']> = 
       preferences: {
         get: vi.fn(async () => ({ schema: [], global: {}, explicitGlobal: {}, overrides: {}, effective: {}, sources: {}, workspaceAvailable: true })),
       },
-    } as unknown as Window['vincodeLab'],
+    } as unknown as VincodeLabBridge,
   })
   return database
 }
@@ -210,7 +210,7 @@ describe('guardia lavoro Database', () => {
     const order: string[] = []
     const cancel = vi.fn(async () => { order.push('cancel'); return { cancelled: true, mutative: false } })
     const rollback = vi.fn(async () => { order.push('rollback'); return { active: false as const } })
-    const execute = vi.fn<Window['vincodeLab']['database']['execute']>(() => execution.promise)
+    const execute = vi.fn<VincodeLabBridge['database']['execute']>(() => execution.promise)
     const database = installDatabase({ execute, cancel, rollback })
     const user = userEvent.setup()
     const { capture } = await renderGuardedDatabase()

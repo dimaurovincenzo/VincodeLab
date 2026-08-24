@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import type { VincodeLabBridge } from '@/bridge'
 import { remoteFilesBridge } from '@/features/remote-files'
 
 const originalBridgeDescriptor = Object.getOwnPropertyDescriptor(window, 'vincodeLab')
@@ -6,7 +7,7 @@ const originalBridgeDescriptor = Object.getOwnPropertyDescriptor(window, 'vincod
 function installBridge(bridge: unknown) {
   Object.defineProperty(window, 'vincodeLab', {
     configurable: true,
-    value: bridge as Window['vincodeLab'],
+    value: bridge as VincodeLabBridge,
   })
 }
 

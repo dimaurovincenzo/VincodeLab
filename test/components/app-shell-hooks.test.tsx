@@ -5,6 +5,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppNavigation } from '@/app/hooks/use-app-navigation'
 import { useWorkspaceCloseGuards } from '@/app/hooks/use-workspace-close-guards'
+import type { LifecycleCloseRequest, VincodeLabBridge } from '@/bridge'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 import { createMemoryHistoryStorage, WorkbenchUsageHistory } from '@/lib/workbench-history'
 
@@ -25,7 +26,7 @@ beforeEach(() => {
         }),
         respondToClose,
       },
-    } as unknown as Window['vincodeLab'],
+    } as unknown as VincodeLabBridge,
   })
 })
 

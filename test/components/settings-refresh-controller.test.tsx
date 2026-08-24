@@ -3,7 +3,7 @@
 
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { PiRuntimeStatus } from '@/bridge'
+import type { PiRuntimeStatus, VincodeLabBridge } from '@/bridge'
 import { useSettingsRefresh } from '@/features/settings/hooks/use-settings-refresh'
 
 function deferred<T>() {
@@ -30,7 +30,7 @@ describe('Settings refresh controller', () => {
         runtime: { capabilities: vi.fn(async () => ({ checkedAt: '2026-08-24T00:00:00.000Z', items: [] })) },
         systemSkills: { list: vi.fn(async () => []) },
         updates: { list: vi.fn(async () => []) },
-      } as unknown as Window['vincodeLab'],
+      } as unknown as VincodeLabBridge,
     })
 
     const { result } = renderHook(() => useSettingsRefresh())

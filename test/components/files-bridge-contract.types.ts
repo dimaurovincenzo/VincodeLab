@@ -101,7 +101,6 @@ export type FilesBridgeContractAssertions = [
   Expect<Equal<Bridge.ProjectFileIndexResult, ExpectedProjectFileIndexResult>>,
   Expect<Equal<Bridge.ProjectFileIndexStatus, ExpectedProjectFileIndexStatus>>,
   Expect<Equal<Bridge.FilesApi, ExpectedFilesApi>>,
-  Expect<Equal<Window['vincodeLab']['files'], Bridge.FilesApi>>,
   Expect<Equal<Bridge.VincodeLabBridge['files'], Bridge.FilesApi>>,
   Expect<Equal<Awaited<ReturnType<Bridge.FilesApi['prepareAttachment']>>, Bridge.TerminalAttachment>>,
   Expect<Equal<keyof Bridge.FilesApi,

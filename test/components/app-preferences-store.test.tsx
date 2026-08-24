@@ -4,7 +4,7 @@
 import { StrictMode } from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { AppPreferencesSnapshot } from '@/bridge'
+import type { AppPreferencesSnapshot, VincodeLabBridge } from '@/bridge'
 import { createAppPreferencesStore, setAppPreferencesWorkspace, useAppPreferences } from '@/lib/app-preferences'
 
 function deferred<T>() {
@@ -44,7 +44,7 @@ describe('store delle preferenze applicative', () => {
       .mockReturnValueOnce(workspaceB.promise)
     Object.defineProperty(window, 'vincodeLab', {
       configurable: true,
-      value: { preferences: { get } } as unknown as Window['vincodeLab'],
+      value: { preferences: { get } } as unknown as VincodeLabBridge,
     })
 
     setAppPreferencesWorkspace('/tmp/workspace-a')

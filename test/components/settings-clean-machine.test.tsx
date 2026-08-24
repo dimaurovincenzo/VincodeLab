@@ -4,7 +4,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { AppPreferencesSnapshot, RuntimeCapabilitiesSnapshot } from '@/bridge'
+import type { AppPreferencesSnapshot, RuntimeCapabilitiesSnapshot, VincodeLabBridge } from '@/bridge'
 import { Settings } from '@/features/settings'
 import { setAppPreferencesWorkspace } from '@/lib/app-preferences'
 
@@ -61,7 +61,7 @@ function installCleanMachineBridge() {
         write: vi.fn(),
       },
       updates: { list: vi.fn(async () => []) },
-    } as unknown as Window['vincodeLab'],
+    } as unknown as VincodeLabBridge,
   })
   return { list, listSkills }
 }

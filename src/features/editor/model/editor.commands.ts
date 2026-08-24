@@ -1,3 +1,4 @@
+import type { ContextMenuAction } from '@/bridge'
 import type { EditorWorkbenchRequest } from './editor.types'
 
 export type EditorTabCloseCommand =

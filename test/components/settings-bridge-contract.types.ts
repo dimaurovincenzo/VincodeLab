@@ -103,15 +103,12 @@ type ExpectedRuntimeCapabilitiesApi = {
 
 export type SettingsBridgeContractAssertions = [
   Expect<Equal<PreferencesApi, ExpectedPreferencesApi>>,
-  Expect<Equal<Window['vincodeLab']['preferences'], PreferencesApi>>,
   Expect<Equal<VincodeLabBridge['preferences'], PreferencesApi>>,
   Expect<Equal<keyof PreferencesApi, 'get' | 'setGlobal' | 'setWorkspace' | 'clearWorkspace' | 'clearAllWorkspace'>>,
   Expect<Equal<UpdatesApi, ExpectedUpdatesApi>>,
-  Expect<Equal<Window['vincodeLab']['updates'], UpdatesApi>>,
   Expect<Equal<VincodeLabBridge['updates'], UpdatesApi>>,
   Expect<Equal<keyof UpdatesApi, 'list' | 'check' | 'download' | 'downloadAll' | 'setPolicy' | 'rollback' | 'activatePending'>>,
   Expect<Equal<RuntimeCapabilitiesApi, ExpectedRuntimeCapabilitiesApi>>,
-  Expect<Equal<Window['vincodeLab']['runtime'], RuntimeCapabilitiesApi>>,
   Expect<Equal<VincodeLabBridge['runtime'], RuntimeCapabilitiesApi>>,
   Expect<Equal<keyof RuntimeCapabilitiesApi, 'capabilities'>>,
 ]

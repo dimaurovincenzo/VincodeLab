@@ -9,11 +9,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   AiTerminalRestartOptions,
   AiTerminalRestartResult,
+  AppMenuCommand,
   AppPreferencesSnapshot,
+  LifecycleCloseReason,
+  LifecycleCloseRequest,
   PublicApplicationError,
   RecentWorkspace,
   TerminalExitStatus,
   TerminalResumeSnapshot,
+  VincodeLabBridge,
   WorkspaceOpenResult,
   WorkspaceSessionSnapshot,
   WorkspaceSessionWriteSnapshot,
@@ -254,8 +258,8 @@ function installBridge({ activeWorkspace = null, activeWorkspaceResult, getActiv
     },
     terminal: {
       ack: vi.fn(),
-      cancelPaste: vi.fn<Window['vincodeLab']['terminal']['cancelPaste']>(async () => ({ cancelled: true, sentBytes: 0, totalBytes: 0 })),
-      chooseAttachments: vi.fn<Window['vincodeLab']['terminal']['chooseAttachments']>(async () => []),
+      cancelPaste: vi.fn<VincodeLabBridge['terminal']['cancelPaste']>(async () => ({ cancelled: true, sentBytes: 0, totalBytes: 0 })),
+      chooseAttachments: vi.fn<VincodeLabBridge['terminal']['chooseAttachments']>(async () => []),
       onError: vi.fn(() => vi.fn()),
       onExit: vi.fn((listener: (status: TerminalExitStatus) => void) => {
         terminalExited = listener
@@ -273,11 +277,11 @@ function installBridge({ activeWorkspace = null, activeWorkspaceResult, getActiv
         snapshot: { data: '', firstSequence: 0, watermark: 0, bytes: 0 },
         status: 'running' as const,
       }))),
-      prepareDroppedAttachments: vi.fn<Window['vincodeLab']['terminal']['prepareDroppedAttachments']>(async () => []),
-      startPaste: vi.fn<Window['vincodeLab']['terminal']['startPaste']>(async ({ totalBytes }) => ({ accepted: true as const, transferId: 'paste-test', totalBytes })),
-      writeInput: vi.fn<Window['vincodeLab']['terminal']['writeInput']>(async (data) => ({ accepted: true as const, bytes: new TextEncoder().encode(data).byteLength })),
+      prepareDroppedAttachments: vi.fn<VincodeLabBridge['terminal']['prepareDroppedAttachments']>(async () => []),
+      startPaste: vi.fn<VincodeLabBridge['terminal']['startPaste']>(async ({ totalBytes }) => ({ accepted: true as const, transferId: 'paste-test', totalBytes })),
+      writeInput: vi.fn<VincodeLabBridge['terminal']['writeInput']>(async (data) => ({ accepted: true as const, bytes: new TextEncoder().encode(data).byteLength })),
       writeKey: vi.fn(),
-      writePasteChunk: vi.fn<Window['vincodeLab']['terminal']['writePasteChunk']>(async ({ data }) => {
+      writePasteChunk: vi.fn<VincodeLabBridge['terminal']['writePasteChunk']>(async ({ data }) => {
         const totalBytes = new TextEncoder().encode(data).byteLength
         return { accepted: true as const, complete: true, sentBytes: totalBytes, totalBytes }
       }),
@@ -302,7 +306,7 @@ function installBridge({ activeWorkspace = null, activeWorkspaceResult, getActiv
   }
   Object.defineProperty(window, 'vincodeLab', {
     configurable: true,
-    value: bridge as unknown as Window['vincodeLab'],
+    value: bridge as unknown as VincodeLabBridge,
   })
   return {
     bridge,

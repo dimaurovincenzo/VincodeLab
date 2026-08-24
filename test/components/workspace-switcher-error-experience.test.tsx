@@ -4,7 +4,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { WorkspaceInstanceStatus } from '@/bridge'
+import type { VincodeLabBridge, WorkspaceInstanceStatus } from '@/bridge'
 import { WorkspaceSwitcher } from '@/features/workspace'
 
 const availableStatus: WorkspaceInstanceStatus = {
@@ -26,7 +26,7 @@ describe('Error Experience del Workspace Switcher', () => {
       .mockResolvedValueOnce(true)
     Object.defineProperty(window, 'vincodeLab', {
       configurable: true,
-      value: { workspace: { instanceStatus } } as unknown as Window['vincodeLab'],
+      value: { workspace: { instanceStatus } } as unknown as VincodeLabBridge,
     })
 
     render(<WorkspaceSwitcher

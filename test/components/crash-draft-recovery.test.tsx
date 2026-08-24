@@ -5,7 +5,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EditorView } from '@codemirror/view'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DatabaseConnection, DatabaseRoutine, RendererDraftSnapshot } from '@/bridge'
+import type { DatabaseConnection, DatabaseRoutine, RendererDraftSnapshot, VincodeLabBridge } from '@/bridge'
 import { DatabaseWorkspace } from '@/features/database'
 import { DatabaseTableGrid, type DatabaseTableDraftGuard } from '@/features/database/components/database-table-grid'
 import { clearVolatileDrafts, getVolatileDraftPersistenceState, hydrateVolatileDrafts, invalidateVolatileDraftHydration, readVolatileDraft, retryVolatileDraftPersistence, subscribeVolatileDraftPersistence, writeVolatileDraft } from '@/lib/volatile-draft-store'
@@ -41,14 +41,14 @@ function installBridge(snapshots: RendererDraftSnapshot[] = []) {
     listSavedQueries: vi.fn(async () => []),
     saveQuery: vi.fn(async (input: { connectionId: string; name: string; sql: string }) => ({ id: 'saved-recovery', ...input, updatedAt: 1 })),
     updateSavedQuery: vi.fn(), deleteSavedQuery: vi.fn(), listHistory: vi.fn(async () => []), clearHistory: vi.fn(),
-  } as unknown as Window['vincodeLab']['database']
+  } as unknown as VincodeLabBridge['database']
   Object.defineProperty(window, 'vincodeLab', {
     configurable: true,
     value: {
       volatileDrafts,
       database,
       preferences: { get: vi.fn(async () => ({ schema: [], global: {}, explicitGlobal: {}, overrides: {}, effective: {}, sources: {}, workspaceAvailable: true })) },
-    } as unknown as Window['vincodeLab'],
+    } as unknown as VincodeLabBridge,
   })
   return { database, volatileDrafts }
 }

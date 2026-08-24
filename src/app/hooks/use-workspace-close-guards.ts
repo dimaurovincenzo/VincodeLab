@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { appBridge } from '@/app/api/app.bridge'
+import type { LifecycleCloseDecision, LifecycleCloseRequest } from '@/bridge'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 import type { WorkspaceChangeRequest, WorkspaceGuardScope } from '../model/app-controller.types'
 

@@ -6,7 +6,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EditorView } from '@codemirror/view'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AppPreferencesSnapshot, ProjectSkill, WorkspaceSessionState } from '@/bridge'
+import type { AppPreferencesSnapshot, ProjectSkill, VincodeLabBridge, WorkspaceSessionState } from '@/bridge'
 import { ProjectEditor } from '@/features/editor'
 import { ProjectInstructions } from '@/features/ai/components/project-instructions'
 import { ProjectSkills } from '@/features/ai/components/project-skills'
@@ -51,7 +51,7 @@ function installEditorBridge(fileId: string, persistedContent: string) {
       files,
       github: { gitStatus: vi.fn(async () => ({ data: { isRepository: false, files: [], commits: [], graph: [] }, cache: { fetchedAt: 0, expiresAt: 0, stale: false } })) },
       preferences: { get: vi.fn(async () => preferenceSnapshot) },
-    } as unknown as Window['vincodeLab'],
+    } as unknown as VincodeLabBridge,
   })
   publishAppPreferences(preferenceSnapshot)
   return files
@@ -83,7 +83,7 @@ describe('bozze volatili dopo il retry di una vista', () => {
       update: vi.fn(async (_id: string, content: string) => ({ ...skill, content })),
       create: vi.fn(), delete: vi.fn(), reload: vi.fn(),
     }
-    Object.defineProperty(window, 'vincodeLab', { configurable: true, value: { skills } as unknown as Window['vincodeLab'] })
+    Object.defineProperty(window, 'vincodeLab', { configurable: true, value: { skills } as unknown as VincodeLabBridge })
 
     render(<RetryHarness viewName="Skill"><ProjectSkills workspace="/workspace/a" /></RetryHarness>)
     await user.click(await screen.findByRole('option', { name: /review-code/i }))
@@ -110,7 +110,7 @@ describe('bozze volatili dopo il retry di una vista', () => {
       save: vi.fn(async (content: string) => { persisted = content; return { exists: true as const, content } }),
       clear: vi.fn(),
     }
-    Object.defineProperty(window, 'vincodeLab', { configurable: true, value: { instructions } as unknown as Window['vincodeLab'] })
+    Object.defineProperty(window, 'vincodeLab', { configurable: true, value: { instructions } as unknown as VincodeLabBridge })
 
     render(<RetryHarness viewName="Istruzioni"><ProjectInstructions workspace="/workspace/instructions" /></RetryHarness>)
     const editor = await screen.findByRole('textbox', { name: 'Istruzioni progetto' })

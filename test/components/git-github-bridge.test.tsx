@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { VincodeLabBridge } from '@/bridge'
 import { gitBridge } from '@/features/git'
 import { githubBridge } from '@/features/github'
 
 const originalBridge = window.vincodeLab
 
-function installBridge(bridge: Window['vincodeLab'] | undefined) {
+function installBridge(bridge: VincodeLabBridge | undefined) {
   Object.defineProperty(window, 'vincodeLab', { configurable: true, value: bridge, writable: true })
 }
 
@@ -14,7 +15,7 @@ function testBridge(marker: string) {
   const contextMenu = { onAction: vi.fn(() => () => undefined) }
 
   return {
-    bridge: { contextMenu, github: { data, gitStatus } } as unknown as Window['vincodeLab'],
+    bridge: { contextMenu, github: { data, gitStatus } } as unknown as VincodeLabBridge,
     contextMenu,
     data,
     gitStatus,

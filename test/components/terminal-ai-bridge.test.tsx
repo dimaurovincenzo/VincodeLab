@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import type { VincodeLabBridge } from '@/bridge'
 import { aiBridge } from '@/features/ai/api/ai.bridge'
 import { terminalBridge } from '@/features/terminal'
 
 const originalBridge = window.vincodeLab
 
-function installBridge(bridge: Window['vincodeLab'] | undefined) {
+function installBridge(bridge: VincodeLabBridge | undefined) {
   Object.defineProperty(window, 'vincodeLab', { configurable: true, value: bridge, writable: true })
 }
 
@@ -19,7 +20,7 @@ describe('feature bridge Terminale e AI', () => {
       shellSessions: { marker: 'first-shell' },
       terminal: { marker: 'first-ai-terminal' },
       workspaceCommands: { marker: 'first-commands' },
-    } as unknown as Window['vincodeLab']
+    } as unknown as VincodeLabBridge
     const second = {
       contextMenu: { marker: 'second-context' },
       managedSsh: { marker: 'second-ssh' },
@@ -27,7 +28,7 @@ describe('feature bridge Terminale e AI', () => {
       shellSessions: { marker: 'second-shell' },
       terminal: { marker: 'second-ai-terminal' },
       workspaceCommands: { marker: 'second-commands' },
-    } as unknown as Window['vincodeLab']
+    } as unknown as VincodeLabBridge
 
     installBridge(first)
     expect(terminalBridge.contextMenu).toBe(first.contextMenu)

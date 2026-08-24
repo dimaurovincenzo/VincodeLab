@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ShellSessionList, ShellSessionMetadata } from '@/bridge'
+import type { ShellSessionList, ShellSessionMetadata, VincodeLabBridge } from '@/bridge'
 
 vi.mock('@/features/terminal/components/free-terminal', () => ({
   FreeTerminal: ({
@@ -76,7 +76,7 @@ function installBridge(initialSessions: ShellSessionMetadata[], initialActiveSes
         onExit: vi.fn(() => () => undefined),
       },
       workspaceCommands: { run: vi.fn(async () => ({ managedConnectionId: null })) },
-    } as unknown as Window['vincodeLab'],
+    } as unknown as VincodeLabBridge,
   })
 
   return { close, create, focus, list }

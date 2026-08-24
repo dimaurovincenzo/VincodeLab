@@ -10,6 +10,7 @@ import type {
   PiConfigErrorEvent,
   ProjectSkill,
   PublicApplicationError,
+  VincodeLabBridge,
 } from '@/bridge'
 import { Settings } from '@/features/settings'
 import { toastStore } from '@/components/ui/toast-store'
@@ -50,10 +51,10 @@ function managedUpdate(): ManagedUpdate {
 }
 
 type BridgeOverrides = {
-  piConfig?: Partial<Window['vincodeLab']['piConfig']>
-  piSystem?: Partial<Window['vincodeLab']['piSystem']>
-  systemSkills?: Partial<Window['vincodeLab']['systemSkills']>
-  updates?: Partial<Window['vincodeLab']['updates']>
+  piConfig?: Partial<VincodeLabBridge['piConfig']>
+  piSystem?: Partial<VincodeLabBridge['piSystem']>
+  systemSkills?: Partial<VincodeLabBridge['systemSkills']>
+  updates?: Partial<VincodeLabBridge['updates']>
 }
 
 function installBridge(overrides: BridgeOverrides = {}) {
@@ -104,7 +105,7 @@ function installBridge(overrides: BridgeOverrides = {}) {
   }
   Object.defineProperty(window, 'vincodeLab', {
     configurable: true,
-    value: bridge as unknown as Window['vincodeLab'],
+    value: bridge as unknown as VincodeLabBridge,
   })
   return bridge
 }

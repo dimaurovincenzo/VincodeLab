@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { appBridge } from '@/app/api/app.bridge'
+import type { AppMenuCommand, ContextMenuKind } from '@/bridge'
 import { reportTransientFailure } from '@/lib/renderer-error'
 import { WorkbenchCommandRegistry } from '@/lib/workbench-command-registry'
 import type { WorkbenchCommandContext } from '../model/app-controller.types'

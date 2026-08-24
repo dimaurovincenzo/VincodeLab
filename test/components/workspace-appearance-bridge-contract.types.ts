@@ -92,7 +92,6 @@ export type WorkspaceAppearanceBridgeContractAssertions = [
   Expect<Equal<Bridge.WorkspaceInstanceStatus, ExpectedWorkspaceInstanceStatus>>,
   Expect<Equal<Bridge.WorkspaceLaunchResult, ExpectedWorkspaceLaunchResult>>,
   Expect<Equal<Bridge.WorkspaceApi, ExpectedWorkspaceApi>>,
-  Expect<Equal<Window['vincodeLab']['workspace'], Bridge.WorkspaceApi>>,
   Expect<Equal<Bridge.VincodeLabBridge['workspace'], Bridge.WorkspaceApi>>,
   Expect<Equal<keyof Bridge.WorkspaceApi,
     | 'open'
@@ -106,7 +105,6 @@ export type WorkspaceAppearanceBridgeContractAssertions = [
   >>,
   Expect<Equal<Bridge.AppAppearance, ExpectedAppAppearance>>,
   Expect<Equal<Bridge.AppearanceApi, ExpectedAppearanceApi>>,
-  Expect<Equal<Window['vincodeLab']['appearance'], Bridge.AppearanceApi>>,
   Expect<Equal<Bridge.VincodeLabBridge['appearance'], Bridge.AppearanceApi>>,
   Expect<Equal<keyof Bridge.AppearanceApi, 'get' | 'set'>>,
 ]

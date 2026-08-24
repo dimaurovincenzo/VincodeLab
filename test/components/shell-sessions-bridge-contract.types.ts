@@ -129,7 +129,6 @@ export type ShellSessionsBridgeContractAssertions = [
   Expect<Equal<BridgeShellSessionErrorCategory, BridgeApplicationErrorCategory>>,
   Expect<Equal<BridgeShellSessionErrorEvent['error']['severity'], BridgeApplicationErrorSeverity>>,
   Expect<Equal<ShellSessionsApi, ExpectedShellSessionsApi>>,
-  Expect<Equal<Window['vincodeLab']['shellSessions'], ShellSessionsApi>>,
   Expect<Equal<VincodeLabBridge['shellSessions'], ShellSessionsApi>>,
   Expect<Equal<keyof ShellSessionsApi,
     | 'list'

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { bridgeNamespace, getVincodeLabBridge, optionalVincodeLabBridge } from '@/bridge'
+import { bridgeNamespace, getVincodeLabBridge, optionalVincodeLabBridge, type VincodeLabBridge } from '@/bridge'
 
 const originalBridge = window.vincodeLab
 
-function installBridge(bridge: Window['vincodeLab'] | undefined) {
+function installBridge(bridge: VincodeLabBridge | undefined) {
   Object.defineProperty(window, 'vincodeLab', { configurable: true, value: bridge, writable: true })
 }
 
@@ -11,8 +11,8 @@ afterEach(() => installBridge(originalBridge))
 
 describe('renderer bridge', () => {
   it('risolve il preload in modo differito e usa sempre l’istanza corrente', () => {
-    const first = { files: { marker: 'first' } } as unknown as Window['vincodeLab']
-    const second = { files: { marker: 'second' } } as unknown as Window['vincodeLab']
+    const first = { files: { marker: 'first' } } as unknown as VincodeLabBridge
+    const second = { files: { marker: 'second' } } as unknown as VincodeLabBridge
 
     installBridge(first)
     expect(getVincodeLabBridge()).toBe(first)

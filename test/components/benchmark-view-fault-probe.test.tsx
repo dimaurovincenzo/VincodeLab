@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
+import type { VincodeLabBridge } from '@/bridge'
 import { BENCHMARK_VIEW_FAULT_EVENT, BenchmarkViewFaultProbe } from '@/components/benchmark-view-fault-probe'
 import { ViewErrorBoundary } from '@/components/view-error-boundary'
 
@@ -8,7 +9,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => undefined)
   Object.defineProperty(window, 'vincodeLab', {
     configurable: true,
-    value: { benchmark: { injectFault: vi.fn(), probe: vi.fn(), shutdown: vi.fn() } } as unknown as Window['vincodeLab'],
+    value: { benchmark: { injectFault: vi.fn(), probe: vi.fn(), shutdown: vi.fn() } } as unknown as VincodeLabBridge,
   })
 })
 

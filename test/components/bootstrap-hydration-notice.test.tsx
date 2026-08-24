@@ -4,6 +4,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import type { VincodeLabBridge } from '@/bridge'
 import { BootstrapHydrationNotice } from '@/components/bootstrap-hydration-notice'
 import { normalizeUserError } from '@/lib/user-error'
 import { clearVolatileDrafts, writeVolatileDraft } from '@/lib/volatile-draft-store'
@@ -71,7 +72,7 @@ describe('BootstrapHydrationNotice', () => {
           list: vi.fn(async () => []),
           write,
         },
-      } as unknown as Window['vincodeLab'],
+      } as unknown as VincodeLabBridge,
     })
     const user = userEvent.setup()
     render(<BootstrapHydrationNotice error={null} />)

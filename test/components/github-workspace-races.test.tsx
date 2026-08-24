@@ -15,6 +15,7 @@ import type {
   GitHubProject,
   GitHubProjectBoard,
   GitStatus,
+  VincodeLabBridge,
   WorkspaceSessionState,
 } from '@/bridge'
 
@@ -132,7 +133,7 @@ function initialState(tab: 'changes' | 'graph' | 'issues' | 'projects', selected
   }
 }
 
-function installBridge(overrides: Partial<Window['vincodeLab']['github']> = {}) {
+function installBridge(overrides: Partial<VincodeLabBridge['github']> = {}) {
   const status = gitStatus()
   const board = projectBoard(1, 'Attività iniziale')
   const github = {
@@ -167,7 +168,7 @@ function installBridge(overrides: Partial<Window['vincodeLab']['github']> = {}) 
   }
   Object.defineProperty(window, 'vincodeLab', {
     configurable: true,
-    value: { github } as unknown as Window['vincodeLab'],
+    value: { github } as unknown as VincodeLabBridge,
   })
   return github
 }

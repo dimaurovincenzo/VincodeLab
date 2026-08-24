@@ -192,11 +192,9 @@ export type TerminalBridgeContractAssertions = [
   Expect<Equal<BridgePiConfigErrorEvent['error']['category'], BridgeApplicationErrorCategory>>,
   Expect<Equal<BridgePiConfigErrorEvent['error']['severity'], BridgeApplicationErrorSeverity>>,
   Expect<Equal<PiApi, ExpectedPiApi>>,
-  Expect<Equal<Window['vincodeLab']['pi'], PiApi>>,
   Expect<Equal<VincodeLabBridge['pi'], PiApi>>,
   Expect<Equal<keyof PiApi, 'reload' | 'restart'>>,
   Expect<Equal<TerminalApi, ExpectedTerminalApi>>,
-  Expect<Equal<Window['vincodeLab']['terminal'], TerminalApi>>,
   Expect<Equal<VincodeLabBridge['terminal'], TerminalApi>>,
   Expect<Equal<keyof TerminalApi,
     | 'resume'
@@ -219,11 +217,10 @@ export type TerminalBridgeContractAssertions = [
     | 'onError'
   >>,
   Expect<Equal<PiConfigApi, ExpectedPiConfigApi>>,
-  Expect<Equal<Window['vincodeLab']['piConfig'], PiConfigApi>>,
   Expect<Equal<VincodeLabBridge['piConfig'], PiConfigApi>>,
   Expect<Equal<keyof PiConfigApi, 'start' | 'close' | 'write' | 'resize' | 'onData' | 'onExit' | 'onError'>>,
-  Expect<Equal<Awaited<ReturnType<Window['vincodeLab']['files']['prepareAttachment']>>, ExpectedTerminalAttachment>>,
-  Expect<Equal<Awaited<ReturnType<Window['vincodeLab']['skills']['reload']>>, ExpectedAiTerminalReloadResult>>,
+  Expect<Equal<Awaited<ReturnType<VincodeLabBridge['files']['prepareAttachment']>>, ExpectedTerminalAttachment>>,
+  Expect<Equal<Awaited<ReturnType<VincodeLabBridge['skills']['reload']>>, ExpectedAiTerminalReloadResult>>,
 ]
 
 // @ts-expect-error Lo stato exit deve essere importato dal bridge, non dichiarato globalmente.

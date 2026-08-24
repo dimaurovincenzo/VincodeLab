@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from 'react'
-import type { RedisInspection, RedisKeySummary, RedisPayloadMatch } from '@/bridge'
+import type { ContextMenuAction, RedisInspection, RedisKeySummary, RedisPayloadMatch } from '@/bridge'
 import { toast } from '@/components/ui'
 import { redisBridge } from '../api/redis.bridge'
 import { visibleRedisInspectionValue } from '../model/redis-workspace'

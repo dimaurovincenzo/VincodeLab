@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ProjectSkill } from '@/bridge'
+import type { ProjectSkill, VincodeLabBridge } from '@/bridge'
 import { ProjectInstructions } from '@/features/ai/components/project-instructions'
 import { ProjectSkills } from '@/features/ai/components/project-skills'
 import { clearVolatileDrafts } from '@/lib/volatile-draft-store'
@@ -10,7 +10,7 @@ import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 function installVincodeLab(value: Record<string, unknown>) {
   Object.defineProperty(window, 'vincodeLab', {
     configurable: true,
-    value: value as unknown as Window['vincodeLab'],
+    value: value as unknown as VincodeLabBridge,
   })
 }
 

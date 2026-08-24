@@ -5,7 +5,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EditorView } from '@codemirror/view'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DatabaseConnection, DatabaseHistoryEntry, DatabaseQueryResult, DatabaseRoutine, DatabaseSchemaPage } from '@/bridge'
+import type { DatabaseConnection, DatabaseHistoryEntry, DatabaseQueryResult, DatabaseRoutine, DatabaseSchemaPage, VincodeLabBridge } from '@/bridge'
 
 import { DatabaseWorkspace } from '@/features/database'
 
@@ -20,7 +20,7 @@ function preferencesSnapshot() {
   }
 }
 
-function installDatabase(overrides: Partial<Window['vincodeLab']['database']> = {}) {
+function installDatabase(overrides: Partial<VincodeLabBridge['database']> = {}) {
   const database = {
     listConnections: vi.fn(async () => connections),
     createConnection: vi.fn(),
@@ -44,13 +44,13 @@ function installDatabase(overrides: Partial<Window['vincodeLab']['database']> = 
     listHistory: vi.fn(async () => []),
     clearHistory: vi.fn(),
     ...overrides,
-  } as unknown as Window['vincodeLab']['database']
+  } as unknown as VincodeLabBridge['database']
   Object.defineProperty(window, 'vincodeLab', {
     configurable: true,
     value: {
       database,
       preferences: { get: vi.fn(async () => preferencesSnapshot()) },
-    } as unknown as Window['vincodeLab'],
+    } as unknown as VincodeLabBridge,
   })
   return database
 }

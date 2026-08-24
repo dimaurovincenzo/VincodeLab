@@ -177,7 +177,6 @@ type ExpectedGitHubApi = {
 
 export type GitHubBridgeContractAssertions = [
   Expect<Equal<GitHubApi, ExpectedGitHubApi>>,
-  Expect<Equal<Window['vincodeLab']['github'], GitHubApi>>,
   Expect<Equal<VincodeLabBridge['github'], GitHubApi>>,
   Expect<Equal<keyof GitHubApi,
     | 'gitStatus'

@@ -4,7 +4,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AppPreferencesSnapshot, ProjectSkill } from '@/bridge'
+import type { AppPreferencesSnapshot, ProjectSkill, VincodeLabBridge } from '@/bridge'
 import { Settings } from '@/features/settings'
 import type { WorkspaceChangeGuard } from '@/lib/workspace-change-guard'
 import { clearVolatileDrafts } from '@/lib/volatile-draft-store'
@@ -19,7 +19,7 @@ function projectSkill(id: string, content: string): ProjectSkill {
   return { id, name: id, description: `Skill ${id}`, valid: true, issues: [], content }
 }
 
-function installSettingsBridge(systemSkills: Window['vincodeLab']['systemSkills']) {
+function installSettingsBridge(systemSkills: VincodeLabBridge['systemSkills']) {
   const preferences: AppPreferencesSnapshot = {
     schema: [],
     global: {},
@@ -57,7 +57,7 @@ function installSettingsBridge(systemSkills: Window['vincodeLab']['systemSkills'
         onExit: vi.fn(() => vi.fn()),
       },
       updates: { list: vi.fn(async () => []) },
-    } as unknown as Window['vincodeLab'],
+    } as unknown as VincodeLabBridge,
   })
 }
 

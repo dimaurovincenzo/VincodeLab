@@ -1,3 +1,5 @@
+import type { TerminalApi } from '@/bridge'
+
 /** Stato pubblico del trasferimento paste posseduto dalla feature AI. */
 export type TerminalPasteProgress = {
   status: 'starting' | 'running' | 'complete' | 'cancelled' | 'failed'
@@ -10,9 +12,9 @@ export type TerminalPasteProgress = {
 }
 
 type TerminalPasteApi = {
-  startPaste: Window['vincodeLab']['terminal']['startPaste']
-  writePasteChunk: Window['vincodeLab']['terminal']['writePasteChunk']
-  cancelPaste: Window['vincodeLab']['terminal']['cancelPaste']
+  startPaste: TerminalApi['startPaste']
+  writePasteChunk: TerminalApi['writePasteChunk']
+  cancelPaste: TerminalApi['cancelPaste']
   chunkBytes?: number
 }
 

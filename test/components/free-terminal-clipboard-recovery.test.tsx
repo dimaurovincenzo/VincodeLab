@@ -4,6 +4,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { VincodeLabBridge } from '@/bridge'
 import { FreeTerminal } from '@/features/terminal'
 
 vi.mock('@xterm/addon-fit', () => ({ FitAddon: class { fit() {} } }))
@@ -64,7 +65,7 @@ function installBridge() {
       managedSsh: { list: vi.fn(async () => []), onStatus: vi.fn(() => () => undefined) },
       shellSessions,
       workspaceCommands: { list: vi.fn(async () => ({ categories: [] })) },
-    } as unknown as Window['vincodeLab'],
+    } as unknown as VincodeLabBridge,
   })
   return shellSessions
 }

@@ -9,6 +9,7 @@ import type {
   RemoteEntry,
   RemoteTrackedFile,
   RemoteTransfer,
+  VincodeLabBridge,
   WorkspaceCommand,
 } from '@/bridge'
 import { RemoteFiles } from '@/features/remote-files'
@@ -122,7 +123,7 @@ function installBridge({ browse, downloadAndTrack, trackedFiles = [] }: Pick<Bri
       list: vi.fn(async () => ({ categories: [{ commands: [profile], id: 'category-1', name: 'Server' }] })),
     },
   }
-  Object.defineProperty(window, 'vincodeLab', { configurable: true, value: bridge as unknown as Window['vincodeLab'] })
+  Object.defineProperty(window, 'vincodeLab', { configurable: true, value: bridge as unknown as VincodeLabBridge })
   return {
     browse,
     cancelTransfer,

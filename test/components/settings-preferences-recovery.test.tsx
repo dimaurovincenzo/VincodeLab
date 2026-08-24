@@ -4,7 +4,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { AppPreferencesSnapshot } from '@/bridge'
+import type { AppPreferencesSnapshot, VincodeLabBridge } from '@/bridge'
 import { Settings } from '@/features/settings'
 import { setAppPreferencesWorkspace } from '@/lib/app-preferences'
 
@@ -56,7 +56,7 @@ function installBridge(getPreferences: () => Promise<AppPreferencesSnapshot>) {
         onExit: vi.fn(() => vi.fn()),
       },
       updates: { list: vi.fn(async () => []) },
-    } as unknown as Window['vincodeLab'],
+    } as unknown as VincodeLabBridge,
   })
 }
 

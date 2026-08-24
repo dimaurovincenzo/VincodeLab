@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { undo, undoDepth } from '@codemirror/commands'
 import { EditorView } from '@codemirror/view'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AppPreferencesSnapshot, AppPreferenceValue, ProjectFileTreeNode, WorkspaceSessionState } from '@/bridge'
+import type { AppPreferencesSnapshot, AppPreferenceValue, ContextMenuAction, ProjectFileTreeNode, VincodeLabBridge, WorkspaceSessionState } from '@/bridge'
 import { ProjectEditor } from '@/features/editor'
 import { publishAppPreferences } from '@/lib/app-preferences'
 import { clearVolatileDrafts, writeVolatileDraft } from '@/lib/volatile-draft-store'
@@ -100,7 +100,7 @@ function installVincodeLab(entries: ProjectFileTreeNode[] = [], options: Install
         }),
       },
       preferences: { get: preferences },
-    } as unknown as Window['vincodeLab'],
+    } as unknown as VincodeLabBridge,
   })
   publishAppPreferences(preferenceSnapshot)
 
