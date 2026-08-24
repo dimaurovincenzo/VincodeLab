@@ -17,18 +17,10 @@ function deterministicCommandEnvironment(environment) {
   return { ...environment, LANG: 'C', LC_ALL: 'C' }
 }
 
-function commandConfiguration(command, {
-  environment = process.env,
-  resolveGitHubCliExecutableImpl = resolveGitHubCliExecutable,
-} = {}) {
-  const executable = command === 'gh' ? resolveGitHubCliExecutableImpl({ environment }) : command
+function commandConfiguration(command) {
+  const executable = command === 'gh' ? resolveGitHubCliExecutable() : command
   if (!executable) throw createPublicError('GITHUB_CLI_NOT_FOUND', 'GitHub CLI non è stato trovato.')
-  const commandEnvironment = command === 'gh'
-    ? environmentForGitHubCli(executable, environment)
-    : environment
-  // I classificatori lavorano su stderr strutturalmente stabile: Git e gh
-  // non devono cambiare i propri messaggi in base alla lingua dell'app.
-  return { executable, env: deterministicCommandEnvironment(commandEnvironment) }
+  return { executable, env: command === 'gh' ? environmentForGitHubCli(executable) : process.env }
 }
 
 function createCommandRunner({
@@ -68,6 +60,9 @@ function createCommandRunner({
       let env
       try {
         ;({ executable, env } = commandConfigurationImpl(command))
+        // I classificatori lavorano su stderr strutturalmente stabile: Git e
+        // gh non devono cambiare i propri messaggi in base alla lingua dell'app.
+        env = deterministicCommandEnvironment(env)
       } catch (error) {
         reject(commandFailure(command, error, '', args))
         return
@@ -149,6 +144,7 @@ function createCommandRunner({
       let env
       try {
         ;({ executable, env } = commandConfigurationImpl(command))
+        env = deterministicCommandEnvironment(env)
       } catch (error) {
         reject(commandFailure(command, error, '', args))
         return
@@ -276,9 +272,7 @@ async function runBoundedDiff(args, cwd, acceptedExitCodes = [0], { signal } = {
 
 module.exports = {
   COMMAND_OPTIONS,
-  commandConfiguration,
   createCommandRunner,
-  deterministicCommandEnvironment,
   run,
   runBoundedDiff,
   runStreaming,

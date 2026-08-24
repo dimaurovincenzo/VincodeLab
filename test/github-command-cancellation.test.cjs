@@ -65,14 +65,17 @@ test('execFile riceve AbortSignal, forza il cleanup del processo bloccato e cons
   let child
   let ready
   let receivedSignal
+  let receivedEnvironment
+  const localizedEnvironment = Object.freeze({ ...process.env, LANG: 'it_IT.UTF-8', LC_ALL: 'it_IT.UTF-8' })
   const runner = createCommandRunner({
     execFileImpl(file, args, options, callback) {
       receivedSignal = options.signal
+      receivedEnvironment = options.env
       child = execFile(file, args, options, callback)
       if (file === process.execPath) ready = waitForReady(child)
       return child
     },
-    commandConfigurationImpl: () => ({ executable, env: process.env }),
+    commandConfigurationImpl: () => ({ executable, env: localizedEnvironment }),
     timeoutMs: 2_000,
     killGraceMs: 25,
   })
@@ -89,6 +92,10 @@ test('execFile riceve AbortSignal, forza il cleanup del processo bloccato e cons
     return true
   })
   assert.equal(receivedSignal, controller.signal)
+  assert.equal(receivedEnvironment.LANG, 'C')
+  assert.equal(receivedEnvironment.LC_ALL, 'C')
+  assert.equal(localizedEnvironment.LANG, 'it_IT.UTF-8')
+  assert.equal(localizedEnvironment.LC_ALL, 'it_IT.UTF-8')
   assertProcessGone(blockedChild.pid)
 
   executable = 'git'
@@ -100,10 +107,13 @@ test('spawn streaming riceve AbortSignal ed esegue TERM poi KILL con esito CANCE
   let child
   let ready
   let receivedSignal
+  let receivedEnvironment
   const sentSignals = []
+  const localizedEnvironment = Object.freeze({ ...process.env, LANG: 'it_IT.UTF-8', LC_ALL: 'it_IT.UTF-8' })
   const runner = createCommandRunner({
     spawnImpl(file, args, options) {
       receivedSignal = options.signal
+      receivedEnvironment = options.env
       child = spawn(file, args, options)
       const kill = child.kill.bind(child)
       child.kill = (signal) => {
@@ -113,7 +123,7 @@ test('spawn streaming riceve AbortSignal ed esegue TERM poi KILL con esito CANCE
       ready = waitForReady(child)
       return child
     },
-    commandConfigurationImpl: () => ({ executable: process.execPath, env: process.env }),
+    commandConfigurationImpl: () => ({ executable: process.execPath, env: localizedEnvironment }),
     timeoutMs: 2_000,
     killGraceMs: 25,
   })
@@ -125,6 +135,10 @@ test('spawn streaming riceve AbortSignal ed esegue TERM poi KILL con esito CANCE
 
   await assert.rejects(pending, (error) => error.code === 'GITHUB_COMMAND_CANCELLED')
   assert.equal(receivedSignal, controller.signal)
+  assert.equal(receivedEnvironment.LANG, 'C')
+  assert.equal(receivedEnvironment.LC_ALL, 'C')
+  assert.equal(localizedEnvironment.LANG, 'it_IT.UTF-8')
+  assert.equal(localizedEnvironment.LC_ALL, 'it_IT.UTF-8')
   assert.ok(sentSignals.includes('SIGTERM'))
   assert.ok(sentSignals.includes('SIGKILL'))
   assertProcessGone(blockedChild.pid)
