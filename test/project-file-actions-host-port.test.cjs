@@ -96,13 +96,19 @@ test('il dominio valida prima dell host e conserva ordine, callback, cancellazio
   assert.deepEqual(Object.keys(actions), [
     'openProjectFileWith',
     'prepareProjectFileAttachment',
+    'resolveProjectDirectory',
+    'resolveProjectFile',
     'revealProjectDirectory',
     'revealProjectFile',
   ])
   assert.equal(actions.openProjectFileWith.length, 3)
   assert.equal(actions.prepareProjectFileAttachment.length, 2)
+  assert.equal(actions.resolveProjectDirectory.length, 2)
+  assert.equal(actions.resolveProjectFile.length, 2)
   assert.equal(actions.revealProjectDirectory.length, 3)
   assert.equal(actions.revealProjectFile.length, 3)
+  assert.equal(actions.resolveProjectDirectory('/workspace', 'src'), '/resolved/src')
+  assert.equal(actions.resolveProjectFile('/workspace', 'src/App.tsx'), '/resolved/src/App.tsx')
   assert.deepEqual(actions.prepareProjectFileAttachment('/workspace', 'src/App.tsx'), {
     absolutePath: '/resolved/src/App.tsx',
     name: 'App.tsx',
@@ -159,6 +165,8 @@ test('il dominio valida prima dell host e conserva ordine, callback, cancellazio
   ])
 
   events.length = 0
+  assert.throws(() => actions.resolveProjectDirectory('/workspace', 'node_modules'), /non è accessibile/)
+  assert.throws(() => actions.resolveProjectFile('/workspace', 'src\\App.tsx'), /Percorso file non valido/)
   assert.throws(() => actions.revealProjectFile('/workspace', '../outside', { showItemInFolder() {} }), /Percorso file non valido/)
   await assert.rejects(() => actions.openProjectFileWith('/workspace', 'node_modules/pkg.js', {
     async chooseApplication() { events.push(['unexpected-choose']) },
@@ -221,8 +229,10 @@ test('facade e main compongono l adapter mantenendo i nomi consegnati a IPC e ru
   const main = fs.readFileSync(path.join(__dirname, '../electron/main.cjs'), 'utf8')
 
   assert.equal(projectFiles.createProjectFileActions, createProjectFileActions)
+  assert.equal('resolveProjectDirectory' in projectFiles, false)
+  assert.equal('resolveProjectFile' in projectFiles, false)
   assert.match(main, /createProjectFileActionsFilesystemAdapter/)
-  assert.match(main, /\} = createProjectFileActions\(createProjectFileActionsFilesystemAdapter\(\)\)/)
+  assert.match(main, /resolveProjectDirectory,[\s\S]*?resolveProjectFile,[\s\S]*?\} = createProjectFileActions\(createProjectFileActionsFilesystemAdapter\(\)\)/)
   assert.match(main, /createContextCommandRuntime\(\{[\s\S]*?openProjectFileWith,/)
   assert.match(main, /registerFilesystemIpc\(\{[\s\S]*?prepareProjectFileAttachment,/)
 })

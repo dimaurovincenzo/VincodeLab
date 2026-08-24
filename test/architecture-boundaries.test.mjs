@@ -296,7 +296,7 @@ test('mantiene filesystem e risoluzione path fuori dal dominio Skill progetto e 
     assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
     assert.ok(problems.some((problem) => problem.includes('filesystem host "node:path"')))
     assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs/promises"')))
-    assert.ok(problems.some((problem) => problem.includes("implementazione filesystem concreta")))
+    assert.ok(problems.some((problem) => problem.includes('path legacy "electron/domains/filesystem/file-utils" rimosso')))
   })
 })
 
@@ -315,7 +315,7 @@ test('mantiene filesystem e helper concreti fuori dal dominio Skill di sistema',
     assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
     assert.ok(problems.some((problem) => problem.includes('filesystem host "node:path"')))
     assert.ok(problems.some((problem) => problem.includes('filesystem host "fs/promises"')))
-    assert.ok(problems.some((problem) => problem.includes('implementazione filesystem concreta')))
+    assert.ok(problems.some((problem) => problem.includes('path legacy "electron/domains/filesystem/file-utils" rimosso')))
   })
 })
 
@@ -384,54 +384,47 @@ test('mantiene filesystem e risoluzione path fuori dal listing, dalla porta e da
   })
 })
 
-test('mantiene filesystem e resolver concreto fuori dalle azioni file progetto e dalla loro porta', () => {
+test('mantiene filesystem host fuori dalle azioni file progetto e dalla loro porta', () => {
   withFixture({
     'electron/domains/filesystem/project-file-actions.cjs': [
       "require('node:fs')",
       "require('node:path')",
-      "require('./project-path-model.cjs')",
     ].join('\n'),
     'electron/domains/filesystem/project-file-actions-host.port.cjs': [
       "require('fs/promises')",
       "require('path')",
     ].join('\n'),
-    'electron/domains/filesystem/project-path-model.cjs': 'module.exports = {}\n',
   }, (problems) => {
     assert.equal(problems.filter((problem) => problem.includes('dominio Azioni file progetto dipende direttamente')).length, 2)
     assert.equal(problems.filter((problem) => problem.includes('dominio Porta host azioni file progetto')).length, 2)
-    assert.equal(problems.filter((problem) => problem.includes('dominio Azioni file progetto dipende dal resolver path concreto')).length, 1)
     assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
     assert.ok(problems.some((problem) => problem.includes('filesystem host "path"')))
   })
 })
 
-test('mantiene filesystem e resolver concreto fuori dalle mutazioni progetto e dalla loro porta', () => {
+test('mantiene filesystem host fuori dalle mutazioni progetto e dalla loro porta', () => {
   withFixture({
     'electron/domains/filesystem/project-entry-mutations.cjs': [
       "require('node:fs')",
       "require('node:path')",
-      "require('./project-path-model.cjs')",
     ].join('\n'),
     'electron/domains/filesystem/project-entry-mutations-host.port.cjs': [
       "require('fs/promises')",
       "require('path')",
     ].join('\n'),
-    'electron/domains/filesystem/project-path-model.cjs': 'module.exports = {}\n',
   }, (problems) => {
     assert.equal(problems.filter((problem) => problem.includes('dominio Mutazioni elementi progetto dipende direttamente')).length, 2)
     assert.equal(problems.filter((problem) => problem.includes('dominio Porta host mutazioni progetto')).length, 2)
-    assert.equal(problems.filter((problem) => problem.includes('dominio Mutazioni elementi progetto dipende dal resolver path concreto')).length, 1)
     assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
     assert.ok(problems.some((problem) => problem.includes('filesystem host "path"')))
   })
 })
 
-test('mantiene filesystem e resolver concreto fuori da reader, porta e revisione file progetto', () => {
+test('mantiene filesystem host fuori da reader, porta e revisione file progetto', () => {
   withFixture({
     'electron/domains/filesystem/project-file-reader.cjs': [
       "require('node:fs')",
       "require('node:path')",
-      "require('./project-path-model.cjs')",
     ].join('\n'),
     'electron/domains/filesystem/project-file-reader-host.port.cjs': [
       "require('fs/promises')",
@@ -441,35 +434,41 @@ test('mantiene filesystem e resolver concreto fuori da reader, porta e revisione
       "require('node:fs/promises')",
       "require('node:path')",
     ].join('\n'),
-    'electron/domains/filesystem/project-path-model.cjs': 'module.exports = {}\n',
   }, (problems) => {
     assert.equal(problems.filter((problem) => problem.includes('dominio Lettura file progetto dipende direttamente')).length, 2)
     assert.equal(problems.filter((problem) => problem.includes('dominio Porta host lettura file progetto')).length, 2)
     assert.equal(problems.filter((problem) => problem.includes('dominio Revisione file progetto')).length, 2)
-    assert.equal(problems.filter((problem) => problem.includes('dominio Lettura file progetto dipende dal resolver path concreto')).length, 1)
     assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
     assert.ok(problems.some((problem) => problem.includes('filesystem host "path"')))
   })
 })
 
-test('mantiene filesystem e resolver concreto fuori dal salvataggio file progetto e dalla sua porta', () => {
+test('mantiene filesystem host fuori dal salvataggio file progetto e dalla sua porta', () => {
   withFixture({
     'electron/domains/filesystem/project-file-save.cjs': [
       "require('node:fs')",
       "require('node:path')",
-      "require('./project-path-model.cjs')",
     ].join('\n'),
     'electron/domains/filesystem/project-file-save-host.port.cjs': [
       "require('fs/promises')",
       "require('path')",
     ].join('\n'),
-    'electron/domains/filesystem/project-path-model.cjs': 'module.exports = {}\n',
   }, (problems) => {
     assert.equal(problems.filter((problem) => problem.includes('dominio Salvataggio file progetto dipende direttamente')).length, 2)
     assert.equal(problems.filter((problem) => problem.includes('dominio Porta host salvataggio file progetto')).length, 2)
-    assert.equal(problems.filter((problem) => problem.includes('dominio Salvataggio file progetto dipende dal resolver path concreto')).length, 1)
     assert.ok(problems.some((problem) => problem.includes('filesystem host "node:fs"')))
     assert.ok(problems.some((problem) => problem.includes('filesystem host "path"')))
+  })
+})
+
+test('estende il confine filesystem host a ogni nuovo modulo del dominio filesystem', () => {
+  withFixture({
+    'electron/domains/filesystem/new-owner.cjs': [
+      "require('node:fs')",
+      "require('node:path')",
+    ].join('\n'),
+  }, (problems) => {
+    assert.equal(problems.filter((problem) => problem.includes('dominio Filesystem progetto dipende direttamente')).length, 2)
   })
 })
 
@@ -520,7 +519,9 @@ test('impedisce import e ricreazione dei path legacy rimossi', () => {
     'electron/domains/ai/pi-executable.cjs': 'module.exports = {}\n',
     'electron/domains/ai/terminal-attachments.cjs': 'module.exports = {}\n',
     'electron/domains/menu/context-command-dispatcher.cjs': 'module.exports = {}\n',
+    'electron/domains/filesystem/file-utils.cjs': 'module.exports = {}\n',
     'electron/domains/filesystem/project-file-content.cjs': 'module.exports = {}\n',
+    'electron/domains/filesystem/project-path-model.cjs': 'module.exports = {}\n',
     'electron/managed-ssh-service.cjs': 'module.exports = {}\n',
     'electron/remote-file-store.cjs': 'module.exports = {}\n',
     'electron/runtime.cjs': "module.exports = require('./shell-session-manager.cjs')\n",
@@ -531,7 +532,9 @@ test('impedisce import e ricreazione dei path legacy rimossi', () => {
     assert.ok(problems.some((problem) => problem.includes('electron/domains/ai/pi-executable.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('electron/domains/ai/terminal-attachments.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('electron/domains/menu/context-command-dispatcher.cjs: path legacy rimosso ricreato')))
+    assert.ok(problems.some((problem) => problem.includes('electron/domains/filesystem/file-utils.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('electron/domains/filesystem/project-file-content.cjs: path legacy rimosso ricreato')))
+    assert.ok(problems.some((problem) => problem.includes('electron/domains/filesystem/project-path-model.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('path legacy "electron/shell-session-manager" rimosso')))
     assert.ok(problems.some((problem) => problem.includes('electron/managed-ssh-service.cjs: path legacy rimosso ricreato')))
     assert.ok(problems.some((problem) => problem.includes('electron/remote-file-store.cjs: path legacy rimosso ricreato')))

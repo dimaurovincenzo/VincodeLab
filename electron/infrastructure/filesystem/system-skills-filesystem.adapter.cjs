@@ -1,7 +1,8 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { createSystemSkillsStoragePort } = require('../../domains/ai/system-skills-storage.port.cjs')
-const { assertRegularFile, writeFileAtomic } = require('../../domains/filesystem/file-utils.cjs')
+const { writeFileAtomic } = require('./project-file-io-filesystem.service.cjs')
+const { assertRegularProjectFile } = require('./project-path-filesystem.service.cjs')
 
 const MAX_ROOT_ENTRIES = 500
 const SKILL_FILE = 'SKILL.md'
@@ -29,7 +30,7 @@ function resolveSkillFile(root, skillId) {
   if (!assertRoot(root)) throw new Error('Skill non trovata.')
   const directFilePath = path.join(root, `${skillId}.md`)
   if (fs.existsSync(directFilePath)) {
-    assertRegularFile(directFilePath, 'Skill non trovata.')
+    assertRegularProjectFile(directFilePath, 'Skill non trovata.')
     return { filePath: directFilePath, legacyFile: true }
   }
 
@@ -39,7 +40,7 @@ function resolveSkillFile(root, skillId) {
     throw new Error('La directory skill richiesta non è sicura.')
   }
   const filePath = path.join(directory, SKILL_FILE)
-  assertRegularFile(filePath, 'Skill non trovata.')
+  assertRegularProjectFile(filePath, 'Skill non trovata.')
   return { filePath, legacyFile: false }
 }
 

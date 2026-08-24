@@ -35,7 +35,7 @@ const { PI_COMMAND_TIMEOUT_MS, createPiSystemUseCases } = require('./domains/ai/
 const { createPiPackageSkillsFilesystemAdapter } = require('./infrastructure/filesystem/pi-package-skills-filesystem.adapter.cjs')
 const { createProjectInstructionsUseCases } = require('./domains/ai/project-instructions.cjs')
 const { createProjectInstructionsFilesystemAdapter } = require('./infrastructure/filesystem/project-instructions-filesystem.adapter.cjs')
-const { createProjectDirectoryListing, createProjectEntryMutations, createProjectFileActions, createProjectFileIndex, createProjectFileReader, createProjectFileSaver, resolveProjectDirectory, resolveProjectFile } = require('./domains/filesystem/project-files.cjs')
+const { createProjectDirectoryListing, createProjectEntryMutations, createProjectFileActions, createProjectFileIndex, createProjectFileReader, createProjectFileSaver } = require('./domains/filesystem/project-files.cjs')
 const { createProjectSkillsUseCases } = require('./domains/ai/project-skills.cjs')
 const { createProjectSkillsFilesystemAdapter } = require('./infrastructure/filesystem/project-skills-filesystem.adapter.cjs')
 const { createCommandCategory, createWorkspaceCommand, deleteCommandCategory, deleteWorkspaceCommand, getWorkspaceCommand, listWorkspaceCommands, moveWorkspaceCommand, updateCommandCategory, updateWorkspaceCommand } = require('./infrastructure/persistence/workspace-commands.repository.cjs')
@@ -257,6 +257,8 @@ const {
 const {
   openProjectFileWith,
   prepareProjectFileAttachment,
+  resolveProjectDirectory,
+  resolveProjectFile,
 } = createProjectFileActions(createProjectFileActionsFilesystemAdapter())
 const {
   readProjectFile,

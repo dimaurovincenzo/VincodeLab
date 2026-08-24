@@ -1,7 +1,8 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { createProjectSkillsStoragePort } = require('../../domains/ai/project-skills-storage.port.cjs')
-const { assertRegularFile, writeFileAtomic } = require('../../domains/filesystem/file-utils.cjs')
+const { writeFileAtomic } = require('./project-file-io-filesystem.service.cjs')
+const { assertRegularProjectFile } = require('./project-path-filesystem.service.cjs')
 
 const MAX_SKILL_FILES = 500
 const MAX_TRAVERSAL_DEPTH = 8
@@ -60,7 +61,7 @@ function resolveSkillFile(workspacePath, reference) {
 
   if (reference.kind === 'root-markdown') {
     const candidate = path.join(root, reference.segments[0])
-    assertRegularFile(candidate, 'Skill non trovata.')
+    assertRegularProjectFile(candidate, 'Skill non trovata.')
     return { filePath: candidate, rootMarkdown: true }
   }
 
@@ -79,7 +80,7 @@ function resolveSkillFile(workspacePath, reference) {
     }
   }
   const candidate = path.join(directory, SKILL_FILE)
-  assertRegularFile(candidate, 'Skill non trovata.')
+  assertRegularProjectFile(candidate, 'Skill non trovata.')
   return { filePath: candidate, rootMarkdown: false }
 }
 

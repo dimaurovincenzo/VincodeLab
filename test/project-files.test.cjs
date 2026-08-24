@@ -12,7 +12,6 @@ const {
   createProjectFileReader,
   createProjectFileSaver,
   isEditorVisibleFile,
-  resolveProjectDirectory,
 } = require('../electron/domains/filesystem/project-files.cjs')
 const {
   createProjectDirectoryListingFilesystemAdapter,
@@ -39,6 +38,7 @@ const {
 } = createProjectEntryMutations(createProjectEntryMutationsFilesystemAdapter())
 const {
   openProjectFileWith,
+  resolveProjectDirectory,
   revealProjectDirectory,
   revealProjectFile,
 } = createProjectFileActions(createProjectFileActionsFilesystemAdapter())

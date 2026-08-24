@@ -7,28 +7,35 @@ const {
 function createProjectFileActions(host) {
   const fileActionsHost = assertProjectFileActionsHostPort(host)
 
+  function resolveProjectDirectory(workspacePath, directoryId) {
+    validateProjectDirectoryId(directoryId)
+    return fileActionsHost.resolveDirectory(workspacePath, directoryId)
+  }
+
+  function resolveProjectFile(workspacePath, fileId) {
+    validateProjectEntryId(fileId)
+    return fileActionsHost.resolveFile(workspacePath, fileId)
+  }
+
   function prepareProjectFileAttachment(workspacePath, fileId) {
     validateProjectEntryId(fileId)
     return fileActionsHost.prepareAttachment(workspacePath, fileId)
   }
 
   function revealProjectFile(workspacePath, fileId, { showItemInFolder }) {
-    validateProjectEntryId(fileId)
-    const filePath = fileActionsHost.resolveFile(workspacePath, fileId)
+    const filePath = resolveProjectFile(workspacePath, fileId)
     showItemInFolder(filePath)
     return { revealed: true }
   }
 
   function revealProjectDirectory(workspacePath, directoryId, { showItemInFolder }) {
-    validateProjectDirectoryId(directoryId)
-    const directoryPath = fileActionsHost.resolveDirectory(workspacePath, directoryId)
+    const directoryPath = resolveProjectDirectory(workspacePath, directoryId)
     showItemInFolder(directoryPath)
     return { revealed: true }
   }
 
   async function openProjectFileWith(workspacePath, fileId, { chooseApplication, openWith }) {
-    validateProjectEntryId(fileId)
-    const filePath = fileActionsHost.resolveFile(workspacePath, fileId)
+    const filePath = resolveProjectFile(workspacePath, fileId)
     const applicationPath = await chooseApplication()
     if (!applicationPath) return { opened: false }
     if (!fileActionsHost.isMacApplicationBundle(applicationPath)) {
@@ -41,6 +48,8 @@ function createProjectFileActions(host) {
   return Object.freeze({
     openProjectFileWith,
     prepareProjectFileAttachment,
+    resolveProjectDirectory,
+    resolveProjectFile,
     revealProjectDirectory,
     revealProjectFile,
   })
