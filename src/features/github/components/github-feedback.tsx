@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { RefreshCw, TriangleAlert } from 'lucide-react'
-import { Button, ErrorNotice, Spinner } from '@/components/ui'
+import { Button, ErrorNotice } from '@/components/ui'
+import { ViewLoadingState } from '@/components/view-loading-state'
 import type { UserError } from '@/lib/user-error'
 import { githubStyles as gh } from '@/theme/styles/github'
 import { cx } from '../../../../styled-system/css'
@@ -25,5 +26,7 @@ export function GitHubErrorNotice({ error, label, onClick }: GitHubErrorNoticePr
 }
 
 export function GitHubDataState({ busy, error, onRefresh }: { busy: boolean; error?: UserError; onRefresh: () => void }) {
-  return <section aria-live="polite" className={cx(gh.panel, gh.liveState)}>{busy ? <p className={cx(gh.muted, gh.inlineLoading)}><Spinner size={15} /> Caricamento dati GitHub…</p> : error ? <ErrorNotice action={{ label: 'Riprova caricamento GitHub', onClick: onRefresh }} error={error} /> : <><p className={gh.muted}>I dati GitHub non sono ancora disponibili.</p><Button size="sm" variant="outline" onClick={onRefresh}><RefreshCw size={14} /> Riprova caricamento GitHub</Button></>}</section>
+  if (busy) return <ViewLoadingState description="Recupero issue e Projects collegati al repository." label="dati GitHub" />
+
+  return <section aria-live="polite" className={cx(gh.panel, gh.liveState)}>{error ? <ErrorNotice action={{ label: 'Riprova caricamento GitHub', onClick: onRefresh }} error={error} /> : <><p className={gh.muted}>I dati GitHub non sono ancora disponibili.</p><Button size="sm" variant="outline" onClick={onRefresh}><RefreshCw size={14} /> Riprova caricamento GitHub</Button></>}</section>
 }

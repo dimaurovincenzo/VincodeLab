@@ -556,6 +556,68 @@ describe('ordinamento richieste del workspace GitHub', () => {
     expect(screen.queryByText('Attività A obsoleta')).not.toBeInTheDocument()
   })
 
+  it('aggiunge alla board una issue disponibile e mantiene esplicita la mutazione remota', async () => {
+    const baseData = githubData()
+    const issueToAdd = { ...baseData.issues[0], number: 2, title: 'Issue da pianificare', url: 'https://example.test/issues/2' }
+    const initialBoard = projectBoard(1, 'Attività iniziale')
+    const updatedBoard = {
+      ...initialBoard,
+      items: [...initialBoard.items, { id: 'item-2', type: 'ISSUE', title: issueToAdd.title, content: { title: issueToAdd.title, number: 2, url: issueToAdd.url } }],
+    }
+    const addIssueToProject = vi.fn(async () => updatedBoard)
+    installBridge({
+      addIssueToProject,
+      data: vi.fn(async () => cached({ ...baseData, issues: [...baseData.issues, issueToAdd] })),
+      projectBoard: vi.fn(async () => cached(initialBoard)),
+    })
+    const user = userEvent.setup()
+    render(<GitHubWorkspace active initialState={initialState('projects', 1)} workspace="/tmp/github-add-project-issue" />)
+
+    await screen.findByRole('heading', { name: 'Project 1' })
+    await user.click(screen.getByRole('button', { name: 'Aggiungi attività' }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Issue del repository' }), issueToAdd.url)
+    await user.click(screen.getByRole('button', { name: 'Aggiungi al Project' }))
+
+    await waitFor(() => expect(addIssueToProject).toHaveBeenCalledWith(1, issueToAdd.url))
+    expect(await screen.findByText('Issue da pianificare')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Aggiungi attività' })).not.toBeInTheDocument()
+  })
+
+  it('crea una bozza dalla board conservando titolo e descrizione fino al successo', async () => {
+    const initialBoard = projectBoard(1, 'Attività iniziale')
+    const updatedBoard = {
+      ...initialBoard,
+      items: [...initialBoard.items, { id: 'draft-1', type: 'DRAFT_ISSUE', title: 'Bozza UX', content: { title: 'Bozza UX' } }],
+    }
+    const createProjectDraft = vi.fn(async () => updatedBoard)
+    installBridge({ createProjectDraft, projectBoard: vi.fn(async () => cached(initialBoard)) })
+    const user = userEvent.setup()
+    render(<GitHubWorkspace active initialState={initialState('projects', 1)} workspace="/tmp/github-create-project-draft" />)
+
+    await screen.findByRole('heading', { name: 'Project 1' })
+    await user.click(screen.getByRole('button', { name: 'Aggiungi attività' }))
+    await user.click(screen.getByRole('tab', { name: 'Nuova bozza' }))
+    await user.type(screen.getByLabelText('Titolo'), 'Bozza UX')
+    await user.type(screen.getByLabelText(/Descrizione/), 'Contesto della bozza')
+    await user.click(screen.getByRole('button', { name: 'Crea bozza' }))
+
+    await waitFor(() => expect(createProjectDraft).toHaveBeenCalledWith(1, 'Bozza UX', 'Contesto della bozza'))
+    expect(await screen.findByText('Bozza UX')).toBeInTheDocument()
+  })
+
+  it('filtra un elenco ampio di Project per titolo descrizione o numero', async () => {
+    const projects = Array.from({ length: 6 }, (_, index) => ({ ...project(index + 1), shortDescription: index === 5 ? 'Esperienza developer' : `Descrizione ${index + 1}` }))
+    installBridge({ data: vi.fn(async () => cached({ ...githubData(), projects })) })
+    const user = userEvent.setup()
+    render(<GitHubWorkspace active initialState={initialState('projects')} workspace="/tmp/github-project-search" />)
+
+    const search = await screen.findByRole('searchbox', { name: 'Cerca Project' })
+    await user.type(search, 'developer')
+    expect(screen.getByRole('option', { name: /Project 6/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Project 1/ })).not.toBeInTheDocument()
+    expect(screen.getByText('1 di 6')).toBeInTheDocument()
+  })
+
   it('scarta i campi dell attività A dopo la selezione dell attività B', async () => {
     const firstFields = deferred<Record<string, string>>()
     const secondFields = deferred<Record<string, string>>()
@@ -586,8 +648,8 @@ describe('ordinamento richieste del workspace GitHub', () => {
     render(<GitHubWorkspace active initialState={initialState('projects', 1)} workspace="/tmp/github-race-fields" />)
 
     await screen.findByRole('heading', { name: 'Project 1' })
-    const secondItem = screen.getByRole('button', { name: /Attività B/ })
-    await user.click(screen.getByRole('button', { name: /Attività A/ }))
+    const secondItem = screen.getByTitle('Attività B')
+    await user.click(screen.getByTitle('Attività A'))
     await waitFor(() => expect(projectItemFields).toHaveBeenCalledWith(1, 'item-a'))
     fireEvent.click(secondItem)
     await waitFor(() => expect(projectItemFields).toHaveBeenCalledWith(1, 'item-b'))

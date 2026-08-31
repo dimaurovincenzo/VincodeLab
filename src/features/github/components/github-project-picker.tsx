@@ -1,4 +1,5 @@
-import { Check, ChevronRight, FolderKanban, Plus, Settings2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, ChevronRight, FolderKanban, Plus, Search, Settings2 } from 'lucide-react'
 import { Button, Collapsible, Field, Listbox, Splitter } from '@/components/ui'
 import { EmptyState } from '@/components/empty-state'
 import { githubStyles as gh } from '@/theme/styles/github'
@@ -8,6 +9,12 @@ import { GitHubErrorNotice, LimitNotice } from './github-feedback'
 
 export function GitHubProjectPicker({ controller }: { controller: GitHubWorkspaceController }) {
   const { actions, derived, errors, recoveries, state } = controller
+  const [projectComposerOpen, setProjectComposerOpen] = useState(false)
+  const projectTitleInput = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (projectComposerOpen) projectTitleInput.current?.focus()
+  }, [projectComposerOpen])
 
   return <Splitter.Panel asChild id="github-project-picker"><section className={cx(gh.panel, gh.projectListPanel)}>
     <div className={gh.projectListHeading}><h2 className={cx(gh.panelTitle, gh.projectListTitle)} id="github-project-list-label"><FolderKanban size={15} /> Progetti GitHub del workspace {state.data && <span className={gh.panelTitleCount}>{state.data.projects.length}</span>}</h2>{derived.selectedProjectDetails && <Splitter.CollapseTrigger collapseLabel="Comprimi elenco Project" expandLabel="Cambia Project" panelId="github-project-picker" variant="outline" />}</div>
@@ -18,11 +25,16 @@ export function GitHubProjectPicker({ controller }: { controller: GitHubWorkspac
       {derived.projectsLimited && <LimitNotice>Elenco Project limitato ai primi {state.data.projects.length} risultati collegati.</LimitNotice>}
       {state.data.projectsDiagnostic && <GitHubErrorNotice error={errors.surfaceErrors['projects-diagnostic']} label="Aggiorna autorizzazioni e dati" onClick={() => recoveries.refreshGitHubAfterFailure('projects-diagnostic')} />}
       <GitHubErrorNotice error={errors.surfaceErrors.projects} label="Aggiorna Projects" onClick={() => recoveries.refreshGitHubAfterFailure('projects')} />
-      <Collapsible.Root className={gh.projectUtility}>
+      {(state.data.projects.length > 4 || state.projectSearch) && <div className={gh.projectSearch}>
+        <Search aria-hidden="true" className={gh.searchIcon} size={14} />
+        <Field.Root className={gh.searchFieldRoot}><Field.Input className={gh.searchInput} aria-label="Cerca Project" placeholder="Cerca Project" type="search" value={state.projectSearch} onChange={(event) => state.setProjectSearch(event.target.value)} /></Field.Root>
+        <small>{derived.visibleProjects.length} di {state.data.projects.length}</small>
+      </div>}
+      <Collapsible.Root className={gh.projectUtility} open={projectComposerOpen} onOpenChange={({ open }) => setProjectComposerOpen(open)}>
         <Collapsible.Trigger className={gh.projectUtilityTrigger}><Collapsible.Indicator><ChevronRight aria-hidden="true" size={14} /></Collapsible.Indicator><Plus aria-hidden="true" size={14} /> Nuovo Project</Collapsible.Trigger>
-        <Collapsible.Content><div className={gh.projectCreate}><Field.Root className={gh.growField}><Field.Input aria-label="Titolo del nuovo Project" value={state.projectTitle} maxLength={256} placeholder="Titolo del nuovo Project" onChange={(event) => state.setProjectTitle(event.target.value)} /></Field.Root><Button size="sm" disabled={state.busy || !state.projectTitle.trim()} onClick={actions.requestCreateProject}>Crea</Button></div></Collapsible.Content>
+        <Collapsible.Content><div className={gh.projectCreate}><Field.Root className={gh.growField}><Field.Input ref={projectTitleInput} aria-label="Titolo del nuovo Project" value={state.projectTitle} maxLength={256} placeholder="Titolo del nuovo Project" onChange={(event) => state.setProjectTitle(event.target.value)} /></Field.Root><Button size="sm" disabled={state.busy || !state.projectTitle.trim()} onClick={actions.requestCreateProject}>Crea</Button></div></Collapsible.Content>
       </Collapsible.Root>
-      {state.data.projects.length ? <Listbox.Root className={gh.projectListboxRoot} collection={derived.projectCollection} deselectable={false} ids={{ label: 'github-project-list-label' }} loopFocus selectionMode="single" value={state.selectedProject ? [String(state.selectedProject)] : []} onValueChange={({ items }) => { const project = items[0]; if (!project) return; state.setBoardItemDialogOpen(false); state.setSelectedBoardItemId(null); void actions.loadBoard(project.number) }}><Listbox.Content className={gh.projectListbox}>{state.data.projects.map((project) => <Listbox.Item className={gh.projectItem} highlightOnHover item={project} key={project.number}><Listbox.ItemText asChild><span className={gh.projectItemContent}><span className={gh.projectItemHeader}><strong className={gh.projectItemTitle}>{project.title}</strong><span className={gh.projectItemState}>{project.closed ? 'Chiuso' : 'Aperto'}</span></span><small className={gh.projectItemDescription}>{project.shortDescription || 'Nessuna descrizione'}</small></span></Listbox.ItemText><Listbox.ItemIndicator><Check aria-hidden="true" size={14} /></Listbox.ItemIndicator></Listbox.Item>)}</Listbox.Content></Listbox.Root> : <EmptyState className={gh.projectListEmpty} description="Crea il primo Project per organizzare le attività del repository." eyebrow="Projects" icon={<FolderKanban size={26} />} title="Nessun Project collegato" />}
+      {derived.visibleProjects.length ? <Listbox.Root className={gh.projectListboxRoot} collection={derived.projectCollection} deselectable={false} ids={{ label: 'github-project-list-label' }} loopFocus selectionMode="single" value={state.selectedProject ? [String(state.selectedProject)] : []} onValueChange={({ items }) => { const project = items[0]; if (!project) return; state.setBoardItemDialogOpen(false); state.setSelectedBoardItemId(null); void actions.loadBoard(project.number) }}><Listbox.Content className={gh.projectListbox}>{derived.visibleProjects.map((project) => <Listbox.Item className={gh.projectItem} highlightOnHover item={project} key={project.number}><Listbox.ItemText asChild><span className={gh.projectItemContent}><span className={gh.projectItemHeader}><strong className={gh.projectItemTitle}>{project.title}</strong><span className={gh.projectItemState}>{project.closed ? 'Chiuso' : 'Aperto'}</span></span><small className={gh.projectItemDescription}>{project.shortDescription || 'Nessuna descrizione'}</small></span></Listbox.ItemText><Listbox.ItemIndicator><Check aria-hidden="true" size={14} /></Listbox.ItemIndicator></Listbox.Item>)}</Listbox.Content></Listbox.Root> : state.data.projects.length ? <EmptyState action={<Button size="sm" variant="outline" onClick={() => state.setProjectSearch('')}>Azzera ricerca</Button>} className={gh.projectListEmpty} description="Modifica la ricerca per vedere altri Project collegati." eyebrow="Projects" icon={<Search size={26} />} title="Nessun Project trovato" /> : <EmptyState action={projectComposerOpen ? undefined : <Button size="sm" onClick={() => setProjectComposerOpen(true)}><Plus aria-hidden="true" size={14} /> Crea il primo Project</Button>} className={gh.projectListEmpty} description="Crea il primo Project per organizzare le attività del repository." eyebrow="Projects" icon={<FolderKanban size={26} />} title="Nessun Project collegato" />}
       {derived.selectedProjectDetails && <Collapsible.Root className={gh.projectManagement}>
         <Collapsible.Trigger className={gh.projectManagementTitle}><Collapsible.Indicator><ChevronRight aria-hidden="true" size={14} /></Collapsible.Indicator><Settings2 aria-hidden="true" size={14} /> Gestisci Project</Collapsible.Trigger>
         <Collapsible.Content className={gh.projectManagementContent}>

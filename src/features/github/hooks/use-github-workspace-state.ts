@@ -55,6 +55,7 @@ export function useGitHubWorkspaceState(initialState?: WorkspaceSessionState['gi
   const [board, setBoard] = useState<GitHubProjectBoard | null>(null)
   const [selectedProject, setSelectedProject] = useState<number | null>(() => initialState?.selectedProjectNumber ?? null)
   const [projectTitle, setProjectTitle] = useState('')
+  const [projectSearch, setProjectSearch] = useState('')
   const [editingProject, setEditingProject] = useState<GitHubProject | null>(null)
   const [projectEditTitle, setProjectEditTitle] = useState('')
   const [projectEditDescription, setProjectEditDescription] = useState('')
@@ -87,6 +88,7 @@ export function useGitHubWorkspaceState(initialState?: WorkspaceSessionState['gi
   }, [])
   const rememberFailedDiff = useCallback((file: GitFileStatus | null) => { failedDiffFile.current = file }, [])
   const getFailedDiff = useCallback(() => failedDiffFile.current, [])
+  const setIssueComposerTrigger = useCallback((element: HTMLButtonElement | null) => { issueComposerTrigger.current = element }, [])
   const setBoardItemDialogTrigger = useCallback((element: HTMLButtonElement | null) => { boardItemDialogTrigger.current = element }, [])
   const focusChangesPrimary = useCallback(() => { changesPrimary.current?.focus() }, [])
   const focusChangesPrimaryAction = useCallback(() => {
@@ -150,6 +152,7 @@ export function useGitHubWorkspaceState(initialState?: WorkspaceSessionState['gi
     projectFieldRequests,
     projectFieldValues,
     projectPickerCollapsed,
+    projectSearch,
     projectTitle,
     remoteUrl,
     selectedBoardItemId,
@@ -178,6 +181,7 @@ export function useGitHubWorkspaceState(initialState?: WorkspaceSessionState['gi
     setGitHubRepositoryVisibility,
     setIssueBody,
     setIssueComposerOpen,
+    setIssueComposerTrigger,
     setIssueDetailOpen,
     setIssueSearch,
     setIssueStateFilter,
@@ -190,6 +194,7 @@ export function useGitHubWorkspaceState(initialState?: WorkspaceSessionState['gi
     setProjectFieldDrafts,
     setProjectFieldValues,
     setProjectPickerCollapsed,
+    setProjectSearch,
     setProjectTitle,
     setRemoteUrl,
     setSelectedBoardItemId,

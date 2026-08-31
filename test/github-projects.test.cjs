@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { MAX_PROJECT_ITEMS, PROJECT_FIELD_LIST_JQ, applyIssueParents, assertProjectDetails, assertProjectNumber, assertNodeId, buildItemEditArgs, buildProjectItemListJq, getProjectBoard, limitProjectItems, parseIssueParents, parseLinkedProjects, parseLinkedProjectsPage, parseProjectBoardList, parseProjectBoardItems, parseProjectItemFieldValues } = require('../electron/domains/github/github-projects.cjs')
+const { MAX_PROJECT_FIELDS, MAX_PROJECT_ITEMS, PROJECT_FIELDS_QUERY, applyIssueParents, assertProjectDetails, assertProjectNumber, assertNodeId, buildItemEditArgs, buildProjectItemListJq, getProjectBoard, limitProjectItems, parseIssueParents, parseLinkedProjects, parseLinkedProjectsPage, parseProjectBoardList, parseProjectBoardItems, parseProjectFields, parseProjectItemFieldValues } = require('../electron/domains/github/github-projects.cjs')
 
 test('keeps only the Projects linked to the repository returned by GraphQL', () => {
   const projects = parseLinkedProjects(JSON.stringify({
@@ -39,18 +39,18 @@ test('espone hasMore quando GitHub segnala altri Project collegati', () => {
 })
 
 test('limita la board e richiede una riga sentinella invece di caricare tutto', async () => {
-  let fieldListArgs = []
+  let fieldQueryArgs = []
   let itemListArgs = []
   const run = async (_command, args) => {
     if (args[0] === 'api' && args[1] === 'graphql' && args.some((value) => String(value).includes('projectsV2(first: 100)'))) {
       return JSON.stringify({ data: { repository: { projectsV2: { nodes: [{ id: 'PVT_board', number: 5, title: 'Board', shortDescription: '', closed: false, url: 'https://github.com/users/acme/projects/5' }] } } } })
     }
+    if (args.some((value) => String(value).includes('fields(first: 100)'))) {
+      fieldQueryArgs = args
+      return JSON.stringify({ data: { node: { id: 'PVT_board', fields: { totalCount: 0, pageInfo: { hasNextPage: false }, nodes: [] } } } })
+    }
     if (args[0] === 'api' && args[1] === 'graphql') {
       return JSON.stringify({ data: { node: { id: 'PVT_board', items: { totalCount: 638 } } } })
-    }
-    if (args[0] === 'project' && args[1] === 'field-list') {
-      fieldListArgs = args
-      return JSON.stringify({ fields: [] })
     }
     if (args[0] === 'project' && args[1] === 'item-list') {
       itemListArgs = args
@@ -61,7 +61,7 @@ test('limita la board e richiede una riga sentinella invece di caricare tutto', 
 
   const board = await getProjectBoard(run, '/workspace', { owner: 'acme', nameWithOwner: 'acme/repo' }, 5)
 
-  assert.equal(fieldListArgs[fieldListArgs.indexOf('--jq') + 1], PROJECT_FIELD_LIST_JQ)
+  assert.ok(fieldQueryArgs.some((value) => String(value).includes(PROJECT_FIELDS_QUERY)))
   assert.equal(itemListArgs[itemListArgs.indexOf('--limit') + 1], String(MAX_PROJECT_ITEMS + 1))
   assert.match(itemListArgs[itemListArgs.indexOf('--jq') + 1], /^\.items \|= map/)
   assert.doesNotMatch(itemListArgs[itemListArgs.indexOf('--jq') + 1], /body/)
@@ -69,11 +69,12 @@ test('limita la board e richiede una riga sentinella invece di caricare tutto', 
   assert.equal(board.itemsTruncated, true)
 })
 
-test('proietta prima della lettura solo campi Project bounded e propaga i troncamenti additivi', async () => {
+test('carica tutti i campi Project supportati e propaga i troncamenti additivi', async () => {
   const fields = [{ id: 'PVTF_status', name: 'Status' }]
   const itemJq = buildProjectItemListJq(fields)
-  assert.match(PROJECT_FIELD_LIST_JQ, /\.fields\[:13\]/)
-  assert.match(PROJECT_FIELD_LIST_JQ, /\.options \/\/ \[\]\)\[:20\]/)
+  assert.equal(MAX_PROJECT_FIELDS, 50)
+  assert.match(PROJECT_FIELDS_QUERY, /fields\(first: 100\)/)
+  assert.match(PROJECT_FIELDS_QUERY, /ProjectV2IterationField/)
   assert.doesNotMatch(itemJq, /content\.body|\$item\.body/)
   assert.match(itemJq, /\.assignees \/\/ \[\]\)\[:10\]/)
 
@@ -82,11 +83,8 @@ test('proietta prima della lettura solo campi Project bounded e propaga i tronca
     if (query.includes('projectsV2(first: 100)')) {
       return JSON.stringify({ data: { repository: { projectsV2: { nodes: [{ id: 'PVT_board', number: 5, title: 'Board', shortDescription: '', closed: false, url: 'https://github.test/5' }] } } } })
     }
+    if (query.includes('fields(first: 100)')) return JSON.stringify({ data: { node: { id: 'PVT_board', fields: { totalCount: 1, pageInfo: { hasNextPage: false }, nodes: [{ ...fields[0], __typename: 'ProjectV2SingleSelectField', dataType: 'SINGLE_SELECT', options: Array.from({ length: 101 }, (_, index) => ({ id: `option_${index}`, name: `Opzione ${index}` })) }] } } } })
     if (query.includes('items { totalCount }')) return JSON.stringify({ data: { node: { id: 'PVT_board', items: { totalCount: 1 } } } })
-    if (args[0] === 'project' && args[1] === 'field-list') {
-      assert.equal(args[args.indexOf('--jq') + 1], PROJECT_FIELD_LIST_JQ)
-      return JSON.stringify({ fields: [{ ...fields[0], dataType: 'SINGLE_SELECT', optionsHasMore: true, options: [] }] })
-    }
     if (args[0] === 'project' && args[1] === 'item-list') {
       assert.equal(args[args.indexOf('--jq') + 1], itemJq)
       return JSON.stringify({ items: [{ id: 'PVTI_1', type: 'DraftIssue', status: 'Todo', valuesTruncated: true, content: { title: 'Attività' } }] })
@@ -141,7 +139,7 @@ test('riapplica il budget al DTO finale dopo avere aggiunto le relazioni padre',
       }
       return JSON.stringify({ data: { repository } })
     }
-    if (args[0] === 'project' && args[1] === 'field-list') return JSON.stringify({ fields })
+    if (query.includes('fields(first: 100)')) return JSON.stringify({ data: { node: { id: 'PVT_board', fields: { totalCount: fields.length, pageInfo: { hasNextPage: false }, nodes: fields } } } })
     if (args[0] === 'project' && args[1] === 'item-list') return JSON.stringify({ items })
     throw new Error(`Comando inatteso: ${args.join(' ')}`)
   }
@@ -179,7 +177,7 @@ test('limita le query concorrenti usate per arricchire le relazioni padre', asyn
       activeParentQueries -= 1
       return JSON.stringify({ data: { repository: {} } })
     }
-    if (args[0] === 'project' && args[1] === 'field-list') return JSON.stringify({ fields: [] })
+    if (query.includes('fields(first: 100)')) return JSON.stringify({ data: { node: { id: 'PVT_board', fields: { totalCount: 0, pageInfo: { hasNextPage: false }, nodes: [] } } } })
     if (args[0] === 'project' && args[1] === 'item-list') return JSON.stringify({ items })
     throw new Error(`Comando inatteso: ${args.join(' ')}`)
   }
@@ -205,7 +203,28 @@ test('builds a constrained Project field update command', () => {
   assert.deepEqual(buildItemEditArgs('PVT_4', 'PVTITEM_a1', 'PVTSSF_a2', { type: 'singleSelect', optionId: 'opt_done' }, 'octo'), [
     'project', 'item-edit', '--project-id', 'PVT_4', '--id', 'PVTITEM_a1', '--field-id', 'PVTSSF_a2', '--single-select-option-id', 'opt_done',
   ])
+  assert.deepEqual(buildItemEditArgs('PVT_4', 'PVTITEM_a1', 'PVTIF_a2', { type: 'iteration', iterationId: 'iteration_7' }), [
+    'project', 'item-edit', '--project-id', 'PVT_4', '--id', 'PVTITEM_a1', '--field-id', 'PVTIF_a2', '--iteration-id', 'iteration_7',
+  ])
   assert.throws(() => buildItemEditArgs('PVT_4', 'invalid id with spaces', 'PVTSSF_a2', { type: 'text' }, 'ciao'), /Dati Project non validi/)
+})
+
+test('normalizza campi nativi, custom e iterazioni dalla query GraphQL del Project', () => {
+  const page = parseProjectFields(JSON.stringify({ data: { node: { id: 'PVT_board', fields: {
+    totalCount: 3,
+    pageInfo: { hasNextPage: false },
+    nodes: [
+      { __typename: 'ProjectV2Field', id: 'PVTF_title', name: 'Title', dataType: 'TITLE' },
+      { __typename: 'ProjectV2SingleSelectField', id: 'PVTSSF_product', name: 'Prodotto', dataType: 'SINGLE_SELECT', options: [{ id: 'product_api', name: 'API', color: 'BLUE' }] },
+      { __typename: 'ProjectV2IterationField', id: 'PVTIF_sprint', name: 'Sprint', dataType: 'ITERATION', configuration: { iterations: [{ id: 'iteration_7', title: 'Sprint 7', startDate: '2026-08-24', duration: 14 }], completedIterations: [] } },
+    ],
+  } } } }), 'PVT_board')
+
+  assert.deepEqual(page, { hasMore: false, fields: [
+    { id: 'PVTF_title', name: 'Title', dataType: 'TITLE' },
+    { id: 'PVTSSF_product', name: 'Prodotto', dataType: 'SINGLE_SELECT', options: [{ id: 'product_api', name: 'API', color: 'BLUE' }] },
+    { id: 'PVTIF_sprint', name: 'Sprint', dataType: 'ITERATION', options: [{ id: 'iteration_7', name: 'Sprint 7', startDate: '2026-08-24', duration: 14 }] },
+  ] })
 })
 
 test('rejects project item identifiers that can alter command arguments', () => {
@@ -219,9 +238,11 @@ test('reads text, numeric and date fields from the selected Project item', () =>
       { text: 'MVP', field: { id: 'PVTF_text' } },
       { number: 8, field: { id: 'PVTF_points' } },
       { date: '2026-08-19', field: { id: 'PVTF_due' } },
+      { name: 'Alta', field: { id: 'PVTSSF_priority' } },
+      { title: 'Sprint 7', field: { id: 'PVTIF_sprint' } },
     ] } } },
   }), 'PVTI_abc')
-  assert.deepEqual(values, { PVTF_text: 'MVP', PVTF_points: '8', PVTF_due: '2026-08-19' })
+  assert.deepEqual(values, { PVTF_text: 'MVP', PVTF_points: '8', PVTF_due: '2026-08-19', PVTSSF_priority: 'Alta', PVTIF_sprint: 'Sprint 7' })
 })
 
 test('rejects field values returned for a different Project item', () => {
@@ -259,9 +280,12 @@ test('reads Project rows with custom fields and assignees in one GraphQL page', 
 
 test('maps gh project item-list field labels to Project field ids for grouping', () => {
   const items = parseProjectBoardList(JSON.stringify({ items: [{
-    id: 'PVTI_abc', type: 'Issue', assignees: ['mario', 'anna'], status: 'Completato', prodotto: 'Middleware', priorità: 'P1 - Alta',
+    id: 'PVTI_abc', type: 'Issue', assignees: ['mario', 'anna'], labels: 'bug, backend', status: 'Completato', prodotto: 'Middleware', priorità: 'P1 - Alta',
     content: { title: 'Correggere il flusso', url: 'https://github.com/acme/repo/issues/12', number: 12 },
   }] }), [
+    { id: 'PVTF_title', name: 'Title', dataType: 'TITLE' },
+    { id: 'PVTF_assignees', name: 'Assignees', dataType: 'ASSIGNEES' },
+    { id: 'PVTF_labels', name: 'Labels', dataType: 'LABELS' },
     { id: 'PVTSSF_status', name: 'Status', type: 'ProjectV2SingleSelectField' },
     { id: 'PVTSSF_product', name: 'Prodotto', type: 'ProjectV2SingleSelectField' },
     { id: 'PVTSSF_priority', name: 'Priorità', type: 'ProjectV2SingleSelectField' },
@@ -270,7 +294,7 @@ test('maps gh project item-list field labels to Project field ids for grouping',
   assert.deepEqual(items, [{
     id: 'PVTI_abc', type: 'Issue', assignees: ['mario', 'anna'], status: 'Completato',
     title: 'Correggere il flusso', content: { title: 'Correggere il flusso', url: 'https://github.com/acme/repo/issues/12', number: 12 },
-    fieldValues: { PVTSSF_status: 'Completato', PVTSSF_product: 'Middleware', PVTSSF_priority: 'P1 - Alta' },
+    fieldValues: { PVTF_title: 'Correggere il flusso', PVTF_assignees: 'mario, anna', PVTF_labels: 'bug, backend', PVTSSF_status: 'Completato', PVTSSF_product: 'Middleware', PVTSSF_priority: 'P1 - Alta' },
   }])
 })
 

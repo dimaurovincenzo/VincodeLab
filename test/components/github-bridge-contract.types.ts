@@ -29,6 +29,8 @@ interface ExpectedGitGraphCommit {
   parents: string[]
   refs: string[]
   subject: string
+  author?: string
+  date?: string
 }
 interface ExpectedGitBranch {
   name: string
@@ -109,7 +111,7 @@ interface ExpectedGitHubProjectField {
   id: string
   name: string
   dataType: string
-  options?: Array<{ id: string; name: string; color?: string }>
+  options?: Array<{ id: string; name: string; color?: string; startDate?: string; duration?: number }>
   optionsHasMore?: boolean
 }
 interface ExpectedGitHubProjectItem {
@@ -126,6 +128,7 @@ interface ExpectedGitHubProjectItem {
 }
 type ExpectedGitHubProjectItemUpdate =
   | { type: 'singleSelect'; optionId: string }
+  | { type: 'iteration'; iterationId: string }
   | { type: 'text'; value: string }
   | { type: 'number'; value: number }
   | { type: 'date'; value: string }

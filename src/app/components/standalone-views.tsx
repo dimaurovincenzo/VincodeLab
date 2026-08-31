@@ -1,9 +1,9 @@
 import { Suspense } from 'react'
 import { Tabs } from '@/components/ui'
 import { ViewErrorBoundary } from '@/components/view-error-boundary'
+import { ViewLoadingState } from '@/components/view-loading-state'
 import { shouldMountPersistentView } from '@/lib/persistent-view-state'
 import { shellStyles } from '@/theme/styles/shell'
-import { terminalStyles } from '@/theme/styles/terminal'
 import type { AppController } from '../hooks/use-app-controller'
 import { AppSettings } from './lazy-workbench-views'
 import { HomeView } from './home-view'
@@ -24,7 +24,7 @@ export function StandaloneViews({ controller }: { controller: AppController }) {
         <Tabs.Content asChild value="settings">
           <section className={shellStyles.standalonePage}>
             <ViewErrorBoundary viewName="Impostazioni">
-              <Suspense fallback={<div className={terminalStyles.loading}>Caricamento impostazioni…</div>}>
+              <Suspense fallback={<ViewLoadingState label="Impostazioni" />}>
                 <AppSettings active={appSection === 'settings'} appearance={appearance} openRuntimeRequest={settingsRuntimeRequest} onAppearanceChange={changeAppearance} onWorkspaceGuardChange={handleSettingsWorkspaceGuardChange} />
               </Suspense>
             </ViewErrorBoundary>

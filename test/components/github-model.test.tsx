@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { GitHubIssue, GitHubProjectBoard, GitHubProjectField, GitHubProjectItem } from '@/bridge'
-import { formatCacheState, formatDate } from '@/features/github/model/github-display'
+import { formatCacheState, formatDate, formatRelativeDate } from '@/features/github/model/github-display'
 import { issueStateCounts, matchesIssueSearch, visibleGitHubIssues } from '@/features/github/model/github-issues'
 import {
   groupProjectItems,
+  matchesGitHubProjectSearch,
   matchesProjectItemSearch,
   orderProjectItemsByHierarchy,
   projectBoardLimitMessages,
   projectFieldDataType,
   projectFieldName,
+  projectItemTypeLabel,
   projectIssueKey,
   projectStatusCounts,
 } from '@/features/github/model/github-projects'
@@ -64,6 +66,8 @@ describe('GitHub display model', () => {
     expect(formatCacheState({ fetchedAt: now - 5 * 60_000, expiresAt: now, stale: false }, now)).toBe('Aggiornato 5 min fa')
     expect(formatCacheState({ fetchedAt: now, expiresAt: now, stale: true }, now)).toBe('Dati non aggiornati')
     expect(formatDate('2026-08-24T10:00:00.000Z')).toContain('2026')
+    expect(formatRelativeDate('2026-08-24T10:10:00.000Z', now)).toBe('2 ore fa')
+    expect(formatRelativeDate('2026-08-23T12:10:00.000Z', now)).toBe('ieri')
   })
 })
 
@@ -83,6 +87,18 @@ describe('GitHub issue model', () => {
 })
 
 describe('GitHub Projects model', () => {
+  it('cerca i Project e distingue i tipi di attività', () => {
+    const roadmap = { id: 'p1', number: 12, title: 'Roadmap Frontend', shortDescription: 'Esperienza developer', closed: false, url: 'https://example.test/projects/12' }
+
+    expect(matchesGitHubProjectSearch(roadmap, 'frontend')).toBe(true)
+    expect(matchesGitHubProjectSearch(roadmap, 'developer')).toBe(true)
+    expect(matchesGitHubProjectSearch(roadmap, '12')).toBe(true)
+    expect(matchesGitHubProjectSearch(roadmap, 'backend')).toBe(false)
+    expect(projectItemTypeLabel(projectItem('issue', 1))).toBe('Issue')
+    expect(projectItemTypeLabel(projectItem('draft', 2, { type: 'DRAFT_ISSUE' }))).toBe('Bozza')
+    expect(projectItemTypeLabel(projectItem('pr', 3, { type: 'PULL_REQUEST' }))).toBe('Pull request')
+  })
+
   it('cerca attività per issue, titolo, assegnatario e valori dei campi', () => {
     const item = projectItem('item-42', 42, {
       assignees: ['Vincenzo'],

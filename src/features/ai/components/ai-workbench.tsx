@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { BookOpen, ChevronDown, ChevronUp, RefreshCw, ScrollText, Search, TerminalSquare, X } from 'lucide-react'
 import { Button, Field, IconButton, Spinner, Splitter, Tabs, type SplitterPanelData } from '@/components/ui'
 import { TerminalToolbar } from '@/components/terminal-toolbar'
+import { ViewLoadingState } from '@/components/view-loading-state'
 import { TerminalPasteStatus } from './terminal-paste-status'
 import { ViewErrorBoundary } from '@/components/view-error-boundary'
 import { shouldMountPersistentView, type PersistentViewState } from '@/lib/persistent-view-state'
@@ -136,7 +137,7 @@ export function AiWorkbench({
           {shouldMountPersistentView(loadedSections, 'skills', aiTab === 'skills') && (
             <Tabs.Content value="skills" className={aiStyles.tabPanel}>
               <ViewErrorBoundary viewName="Skill progetto">
-                <Suspense fallback={<div className={terminalStyles.loading}>Caricamento Skill…</div>}>
+                <Suspense fallback={<ViewLoadingState label="Skill progetto" description="Sto preparando l’elenco e l’editor delle skill locali." />}>
                   <ProjectSkills workspace={workspace} onWorkspaceGuardChange={onSkillsWorkspaceGuardChange} />
                 </Suspense>
               </ViewErrorBoundary>
@@ -145,7 +146,7 @@ export function AiWorkbench({
           {shouldMountPersistentView(loadedSections, 'instructions', aiTab === 'instructions') && (
             <Tabs.Content value="instructions" className={aiStyles.tabPanel}>
               <ViewErrorBoundary viewName="Istruzioni progetto">
-                <Suspense fallback={<div className={terminalStyles.loading}>Caricamento istruzioni…</div>}>
+                <Suspense fallback={<ViewLoadingState label="Istruzioni progetto" description="Sto preparando le istruzioni condivise con Pi." />}>
                   <ProjectInstructions onWorkspaceGuardChange={onInstructionsWorkspaceGuardChange} />
                 </Suspense>
               </ViewErrorBoundary>

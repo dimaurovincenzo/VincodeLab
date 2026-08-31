@@ -40,13 +40,15 @@ test('il select visibilità non eredita l’id del campo nome repository', () =>
 test('i dialog GitHub delegano focus iniziale e ritorno all opener ad Ark', () => {
   assert.match(workspace, /const issueComposerTrigger = useRef<HTMLButtonElement>\(null\)/)
   assert.match(workspace, /const issueTitleInput = useRef<HTMLInputElement>\(null\)/)
-  assert.match(workspace, /<Button ref=\{issueComposerTrigger\} onClick=\{\(\) => state\.setIssueComposerOpen\(true\)\}>Nuova issue<\/Button>/)
+  assert.match(workspace, /setIssueComposerTrigger = useCallback\([\s\S]*?issueComposerTrigger\.current = element/)
+  assert.match(workspace, /state\.setIssueComposerTrigger\(event\.currentTarget\)[\s\S]*?state\.setIssueComposerOpen\(true\)[\s\S]*?Nuova issue/)
+  assert.match(workspace, /aria-label=\{`Apri issue #\$\{issue\.number\}: \$\{issue\.title\}; stato \$\{stateLabel\}`\}/)
   assert.match(workspace, /<Dialog\.Root[^>]*finalFocusEl=\{\(\) => issueComposerTrigger\.current\}[^>]*initialFocusEl=\{\(\) => issueTitleInput\.current\}[^>]*lazyMount[^>]*open=\{state\.issueComposerOpen\}/)
   assert.match(workspace, /ids=\{\{ title: 'github-issue-create-title' \}\}/)
   assert.match(workspace, /<Field\.Input ref=\{issueTitleInput\} id="github-new-issue-title"/)
   assert.doesNotMatch(workspace, /<Field\.Input autoFocus/)
 
-  assert.match(workspace, /issueDetailTrigger\.current = event\.currentTarget; state\.setSelectedIssue\(issue\)/)
+  assert.match(workspace, /issueDetailTrigger\.current = event\.currentTarget[\s\S]*?state\.setSelectedIssue\(issue\)/)
   assert.match(workspace, /<Dialog\.Root[^>]*finalFocusEl=\{\(\) => issueDetailTrigger\.current\}[^>]*open=\{state\.issueDetailOpen\}/)
   assert.match(workspace, /setBoardItemDialogTrigger = useCallback\([\s\S]*?boardItemDialogTrigger\.current = element/)
   assert.match(workspace, /setBoardItemDialogTrigger\(trigger\)/)
@@ -54,15 +56,16 @@ test('i dialog GitHub delegano focus iniziale e ritorno all opener ad Ark', () =
   assert.match(workspace, /finalFocusEl=\{\(\) => boardItemDialogTrigger\.current\?\.isConnected \? boardItemDialogTrigger\.current : boardSearchInput\.current\}/)
 })
 
-test('gli stati vuoti GitHub restano informativi e la board conserva la semantica tabellare', () => {
+test('gli stati vuoti GitHub restano informativi e la board usa una lista di attività accessibile', () => {
   assert.match(workspace, /import \{ EmptyState \} from '@\/components\/empty-state'/)
-  assert.match(workspace, /<EmptyState className=\{gh\.issueEmpty\}.*?title=\{state\.data\.issues\.length > 0 \? 'Nessun risultato' : 'Nessuna issue'\}/)
-  assert.match(workspace, /<EmptyState className=\{gh\.projectListEmpty\}.*?title="Nessun Project collegato"/)
+  assert.match(workspace, /<EmptyState[\s\S]*?className=\{gh\.issueEmpty\}[\s\S]*?title=\{state\.data\.issues\.length > 0 \? 'Nessun risultato' : 'Nessuna issue'\}/)
+  assert.match(workspace, /Crea la prima issue/)
+  assert.match(workspace, /<EmptyState action=\{projectComposerOpen \? undefined : <Button[\s\S]*?Crea il primo Project[\s\S]*?className=\{gh\.projectListEmpty\}.*?title="Nessun Project collegato"/)
   assert.match(workspace, /<EmptyState className=\{gh\.boardPlaceholder\}.*?title="Seleziona un Project"/)
 
-  assert.match(workspace, /<div className=\{gh\.projectTable\} role="table" aria-colcount=/)
-  assert.match(workspace, /<div role="rowgroup"><div role="row"><div aria-colspan=\{derived\.boardPriorityField \? 4 : 3\} className=\{gh\.boardEmpty\} role="cell"><EmptyState className=\{gh\.boardEmptyState\}/)
-  assert.match(workspace, /role="columnheader">Titolo/)
+  assert.match(workspace, /<div className=\{gh\.projectTable\} role="list" aria-label="Attività del Project">/)
+  assert.match(workspace, /<section className=\{gh\.projectGroup\} role="listitem">/)
+  assert.match(workspace, /<div className=\{gh\.boardEmpty\}><EmptyState[\s\S]*?className=\{gh\.boardEmptyState\}/)
   assert.match(styles, /issueEmpty:\s*css\(/)
   assert.match(styles, /projectListEmpty:\s*css\(/)
   assert.match(styles, /boardEmptyState:\s*css\(/)

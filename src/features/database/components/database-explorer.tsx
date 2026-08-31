@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { FilePenLine, Plus, Trash2, Unplug } from 'lucide-react'
+import { Database, FilePenLine, Plus, Trash2, Unplug } from 'lucide-react'
 import type { DatabaseConnection, DatabaseHistoryEntry, DatabaseRoutine, DatabaseSavedQuery, DatabaseTableSchema } from '@/bridge'
 import { Button, ErrorNotice, Field, IconButton, Progress, SelectField, Spinner, Tabs, TreeView, createTreeCollection } from '@/components/ui'
 import type { UserError } from '@/lib/user-error'
@@ -159,7 +159,15 @@ export function DatabaseExplorer({
       <section className={db.explorerContent}>
         <Tabs.Content className={db.schemaContent} value="items">
           {!selected
-            ? <p className={db.listEmpty}>Seleziona o crea una connessione. Nessun database viene aperto automaticamente.</p>
+            ? <div className={db.disconnectedState}>
+                <span className={db.disconnectedIcon}><Database aria-hidden="true" size={18} /></span>
+                <div className={db.disconnectedCopy}>
+                  <strong>Nessuna connessione configurata</strong>
+                  <p>Crea o seleziona una connessione per esplorare lo schema.</p>
+                  <small>Nessun database viene aperto automaticamente.</small>
+                </div>
+                <Button size="sm" onClick={(event) => onNewConnection(event.currentTarget)}><Plus aria-hidden="true" size={14} /> Nuova connessione</Button>
+              </div>
             : !connectionReady
               ? <div className={db.disconnectedState} role="status">
                   <span className={db.disconnectedIcon}><Unplug aria-hidden="true" size={18} /></span>

@@ -1,4 +1,4 @@
-import { Braces, Database, RefreshCw } from 'lucide-react'
+import { Braces, Database, Plus, RefreshCw } from 'lucide-react'
 import { memo } from 'react'
 import type { RedisInspection } from '@/bridge'
 import { Button, ErrorNotice, Spinner, Tabs } from '@/components/ui'
@@ -89,6 +89,12 @@ export const RedisKeyInspector = memo(function RedisKeyInspector({ disabled = fa
   </section></Tabs.Root>
 })
 
-export function RedisInspectorEmpty() {
-  return <EmptyState description="Configura o seleziona una connessione Redis per iniziare a esplorare le chiavi." eyebrow="Redis" icon={<Braces size={24} />} title="Nessuna connessione attiva" />
+export function RedisInspectorEmpty({ onCreateConnection }: { onCreateConnection?: () => void }) {
+  return <EmptyState
+    action={onCreateConnection ? <Button size="sm" onClick={onCreateConnection}><Plus aria-hidden="true" size={14} /> Nuova connessione</Button> : undefined}
+    description="Configura o seleziona una connessione Redis per iniziare a esplorare le chiavi."
+    eyebrow="Redis"
+    icon={<Braces size={24} />}
+    title="Nessuna connessione attiva"
+  />
 }

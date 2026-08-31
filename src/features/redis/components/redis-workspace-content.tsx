@@ -68,7 +68,7 @@ export function RedisWorkspaceContent({ controller }: Props) {
           </div>}
       {!activeConnectionId && (selected
         ? <RedisConnectionGate connecting={sessionPhase === 'connecting'} connection={selected} error={sessionError} onConnect={() => void controller.connectSelected()} />
-        : !loadingConnections && !connectionError ? <RedisInspectorEmpty /> : null)}
+        : !loadingConnections && !connectionError ? <RedisInspectorEmpty onCreateConnection={controller.openNewConnection} /> : null)}
     </div>
   </section>
 }

@@ -35,6 +35,7 @@ export type GitHubErrorSurface =
   | 'projects'
   | 'projects-diagnostic'
   | 'board'
+  | 'project-item-create'
   | 'project-fields'
 
 export type GitHubErrorContext = {

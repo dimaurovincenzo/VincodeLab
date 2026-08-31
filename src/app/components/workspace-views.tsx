@@ -1,11 +1,11 @@
 import { Suspense } from 'react'
 import { Tabs } from '@/components/ui'
 import { BenchmarkViewFaultProbe } from '@/components/benchmark-view-fault-probe'
+import { ViewLoadingState } from '@/components/view-loading-state'
 import { ViewErrorBoundary } from '@/components/view-error-boundary'
 import { AiWorkbench } from '@/features/ai'
 import { shouldMountPersistentView } from '@/lib/persistent-view-state'
 import { shellStyles } from '@/theme/styles/shell'
-import { terminalStyles } from '@/theme/styles/terminal'
 import type { AppController } from '../hooks/use-app-controller'
 import { AppSettings, DatabaseWorkspace, GitHubWorkspace, ProjectEditor, RedisWorkspace, TerminalWorkspace } from './lazy-workbench-views'
 
@@ -59,7 +59,7 @@ export function WorkspaceViews({ controller }: { controller: AppController }) {
         <Tabs.Content asChild key="settings" value="settings">
           <section className={shellStyles.sectionPage}>
             <ViewErrorBoundary viewName="Impostazioni">
-              <Suspense fallback={<div className={terminalStyles.loading}>Caricamento impostazioni…</div>}>
+              <Suspense fallback={<ViewLoadingState label="Impostazioni" />}>
                 <AppSettings active={appSection === 'settings'} appearance={appearance} openRuntimeRequest={settingsRuntimeRequest} onAppearanceChange={changeAppearance} onWorkspaceGuardChange={handleSettingsWorkspaceGuardChange} />
               </Suspense>
             </ViewErrorBoundary>
@@ -82,7 +82,7 @@ export function WorkspaceViews({ controller }: { controller: AppController }) {
           <section className={shellStyles.sectionPage}>
             <ViewErrorBoundary viewName="Editor" onRetry={refreshWorkspaceSessionForRecovery}>
               <BenchmarkViewFaultProbe viewName="Editor" />
-              <Suspense fallback={<div className={terminalStyles.loading}>Caricamento editor…</div>}>
+              <Suspense fallback={<ViewLoadingState label="Editor" />}>
                 <ProjectEditor initialState={workspaceSessionState?.editor} key={workspace} remoteOpenRequest={remoteOpenRequest} workspace={workspace} workbenchRequest={editorWorkbenchRequest} onContextChange={setEditorContext} onOpenGitDiff={openGitDiffForFile} onSendContextToAi={sendEditorContextToAi} onSessionChange={updateEditorSession} onWorkspaceGuardChange={handleEditorWorkspaceGuardChange} />
               </Suspense>
             </ViewErrorBoundary>
@@ -93,7 +93,7 @@ export function WorkspaceViews({ controller }: { controller: AppController }) {
         <Tabs.Content asChild key="terminal" value="terminal">
           <section className={shellStyles.sectionPage}>
             <ViewErrorBoundary viewName="Terminale" onRetry={refreshWorkspaceSessionForRecovery}>
-              <Suspense fallback={<div className={terminalStyles.loading}>Caricamento terminale…</div>}>
+              <Suspense fallback={<ViewLoadingState label="Terminale" />}>
                 <TerminalWorkspace actionRequest={terminalActionRequest} active={appSection === 'terminal'} focusRequest={terminalFocusRequest} initialState={workspaceSessionState?.terminal} key={workspace} workspace={workspace} onSessionChange={updateTerminalSession} onOpenRemoteFile={openRemoteFileInEditor} />
               </Suspense>
             </ViewErrorBoundary>
@@ -104,7 +104,7 @@ export function WorkspaceViews({ controller }: { controller: AppController }) {
         <Tabs.Content asChild key="github" value="github">
           <section className={shellStyles.sectionPage}>
             <ViewErrorBoundary viewName="GitHub" onRetry={refreshWorkspaceSessionForRecovery}>
-              <Suspense fallback={<div className={terminalStyles.loading}>Caricamento GitHub…</div>}>
+              <Suspense fallback={<ViewLoadingState label="GitHub" />}>
                 <GitHubWorkspace active={appSection === 'github'} initialState={workspaceSessionState?.github} key={workspace} workspace={workspace} workbenchRequest={githubWorkbenchRequest} onContextChange={setGitHubContext} onOpenFile={openWorkspaceFile} onSessionChange={updateGitHubSession} />
               </Suspense>
             </ViewErrorBoundary>
@@ -115,7 +115,7 @@ export function WorkspaceViews({ controller }: { controller: AppController }) {
         <Tabs.Content asChild key="database" value="database">
           <section className={shellStyles.sectionPage}>
             <ViewErrorBoundary viewName="Database" onRetry={refreshWorkspaceSessionForRecovery}>
-              <Suspense fallback={<div className={terminalStyles.loading}>Caricamento Database…</div>}>
+              <Suspense fallback={<ViewLoadingState label="Database" />}>
                 <DatabaseWorkspace focusRequest={databaseFocusRequest} initialState={workspaceSessionState?.database} key={workspace} workspace={workspace} onContextChange={setDatabaseContext} onSessionChange={updateDatabaseSession} onWorkspaceGuardChange={handleDatabaseWorkspaceGuardChange} />
               </Suspense>
             </ViewErrorBoundary>
@@ -126,7 +126,7 @@ export function WorkspaceViews({ controller }: { controller: AppController }) {
         <Tabs.Content asChild key="redis" value="redis">
           <section className={shellStyles.sectionPage}>
             <ViewErrorBoundary viewName="Redis" onRetry={refreshWorkspaceSessionForRecovery}>
-              <Suspense fallback={<div className={terminalStyles.loading}>Caricamento Redis…</div>}>
+              <Suspense fallback={<ViewLoadingState label="Redis" />}>
                 <RedisWorkspace focusRequest={redisFocusRequest} initialState={workspaceSessionState?.redis} key={workspace} workspace={workspace} onContextChange={setRedisContext} onSessionChange={updateRedisSession} />
               </Suspense>
             </ViewErrorBoundary>

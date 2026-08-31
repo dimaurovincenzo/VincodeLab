@@ -17,6 +17,31 @@ const ITEM_FIELD_VALUES_QUERY = `query($itemId: ID!) {
           ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2Field { id } } }
           ... on ProjectV2ItemFieldNumberValue { number field { ... on ProjectV2Field { id } } }
           ... on ProjectV2ItemFieldDateValue { date field { ... on ProjectV2Field { id } } }
+          ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2SingleSelectField { id } } }
+          ... on ProjectV2ItemFieldIterationValue { title field { ... on ProjectV2IterationField { id } } }
+        }
+      }
+    }
+  }
+}`
+
+const PROJECT_FIELDS_QUERY = `query($projectId: ID!) {
+  node(id: $projectId) {
+    ... on ProjectV2 {
+      id
+      fields(first: 100) {
+        totalCount
+        pageInfo { hasNextPage }
+        nodes {
+          __typename
+          ... on ProjectV2FieldCommon { id name dataType }
+          ... on ProjectV2SingleSelectField { options { id name color } }
+          ... on ProjectV2IterationField {
+            configuration {
+              iterations { id title startDate duration }
+              completedIterations { id title startDate duration }
+            }
+          }
         }
       }
     }
@@ -34,24 +59,12 @@ const PROJECT_ITEM_COUNT_QUERY = `query($projectId: ID!) {
 
 const MAX_PARENT_QUERY_CONCURRENCY = 4
 const MAX_LINKED_PROJECTS = 100
-const MAX_PROJECT_FIELDS = 12
-const MAX_PROJECT_FIELD_OPTIONS = 20
+const MAX_PROJECT_FIELDS = 50
+const MAX_PROJECT_FIELD_OPTIONS = 100
 const MAX_PROJECT_FIELD_VALUE_CHARS = 96
 const MAX_PROJECT_FIELDS_BYTES = 250_000
 const MAX_PROJECT_ITEMS = 200
 const MAX_PROJECT_ITEMS_BYTES = 1_250_000
-const PROJECT_FIELD_LIST_JQ = `{fields: [.fields[:${MAX_PROJECT_FIELDS + 1}][] | {
-  id: (if (.id | type) == "string" then .id[:256] else null end),
-  name: (if (.name | type) == "string" then .name[:256] else null end),
-  dataType: (if (.dataType | type) == "string" then .dataType[:64] else null end),
-  optionsHasMore: ((.options // []) | length > ${MAX_PROJECT_FIELD_OPTIONS}),
-  options: [(.options // [])[:${MAX_PROJECT_FIELD_OPTIONS}][] | {
-    id: (if (.id | type) == "string" then .id[:256] else null end),
-    name: (if (.name | type) == "string" then .name[:256] else null end),
-    color: (if (.color | type) == "string" then .color[:64] else null end)
-  }]
-}]}`
-
 function isCommandInterruption(error) {
   return error?.name === 'AbortError'
     || error?.code === 'ABORT_ERR'
@@ -127,6 +140,7 @@ function projectFieldKey(name) {
 
 function buildProjectItemListJq(fields) {
   const fieldKeys = [...new Set((Array.isArray(fields) ? fields : []).map((field) => projectFieldKey(field?.name)).filter(Boolean))]
+    .filter((key) => !['title', 'assignees', 'status', 'stato'].includes(key))
     .slice(0, MAX_PROJECT_FIELDS)
   return `.items |= map(. as $item | reduce ${JSON.stringify(fieldKeys)}[] as $key ({
     id: (if ($item.id | type) == "string" then $item.id[:256] else null end),
@@ -144,7 +158,45 @@ function buildProjectItemListJq(fields) {
     .[$key] = $item[$key][0:${MAX_PROJECT_FIELD_VALUE_CHARS}]
     | if ($item[$key] | length) > ${MAX_PROJECT_FIELD_VALUE_CHARS} then .valuesTruncated = true else . end
   elif (($item[$key] | type) == "number") then .[$key] = $item[$key]
+  elif (($item[$key] | type) == "boolean") then .[$key] = ($item[$key] | tostring)
+  elif (($item[$key] | type) == "array") then
+    .[$key] = ([$item[$key][] | if type == "string" or type == "number" or type == "boolean" then tostring elif type == "object" then (.name // .title // .login // .number // empty | tostring) else empty end] | join(", ") | .[0:${MAX_PROJECT_FIELD_VALUE_CHARS}])
+    | if (($item[$key] | tostring | length) > ${MAX_PROJECT_FIELD_VALUE_CHARS}) then .valuesTruncated = true else . end
   else . end))`
+}
+
+function parseProjectFields(output, projectId) {
+  const project = JSON.parse(output)?.data?.node
+  const connection = project?.fields
+  if (!project || project.id !== projectId || !Array.isArray(connection?.nodes)) throw new Error('Campi Project non disponibili.')
+  const fields = connection.nodes.flatMap((field) => {
+    if (typeof field?.id !== 'string' || typeof field?.name !== 'string' || typeof field?.dataType !== 'string') return []
+    const rawOptions = field.__typename === 'ProjectV2IterationField'
+      ? [...(field.configuration?.iterations ?? []), ...(field.configuration?.completedIterations ?? [])]
+      : field.options ?? []
+    const options = rawOptions.slice(0, MAX_PROJECT_FIELD_OPTIONS).flatMap((option) => {
+      const name = option?.name ?? option?.title
+      if (typeof option?.id !== 'string' || typeof name !== 'string') return []
+      return [{
+        id: option.id.slice(0, 256),
+        name: name.slice(0, 256),
+        ...(typeof option.color === 'string' ? { color: option.color.slice(0, 64) } : {}),
+        ...(typeof option.startDate === 'string' ? { startDate: option.startDate } : {}),
+        ...(Number.isInteger(option.duration) ? { duration: option.duration } : {}),
+      }]
+    })
+    return [{
+      id: field.id.slice(0, 256),
+      name: field.name.slice(0, 256),
+      dataType: field.dataType.slice(0, 64),
+      ...(options.length ? { options } : {}),
+      ...(rawOptions.length > options.length ? { optionsHasMore: true } : {}),
+    }]
+  })
+  const hasMore = connection.pageInfo?.hasNextPage === true
+    || (Number.isInteger(connection.totalCount) && connection.totalCount > fields.length)
+    || fields.length > MAX_PROJECT_FIELDS
+  return { fields: fields.slice(0, MAX_PROJECT_FIELDS), hasMore }
 }
 
 function parseProjectBoardList(output, fields) {
@@ -152,7 +204,11 @@ function parseProjectBoardList(output, fields) {
   const statusField = fieldEntries.find((field) => ['status', 'stato'].includes(projectFieldKey(field.name)))
   return parseProjectList(output, 'items').filter((item) => typeof item?.id === 'string').map((item) => {
     const fieldValues = fieldEntries.reduce((values, field) => {
-      const value = item[projectFieldKey(field.name)]
+      const key = projectFieldKey(field.name)
+      const value = key === 'title' ? item.content?.title ?? item.title
+        : key === 'assignees' ? (Array.isArray(item.assignees) ? item.assignees.join(', ') : '')
+          : ['status', 'stato'].includes(key) ? item.status
+            : item[key]
       if (typeof value === 'string' || typeof value === 'number') values[field.id] = String(value)
       return values
     }, {})
@@ -247,7 +303,7 @@ function parseProjectItemFieldValues(output, itemId) {
   if (!item || item.id !== itemId || !Array.isArray(item.fieldValues?.nodes)) throw new Error('Attività Project non trovata.')
   return item.fieldValues.nodes.reduce((values, fieldValue) => {
     const fieldId = fieldValue?.field?.id
-    const value = fieldValue?.text ?? fieldValue?.number ?? fieldValue?.date
+    const value = fieldValue?.name ?? fieldValue?.title ?? fieldValue?.text ?? fieldValue?.number ?? fieldValue?.date
     if (typeof fieldId === 'string' && (typeof value === 'string' || typeof value === 'number')) values[fieldId] = String(value)
     return values
   }, {})
@@ -297,6 +353,7 @@ function buildItemEditArgs(projectId, itemId, fieldId, update) {
   const base = ['project', 'item-edit', '--project-id', assertNodeId(projectId), '--id', assertNodeId(itemId), '--field-id', assertNodeId(fieldId)]
   if (!update || typeof update !== 'object') throw new Error('Dati Project non validi.')
   if (update.type === 'singleSelect') return [...base, '--single-select-option-id', assertNodeId(update.optionId)]
+  if (update.type === 'iteration') return [...base, '--iteration-id', assertNodeId(update.iterationId)]
   if (update.type === 'text' && typeof update.value === 'string' && update.value.length <= 65_536) return [...base, '--text', update.value]
   if (update.type === 'number' && typeof update.value === 'number' && Number.isFinite(update.value)) return [...base, '--number', String(update.value)]
   if (update.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(update.value ?? '')) return [...base, '--date', update.value]
@@ -317,13 +374,13 @@ async function getProjectBoard(run, workspacePath, repository, projectNumber) {
   const project = projects.find((candidate) => candidate.number === number)
   if (!project) throw new Error('Questo Project non è collegato al repository del workspace.')
   const [fieldsOutput, countOutput] = await Promise.all([
-    run('gh', ['project', 'field-list', String(number), '--owner', repository.owner, '--limit', String(MAX_PROJECT_FIELDS + 1), '--format', 'json', '--jq', PROJECT_FIELD_LIST_JQ], workspacePath),
+    run('gh', ['api', 'graphql', '-f', `query=${PROJECT_FIELDS_QUERY}`, '-F', `projectId=${project.id}`], workspacePath),
     run('gh', ['api', 'graphql', '-f', `query=${PROJECT_ITEM_COUNT_QUERY}`, '-F', `projectId=${project.id}`], workspacePath),
   ])
-  const allFields = parseProjectList(fieldsOutput, 'fields')
-  const fieldPage = limitProjectFields(allFields)
+  const sourceFieldPage = parseProjectFields(fieldsOutput, project.id)
+  const fieldPage = limitProjectFields(sourceFieldPage.fields)
   const fields = fieldPage.fields
-  const fieldsHasMore = fieldPage.hasMore
+  const fieldsHasMore = sourceFieldPage.hasMore || fieldPage.hasMore
   const fieldOptionsTruncated = fields.some((field) => field?.optionsHasMore === true)
   const itemCount = parseProjectItemCount(countOutput, project.id)
   const requestedItems = Math.max(1, Math.min(itemCount, MAX_PROJECT_ITEMS + 1))
@@ -422,4 +479,4 @@ async function closeLinkedProject(run, workspacePath, repository, projectNumber,
   return listLinkedProjects(run, workspacePath, repository)
 }
 
-module.exports = { MAX_PROJECT_ITEMS, PROJECT_FIELD_LIST_JQ, addIssueToProject, applyIssueParents, archiveProjectItem, assertNodeId, assertProjectDetails, assertProjectNumber, buildItemEditArgs, buildIssueParentsQuery, buildProjectItemListJq, closeLinkedProject, createLinkedProject, createProjectDraft, editLinkedProject, getProjectBoard, getProjectItemFields, limitProjectFields, limitProjectItems, listLinkedProjects, listLinkedProjectsPage, parseIssueParents, parseLinkedProjects, parseLinkedProjectsPage, parseProjectBoardItems, parseProjectBoardList, parseProjectItemCount, parseProjectItemFieldValues, updateProjectItem }
+module.exports = { MAX_PROJECT_FIELDS, MAX_PROJECT_ITEMS, PROJECT_FIELDS_QUERY, addIssueToProject, applyIssueParents, archiveProjectItem, assertNodeId, assertProjectDetails, assertProjectNumber, buildItemEditArgs, buildIssueParentsQuery, buildProjectItemListJq, closeLinkedProject, createLinkedProject, createProjectDraft, editLinkedProject, getProjectBoard, getProjectItemFields, limitProjectFields, limitProjectItems, listLinkedProjects, listLinkedProjectsPage, parseIssueParents, parseLinkedProjects, parseLinkedProjectsPage, parseProjectBoardItems, parseProjectBoardList, parseProjectFields, parseProjectItemCount, parseProjectItemFieldValues, updateProjectItem }

@@ -257,8 +257,8 @@ test("GitHub usa layout operativi continui e stati semantici", () => {
   assert.match(githubIssueDetail, /modalContent:\s*css\(/);
   assert.match(githubProjectBoard, /export const githubProjectBoardStyles/);
   assert.match(githubProjectBoard, /projectListPanel:\s*css\(/);
-  assert.match(githubProjectBoard, /projectTableRow:\s*cva\(/);
-  assert.doesNotMatch(githubEntry, /^  (?:issueListPanel|modalContent|projectListPanel|projectTableRow):\s*(?:css|cva)\(/m);
+  assert.match(githubProjectBoard, /projectCard:\s*css\(/);
+  assert.doesNotMatch(githubEntry, /^  (?:issueListPanel|modalContent|projectListPanel|projectCard):\s*(?:css|cva)\(/m);
   assert.doesNotMatch(
     github,
     /linear-gradient|radial-gradient|#[0-9a-f]{3,8}\b|!important|data-theme/i,

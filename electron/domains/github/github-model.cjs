@@ -65,9 +65,16 @@ function parseGraphPage(output, { limit = MAX_GIT_GRAPH_COMMITS, sourceTruncated
   const lastDelimiter = output.lastIndexOf('\n')
   const completeOutput = sourceTruncated && !output.endsWith('\n') ? output.slice(0, lastDelimiter + 1) : output
   const graph = completeOutput.split('\n').filter(Boolean).map((row) => {
-    const [sha, parents = '', refs = '', ...subjectParts] = row.split('|')
-    const subject = subjectParts.join('|')
-    return { sha, parents: parents ? parents.split(' ') : [], refs: refs ? refs.split(', ').filter(Boolean) : [], subject }
+    const [sha, parents = '', refs = '', author = '', date = '', ...subjectParts] = row.split('\x1f')
+    const subject = subjectParts.join('\x1f')
+    return {
+      sha,
+      parents: parents ? parents.split(' ') : [],
+      refs: refs ? refs.split(', ').filter(Boolean) : [],
+      subject,
+      ...(author ? { author } : {}),
+      ...(date ? { date } : {}),
+    }
   })
   const hasMore = sourceTruncated || graph.length > limit
   return { graph: graph.slice(0, limit), hasMore, truncated: hasMore }

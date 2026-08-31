@@ -108,7 +108,7 @@ function createGitLocalUseCases({ cache, runner }) {
   async function getGitGraphPage(workspacePath, { signal } = {}) {
     if (!await isGitRepository(workspacePath, { signal })) return { graph: [], hasMore: false, truncated: false }
     try {
-      const result = await runStreaming('git', ['log', '--all', `-${MAX_GIT_GRAPH_COMMITS + 1}`, '--format=%H|%P|%D|%s'], workspacePath, {
+      const result = await runStreaming('git', ['log', `-${MAX_GIT_GRAPH_COMMITS + 1}`, '--format=%H%x1f%P%x1f%D%x1f%an%x1f%aI%x1f%s'], workspacePath, {
         delimiterByte: 10,
         maxBytes: MAX_GRAPH_OUTPUT_BYTES,
         maxRecords: MAX_GIT_GRAPH_COMMITS + 1,

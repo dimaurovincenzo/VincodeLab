@@ -6,6 +6,7 @@ import { formatCacheState } from '../model/github-display'
 import { issueStateCounts, visibleGitHubIssues } from '../model/github-issues'
 import {
   groupProjectItems,
+  matchesGitHubProjectSearch,
   matchesProjectItemSearch,
   projectBoardLimitMessages,
   projectFieldDataType,
@@ -52,12 +53,13 @@ export function useGitHubWorkspaceController({
     workbenchRequest,
   })
 
+  const visibleProjects = useMemo(() => (state.data?.projects ?? []).filter((project) => matchesGitHubProjectSearch(project, state.projectSearch)), [state.data?.projects, state.projectSearch])
   const projectCollection = useMemo(() => createListCollection({
-    items: state.data?.projects ?? [],
+    items: visibleProjects,
     isItemDisabled: () => state.busy,
     itemToString: (project) => project.title,
     itemToValue: (project) => String(project.number),
-  }), [state.busy, state.data?.projects])
+  }), [state.busy, visibleProjects])
 
   const boardStatusField = state.board?.fields.find((field) => ['status', 'stato'].includes(projectFieldName(field)))
   const boardPriorityField = state.board?.fields.find((field) => ['priorità', 'priority'].includes(projectFieldName(field)))
@@ -67,7 +69,7 @@ export function useGitHubWorkspaceController({
   const selectedBoardItem = state.board?.items.find((item) => item.id === state.selectedBoardItemId) ?? null
   const issueDetail = selectedBoardItem?.content?.number ? state.data?.issues.find((issue) => issue.number === selectedBoardItem.content?.number) ?? null : null
   const selectedProjectDetails = state.data?.projects.find((project) => project.number === state.selectedProject) ?? null
-  const editableBoardFields = state.board?.fields.filter((field) => ['text', 'number', 'date'].includes(projectFieldDataType(field))) ?? []
+  const editableBoardFields = state.board?.fields.filter((field) => field.id !== boardStatusField?.id && ['text', 'number', 'date', 'single_select', 'iteration'].includes(projectFieldDataType(field))) ?? []
   const boardItems = state.board?.items.filter((item) => {
     return matchesProjectItemSearch(item, state.boardSearch)
       && (!state.boardStatusFilter || item.status === state.boardStatusFilter)
@@ -137,6 +139,10 @@ export function useGitHubWorkspaceController({
     errors.clearSurfaceError('project-fields')
     await projectActions.loadProjectItemFields(selectedBoardItem, state.board.project.number)
   }
+  const retryProjectItemCreate = async () => {
+    errors.clearSurfaceError('project-item-create')
+    await retrySelectedBoard()
+  }
 
   return {
     actions: { ...gitActions, ...issueActions, ...projectActions },
@@ -172,6 +178,7 @@ export function useGitHubWorkspaceController({
       stageable,
       staged,
       unstaged,
+      visibleProjects,
       visibleIssues,
     },
     errors,
@@ -181,6 +188,7 @@ export function useGitHubWorkspaceController({
       refreshGitAfterFailure,
       refreshGitHubAfterFailure,
       retryFailedDiff,
+      retryProjectItemCreate,
       retrySelectedBoard,
       retrySelectedProjectFields,
     },

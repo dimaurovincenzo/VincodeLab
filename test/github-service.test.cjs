@@ -257,7 +257,7 @@ test('tronca esplicitamente uno stato Git sintetico oltre il budget di file', ()
 })
 
 test('tronca esplicitamente un grafo sintetico oltre il budget di commit', () => {
-  const output = Array.from({ length: MAX_GIT_GRAPH_COMMITS + 1 }, (_, index) => `${index}|${index + 1}|main|Commit ${index}`).join('\n')
+  const output = Array.from({ length: MAX_GIT_GRAPH_COMMITS + 1 }, (_, index) => `${index}\x1f${index + 1}\x1fmain\x1fMario\x1f2026-08-24T10:00:00Z\x1fCommit ${index}`).join('\n')
 
   const page = parseGraphPage(output)
 
@@ -496,6 +496,30 @@ test('reports a configured remote and local commits ready for the first push', a
   assert.equal(status.remote, 'origin')
   assert.equal(status.upstream, null)
   assert.equal(status.ahead, 1)
+  assert.equal(status.graph[0].subject, 'Commit iniziale')
+  assert.equal(status.graph[0].author, 'VincodeLab Test')
+  assert.match(status.graph[0].date, /^\d{4}-\d{2}-\d{2}T/)
+})
+
+test('il grafo include soltanto la storia raggiungibile dal branch attivo', async (t) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'vincodelab-git-active-branch-'))
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }))
+  execFileSync('git', ['init'], { cwd: workspace, stdio: 'ignore' })
+  execFileSync('git', ['config', 'user.email', 'vincodelab@example.test'], { cwd: workspace })
+  execFileSync('git', ['config', 'user.name', 'VincodeLab Test'], { cwd: workspace })
+  fs.writeFileSync(path.join(workspace, 'base.txt'), 'base\n')
+  execFileSync('git', ['add', 'base.txt'], { cwd: workspace })
+  execFileSync('git', ['commit', '-m', 'Commit del branch attivo'], { cwd: workspace, stdio: 'ignore' })
+  const activeBranch = execFileSync('git', ['branch', '--show-current'], { cwd: workspace, encoding: 'utf8' }).trim()
+
+  execFileSync('git', ['switch', '-c', 'branch-laterale'], { cwd: workspace, stdio: 'ignore' })
+  fs.writeFileSync(path.join(workspace, 'side.txt'), 'laterale\n')
+  execFileSync('git', ['add', 'side.txt'], { cwd: workspace })
+  execFileSync('git', ['commit', '-m', 'Commit solo laterale'], { cwd: workspace, stdio: 'ignore' })
+  execFileSync('git', ['switch', activeBranch], { cwd: workspace, stdio: 'ignore' })
+
+  const status = await getGitStatus(workspace)
+  assert.deepEqual(status.graph.map((commitEntry) => commitEntry.subject), ['Commit del branch attivo'])
 })
 
 test('publishes the first branch and configures its upstream', async (t) => {
@@ -543,9 +567,9 @@ test('tronca un diff molto grande con un indicatore esplicito senza superare il 
 })
 
 test('parses graph rows while retaining refs and parentage', () => {
-  assert.deepEqual(parseGraph('a1|p1 p2|HEAD -> main|Merge branch\nb2||origin/main|Initial'), [
-    { sha: 'a1', parents: ['p1', 'p2'], refs: ['HEAD -> main'], subject: 'Merge branch' },
-    { sha: 'b2', parents: [], refs: ['origin/main'], subject: 'Initial' },
+  assert.deepEqual(parseGraph('a1\x1fp1 p2\x1fHEAD -> main\x1fMario\x1f2026-08-24T10:00:00Z\x1fMerge branch\nb2\x1f\x1forigin/main\x1fAnna\x1f2026-08-23T10:00:00Z\x1fInitial'), [
+    { sha: 'a1', parents: ['p1', 'p2'], refs: ['HEAD -> main'], subject: 'Merge branch', author: 'Mario', date: '2026-08-24T10:00:00Z' },
+    { sha: 'b2', parents: [], refs: ['origin/main'], subject: 'Initial', author: 'Anna', date: '2026-08-23T10:00:00Z' },
   ])
 })
 
@@ -675,13 +699,12 @@ if [ "$1 $2" = "repo view" ]; then
   printf '%s\\n' '{"nameWithOwner":"acme/workspace","url":"https://github.com/acme/workspace","owner":{"login":"acme"}}'
 elif [ "$1 $2" = "api graphql" ]; then
   case "$*" in
+    *"fields(first: 100)"*)
+      printf '%s\\n' 'fields:graphql' >> "$VINCODELAB_TEST_LOG"
+      printf '%s\\n' '{"data":{"node":{"id":"PVT_budget","fields":{"totalCount":1,"pageInfo":{"hasNextPage":false},"nodes":[{"__typename":"ProjectV2SingleSelectField","id":"PVTF_status","name":"Status","dataType":"SINGLE_SELECT","options":[]}]}}}}' ;;
     *"projectId=PVT_budget"*) printf '%s\\n' '{"data":{"node":{"id":"PVT_budget","items":{"totalCount":1}}}}' ;;
     *) printf '%s\\n' '{"data":{"repository":{"projectsV2":{"nodes":[{"id":"PVT_budget","number":7,"title":"Budget board","shortDescription":"","closed":false,"url":"https://github.com/orgs/acme/projects/7"}]}}}}' ;;
   esac
-elif [ "$1 $2" = "project field-list" ]; then
-  if [ "$has_jq" -ne 1 ]; then printf '%s\\n' 'proiezione field-list assente' >&2; exit 88; fi
-  printf '%s\\n' 'field-list:jq' >> "$VINCODELAB_TEST_LOG"
-  printf '%s\\n' '{"fields":[{"id":"PVTF_status","name":"Status","dataType":"SINGLE_SELECT","options":[]}]}'
 elif [ "$1 $2" = "project item-list" ]; then
   if [ "$has_jq" -ne 1 ]; then printf '%s\\n' 'proiezione item-list assente' >&2; exit 89; fi
   printf '%s\\n' 'item-list:jq' >> "$VINCODELAB_TEST_LOG"
@@ -707,5 +730,5 @@ fi
 
   assert.equal(board.items[0].title, 'Bounded item')
   assert.ok(board.itemsResultBytes < 2_048)
-  assert.equal(fs.readFileSync(logPath, 'utf8'), 'field-list:jq\nitem-list:jq\n')
+  assert.equal(fs.readFileSync(logPath, 'utf8'), 'fields:graphql\nitem-list:jq\n')
 })

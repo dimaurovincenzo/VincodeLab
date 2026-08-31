@@ -1,8 +1,15 @@
-import type { GitHubProjectBoard, GitHubProjectField, GitHubProjectItem } from '@/bridge'
+import type { GitHubProject, GitHubProjectBoard, GitHubProjectField, GitHubProjectItem } from '@/bridge'
 
 export type HierarchicalGitHubProjectItem = {
   depth: number
   item: GitHubProjectItem
+}
+
+export function matchesGitHubProjectSearch(project: GitHubProject, query: string) {
+  const normalized = query.trim().toLocaleLowerCase('it-IT')
+  if (!normalized) return true
+  return [project.title, project.shortDescription, String(project.number)]
+    .some((value) => value.toLocaleLowerCase('it-IT').includes(normalized))
 }
 
 export function matchesProjectItemSearch(item: GitHubProjectItem, query: string) {
@@ -24,6 +31,13 @@ export function projectFieldDataType(field: GitHubProjectField) {
 
 export function projectFieldName(field: GitHubProjectField) {
   return typeof field.name === 'string' ? field.name.toLocaleLowerCase('it-IT') : ''
+}
+
+export function projectItemTypeLabel(item: GitHubProjectItem) {
+  if (item.type === 'PULL_REQUEST') return 'Pull request'
+  if (item.type === 'DRAFT_ISSUE') return 'Bozza'
+  if (item.type === 'ISSUE') return 'Issue'
+  return 'Attività'
 }
 
 export function projectIssueKey(item: GitHubProjectItem) {

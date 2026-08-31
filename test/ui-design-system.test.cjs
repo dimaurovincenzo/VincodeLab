@@ -514,18 +514,20 @@ test('GitHub esplicita il prerequisito per le azioni remote disabilitate', () =>
 test('GitHub distingue il branch del workspace dall’identità del repository', () => {
   const github = readGitHubSource()
 
-  assert.match(github, /<h1 className=\{gh\.pageTitle\}><GitFork size=\{18\} \/> Git del workspace<\/h1>/)
+  assert.match(github, /<h1 className=\{gh\.pageTitle\}><GitFork aria-hidden="true" size=\{18\} \/> Git del workspace<\/h1>/)
   assert.match(github, /<strong>Branch attivo<\/strong> \{status\.branch\}/)
+  assert.match(github, /aria-label="Stato del repository"/)
   assert.doesNotMatch(github, /> Repository del workspace<\/h1>/)
 })
 
-test('GitHub separa il grafo e presenta i Projects del workspace in una tabella raggruppata', () => {
+test('GitHub separa il grafo e presenta i Projects del workspace in una lista raggruppata', () => {
   const github = [
     readGitHubModule('model/github-workspace.types.ts'),
     readGitHubModule('components/github-workspace.tsx'),
     readGitHubModule('components/github-graph-panel.tsx'),
     readGitHubModule('components/github-projects-panel.tsx'),
     readGitHubModule('components/github-project-board.tsx'),
+    readGitHubModule('components/github-project-item-card.tsx'),
     readGitHubModule('components/github-project-picker.tsx'),
   ].join('\n')
 
@@ -536,12 +538,13 @@ test('GitHub separa il grafo e presenta i Projects del workspace in una tabella 
   assert.match(github, /<Tabs\.Content value="graph"/)
   assert.match(github, /<Tabs\.Content value="projects"/)
   assert.doesNotMatch(github, /id="github-tab-|role="(?:tablist|tab)"/)
-  assert.match(github, /className=\{gh\.projectTable\} role="table"/)
+  assert.match(github, /className=\{gh\.projectTable\} role="list"/)
   assert.match(github, /<Listbox\.Root[^>]*collection=\{derived\.projectCollection\}[^>]*selectionMode="single"/)
   assert.match(github, /<Listbox\.Item className=\{gh\.projectItem\}[^>]*item=\{project\}/)
   assert.doesNotMatch(github, /github-project-selected/)
   assert.match(github, /aria-label="Raggruppa per"/)
-  for (const column of ['Titolo', 'Assegnatari', 'Stato', 'Priorità']) assert.match(github, new RegExp(`>${column}<`))
+  assert.match(github, /const detailFields = fields\.filter/)
+  assert.match(github, /detailFields\.map\(\(field\) =>/)
   assert.match(github, /Solo progetti collegati a <strong>\{state\.data\.repository\.nameWithOwner\}<\/strong>/)
 })
 
@@ -552,9 +555,9 @@ test('la board Project rende le sub-issue nella gerarchia del rispettivo padre',
 
   assert.match(projectsModel, /function orderProjectItemsByHierarchy\(items: GitHubProjectItem\[\]\)/)
   assert.match(component, /orderProjectItemsByHierarchy\(items\)\.map\(\(\{ item, depth \}\)/)
-  assert.match(component, /gh\.projectTitle\(\{ subissue: depth > 0 \}\)/)
+  assert.match(component, /data-subissue=\{depth > 0 \? 'true' : undefined\}/)
   assert.match(component, /Sub-issue di #\{item\.parent\.number\}/)
-  assert.match(styles, /projectTitle:\s*cva\([\s\S]*?subissue:\s*\{\s*true:\s*\{\s*ps:\s*'10\.5'/)
+  assert.match(styles, /projectCard:\s*css\([\s\S]*?data-subissue/)
 })
 
 test('Project GitHub comunica il caricamento e cerca le attività per numero issue', () => {
@@ -581,35 +584,39 @@ test('i gruppi Project sono intestazioni comprimibili e riconoscibili', () => {
   assert.match(github, /const \[collapsedBoardGroups, setCollapsedBoardGroups\] = useState<Set<string>>\(new Set\(\)\)/)
   assert.match(github, /<Collapsible\.Root asChild key=\{group\} open=\{!collapsed\} onOpenChange=/)
   assert.match(github, /<Collapsible\.Trigger className=\{gh\.projectGroupTrigger\}>/)
-  assert.match(github, /<Collapsible\.Content role="presentation">/)
+  assert.match(github, /<Collapsible\.Content className=\{gh\.projectGroupItems\} role="list">/)
   assert.match(github, /className=\{gh\.projectGroupTrigger\}/)
   assert.doesNotMatch(github, /<Button[^>]*aria-expanded=\{!collapsedBoardGroups\.has\(group\)\}/)
-  assert.match(styles, /projectGroupHeadingCell:\s*css\(\{[^}]*borderLeftColor:\s*'accentSolid'/)
+  assert.match(github, /Raggruppato per \{derived\.activeBoardGroupField\?\.name \|\| 'gruppo'\}/)
+  assert.match(github, /items\.length === 1 \? '1 attività' : `\$\{items\.length\} attività`/)
+  assert.match(styles, /projectGroup:\s*css\(\{[^}]*bg:\s*'surfacePanel'[^}]*borderWidth:\s*'1px'/)
+  assert.match(styles, /projectGroupTrigger:\s*css\(\{[^}]*bg:\s*'surfaceRaised'/)
+  assert.match(styles, /projectGroupItems:\s*css\(\{[^}]*bg:\s*'surfaceCanvas'[^}]*borderTopWidth:\s*'1px'/)
   assert.match(styles, /projectGroupTrigger:\s*css\(\{[^}]*justifyContent:\s*'flex-start'/)
 })
 
-test('la board Project espone una tabella ARIA completa senza mascherare i controlli interattivi', () => {
+test('la board Project espone una lista ARIA con schede espandibili e controlli interattivi', () => {
   const github = readGitHubSource()
 
-  assert.match(github, /role="table" aria-colcount=/)
-  assert.match(github, /role="rowgroup"/)
-  assert.match(github, /role="columnheader"/)
-  assert.match(github, /className=\{gh\.projectTitleCell\} role="cell"><Button/)
-  assert.match(github, /className=\{cx\(gh\.projectCell, gh\.projectAssignees\)\} role="cell"/)
-  assert.doesNotMatch(github, /<Button[^>]*role="cell"/)
+  assert.match(github, /role="list" aria-label="Attività del Project"/)
+  assert.match(github, /role="listitem"/)
+  assert.match(github, /<Collapsible\.Root className=\{gh\.projectCard\}/)
+  assert.match(github, /aria-label=\{`Mostra o nascondi tutti i campi di \$\{title\}`\}/)
+  assert.match(github, /Apri e modifica dettagli/)
 })
 
-test('la tabella Project riusa i colori del design system dell’app', () => {
+test('le schede Project riusano i colori del design system dell’app', () => {
   const styles = readGitHubStylesSource()
 
-  assert.match(styles, /projectTable:\s*css\(\{[^}]*bg:\s*'surfaceRaised'/)
-  assert.match(styles, /projectTableHead:\s*css\(\{[\s\S]*?bg:\s*'surfaceSubtle'/)
-  assert.match(styles, /projectGroupHeadingCell:\s*css\(\{[^}]*bg:\s*'surfacePanel'[^}]*borderLeftColor:\s*'accentSolid'/)
-  assert.match(styles, /projectTableRow:\s*cva\([\s\S]*?_hover:\s*\{\s*bg:\s*'surfaceHover'/)
-  assert.match(styles, /projectTitleText:\s*css\(\{[^}]*color:\s*'textPrimary'/)
+  assert.match(styles, /projectCard:\s*css\(\{[^}]*bg:\s*'surfaceRaised'/)
+  assert.match(styles, /projectCardMain:\s*css\(\{[\s\S]*?gridTemplateColumns:/)
+  assert.match(styles, /projectGroupTrigger:\s*css\(\{[^}]*bg:\s*'surfaceRaised'/)
+  assert.match(styles, /projectCardMain:\s*css\(\{[\s\S]*?gridTemplateAreas:\s*'"title status toggle" "summary summary toggle"'/)
+  assert.match(styles, /projectCardDetails:\s*css\(\{[^}]*bg:\s*'surfacePanel'/)
+  assert.match(styles, /projectCardTitleText:\s*css\(\{[^}]*color:\s*'textPrimary'/)
   assert.match(styles, /projectContent:\s*css\(\{[\s\S]*?alignItems:\s*'stretch'/)
   assert.match(styles, /projectListPanel:\s*css\(\{[^}]*h:\s*'full'[^}]*overflow:\s*'hidden'/)
-  assert.match(styles, /board:\s*css\(\{[^}]*h:\s*'full'[^}]*overflow:\s*'auto'/)
+  assert.match(styles, /board:\s*css\(\{[^}]*h:\s*'full'[^}]*overflow:\s*'hidden'/)
   assert.match(styles, /boardPlaceholder:\s*css\(\{[^}]*flex:\s*'1'[^}]*h:\s*'full'/)
 })
 
@@ -644,17 +651,24 @@ test('GitHub non conserva una palette locale fuori dal design system', () => {
   assert.doesNotMatch(styles, /#[0-9a-f]{3,8}\b|rgb\(/i)
 })
 
-test('la board Project apre il dettaglio dell’attività in un modal e non mostra azioni di aggiunta', () => {
-  const github = readGitHubModule('components/github-project-item-dialog.tsx')
+test('la board Project apre il dettaglio e aggiunge issue o bozze con dialog accessibili', () => {
+  const github = [
+    readGitHubModule('components/github-project-item-composer.tsx'),
+    readGitHubModule('components/github-project-item-dialog.tsx'),
+  ].join('\n')
 
-  assert.doesNotMatch(github, /Nuova bozza/)
-  assert.doesNotMatch(github, /Aggiungi una issue del workspace/)
+  assert.match(github, /Aggiungi attività/)
+  assert.match(github, /Issue esistente/)
+  assert.match(github, /Nuova bozza/)
+  assert.match(github, /finalFocusEl=\{\(\) => trigger\.current\}/)
+  assert.match(github, /tooltip="Chiudi aggiunta attività"/)
   assert.match(github, /if \(!item\) return null[\s\S]*?return <Dialog\.Root[^\n]* open=/)
   assert.match(github, /<Dialog\.Content className=\{cx\(gh\.modalContent, gh\.itemModal\)\}>/)
   assert.match(github, /<Dialog\.Title asChild><h3 className=\{gh\.modalTitle\} id="github-item-modal-title"/)
   assert.match(github, /<Dialog\.CloseTrigger asChild><IconButton tooltip="Chiudi dettaglio attività"/)
   assert.doesNotMatch(github, /aria-modal="true"|role="dialog"/)
   assert.match(github, /derived\.issueDetail\?\.body/)
+  assert.match(github, /tone="danger"[\s\S]*?>Archivia attività/)
 })
 
 test('la lista Issue apre un dettaglio consultabile senza esporre azioni remote', () => {
@@ -665,7 +679,7 @@ test('la lista Issue apre un dettaglio consultabile senza esporre azioni remote'
   ].join('\n')
 
   assert.match(github, /const \[selectedIssue, setSelectedIssue\] = useState<GitHubIssue \| null>\(null\)/)
-  assert.match(github, /onClick=\{\(event\) => \{ issueDetailTrigger\.current = event\.currentTarget; state\.setSelectedIssue\(issue\); state\.setIssueDetailOpen\(true\) \}\}/)
+  assert.match(github, /onClick=\{\(event\) => \{[\s\S]*?issueDetailTrigger\.current = event\.currentTarget[\s\S]*?state\.setSelectedIssue\(issue\)[\s\S]*?state\.setIssueDetailOpen\(true\)[\s\S]*?\}\}/)
   assert.match(github, /\{state\.selectedIssue && <Dialog\.Root[^\n]*open=\{state\.issueDetailOpen\}[^\n]*onOpenChange=/)
   assert.match(github, /onExitComplete=\{\(\) => \{ if \(!state\.issueDetailOpen\) state\.setSelectedIssue\(null\) \}\}/)
   assert.match(github, /<Dialog\.CloseTrigger asChild><IconButton tooltip="Chiudi dettaglio issue"/)
@@ -685,11 +699,12 @@ test('il dettaglio Issue rende la descrizione come anteprima Markdown', () => {
   assert.match(styles, /export const githubMarkdownStyles/)
 })
 
-test('il selettore Project si richiude e gli assegnatari restano compatti nella tabella', () => {
+test('il selettore Project si richiude e gli assegnatari restano compatti nelle schede', () => {
   const github = [
     readGitHubModule('hooks/use-github-workspace-state.ts'),
     readGitHubModule('components/github-project-picker.tsx'),
     readGitHubModule('components/github-project-board.tsx'),
+    readGitHubModule('components/github-project-item-card.tsx'),
   ].join('\n')
   const styles = readGitHubStylesSource()
 
@@ -697,7 +712,7 @@ test('il selettore Project si richiude e gli assegnatari restano compatti nella 
   assert.match(github, /className=\{gh\.projectPickerContent\(\{ hidden: state\.projectPickerCollapsed \}\)\}/)
   assert.match(github, /className=\{gh\.projectAssignee\}/)
   assert.match(styles, /projectPickerContent:\s*cva\(\{[\s\S]*?variants:\s*\{\s*hidden:\s*\{\s*true:\s*\{\s*display:\s*'none'/)
-  assert.match(styles, /projectAssignees:\s*css\(\{[^}]*overflow:\s*'hidden'/)
+  assert.match(styles, /projectCardSummary:\s*css\(\{[^}]*overflow:\s*'hidden'/)
 })
 
 test('Project GitHub separa selezione, utilità, riepilogo, filtri e dati', () => {
@@ -710,7 +725,9 @@ test('Project GitHub separa selezione, utilità, riepilogo, filtri e dati', () =
   assert.match(styles, /projectItem:\s*css\([\s\S]*?_selected:\s*\{[^}]*bg:\s*'surfaceSelected'/)
   assert.match(board, /<header className=\{gh\.boardHeader\}>/)
   assert.match(board, /aria-label="Filtri della board"[^>]*role="group"/)
-  assert.match(styles, /projectStatusCell:\s*css\(\{[\s\S]*?bg:\s*'transparent'/)
+  assert.match(styles, /projectCardStatus:\s*css\(\{[\s\S]*?bg:\s*'accentSubtle'/)
+  assert.match(board, /Azzera filtri/)
+  assert.match(board, /aria-pressed=\{state\.boardStatusFilter === statusName\}/)
 })
 
 test('le superfici laterali condividono resize accessibile e persistente', () => {
@@ -1275,14 +1292,18 @@ test('Issue GitHub usa ricerca numerica e compositore modale', () => {
   assert.match(issuesModel, /issue\.number === Number\(numeric\)/)
   assert.match(github, /const \[issueComposerOpen, setIssueComposerOpen\] = useState\(false\)/)
   assert.match(github, /className=\{cx\(gh\.modalContent, gh\.issueModal\)\}/)
-  assert.match(github, />Nuova issue<\/Button>/)
+  assert.match(github, /<Plus aria-hidden="true" size=\{15\} \/>[\s\S]*?Nuova issue/)
   assert.match(github, /placeholder="Cerca per numero, titolo o etichetta"/)
+  assert.match(github, /function getIssueLabelTone\(label: string\): IssueLabelTone/)
+  assert.match(github, /gh\.issueLabel\(\{ tone: getIssueLabelTone\(label\.name\) \}\)/)
   assert.match(styles, /issuesContent:\s*css\(\{[^}]*gridTemplateColumns:\s*'minmax\(0, 1fr\)'/)
   assert.match(styles, /content:\s*css\(\{[\s\S]*?flex:\s*'1'[\s\S]*?overflow:\s*'auto'/)
   assert.match(styles, /issuesContent:\s*css\(\{[^}]*gridTemplateRows:\s*'minmax\(0, 1fr\)'/)
   assert.match(styles, /issueList:\s*css\(\{[^}]*display:\s*'flex'[^}]*flex:\s*'1'[^}]*flexDirection:\s*'column'[^}]*overflow:\s*'auto'/)
+  assert.match(styles, /issueSummary:\s*css\(\{[\s\S]*?gridTemplateColumns:\s*'auto auto minmax\(0, 1fr\) auto'/)
+  assert.match(styles, /issueLabel:\s*cva\(\{[\s\S]*?danger:\s*\{\s*bg:\s*'stateDangerSoft'/)
   assert.match(styles, /issueEmpty:\s*css\(\{[^}]*h:\s*'full'/)
-  assert.match(github, /<section className=\{gh\.issueListPanel\}>/)
+  assert.match(github, /<section className=\{gh\.issueListPanel\} aria-label="Issue del repository">/)
 })
 
 test('la schermata di recupero può ritentare la vista senza ricaricare l’intera app', () => {
@@ -1367,24 +1388,33 @@ test('il grafo Git mantiene continui i rami e differenzia le corsie', () => {
   const component = readGitHubSource()
   const styles = readGitHubStylesSource()
   const pathStyles = styles.slice(styles.indexOf('export const gitGraphPathStyles'), styles.indexOf('export const gitGraphNodeStyles'))
-  const nodeStyles = styles.slice(styles.indexOf('export const gitGraphNodeStyles'), styles.indexOf('export const githubMarkdownStyles'))
+  const nodeStyles = styles.slice(styles.indexOf('export const gitGraphNodeStyles'), styles.indexOf('export const gitGraphCardStyles'))
+  const cardStyles = styles.slice(styles.indexOf('export const gitGraphCardStyles'), styles.indexOf('export const githubMarkdownStyles'))
 
   assert.match(component, /function gitGraphPathClass\(lane: number\)/)
   assert.match(component, /function gitGraphNodeClass\(lane: number\)/)
+  assert.match(component, /function gitGraphCardClass\(lane: number\)/)
   assert.match(component, /const GIT_GRAPH_LANE_COUNT = 6/)
   assert.match(component, /className=\{gitGraphPathClass\(link\.from\)\}/)
   assert.match(component, /className=\{gitGraphNodeClass\(row\.lane\)\}/)
-  assert.match(component, /const GIT_GRAPH_ROW_HEIGHT = 40/)
+  assert.match(component, /gitGraphCardClass\(row\.lane\)/)
+  assert.match(component, /const GIT_GRAPH_ROW_HEIGHT = 72/)
   assert.match(component, /height=\{GIT_GRAPH_ROW_HEIGHT\}/)
-  assert.match(component, /L\$\{10 \+ link\.to \* 16\} \$\{GIT_GRAPH_ROW_HEIGHT\}/)
-  assert.match(styles, /graphRow:\s*css\(\{[^}]*h:\s*'10'/)
+  assert.match(component, /function gitGraphLinkPath\(link:/)
+  assert.match(component, /C\$\{from\} \$\{start \+ curve\}, \$\{to\} \$\{GIT_GRAPH_ROW_HEIGHT - curve\}/)
+  assert.match(component, /row\.commit\.author \|\| 'Autore non disponibile'/)
+  assert.match(component, /formatRelativeDate\(row\.commit\.date\)/)
+  assert.match(styles, /graphRow:\s*css\(\{[^}]*h:\s*'72px'/)
+  assert.match(styles, /graphCommitCard:\s*css\(\{[\s\S]*?bg:\s*'surfaceRaised'[\s\S]*?borderRadius:\s*'l2'/)
   assert.doesNotMatch(styles, /graphRow:\s*css\(\{[^}]*borderTop/)
   assert.doesNotMatch(styles, /graphList:\s*css\(\{[^}]*borderTop/)
   assert.equal((pathStyles.match(/css\(\{/g) ?? []).length, 6)
   assert.equal((nodeStyles.match(/css\(\{/g) ?? []).length, 6)
+  assert.equal((cardStyles.match(/css\(\{/g) ?? []).length, 6)
   for (const token of ['accentSolid', 'stateSuccess', 'stateWarning', 'syntaxProperty', 'syntaxType', 'stateError']) {
     assert.match(pathStyles, new RegExp(`stroke: '${token}'`))
     assert.match(nodeStyles, new RegExp(`fill: '${token}'`))
+    assert.match(cardStyles, new RegExp(`borderColor: '${token}'`))
   }
 })
 
@@ -1475,7 +1505,7 @@ test('Istruzioni progetto non consente modifiche prima della lettura iniziale e 
 test('GitHub non confonde il caricamento remoto con un workspace non configurato', () => {
   const github = readGitHubModule('components/github-feedback.tsx')
   assert.match(github, /function GitHubDataState/)
-  assert.match(github, /Caricamento dati GitHub…/)
+  assert.match(github, /<ViewLoadingState[^>]*label="dati GitHub"/)
   assert.match(github, /Riprova caricamento GitHub/)
 })
 

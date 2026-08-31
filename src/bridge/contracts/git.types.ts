@@ -18,6 +18,8 @@ export interface GitGraphCommit {
   parents: string[]
   refs: string[]
   subject: string
+  author?: string
+  date?: string
 }
 
 export interface GitBranch {

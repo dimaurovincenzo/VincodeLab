@@ -194,6 +194,58 @@ export function useGitHubProjectActions(state: GitHubWorkspaceState, errors: Git
     state.setConfirmation({ title: 'Aggiorna stato', detail: `Lo stato di “${item.content?.title ?? item.title ?? 'elemento'}” verrà aggiornato.`, confirmLabel: 'Aggiorna stato', onConfirm: () => void updateBoardStatusConfirmed(item, optionId, statusField, board.project.number) })
   }
 
+  const addIssueToBoard = async (issueUrl: string) => {
+    if (!board || !issueUrl) return false
+    beginBusy()
+    try {
+      const nextBoard = await githubBridge.addIssueToProject(board.project.number, issueUrl)
+      boardRequests.invalidate()
+      projectFieldRequests.invalidate()
+      setBoard(nextBoard)
+      clearSurfaceError('project-item-create')
+      toast.success('Issue aggiunta al Project')
+      return true
+    } catch (nextError) {
+      publishSurfaceError('project-item-create', nextError, {
+        action: 'L’aggiunta della issue al Project',
+        notFoundTitle: 'Issue o Project non disponibile',
+        operation: 'add-issue-to-github-project',
+        preserved: 'La selezione è stata mantenuta.',
+        recovery: 'Ricarica la board prima di decidere se riprovare',
+        title: 'Issue non aggiunta al Project',
+      })
+      return false
+    } finally {
+      endBusy()
+    }
+  }
+
+  const createBoardDraft = async (title: string, body: string) => {
+    if (!board || !title.trim()) return false
+    beginBusy()
+    try {
+      const nextBoard = await githubBridge.createProjectDraft(board.project.number, title, body)
+      boardRequests.invalidate()
+      projectFieldRequests.invalidate()
+      setBoard(nextBoard)
+      clearSurfaceError('project-item-create')
+      toast.success('Bozza aggiunta al Project')
+      return true
+    } catch (nextError) {
+      publishSurfaceError('project-item-create', nextError, {
+        action: 'La creazione della bozza nel Project',
+        notFoundTitle: 'Project GitHub non disponibile',
+        operation: 'create-github-project-draft',
+        preserved: 'Titolo e descrizione sono stati mantenuti.',
+        recovery: 'Ricarica la board prima di decidere se riprovare',
+        title: 'Bozza non aggiunta al Project',
+      })
+      return false
+    } finally {
+      endBusy()
+    }
+  }
+
   const updateBoardFieldConfirmed = async (item: GitHubProjectItem, field: GitHubProjectField, update: GitHubProjectItemUpdate, projectNumber: number) => {
     beginBusy()
     try {
@@ -203,7 +255,10 @@ export function useGitHubProjectActions(state: GitHubWorkspaceState, errors: Git
       setLoadingBoard(false)
       setLoadingProjectFields(false)
       setBoard(nextBoard)
-      const value = update.type === 'clear' || update.type === 'singleSelect' ? '' : String(update.value)
+      let value = ''
+      if (update.type === 'singleSelect') value = field.options?.find((option) => option.id === update.optionId)?.name ?? ''
+      else if (update.type === 'iteration') value = field.options?.find((option) => option.id === update.iterationId)?.name ?? ''
+      else if (update.type !== 'clear') value = String(update.value)
       setProjectFieldDrafts((current) => ({ ...current, [field.id]: value }))
       setProjectFieldValues((current) => ({ ...current, [field.id]: value }))
       clearSurfaceError('board')
@@ -232,6 +287,17 @@ export function useGitHubProjectActions(state: GitHubWorkspaceState, errors: Git
           : null
     if (!update || (update.type === 'number' && !Number.isFinite(update.value)) || (update.type === 'date' && !value)) return
     state.setConfirmation({ title: `Aggiorna ${field.name}`, detail: `Il campo “${field.name}” di “${item.content?.title ?? item.title ?? 'attività'}” verrà aggiornato.`, confirmLabel: 'Salva campo', onConfirm: () => void updateBoardFieldConfirmed(item, field, update, board.project.number) })
+  }
+
+  const saveBoardOption = (item: GitHubProjectItem, field: GitHubProjectField, optionId: string) => {
+    if (!board || !optionId) return
+    const dataType = projectFieldDataType(field)
+    const update = dataType === 'single_select' ? { type: 'singleSelect' as const, optionId }
+      : dataType === 'iteration' ? { type: 'iteration' as const, iterationId: optionId }
+        : null
+    if (!update) return
+    const optionName = field.options?.find((option) => option.id === optionId)?.name ?? 'il nuovo valore'
+    state.setConfirmation({ title: `Aggiorna ${field.name}`, detail: `“${field.name}” di “${item.content?.title ?? item.title ?? 'attività'}” verrà impostato su “${optionName}”.`, confirmLabel: 'Aggiorna campo', onConfirm: () => void updateBoardFieldConfirmed(item, field, update, board.project.number) })
   }
 
   const clearBoardField = (item: GitHubProjectItem, field: GitHubProjectField) => {
@@ -320,15 +386,18 @@ export function useGitHubProjectActions(state: GitHubWorkspaceState, errors: Git
   }
 
   return {
+    addIssueToBoard,
     archiveBoardItem,
     changeBoardItemDialogOpen,
     clearBoardField,
+    createBoardDraft,
     loadBoard,
     loadProjectItemFields,
     requestCreateProject,
     requestProjectClose,
     requestProjectEdit,
     saveBoardField,
+    saveBoardOption,
     selectBoardItem,
     startProjectEdit,
     updateBoardStatus,

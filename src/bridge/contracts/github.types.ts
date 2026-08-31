@@ -57,7 +57,7 @@ export interface GitHubProjectField {
   id: string
   name: string
   dataType: string
-  options?: Array<{ id: string; name: string; color?: string }>
+  options?: Array<{ id: string; name: string; color?: string; startDate?: string; duration?: number }>
   optionsHasMore?: boolean
 }
 
@@ -76,6 +76,7 @@ export interface GitHubProjectItem {
 
 export type GitHubProjectItemUpdate =
   | { type: 'singleSelect'; optionId: string }
+  | { type: 'iteration'; iterationId: string }
   | { type: 'text'; value: string }
   | { type: 'number'; value: number }
   | { type: 'date'; value: string }
